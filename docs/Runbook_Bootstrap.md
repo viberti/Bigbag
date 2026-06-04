@@ -11,12 +11,12 @@
 | Item | Valor |
 | --- | --- |
 | Projeto | `bigbag` |
-| Utilizador Linux | `bigbag` (próprio, não partilhado) |
+| Utilizador Linux | **`dev`** (partilhado neste host; já aloja o `1417`). Decisão do dono (2026-06-04): reusar o utilizador `dev` em vez de criar um dedicado. Isolamento mantém-se ao nível de **BD/user MySQL/porta/serviço systemd**. |
 | BD MySQL | `app_bigbag` |
 | User MySQL | `bigbag` — `GRANT` só em `app_bigbag.*` |
-| Porta local backend | `4200` (**confirmar livre com `ss -tln`** no passo 1; se ocupada, propor a próxima e registar) |
+| Porta local backend | `4200` (**confirmado livre** por `ss -tln` em 2026-06-04) |
 | Serviço systemd | `bigbag-backend.service` |
-| Raiz da app | `/home/bigbag/bigbag` (clone do repo) |
+| Raiz da app | **`/home/dev/bigbag`** (clone do repo; criado a 2026-06-04, dono `dev:dev`) |
 | Uploads faturas | `/var/lib/bigbag/comprovantes` |
 | Uploads notas de voz | `/var/lib/bigbag/notas_voz` (acrescento ao runbook do 1417) |
 | Auth | Google OAuth + `SUPERUSER_EMAIL` (servidor exposto à internet — Conceito §7) |
@@ -34,12 +34,14 @@ sudo mysql -e "SHOW DATABASES LIKE 'app_bigbag';"  # BD já existe?
 
 Objetivo: garantir que não colidimos com `pitacos.ai`/`1417`. Se 4200 estiver ocupada, escolher a próxima porta livre e atualizar este runbook + `.env`.
 
-## 2. Utilizador Linux e diretórios (🛑)
+## 2. Diretórios (🛑) — utilizador `dev` já existe, não se cria
+
+O projeto vive sob o utilizador partilhado `dev` (reaproveitado, como o `1417`). Não se cria utilizador novo.
 
 ```sh
-sudo adduser --system --group --home /home/bigbag bigbag
+sudo mkdir -p /home/dev/bigbag                                  # raiz da app (feito 2026-06-04)
 sudo mkdir -p /var/lib/bigbag/comprovantes /var/lib/bigbag/notas_voz
-sudo chown -R bigbag:bigbag /home/bigbag /var/lib/bigbag
+sudo chown -R dev:dev /home/dev/bigbag /var/lib/bigbag
 ```
 
 ## 3. MySQL global — BD, user e GRANT restrito (🛑, mostrar SQL antes)
@@ -59,9 +61,9 @@ As 4 tabelas (`loja`, `sku_normalizado`, `fatura`, `item`) de `docs/Schema_e_Fun
 ## 5. Backend + .env (não-🛑 na app; 🛑 só se mexer em serviço partilhado)
 
 ```sh
-# como utilizador bigbag, na raiz da app:
-git clone <repo> /home/bigbag/bigbag        # ou git pull --ff-only origin main
-cd /home/bigbag/bigbag/backend
+# como utilizador dev, na raiz da app:
+git clone <repo> /home/dev/bigbag           # ou git pull --ff-only origin main
+cd /home/dev/bigbag/backend
 npm ci --omit=dev
 cp .env.example .env && chmod 600 .env       # preencher valores reais
 node src/server.js                           # arranque manual de teste → /health
@@ -69,7 +71,7 @@ node src/server.js                           # arranque manual de teste → /hea
 
 ## 6. Serviço systemd `bigbag-backend.service` (🛑)
 
-Unit com `WorkingDirectory=/home/bigbag/bigbag/backend` (dotenv lê o `.env` de lá), `User=bigbag`, `ExecStart=/usr/bin/node src/server.js`, `Restart=on-failure`. Depois `systemctl daemon-reload && systemctl enable --now bigbag-backend`.
+Unit com `WorkingDirectory=/home/dev/bigbag/backend` (dotenv lê o `.env` de lá), `User=dev`, `ExecStart=/usr/bin/node src/server.js`, `Restart=on-failure`. Depois `systemctl daemon-reload && systemctl enable --now bigbag-backend`.
 
 ## 7. Apache — vhost proxy + estáticos (🛑)
 
