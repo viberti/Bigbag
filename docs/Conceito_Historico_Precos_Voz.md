@@ -116,14 +116,15 @@ Sem `user_id` (utilizador único). Entidades mínimas:
 
 ---
 
-## 7. Autenticação — DECISÃO EM ABERTO
+## 7. Autenticação — DECISÃO FECHADA (2026-06-04): Google OAuth + `SUPERUSER_EMAIL`
 
-O runbook traz **Google OAuth completo** (Authorization Code no backend, sessão em JWT em cookie httpOnly) e um `SUPERUSER_EMAIL` que torna superusuário quem logar com o meu email. Sendo utilizador único, há duas posturas coerentes — a escolher conforme a exposição do servidor:
+**Decisão:** o servidor **vai estar exposto à internet**. Logo, usa-se **Google OAuth completo** (Authorization Code no backend, sessão em JWT em cookie httpOnly) + `SUPERUSER_EMAIL`, exatamente como no runbook do 1417 (padrão já testado).
 
-- **Se a PWA tem de chegar de fora de casa (servidor exposto à internet):** Google OAuth + `SUPERUSER_EMAIL` é a escolha certa — protege a app pública e garante que só eu entro. É reaproveitar o padrão do 1417, já testado.
-- **Se for só rede local / VPN:** auth mínima ou nenhuma chega.
+**Porquê:** estando a PWA pública, o OAuth protege a app e o `SUPERUSER_EMAIL` garante que **só o meu email** entra. Foi a opção mais restritiva — e, com o servidor exposto, é a única coerente. A alternativa "auth mínima/nenhuma" só fazia sentido em rede local/VPN, que ficou de fora.
 
-*Por decidir: o servidor estará exposto à internet?* Essa resposta fecha esta secção. Enquanto não estiver decidido, seguir com o OAuth do runbook é o caminho seguro (mais restritivo).
+**Consequência de design (importante para os Blocos 2 e 3):** como a app fica exposta, a proteção dos endpoints **não é opcional**. São duas camadas distintas, ambas necessárias:
+- `SUPERUSER_EMAIL` controla **quem** entra (na callback do OAuth).
+- O **middleware de auth nas rotas** impede chamadas **anónimas**. Os endpoints de **upload de fatura** e de **consulta** exigem sessão autenticada — sem isso, qualquer pessoa que descubra o URL pode gastar a chave OpenRouter ou escrever na BD. Confirmar que o middleware cobre estas rotas quando forem implementadas.
 
 ---
 
@@ -160,7 +161,7 @@ Padrão do 1417, sem quebrar os projetos vizinhos (pitacos.ai, 1417):
 
 1. **Transcrição da voz:** STT separado vs. áudio-direto — decidir após experimentar (§5.2).
 2. **Leitura de fatura:** VLM direto vs. OCR+LLM — decidir após comparar (§4).
-3. **Autenticação:** depende de o servidor estar ou não exposto à internet (§7).
+3. ~~**Autenticação:** depende de o servidor estar ou não exposto à internet.~~ **FECHADA (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL` (§7).
 
 ---
 
