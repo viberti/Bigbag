@@ -24,14 +24,18 @@ App de histórico inteligente de preços de compras: lê faturas de supermercado
 
 ```
 Bigbag/
+├── README.md          # este documento — informação do repositório (visível no GitHub)
 ├── CLAUDE.md          # regras de comportamento do Claude Code (raiz, lido automaticamente)
-├── .gitignore         # exclui .env, node_modules, builds, logs
+├── .gitignore         # exclui .env, node_modules, builds, logs, uploads
+├── backend/           # API Node/Express (a crescer)
+├── frontend/          # PWA React/Vite (a crescer)
 └── docs/
     ├── Conceito_Historico_Precos_Voz.md   # conceito, arquitetura, decisões
-    └── Schema_e_Funcoes_ToolUse.md        # schema MySQL + contrato das funções de tool use
+    ├── Schema_e_Funcoes_ToolUse.md        # schema MySQL + contrato das funções de tool use
+    └── Runbook_Bootstrap.md               # versão limpa (sem segredos) dos passos de servidor
 ```
 
-Ainda por adicionar quando existir: código (`backend/`, `frontend/`), e a **versão limpa do runbook** (sem segredos) em `docs/`. O runbook com credenciais reais **nunca** entra no repositório.
+O runbook com credenciais reais **nunca** entra no repositório; só a versão limpa em `docs/Runbook_Bootstrap.md`.
 
 ---
 
@@ -77,4 +81,4 @@ Padrão herdado do projeto 1417:
 ### Decisões ainda em aberto (ver documento de conceito)
 - Transcrição: STT separado vs. áudio-direto ao LLM.
 - Leitura de fatura: VLM direto vs. OCR+LLM.
-- Autenticação: depende de o servidor ficar exposto à internet (entretanto, OAuth do runbook).
+- ~~Autenticação~~ **fechada (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL`.
