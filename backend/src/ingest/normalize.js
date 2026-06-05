@@ -8,13 +8,16 @@
 // Lidl: "Promoção", "Promoção Lidl Plus"). Somam-se ao desconto_direto e são removidas.
 const RE_DESCONTO = /^(poupan|desconto|desc\.|promo[çc])/i;
 
-// Padrão de PESO numa linha: "X,XXX kg [x] Y,YY EUR/kg" (aceita € e EUR, x opcional).
+// Padrão de PESO numa linha: "X,XXX kg [x] Y,YY EUR/kg" (aceita € e EUR, x opcional)
+// e a variante SEM unidades "1,170 X 1,29" (kg × €/kg, ambos com vírgula).
 const PESO = String.raw`\d+[.,]\d+\s*kg\s*[x×X]?\s*\d+[.,]\d+\s*(?:eur|€)\s*\/\s*kg`;
+const PESO_SEMUNID = String.raw`\d+,\d{2,3}\s*[x×X]\s*\d+,\d{1,2}`;
 // Linha ÓRFÃ: começa pelo peso, sem nome de produto antes (Mercadona imprime o
 // item a peso em duas linhas — nome numa, peso na seguinte).
 const RE_PESO_ORFAO = new RegExp(`^\\s*${PESO}`, 'i');
-// Peso COLADO ao nome (inline ou após \n): "BANANA\n1,800 kg x 1,19 EUR/kg".
-const RE_PESO_INLINE = new RegExp(`[\\s\\n]+(${PESO})\\s*$`, 'i');
+// Peso COLADO ao nome (inline ou após \n): "BANANA\n1,800 kg x 1,19 EUR/kg",
+// "BANANA 1,170 X 1,29".
+const RE_PESO_INLINE = new RegExp(`[\\s\\n]+(${PESO}|${PESO_SEMUNID})\\s*$`, 'i');
 
 export function normalizarItens(itens) {
   const out = [];

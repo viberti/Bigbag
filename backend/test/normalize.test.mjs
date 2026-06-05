@@ -45,3 +45,10 @@ test('peso colado ao nome (inline/\\n) é separado para linha_peso', () => {
   assert.equal(out[0].descricao_original, 'BANANA');
   assert.equal(out[0].linha_peso, '1,800 kg x 1,19 EUR/kg');
 });
+
+test('peso sem unidades colado ao nome ("1,170 X 1,29") é separado', () => {
+  const out = normalizarItens([{ descricao_original: 'BANANA 1,170 X 1,29', valor: 1.51 }]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].descricao_original, 'BANANA');
+  assert.equal(out[0].linha_peso, '1,170 X 1,29');
+});

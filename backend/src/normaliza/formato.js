@@ -28,6 +28,14 @@ export function extrairFormato(descricao) {
     return { unidade_base: 'kg', formato_valor: quantidadeKg, quantidadeKg, precoKg: num(m[2]) };
   }
 
+  // 1b) Peso SEM unidades explícitas (VLM às vezes omite): "1,170 X 1,29" =
+  // kg × €/kg. Exige vírgula decimal em ambos (distingue de multipacks "4X115G").
+  m = s.match(/(\d+,\d{2,3})\s*[x×X]\s*(\d+,\d{1,2})(?!\d)/);
+  if (m) {
+    const quantidadeKg = num(m[1]);
+    return { unidade_base: 'kg', formato_valor: quantidadeKg, quantidadeKg, precoKg: num(m[2]) };
+  }
+
   // 2) Multipack: "4X115G", "2 x 1L"
   m = s.match(/(\d+)\s*[x×X]\s*(\d+(?:[.,]\d+)?)\s*(kg|gr|g|ml|cl|l)\b/i);
   if (m) {
