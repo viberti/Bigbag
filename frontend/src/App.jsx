@@ -15,6 +15,23 @@ const dataCurta = (iso) => {
   const s = String(iso || '').slice(0, 10);
   return s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
 };
+const fmtQtd = (q) => (Number.isInteger(q) ? String(q) : q.toFixed(3).replace(/0+$/, '').replace('.', ','));
+
+// Agrega linhas idênticas (mesmo produto E mesmo preço) somando a quantidade —
+// não repetir o mesmo produto no cartão. Usa o nome canónico (legível).
+function agregarItens(itens) {
+  const m = new Map();
+  for (const it of itens) {
+    const nome = it.produto || it.descricao_original;
+    const preco = it.preco_unitario ?? it.preco_liquido;
+    const key = `${nome}|${preco}`;
+    const qtd = Number(it.quantidade) || 1;
+    const ex = m.get(key);
+    if (ex) ex.qtd += qtd;
+    else m.set(key, { nome, preco, qtd });
+  }
+  return [...m.values()];
+}
 
 export default function App() {
   const [sessao, setSessao] = useState(undefined);
@@ -350,7 +367,7 @@ function CartaoHabituais({ produtos }) {
 
 function CartaoCompra({ d }) {
   const [aberto, setAberto] = useState(false);
-  const itens = d.itens || [];
+  const itens = agregarItens(d.itens || []);
   const mostra = aberto ? itens : itens.slice(0, 2);
   return (
     <div className="compra">
@@ -368,8 +385,11 @@ function CartaoCompra({ d }) {
       <ul className="compra-itens">
         {mostra.map((it, i) => (
           <li key={i}>
-            <span>{it.descricao_original}</span>
-            <b>{eur(it.preco_unitario ?? it.preco_liquido)}</b>
+            <span>
+              {it.nome}
+              {it.qtd > 1 && <em className="qtd"> ×{fmtQtd(it.qtd)}</em>}
+            </span>
+            <b>{eur(it.preco)}</b>
           </li>
         ))}
       </ul>

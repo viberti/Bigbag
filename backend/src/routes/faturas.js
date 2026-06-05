@@ -124,6 +124,19 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       console.error('[faturas] canonicalização:', e.message),
     );
 
+    // Nome legível (canónico) por descrição, para o cartão mostrar o produto
+    // limpo em vez do abreviado do talão. Best-effort.
+    const canonPorDesc = {};
+    try {
+      const [rows] = await getPool().query(
+        'SELECT i.descricao_original AS d, s.nome_canonico AS n FROM item i JOIN sku_normalizado s ON s.id = i.sku_id WHERE i.fatura_id = ?',
+        [fatura_id],
+      );
+      for (const r of rows) if (r.n) canonPorDesc[r.d] = r.n;
+    } catch {
+      /* sem canónico → cai para a descrição crua no cartão */
+    }
+
     // Regista o upload na conversa, para o assistente ter contexto
     // ("a última fatura", "os valores dessa compra estão certos?").
     const dataCurta = String(dados.data_compra || '').slice(0, 10);
@@ -151,6 +164,8 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       n_itens,
       itens: dados.itens.map((it) => ({
         descricao_original: it.descricao_original,
+        produto: canonPorDesc[it.descricao_original] || it.descricao_original,
+        quantidade: Number(it.quantidade) || 1,
         preco_unitario: it.preco_unitario,
         preco_liquido: it.preco_liquido,
         preco_por_base: it.preco_por_base ?? null,
