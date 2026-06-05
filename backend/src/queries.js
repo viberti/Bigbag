@@ -115,6 +115,35 @@ export async function comparar_precos_por_loja(db, { produto }) {
   return rows;
 }
 
+// 8) Produtos que o usuário compra COM FREQUÊNCIA (em várias idas distintas) —
+//    a "lista de compras habitual". idas = nº de compras distintas; meses = nº
+//    de meses distintos. Para "o que compro habitualmente", "todo mês".
+export async function produtos_habituais(db, { min_idas, periodo_inicio, periodo_fim, loja } = {}) {
+  const inicio = periodo_inicio || '1900-01-01';
+  const fim = periodo_fim || new Date().toISOString().slice(0, 10);
+  const minIdas = Math.max(2, Number(min_idas) || 2);
+  const ml = matchLoja(loja);
+  const [rows] = await db.query(
+    `SELECT COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+            COUNT(DISTINCT f.id) AS idas,
+            COUNT(DISTINCT DATE_FORMAT(f.data_compra, '%Y-%m')) AS meses,
+            COUNT(*) AS unidades,
+            ROUND(SUM(i.preco_liquido), 2) AS total
+     ${BASE_JOINS}
+     WHERE i.is_non_product = FALSE
+       AND f.needs_review = FALSE
+       AND DATE(f.data_compra) >= ?
+       AND DATE(f.data_compra) <= ?
+       ${ml.sql}
+     GROUP BY produto
+     HAVING idas >= ?
+     ORDER BY idas DESC, meses DESC, unidades DESC
+     LIMIT 40`,
+    [inicio, fim, ...ml.params, minIdas],
+  );
+  return rows;
+}
+
 // 7) Detalhes de uma fatura específica (itens e preços impressos). Sem filtros
 //    devolve a MAIS RECENTE adicionada; ou filtra por loja/data. Para "os
 //    valores da última fatura estão certos?", "o que comprei na fatura de X".

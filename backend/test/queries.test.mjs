@@ -147,6 +147,17 @@ test('listar_compras agrupar_por=produto: agrega por produto, sem loja/data', as
   assert.ok(!('loja' in r[0]) && !('data' in r[0]));
 });
 
+test('produtos_habituais: produtos em ≥2 compras distintas (idas)', async () => {
+  const r = await executarTool(conn, 'produtos_habituais', {
+    min_idas: 2,
+    periodo_inicio: '2099-01-01',
+    periodo_fim: '2099-12-31',
+  });
+  assert.equal(r.length, 2); // Manteiga (3 idas) e Café (2 idas)
+  assert.equal(r[0].produto, MANT); // mais recorrente primeiro
+  assert.equal(Number(r[0].idas), 3);
+});
+
 test('detalhes_fatura: por data devolve a fatura e os itens (preço impresso)', async () => {
   const r = await executarTool(conn, 'detalhes_fatura', { data: '2099-05-01' });
   assert.equal(r.encontrada, true);

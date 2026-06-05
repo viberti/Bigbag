@@ -42,6 +42,27 @@ export const toolDefs = [
   {
     type: 'function',
     function: {
+      name: 'produtos_habituais',
+      description:
+        "Lista os produtos que o usuário compra COM FREQUÊNCIA/regularmente (em várias idas às compras distintas), ordenados dos mais recorrentes. Usar para 'produtos que compro habitualmente', 'minha lista de compras habitual', 'o que compro todo mês'. Retorna por produto: idas (nº de compras distintas), meses (meses distintos em que comprou), unidades e total.",
+      parameters: {
+        type: 'object',
+        properties: {
+          min_idas: {
+            type: 'integer',
+            description: "Mínimo de compras distintas para ser 'habitual' (default 2). Para 'todo mês', repare também no campo 'meses'.",
+          },
+          periodo_inicio: { type: 'string', description: "Opcional, ISO 'YYYY-MM-DD'. Se omitido, todo o histórico." },
+          periodo_fim: { type: 'string', description: "Opcional, ISO 'YYYY-MM-DD'." },
+          loja: { type: 'string', description: 'Opcional: cadeia/loja.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'detalhes_fatura',
       description:
         "Mostra os itens e preços de UMA fatura/compra específica. Sem parâmetros = a MAIS RECENTE adicionada (para 'a última fatura', 'a que acabei de enviar', 'os valores dessa compra estão certos?'). Ou filtra por loja e/ou data (ex.: 'a fatura do Continente de 4 de maio').",
@@ -175,6 +196,7 @@ const dispatch = {
   listar_compras: queries.listar_compras,
   produto_mais_barato: queries.produto_mais_barato,
   detalhes_fatura: queries.detalhes_fatura,
+  produtos_habituais: queries.produtos_habituais,
 };
 
 // Executa uma tool call do LLM. `args` é o objeto de argumentos já parseado.
