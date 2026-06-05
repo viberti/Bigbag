@@ -51,6 +51,9 @@ CREATE TABLE fatura (
   data_compra         DATETIME NOT NULL,
   total_impresso      DECIMAL(10,2) NOT NULL,    -- o que vinha escrito na fatura
   total_reconciliado  DECIMAL(10,2),             -- soma dos itens após regras; deve ≈ total_impresso
+  discrepancia        DECIMAL(10,2),             -- Σbase − desconto − total; 0 = extração bate (migração 003)
+  needs_review        BOOLEAN DEFAULT FALSE,     -- TRUE se não bate; EXCLUÍDA das análises de preço (migração 003)
+  extracao_json       JSON,                      -- snapshot do que o VLM extraiu, p/ debug (migração 003)
   desconto_global     DECIMAL(10,2) DEFAULT 0,   -- ex. Cartão Continente, antes de distribuir
   ficheiro_original   VARCHAR(255),              -- caminho em /var/lib/<PROJ>/comprovantes
   metodo_extracao     ENUM('vlm','ocr_llm') ,    -- qual abordagem gerou estes dados (para a comparação)

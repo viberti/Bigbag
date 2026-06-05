@@ -43,7 +43,7 @@ export async function buscar_ultima_compra(db, { produto }) {
         DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
         i.is_clearance
      ${BASE_JOINS}
-     WHERE ${m.sql} AND i.is_non_product = FALSE
+     WHERE ${m.sql} AND i.is_non_product = FALSE AND f.needs_review = FALSE
      ORDER BY f.data_compra DESC, i.id DESC
      LIMIT 1`,
     m.params,
@@ -66,6 +66,7 @@ export async function comparar_precos_por_loja(db, { produto }) {
           AND i.is_clearance = FALSE
           AND i.is_non_product = FALSE
           AND i.preco_por_base IS NOT NULL
+          AND f.needs_review = FALSE
      ) t
      WHERE rn = 1
      ORDER BY preco_por_base ASC`,
@@ -93,6 +94,7 @@ export async function historico_preco(db, { produto, desde }) {
      WHERE ${m.sql}
        AND i.is_clearance = FALSE
        AND i.is_non_product = FALSE
+       AND f.needs_review = FALSE
        ${filtroData}
      ORDER BY f.data_compra ASC`,
     params,
@@ -120,6 +122,7 @@ export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim }) {
         COUNT(*) AS n_itens
      ${BASE_JOINS}
      WHERE i.is_non_product = FALSE
+       AND f.needs_review = FALSE
        AND DATE(f.data_compra) >= ?
        AND DATE(f.data_compra) <= ?
        ${filtroAlvo}`,

@@ -12,6 +12,7 @@ import { getPool } from '../db.js';
 import { extrairFatura } from '../ingest/extract.js';
 import { distribuirDesconto } from '../ingest/reconcile.js';
 import { persistirFatura } from '../ingest/persist.js';
+import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -26,12 +27,32 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     // 1) extração VLM
     const dados = await extrairFatura({ imageBase64, mime });
 
+    // snapshot do que o VLM extraiu (antes da reconciliação), para debug
+    const extracaoJson = {
+      loja: dados.loja,
+      data_compra: dados.data_compra,
+      subtotal: dados.subtotal,
+      desconto_global: dados.desconto_global,
+      total_impresso: dados.total_impresso,
+      itens: dados.itens,
+    };
+
     // 2) reconciliação determinística (distribui desconto global)
     const rec = distribuirDesconto(dados.itens, {
       descontoGlobal: Number(dados.desconto_global) || 0,
       totalImpresso: dados.total_impresso,
     });
     dados.itens = rec.itens;
+
+    // 2b) Camada 1 da normalização: formato → preco_por_base (€/kg, €/L, €/un)
+    for (const it of dados.itens) {
+      if (it.is_non_product) {
+        it.preco_por_base = null;
+        continue;
+      }
+      const f = extrairFormato(it.descricao_original);
+      it.preco_por_base = precoPorBase({ preco_liquido: it.preco_liquido, quantidade: it.quantidade }, f);
+    }
 
     // 3) gravar a imagem original
     await mkdir(config.uploads.faturas, { recursive: true });
@@ -44,6 +65,9 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       ficheiroOriginal: ficheiro,
       metodo: 'vlm',
       totalReconciliado: rec.totalReconciliado,
+      discrepancia: rec.discrepancia,
+      needsReview: !rec.extracaoBate,
+      extracaoJson,
     });
 
     // 5) resumo para o utilizador (inclui sinal de qualidade da extração)
@@ -57,12 +81,15 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       total_reconciliado: Math.round(rec.totalReconciliado * 100) / 100,
       desconto_global: Number(dados.desconto_global) || 0,
       extracao_bate: rec.extracaoBate,
+      needs_review: !rec.extracaoBate,
       discrepancia: rec.discrepancia,
+      convencao: rec.convencao,
       n_itens,
       itens: dados.itens.map((it) => ({
         descricao_original: it.descricao_original,
         preco_unitario: it.preco_unitario,
         preco_liquido: it.preco_liquido,
+        preco_por_base: it.preco_por_base ?? null,
         desconto_direto: Number(it.desconto_direto) || 0,
         is_clearance: !!it.is_clearance,
         is_non_product: !!it.is_non_product,

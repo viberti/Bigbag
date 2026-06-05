@@ -16,8 +16,10 @@ Fora desta lista, age sem perguntar.
 
 ## Isolamento (regra dura — herdada do runbook)
 - Nunca tocar em MySQL/Apache/serviços dos outros projetos sem avisar.
-- BD `app_<PROJ>`, user MySQL próprio, porta local própria (`4200` — confirmar livre com `ss -tln`).
+- BD `app_bigbag`, user MySQL `bigbag` (GRANT só em `app_bigbag.*`), porta local **`4200`** (confirmada livre). Serviço `bigbag-backend.service`.
+- Projeto corre sob o **user Linux partilhado `dev`** em `/home/dev/bigbag` (decisão do dono — reusa o `dev`, que já aloja o 1417; não há user dedicado). Domínio `bigbag.hal9klabs.com`.
 - `.env` com `chmod 600`, **nunca versionado**. `.env` no `.gitignore` desde o primeiro commit. Segredos só em variáveis de ambiente, nunca hardcoded no código nem em ficheiros que vão a commit.
+- Setup de servidor reutilizável (com segredos) vive **fora do repo**, no PC: `C:\ProjetosAI\Setup_Ambiente_Novo_Projeto_PRIVADO.md` (nunca comitar).
 
 ## Testar antes de dar por feito (obrigatório)
 Uma tarefa só está concluída depois de verificada a funcionar — não basta compilar:
@@ -37,10 +39,17 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor. Atualizar se o processo de deploy/infra mudar.
 - Quando fechares uma "decisão em aberto" (transcrição, leitura de fatura, autenticação), regista a escolha e o porquê no documento de conceito.
 
+## Estado atual (atualizar periodicamente — 2026-06-05)
+- **Infra:** FECHADA. `https://bigbag.hal9klabs.com` público (Apache vhost + Let's Encrypt + redirect), `bigbag-backend.service` (systemd, enabled, auto-restart), BD `app_bigbag` + 4 tabelas + `loja.tipo` (migração 002).
+- **Ingestão (Bloco 2):** a funcionar (VLM direto). Endpoint `POST /api/faturas` (atrás de auth) → extração → reconciliação (sinal honesto `discrepancia`) → BD. Lojas classificadas por `tipo` (supermercado/farmacia/outro).
+- **Consulta (Bloco 3):** 4 funções + tool use implementadas e testadas (texto). Rota HTTP de consulta ainda por expor.
+- **Auth:** OAuth configurado no `.env` mas a aguardar passo na Google Console (redirect URI). Entretanto, **portão temporário** `ENABLE_TEST_AUTH` (HTTP Basic, users `gustavo`/`sue`) protege as rotas expostas. Trocar pelo OAuth quando pronto.
+- **Sudo temporário** `90-bigbag-nopasswd` ainda ativo (instalação não terminou).
+
 ## Decisões ainda em aberto (não inventar — usar a opção segura e assinalar)
 1. **Transcrição de voz:** STT separado vs. áudio-direto ao LLM. Ambas via OpenRouter. Implementar de forma trocável; experimentar antes de fixar.
-2. **Leitura de fatura:** VLM direto vs. OCR+LLM. Registar em `fatura.metodo_extracao` qual gerou cada registo, para comparar.
-3. **Autenticação:** depende de o servidor estar exposto à internet. Enquanto indefinido, usar o Google OAuth do runbook (opção mais restritiva e segura).
+2. **Leitura de fatura:** VLM direto vs. OCR+LLM. VLM direto já em uso; OCR+LLM por implementar para comparar. `fatura.metodo_extracao` regista qual gerou cada registo.
+3. ~~**Autenticação**~~ **FECHADA (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL`. As rotas exigem sessão (portão temporário até o OAuth ficar ativo).
 
 ## Notas técnicas
 - IA toda via **OpenRouter** (compatível OpenAI), uma só chave (`OPENROUTER_API_KEY`), cobre texto/imagem/áudio. Áudio vai em base64 (URLs não suportados para áudio).

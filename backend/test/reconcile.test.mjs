@@ -40,6 +40,23 @@ test('todos os líquidos têm 2 casas decimais (cêntimos inteiros)', () => {
   }
 });
 
+test('LIDL: valor bruto + desconto de linha (convenção B), total 64,70', () => {
+  // (valor bruto, desconto_direto) reais da fatura Lidl Braga 2026-05-28
+  const lidl = [
+    [3.13, 0.2], [3.25, 0.2], [2.87, 0.18], [0.79, 0], [1.99, 0], [0.99, 0], [1.19, 0],
+    [6.29, 1.3], [2.19, 0], [1.29, 0], [0.95, 0], [4.79, 0], [5.79, 0], [4.99, 1.0],
+    [1.49, 0], [1.89, 0], [2.45, 0], [2.39, 0], [3.85, 0], [5.39, 0], [5.99, 1.0],
+    [2.79, 0.3], [2.14, 0],
+  ].map(([valor, desconto_direto]) => ({ valor, desconto_direto }));
+  const r = distribuirDesconto(lidl, { descontoGlobal: 0, totalImpresso: 64.7 });
+  assert.equal(r.convencao, 'B'); // valor é bruto, desconto real
+  assert.equal(r.discrepancia, 0);
+  assert.equal(r.extracaoBate, true);
+  assert.equal(Math.round(r.totalReconciliado * 100), 6470);
+  assert.equal(r.itens[0].preco_unitario, 3.13); // bruto preservado
+  assert.equal(r.itens[0].preco_liquido, 2.93); // 3,13 − 0,20
+});
+
 test('sem desconto global, líquido = impresso', () => {
   const r = distribuirDesconto([{ valor: 2.5 }, { valor: 1.5 }], { descontoGlobal: 0, totalImpresso: 4.0 });
   assert.equal(r.itens[0].preco_liquido, 2.5);

@@ -27,7 +27,11 @@ async function upsertLoja(conn, loja) {
 }
 
 // `dados` já vem reconciliado: itens com preco_unitario e preco_liquido.
-export async function persistirFatura(pool, dados, { ficheiroOriginal = null, metodo = 'vlm', totalReconciliado } = {}) {
+export async function persistirFatura(
+  pool,
+  dados,
+  { ficheiroOriginal = null, metodo = 'vlm', totalReconciliado, discrepancia = null, needsReview = false, extracaoJson = null } = {},
+) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -35,16 +39,20 @@ export async function persistirFatura(pool, dados, { ficheiroOriginal = null, me
 
     const [rf] = await conn.query(
       `INSERT INTO fatura
-         (loja_id, data_compra, total_impresso, total_reconciliado, desconto_global, ficheiro_original, metodo_extracao)
-       VALUES (?,?,?,?,?,?,?)`,
+         (loja_id, data_compra, total_impresso, total_reconciliado, discrepancia, needs_review,
+          desconto_global, ficheiro_original, metodo_extracao, extracao_json)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [
         lojaId,
         toMysqlDate(dados.data_compra),
         num(dados.total_impresso),
         totalReconciliado != null ? num(totalReconciliado) : null,
+        discrepancia != null ? num(discrepancia) : null,
+        needsReview ? 1 : 0,
         num(dados.desconto_global) || 0,
         ficheiroOriginal,
         metodo,
+        extracaoJson != null ? JSON.stringify(extracaoJson) : null,
       ],
     );
     const faturaId = rf.insertId;
@@ -54,12 +62,14 @@ export async function persistirFatura(pool, dados, { ficheiroOriginal = null, me
         `INSERT INTO item
            (fatura_id, sku_id, descricao_original, quantidade, preco_unitario, preco_liquido,
             preco_por_base, is_clearance, desconto_direto, is_non_product)
-         VALUES (?, NULL, ?, 1, ?, ?, NULL, ?, ?, ?)`,
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           faturaId,
           String(it.descricao_original || '').slice(0, 200),
+          num(it.quantidade) || 1,
           num(it.preco_unitario),
           num(it.preco_liquido),
+          it.preco_por_base != null ? num(it.preco_por_base) : null,
           it.is_clearance ? 1 : 0,
           num(it.desconto_direto) || 0,
           it.is_non_product ? 1 : 0,
