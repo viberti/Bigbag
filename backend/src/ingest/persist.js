@@ -62,12 +62,14 @@ export async function persistirFatura(
         `INSERT INTO item
            (fatura_id, sku_id, descricao_original, quantidade, preco_unitario, preco_liquido,
             preco_por_base, is_clearance, desconto_direto, is_non_product)
-         VALUES (?, NULL, ?, 1, ?, ?, NULL, ?, ?, ?)`,
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           faturaId,
           String(it.descricao_original || '').slice(0, 200),
+          num(it.quantidade) || 1,
           num(it.preco_unitario),
           num(it.preco_liquido),
+          it.preco_por_base != null ? num(it.preco_por_base) : null,
           it.is_clearance ? 1 : 0,
           num(it.desconto_direto) || 0,
           it.is_non_product ? 1 : 0,

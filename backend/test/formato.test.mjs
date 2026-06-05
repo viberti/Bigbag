@@ -1,0 +1,59 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { extrairFormato, precoPorBase } from '../src/normaliza/formato.js';
+import { expandirAbreviaturas, separarCadeia } from '../src/normaliza/abreviaturas.js';
+
+test('formato simples em gramas → kg', () => {
+  const f = extrairFormato('BOL DIGESTIVE AVEIA CNT 425GR');
+  assert.equal(f.unidade_base, 'kg');
+  assert.equal(f.formato_valor, 0.425);
+  assert.equal(precoPorBase({ preco_liquido: 1.39 }, f), 3.2706); // 1,39 / 0,425
+});
+
+test('manteiga 250g → €/kg', () => {
+  const f = extrairFormato('MANTEIGA C/ SAL CONTINENTE 250G');
+  assert.equal(f.formato_valor, 0.25);
+  assert.equal(precoPorBase({ preco_liquido: 1.99 }, f), 7.96);
+});
+
+test('multipack 4X115G → 0,46 kg', () => {
+  const f = extrairFormato('IOG MYTHOS CNT COCO 4X115G');
+  assert.equal(f.unidade_base, 'kg');
+  assert.equal(f.formato_valor, 0.46);
+});
+
+test('item a peso com €/kg impresso usa o valor da fatura', () => {
+  const f = extrairFormato('LOMBINHOS DE FRANGO 0,540 kg x 6,19 EUR/kg');
+  assert.equal(f.unidade_base, 'kg');
+  assert.equal(f.quantidadeKg, 0.54);
+  assert.equal(precoPorBase({ preco_liquido: 3.34, quantidade: 1 }, f), 6.19);
+});
+
+test('unidades: 16UN → €/unidade individual', () => {
+  const f = extrairFormato('CREPES CONTINENTE SIMPLES 16UN');
+  assert.equal(f.unidade_base, 'un');
+  assert.equal(f.formato_valor, 16);
+  assert.equal(precoPorBase({ preco_liquido: 3.99 }, f), 0.2494); // 3,99/16
+});
+
+test('sem formato → unidade, €/un = líquido', () => {
+  const f = extrairFormato('NATAS PARA CULINARIA');
+  assert.equal(f.unidade_base, 'un');
+  assert.equal(precoPorBase({ preco_liquido: 0.79 }, f), 0.79);
+});
+
+test('volume em litros', () => {
+  const f = extrairFormato('AZEITE VR SELECÇÃO PT 0,75L');
+  assert.equal(f.unidade_base, 'L');
+  assert.equal(f.formato_valor, 0.75);
+  assert.equal(precoPorBase({ preco_liquido: 5.39 }, f), 7.1867);
+});
+
+test('expandir abreviaturas e separar cadeia', () => {
+  assert.equal(expandirAbreviaturas('BOL DIGESTIVE AVEIA'), 'Bolacha DIGESTIVE AVEIA');
+  assert.equal(expandirAbreviaturas('QJ MOZZARELLA'), 'Queijo MOZZARELLA');
+  assert.equal(expandirAbreviaturas('MANTEIGA C/ SAL'), 'MANTEIGA com SAL');
+  const sep = separarCadeia('MANTEIGA C/ SAL CONTINENTE 250G');
+  assert.equal(sep.cadeiaToken, 'CONTINENTE');
+  assert.ok(!/CONTINENTE/.test(sep.semCadeia));
+});

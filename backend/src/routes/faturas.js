@@ -12,6 +12,7 @@ import { getPool } from '../db.js';
 import { extrairFatura } from '../ingest/extract.js';
 import { distribuirDesconto } from '../ingest/reconcile.js';
 import { persistirFatura } from '../ingest/persist.js';
+import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -42,6 +43,16 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       totalImpresso: dados.total_impresso,
     });
     dados.itens = rec.itens;
+
+    // 2b) Camada 1 da normalização: formato → preco_por_base (€/kg, €/L, €/un)
+    for (const it of dados.itens) {
+      if (it.is_non_product) {
+        it.preco_por_base = null;
+        continue;
+      }
+      const f = extrairFormato(it.descricao_original);
+      it.preco_por_base = precoPorBase({ preco_liquido: it.preco_liquido, quantidade: it.quantidade }, f);
+    }
 
     // 3) gravar a imagem original
     await mkdir(config.uploads.faturas, { recursive: true });
@@ -78,6 +89,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
         descricao_original: it.descricao_original,
         preco_unitario: it.preco_unitario,
         preco_liquido: it.preco_liquido,
+        preco_por_base: it.preco_por_base ?? null,
         desconto_direto: Number(it.desconto_direto) || 0,
         is_clearance: !!it.is_clearance,
         is_non_product: !!it.is_non_product,
