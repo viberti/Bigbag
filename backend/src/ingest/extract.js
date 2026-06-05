@@ -51,16 +51,22 @@ function parseJsonLoose(txt) {
 }
 
 export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
-  const bruto = await visionPrompt({
-    prompt: PROMPT,
-    imageBase64,
-    mime,
-    model: model || config.openrouter.modelExtracao, // imagem → modelo forte
-    timeoutMs,
-    responseFormat: { type: 'json_object' },
-    contexto: 'extracao_imagem',
-  });
-  const dados = parseJsonLoose(bruto);
+  const pedir = () =>
+    visionPrompt({
+      prompt: PROMPT,
+      imageBase64,
+      mime,
+      model: model || config.openrouter.modelExtracao, // imagem → modelo forte
+      timeoutMs,
+      responseFormat: { type: 'json_object' },
+      contexto: 'extracao_imagem',
+    });
+  let dados;
+  try {
+    dados = parseJsonLoose(await pedir());
+  } catch {
+    dados = parseJsonLoose(await pedir()); // nova tentativa em caso de JSON malformado
+  }
   if (!dados || !Array.isArray(dados.itens)) {
     throw new Error('Extração VLM não devolveu itens válidos');
   }
