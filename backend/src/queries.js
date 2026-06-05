@@ -19,13 +19,52 @@ const BASE_JOINS = `
   LEFT JOIN sku_normalizado s ON s.id = i.sku_id
 `;
 
-// Fragmento WHERE + params para casar um produto em linguagem natural.
+const normaliza = (s) =>
+  String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim();
+
+// Termos amplos → conjunto de palavras a casar (em nome/categoria/descrição).
+// As categorias reais são livres e dispersas (ex. álcool em "Bebidas Alcoólicas"
+// E "Garrafeira"), por isso expandimos para apanhar todas. Extensível.
+const SINONIMOS = {
+  'bebida alcoolica': ['alcoolic', 'garrafeira', 'vinho', 'cerveja', 'whisky', 'gin', 'vodka', 'licor', 'espumante', 'aguardente', 'porto', 'sidra', 'martini', 'sangria'],
+  alcool: ['alcoolic', 'garrafeira', 'vinho', 'cerveja', 'whisky', 'gin', 'vodka', 'licor', 'espumante', 'aguardente', 'porto', 'sidra'],
+  limpeza: ['limpeza', 'detergente', 'lixivia', 'sabao', 'amaciador'],
+  higiene: ['higiene', 'champo', 'gel de banho', 'sabonete', 'pasta de dentes', 'escova', 'cosmetic'],
+  laticinios: ['laticinio', 'leite', 'iogurte', 'queijo', 'manteiga', 'natas', 'requeijao'],
+};
+
+export function expandirAlvo(alvo) {
+  const a = normaliza(alvo);
+  for (const [chave, termos] of Object.entries(SINONIMOS)) {
+    if (a === chave || a.includes(chave) || chave.includes(a)) return termos;
+  }
+  return [String(alvo).trim()];
+}
+
+// Fragmento WHERE + params para casar um produto/categoria em linguagem natural.
+// Procura em nome_canonico, marca, categoria e descricao_original, com expansão
+// de sinónimos para termos amplos.
 function matchProduto(produto) {
-  const like = `%${String(produto).trim()}%`;
-  return {
-    sql: '(s.nome_canonico LIKE ? OR s.marca LIKE ? OR i.descricao_original LIKE ?)',
-    params: [like, like, like],
-  };
+  const termos = expandirAlvo(produto);
+  const conds = [];
+  const params = [];
+  for (const t of termos) {
+    const like = `%${t}%`;
+    conds.push('(s.nome_canonico LIKE ? OR s.marca LIKE ? OR s.categoria LIKE ? OR i.descricao_original LIKE ?)');
+    params.push(like, like, like, like);
+  }
+  return { sql: `(${conds.join(' OR ')})`, params };
+}
+
+// Fragmento de filtro por loja/cadeia (opcional).
+function matchLoja(loja) {
+  if (!loja || !String(loja).trim()) return { sql: '', params: [] };
+  const like = `%${String(loja).trim()}%`;
+  return { sql: 'AND (l.cadeia LIKE ? OR l.nome LIKE ?)', params: [like, like] };
 }
 
 // 1) Compra mais recente de um produto: preço pago, loja e data.
@@ -104,15 +143,18 @@ export async function historico_preco(db, { produto, desde }) {
 
 // 5) Listar o que foi comprado num período (itens com data, loja e preço).
 //    Opcionalmente filtrado por produto/categoria. Exclui não-produto e revisão.
-export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo }) {
+export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo, loja }) {
+  const inicio = periodo_inicio || '1900-01-01';
   const fim = periodo_fim || new Date().toISOString().slice(0, 10);
-  const params = [periodo_inicio, fim];
+  const params = [inicio, fim];
   let filtroAlvo = '';
-  if (alvo && String(alvo).trim().toLowerCase() !== 'tudo') {
+  if (alvo && normaliza(alvo) !== 'tudo') {
     const m = matchProduto(alvo);
-    filtroAlvo = `AND (s.categoria LIKE ? OR ${m.sql})`;
-    params.push(`%${String(alvo).trim()}%`, ...m.params);
+    filtroAlvo = `AND ${m.sql}`;
+    params.push(...m.params);
   }
+  const ml = matchLoja(loja);
+  params.push(...ml.params);
   const [rows] = await db.query(
     `SELECT
         DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
@@ -125,6 +167,7 @@ export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo }) 
        AND DATE(f.data_compra) >= ?
        AND DATE(f.data_compra) <= ?
        ${filtroAlvo}
+       ${ml.sql}
      ORDER BY f.data_compra, l.nome, i.id`,
     params,
   );
@@ -135,16 +178,18 @@ export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo }) 
 //    Exclui não-produto (saco/taxa). Inclui clearance (é gasto real).
 //    SUPOSIÇÃO: 'tudo' = total de gasto em produtos, não a fatura absoluta
 //    (sacos/taxas ficam de fora). Reversível se preferires o total bruto.
-export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim }) {
+export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim, loja }) {
+  const inicio = periodo_inicio || '1900-01-01'; // sem período → todo o histórico
   const fim = periodo_fim || new Date().toISOString().slice(0, 10);
-  const params = [periodo_inicio, fim];
+  const params = [inicio, fim];
   let filtroAlvo = '';
-  if (alvo && String(alvo).trim().toLowerCase() !== 'tudo') {
-    const m = matchProduto(alvo);
-    // alvo pode ser categoria OU produto — tenta ambos.
-    filtroAlvo = `AND (s.categoria LIKE ? OR ${m.sql})`;
-    params.push(`%${String(alvo).trim()}%`, ...m.params);
+  if (alvo && normaliza(alvo) !== 'tudo') {
+    const m = matchProduto(alvo); // procura nome/marca/categoria/descrição (+ sinónimos)
+    filtroAlvo = `AND ${m.sql}`;
+    params.push(...m.params);
   }
+  const ml = matchLoja(loja);
+  params.push(...ml.params);
   const [rows] = await db.query(
     `SELECT
         COALESCE(SUM(i.preco_liquido), 0) AS total,
@@ -154,12 +199,14 @@ export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim }) {
        AND f.needs_review = FALSE
        AND DATE(f.data_compra) >= ?
        AND DATE(f.data_compra) <= ?
-       ${filtroAlvo}`,
+       ${filtroAlvo}
+       ${ml.sql}`,
     params,
   );
   return {
     alvo: alvo ?? 'tudo',
-    periodo_inicio,
+    loja: loja ?? null,
+    periodo_inicio: inicio,
     periodo_fim: fim,
     total: rows[0].total,
     n_itens: rows[0].n_itens,

@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { responderPergunta } from '../consulta.js';
+import { carregarHistorico, guardarMensagem } from '../historico.js';
 
 export const consultaRouter = Router();
 
@@ -12,8 +13,12 @@ consultaRouter.post('/', requireAuth, async (req, res) => {
   if (!pergunta || typeof pergunta !== 'string') {
     return res.status(400).json({ erro: 'Falta "pergunta" (texto)' });
   }
+  const utilizador = req.user.id;
   try {
-    const out = await responderPergunta(pergunta);
+    const historico = await carregarHistorico(utilizador);
+    const out = await responderPergunta(pergunta, { historico });
+    await guardarMensagem(utilizador, 'user', pergunta);
+    await guardarMensagem(utilizador, 'assistant', out.resposta);
     res.json(out);
   } catch (e) {
     console.error('[consulta] erro:', e.message);

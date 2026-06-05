@@ -25,6 +25,17 @@ app.get('/health', (_req, res) => {
 // Validação de sessão (usado pelo login da PWA).
 app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.user }));
 
+// Histórico da conversa (a PWA mostra-o ao abrir).
+app.get('/api/historico', requireAuth, async (req, res) => {
+  try {
+    const { listarHistorico } = await import('./historico.js');
+    res.json({ mensagens: await listarHistorico(req.user.id) });
+  } catch (e) {
+    console.error('[historico] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar histórico' });
+  }
+});
+
 // Rotas de aplicação (protegidas por requireAuth lá dentro).
 app.use('/api/faturas', faturasRouter);
 app.use('/api/consulta', consultaRouter);
