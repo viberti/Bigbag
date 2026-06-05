@@ -16,13 +16,14 @@
 | 4. Migração 001 (4 tabelas) | ✅ aplicada |
 | 5. Backend + `.env` (chmod 600) + `npm ci` + smoke test `/health` | ✅ feito |
 | 6. systemd `bigbag-backend.service` (enabled, auto-restart testado) | ✅ feito |
-| Bloco 3 — 4 funções de consulta + teste (7/7 passa, rollback) | ✅ feito (atrás de auth, sem rota aberta) |
-| **7. Apache vhost** | ⏸️ **bloqueado: falta domínio** (e é serviço partilhado → paragem) |
-| **8. HTTPS (certbot)** | ⏸️ depende do domínio |
-| **9. UFW** | ⏸️ paragem (firewall do host; SSH 22 já aberto) |
+| 7. Apache vhost `bigbag.hal9klabs.com` | ✅ feito |
+| 8. HTTPS (certbot) + redirect http→https | ✅ feito (público) |
+| 9. UFW | ✅ já correto (22/80/443; backend só localhost) |
+| Migração 002 — `loja.tipo` (supermercado/farmacia/outro) | ✅ aplicada |
+| Bloco 2 — ingestão VLM (`POST /api/faturas`, atrás de auth) | ✅ a funcionar (5 faturas, sinal honesto de reconciliação) |
+| Bloco 3 — 4 funções + tool use + testes (18/18) | ✅ feito (rota HTTP de consulta ainda por expor) |
+| Auth — Google OAuth | ⏸️ no `.env`, a aguardar redirect URI na Google Console; **portão temporário** ativo entretanto |
 | **11. Revogar sudo temporário** `/etc/sudoers.d/90-bigbag-nopasswd` | ⏸️ **ainda ativo** (instalação não terminou; revogar no fim) |
-| Bloco 2 — ingestão VLM | ⏸️ falta `OPENROUTER_API_KEY` no `.env` |
-| Auth — Google OAuth | ⏸️ falta `GOOGLE_*` / `SUPERUSER_EMAIL` no `.env` |
 
 ---
 
