@@ -433,7 +433,6 @@ function Painel() {
 
 function Detalhe({ det }) {
   const s = calcStats(det);
-  const u = det.sku.unidade_base || 'un';
   const nome = det.sku.nome_canonico;
   const pontos = s.ps.map((x) => ({ x: ddmm(x.data), y: Number(x.preco) }));
   const medals = ['🥇', '🥈', '🥉'];
@@ -476,7 +475,7 @@ function Detalhe({ det }) {
           <div>
             <div className="r-name">{nome}</div>
             <div className="r-cat">
-              {det.sku.categoria || '—'} · €/{u}
+              {det.sku.categoria || '—'} · preço pago
             </div>
           </div>
         </div>
@@ -526,7 +525,7 @@ function Detalhe({ det }) {
       <div className="right">
         <div className="card">
           <h3>Pódio dos mercados</h3>
-          <div className="sub">média €/{u} · mais barato vence</div>
+          <div className="sub">média do preço pago · mais barato vence</div>
           <div className="podium">
             {[1, 0, 2].map((idx) => {
               const st = podium[idx];
@@ -558,7 +557,7 @@ function Detalhe({ det }) {
       <div className="card chartcard">
         <h3>Variação de preço</h3>
         <div className="sub">
-          €/{u} · de {s.first ? ddmm(s.first.data) : '—'} a {s.last ? ddmm(s.last.data) : '—'}
+          preço pago · de {s.first ? ddmm(s.first.data) : '—'} a {s.last ? ddmm(s.last.data) : '—'}
         </div>
         <Grafico pontos={pontos} />
       </div>

@@ -55,6 +55,18 @@ export function extrairFormato(descricao) {
   m = s.match(/(\d+)\s*un\b/i);
   if (m) return { unidade_base: 'un', formato_valor: num(m[1]) };
 
+  // 4b) Pacotes por CONTAGEM (ovos, dúzias) → normaliza a €/unidade, para
+  // comparar pacotes de 6/12/18/24 entre lojas de forma justa.
+  m = s.match(/(\d+)\s*dz\b/i);
+  if (m) return { unidade_base: 'un', formato_valor: num(m[1]) * 12 }; // "2DZ" = 24
+  if (/meia\s*d[uú]zia/i.test(s)) return { unidade_base: 'un', formato_valor: 6 };
+  if (/\bd[uú]zia\b/i.test(s)) return { unidade_base: 'un', formato_valor: 12 };
+  m = s.match(/(\d+)\s*ovos?\b/i) || s.match(/\bovos?\s+(\d+)\b/i); // "24 OVOS", "OVOS 18"
+  if (m) {
+    const n = num(m[1]);
+    if (n >= 4 && n <= 60) return { unidade_base: 'un', formato_valor: n };
+  }
+
   // 5) Sem formato → unidade simples
   return { unidade_base: 'un', formato_valor: 1 };
 }
