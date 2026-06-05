@@ -32,7 +32,7 @@ Regras:
 - O NIF da LOJA é o do estabelecimento/vendedor (perto do nome no topo), NÃO o NIF do cliente.
 - "Aprox. fim prazo validade" aparece NA LINHA ABAIXO do produto — associa ao item imediatamente acima (is_clearance=true).
 - Linhas de desconto sob um produto ("Poupança", "Promoção", "Promoção Lidl Plus", "Desconto") pertencem a esse produto: soma a magnitude (positiva) no desconto_direto desse item. NUNCA cries um item separado para um desconto. O "valor" do item é o preço impresso na linha do produto (tal como aparece, mesmo que haja desconto por baixo).
-- Itens a peso aparecem como "0,505 kg x 6,19 EUR/kg" → o "valor" é o total da linha (ex. 3,13); guarda na descrição o texto do produto.
+- Itens a peso aparecem como "0,505 kg x 6,19 EUR/kg" → o "valor" é o PREÇO IMPRESSO na linha do produto (a coluna de preço, à direita do nome), e NÃO o resultado de kg × €/kg, que pode diferir por arredondamento. Ex.: se a linha do produto diz 2,29 € e por baixo "0,618 kg x 3,59 €/kg", o valor é 2,29 (não 2,22).
 - Não inventes itens nem valores. Se um valor não for legível, usa null no campo numérico desse item e mantém a descrição.
 - Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.
 - IGNORA o rodapé de fidelização/cartão: "ACUMULOU NO SEU CARTAO", "DESCONTO CUPAO", "SALDO NO CARTAO", "Saldo de selos", "Selos ganhos", "Já ganhou com o cartão", cupões lidos/emitidos, pontos. NÃO são itens nem descontos desta compra — não os contes em desconto_global nem em desconto_direto.`;
