@@ -6,12 +6,13 @@
 // para a chamada ao modelo. Em caso de erro, devolve o original.
 import sharp from 'sharp';
 
-export async function preProcessarImagem(buffer, { largura = 1400 } = {}) {
+export async function preProcessarImagem(buffer, { largura = 1400, cinza = true } = {}) {
   try {
-    const out = await sharp(buffer)
+    let p = sharp(buffer)
       .rotate() // aplica a orientação EXIF (foto de telemóvel)
-      .resize({ width: largura, withoutEnlargement: true })
-      .grayscale()
+      .resize({ width: largura, withoutEnlargement: true });
+    if (cinza) p = p.grayscale();
+    const out = await p
       .normalize() // estica o contraste
       .sharpen()
       .jpeg({ quality: 82 })
