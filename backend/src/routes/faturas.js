@@ -85,7 +85,9 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
         it.preco_por_base = null;
         continue;
       }
-      const f = extrairFormato(it.descricao_original);
+      // o peso (itens a granel) vive em it.linha_peso, fora do nome — junta-se só
+      // para derivar o formato/€-por-kg, sem poluir o descricao_original.
+      const f = extrairFormato([it.descricao_original, it.linha_peso].filter(Boolean).join(' '));
       it.preco_por_base = precoPorBase({ preco_liquido: it.preco_liquido, quantidade: it.quantidade }, f);
     }
 

@@ -8,16 +8,18 @@
 // Lidl: "Promoção", "Promoção Lidl Plus"). Somam-se ao desconto_direto e são removidas.
 const RE_DESCONTO = /^(poupan|desconto|desc\.|promo[çc])/i;
 
-// Linha ÓRFÃ de peso: começa pelo peso "X,XXX kg" e NÃO tem nome de produto
-// antes (a Mercadona imprime o item a peso em duas linhas — nome numa, peso na
-// seguinte). Sem isto, a linha de peso fica sem nome e a canonicalização
-// inventa um produto. Dobramos no item acima (o nome real).
-const RE_PESO_ORFAO = /^\s*\d+[.,]\d+\s*kg\b.*?(?:eur|€)\s*\/\s*kg/i;
+// Padrão de PESO numa linha: "X,XXX kg [x] Y,YY EUR/kg" (aceita € e EUR, x opcional).
+const PESO = String.raw`\d+[.,]\d+\s*kg\s*[x×X]?\s*\d+[.,]\d+\s*(?:eur|€)\s*\/\s*kg`;
+// Linha ÓRFÃ: começa pelo peso, sem nome de produto antes (Mercadona imprime o
+// item a peso em duas linhas — nome numa, peso na seguinte).
+const RE_PESO_ORFAO = new RegExp(`^\\s*${PESO}`, 'i');
+// Peso COLADO ao nome (inline ou após \n): "BANANA\n1,800 kg x 1,19 EUR/kg".
+const RE_PESO_INLINE = new RegExp(`[\\s\\n]+(${PESO})\\s*$`, 'i');
 
 export function normalizarItens(itens) {
   const out = [];
   for (const it of itens) {
-    const desc = String(it?.descricao_original || '').trim();
+    let desc = String(it?.descricao_original || '').trim();
     const valor = Number(it?.valor);
     if (RE_DESCONTO.test(desc) && out.length) {
       const prev = out[out.length - 1];
@@ -28,13 +30,21 @@ export function normalizarItens(itens) {
     }
     if (RE_PESO_ORFAO.test(desc) && out.length) {
       const prev = out[out.length - 1];
-      // junta o peso ao nome do produto de cima (para o formato derivar kg e €/kg)
-      prev.descricao_original = `${String(prev.descricao_original || '').trim()} ${desc}`.trim();
-      // o total impresso à direita da linha de peso é o valor do item a peso
+      // o peso pertence ao produto de cima — guarda-se à parte (NÃO no nome, que
+      // deve ficar estável p/ a cache de alias agrupar) e o total vira o valor.
+      prev.linha_peso = desc;
       if (Number.isFinite(valor)) prev.valor = valor;
       continue; // descarta a linha órfã (já foi dobrada no item acima)
     }
-    out.push({ ...it });
+    // Peso colado ao nome → separa: nome limpo + linha_peso à parte.
+    const novo = { ...it };
+    const m = desc.match(RE_PESO_INLINE);
+    if (m) {
+      novo.linha_peso = m[1];
+      desc = desc.slice(0, m.index).trim();
+    }
+    novo.descricao_original = desc;
+    out.push(novo);
   }
   return out;
 }
