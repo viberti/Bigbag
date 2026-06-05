@@ -14,6 +14,7 @@ import { extrairTextoPdf } from '../ingest/pdf.js';
 import { distribuirDesconto } from '../ingest/reconcile.js';
 import { persistirFatura } from '../ingest/persist.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
+import { guardarMensagem } from '../historico.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -90,6 +91,15 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       });
     }
     const { fatura_id, loja_id, n_itens } = resultado;
+
+    // Regista o upload na conversa, para o assistente ter contexto
+    // ("a última fatura", "os valores dessa compra estão certos?").
+    const dataCurta = String(dados.data_compra || '').slice(0, 10);
+    await guardarMensagem(
+      req.user.id,
+      'assistant',
+      `📄 Fatura adicionada: ${dados.loja?.cadeia || dados.loja?.nome}, ${dataCurta}, total ${Number(dados.total_impresso).toFixed(2).replace('.', ',')} €, ${n_itens} itens.${rec.extracaoBate ? '' : ' (em revisão — diferença a confirmar)'}`,
+    ).catch(() => {});
 
     // 5) resumo para o utilizador (inclui sinal de qualidade da extração)
     res.json({

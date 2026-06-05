@@ -42,6 +42,22 @@ export const toolDefs = [
   {
     type: 'function',
     function: {
+      name: 'detalhes_fatura',
+      description:
+        "Mostra os itens e preços de UMA fatura/compra específica. Sem parâmetros = a MAIS RECENTE adicionada (para 'a última fatura', 'a que acabei de enviar', 'os valores dessa compra estão certos?'). Ou filtra por loja e/ou data (ex.: 'a fatura do Continente de 4 de maio').",
+      parameters: {
+        type: 'object',
+        properties: {
+          loja: { type: 'string', description: "Opcional: cadeia/loja ('Aldi', 'Continente')." },
+          data: { type: 'string', description: "Opcional: data da compra ISO 'YYYY-MM-DD'." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'produto_mais_barato',
       description:
         "Encontra o(s) produto(s) MAIS BARATO(S) que casam com um termo (produto ou categoria), pelo preço por unidade-base (€/kg, €/L, €/un), do mais barato ao mais caro. Usar para 'qual o queijo mais barato', 'qual a fruta mais barata'. (Diferente de comparar_precos_por_loja, que compara o MESMO produto entre lojas.)",
@@ -158,6 +174,7 @@ const dispatch = {
   total_gasto: queries.total_gasto,
   listar_compras: queries.listar_compras,
   produto_mais_barato: queries.produto_mais_barato,
+  detalhes_fatura: queries.detalhes_fatura,
 };
 
 // Executa uma tool call do LLM. `args` é o objeto de argumentos já parseado.

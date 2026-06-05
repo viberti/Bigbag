@@ -147,6 +147,14 @@ test('listar_compras agrupar_por=produto: agrega por produto, sem loja/data', as
   assert.ok(!('loja' in r[0]) && !('data' in r[0]));
 });
 
+test('detalhes_fatura: por data devolve a fatura e os itens (preço impresso)', async () => {
+  const r = await executarTool(conn, 'detalhes_fatura', { data: '2099-05-01' });
+  assert.equal(r.encontrada, true);
+  assert.equal(r.data, '2099-05-01');
+  assert.equal(r.itens.length, 2); // manteiga + café da f1
+  assert.ok(r.itens.every((i) => i.preco != null));
+});
+
 test('produto_mais_barato: traz o produto que casa, mais barato primeiro', async () => {
   const r = await executarTool(conn, 'produto_mais_barato', { alvo: MANT });
   assert.ok(r.length >= 1);
