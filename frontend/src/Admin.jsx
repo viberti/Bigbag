@@ -1,0 +1,353 @@
+// Interface administrativa (operador) — layout desktop, duas abas:
+//  • Produtos: gerir SKUs canónicos (renomear, associar/dissociar descrições, fundir).
+//  • Notas: rever a leitura de cada nota (imagem + itens) e marcar certa/errada.
+import { useEffect, useRef, useState } from 'react';
+import { verificarSessao, setAuth, clearAuth } from './api.js';
+import * as adm from './adminApi.js';
+
+const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
+const dataCurta = (iso) => String(iso || '').slice(0, 10);
+
+export default function Admin() {
+  const [sessao, setSessao] = useState(undefined);
+  const [aba, setAba] = useState('produtos');
+  useEffect(() => {
+    verificarSessao().then(setSessao).catch(() => setSessao(null));
+  }, []);
+  if (sessao === undefined) return <div className="adm-centro">carregando…</div>;
+  if (!sessao) return <AdminLogin onEntrar={setSessao} />;
+  return (
+    <div className="adm">
+      <header className="adm-top">
+        <strong>🛠️ Bigbag · Operador</strong>
+        <nav className="adm-tabs">
+          <button className={aba === 'produtos' ? 'on' : ''} onClick={() => setAba('produtos')}>
+            Produtos
+          </button>
+          <button className={aba === 'notas' ? 'on' : ''} onClick={() => setAba('notas')}>
+            Notas
+          </button>
+        </nav>
+        <a className="adm-link" href="/">
+          ← app
+        </a>
+      </header>
+      {aba === 'produtos' ? <TabProdutos /> : <TabNotas />}
+    </div>
+  );
+}
+
+function AdminLogin({ onEntrar }) {
+  const [u, setU] = useState('');
+  const [p, setP] = useState('');
+  const [erro, setErro] = useState('');
+  async function submeter(e) {
+    e.preventDefault();
+    setErro('');
+    setAuth(u.trim(), p);
+    try {
+      onEntrar(await verificarSessao());
+    } catch {
+      clearAuth();
+      setErro('Credenciais inválidas.');
+    }
+  }
+  return (
+    <form className="adm-login" onSubmit={submeter}>
+      <h1>🛠️ Operador</h1>
+      <input placeholder="usuário" value={u} onChange={(e) => setU(e.target.value)} autoCapitalize="none" />
+      <input placeholder="senha" type="password" value={p} onChange={(e) => setP(e.target.value)} />
+      {erro && <div className="adm-erro">{erro}</div>}
+      <button>Entrar</button>
+    </form>
+  );
+}
+
+// ───────────────────────────── Produtos ─────────────────────────────
+function TabProdutos() {
+  const [q, setQ] = useState('');
+  const [skus, setSkus] = useState([]);
+  const [sel, setSel] = useState(null);
+  const [det, setDet] = useState(null);
+  const [nome, setNome] = useState('');
+  const [novaDesc, setNovaDesc] = useState('');
+  const [alvoMerge, setAlvoMerge] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const recarregarLista = (busca = q) => adm.listarSkus(busca).then((r) => setSkus(r.skus)).catch(() => {});
+  useEffect(() => {
+    recarregarLista('');
+  }, []);
+
+  async function abrir(id) {
+    setSel(id);
+    setMsg('');
+    setAlvoMerge('');
+    const d = await adm.carregarSku(id);
+    setDet(d);
+    setNome(d.sku.nome_canonico);
+  }
+  const recarregarDet = async () => {
+    if (!sel) return;
+    const d = await adm.carregarSku(sel);
+    setDet(d);
+    setNome(d.sku.nome_canonico);
+  };
+
+  async function salvarNome() {
+    await adm.renomearSku(sel, { nome_canonico: nome.trim() });
+    setMsg('✓ nome salvo');
+    recarregarLista();
+  }
+  async function dissociar(desc) {
+    await adm.dissociar(sel, desc);
+    await recarregarDet();
+    recarregarLista();
+  }
+  async function associar() {
+    const d = novaDesc.trim();
+    if (!d) return;
+    await adm.associar(sel, d);
+    setNovaDesc('');
+    await recarregarDet();
+    recarregarLista();
+    setMsg('✓ associado');
+  }
+  async function fundir() {
+    const para = Number(alvoMerge);
+    if (!para || para === sel) return;
+    await adm.fundirSkus(sel, para);
+    setSel(null);
+    setDet(null);
+    recarregarLista();
+    setMsg('✓ produtos fundidos');
+  }
+
+  return (
+    <div className="adm-2col">
+      <aside className="adm-lista">
+        <form
+          className="adm-busca"
+          onSubmit={(e) => {
+            e.preventDefault();
+            recarregarLista();
+          }}
+        >
+          <input placeholder="procurar produto…" value={q} onChange={(e) => setQ(e.target.value)} />
+        </form>
+        <ul>
+          {skus.map((s) => (
+            <li key={s.id} className={s.id === sel ? 'on' : ''} onClick={() => abrir(s.id)}>
+              <span>{s.nome_canonico}</span>
+              <em>{s.n_itens}</em>
+            </li>
+          ))}
+        </ul>
+      </aside>
+
+      <section className="adm-det">
+        {!det ? (
+          <p className="adm-vazio">Escolha um produto à esquerda.</p>
+        ) : (
+          <>
+            <h2>Nome normalizado</h2>
+            <div className="adm-linha">
+              <input value={nome} onChange={(e) => setNome(e.target.value)} />
+              <button onClick={salvarNome} disabled={!nome.trim() || nome.trim() === det.sku.nome_canonico}>
+                Salvar
+              </button>
+            </div>
+            <div className="adm-meta">
+              {det.sku.marca ? `marca: ${det.sku.marca} · ` : ''}
+              {det.sku.categoria || '—'} · {det.sku.unidade_base}
+            </div>
+
+            <h3>Nomes de produto associados</h3>
+            <ul className="adm-descs">
+              {det.descricoes.length === 0 && <li className="adm-vazio2">nenhuma compra com este produto</li>}
+              {det.descricoes.map((d) => (
+                <li key={d.descricao}>
+                  <span>
+                    {d.descricao} <em>×{d.n}</em>
+                  </span>
+                  <button className="adm-x" title="dissociar" onClick={() => dissociar(d.descricao)}>
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="adm-linha">
+              <input
+                placeholder="associar outra descrição (texto exato do talão)…"
+                value={novaDesc}
+                onChange={(e) => setNovaDesc(e.target.value)}
+              />
+              <button onClick={associar} disabled={!novaDesc.trim()}>
+                Associar
+              </button>
+            </div>
+
+            <h3>Fundir com outro produto</h3>
+            <div className="adm-linha">
+              <select value={alvoMerge} onChange={(e) => setAlvoMerge(e.target.value)}>
+                <option value="">escolher destino…</option>
+                {skus
+                  .filter((s) => s.id !== sel)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nome_canonico}
+                    </option>
+                  ))}
+              </select>
+              <button onClick={fundir} disabled={!alvoMerge}>
+                Fundir “{det.sku.nome_canonico}” →
+              </button>
+            </div>
+            <p className="adm-aviso">
+              Fundir move todas as compras e aliases de “{det.sku.nome_canonico}” para o destino e apaga este.
+            </p>
+            {msg && <div className="adm-ok">{msg}</div>}
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ─────────────────────────────── Notas ───────────────────────────────
+function TabNotas() {
+  const [status, setStatus] = useState('pendente');
+  const [notas, setNotas] = useState([]);
+  const [sel, setSel] = useState(null);
+  const [det, setDet] = useState(null);
+  const [img, setImg] = useState('');
+  const [coment, setComent] = useState('');
+  const [erroForm, setErroForm] = useState(false);
+  const imgRef = useRef('');
+
+  const recarregar = () => adm.listarNotas(status).then((r) => setNotas(r.faturas)).catch(() => {});
+  useEffect(() => {
+    recarregar();
+  }, [status]);
+  useEffect(
+    () => () => {
+      if (imgRef.current) URL.revokeObjectURL(imgRef.current);
+    },
+    [],
+  );
+
+  async function abrir(id) {
+    setSel(id);
+    setDet(null);
+    setComent('');
+    setErroForm(false);
+    setImg('');
+    const d = await adm.carregarNota(id);
+    setDet(d);
+    if (imgRef.current) URL.revokeObjectURL(imgRef.current);
+    try {
+      const u = await adm.carregarImagem(id);
+      imgRef.current = u;
+      setImg(u);
+    } catch {
+      setImg('');
+    }
+  }
+
+  async function revisar(veredicto) {
+    if (veredicto === 'erro' && !erroForm) {
+      setErroForm(true);
+      return;
+    }
+    await adm.revisarNota(sel, veredicto, veredicto === 'erro' ? coment.trim() : null);
+    setErroForm(false);
+    setComent('');
+    recarregar();
+  }
+
+  const badge = (n) =>
+    n.veredicto === 'ok' ? '✓' : n.veredicto === 'erro' ? '✕' : n.needs_review ? '⚠' : '·';
+
+  return (
+    <div className="adm-2col">
+      <aside className="adm-lista">
+        <div className="adm-filtro">
+          {['pendente', 'erro', 'ok', 'all'].map((s) => (
+            <button key={s} className={status === s ? 'on' : ''} onClick={() => setStatus(s)}>
+              {s === 'all' ? 'todas' : s}
+            </button>
+          ))}
+        </div>
+        <ul>
+          {notas.map((n) => (
+            <li key={n.id} className={n.id === sel ? 'on' : ''} onClick={() => abrir(n.id)}>
+              <span>
+                {badge(n)} {n.cadeia} · {dataCurta(n.data_compra)}
+              </span>
+              <em>{n.n_itens}</em>
+            </li>
+          ))}
+        </ul>
+      </aside>
+
+      <section className="adm-nota">
+        {!det ? (
+          <p className="adm-vazio">Escolha uma nota à esquerda.</p>
+        ) : (
+          <div className="adm-nota-grid">
+            <div className="adm-img">{img ? <img src={img} alt="nota" /> : <div className="adm-semimg">sem imagem</div>}</div>
+            <div className="adm-nota-info">
+              <h2>
+                {det.fatura.cadeia} · {dataCurta(det.fatura.data_compra)}
+              </h2>
+              <div className="adm-meta">
+                total {eur(det.fatura.total_impresso)} · {det.itens.length} itens ·{' '}
+                {det.fatura.needs_review ? '⚠ em revisão' : 'reconcilia'} · origem {det.fatura.origem_captura || '—'}
+              </div>
+              <ul className="adm-itens">
+                {det.itens.map((it) => (
+                  <li key={it.id}>
+                    <span className="adm-prod">{it.nome_canonico || it.descricao_original}</span>
+                    <span className="adm-cru">{it.descricao_original}</span>
+                    <b>{eur(it.preco_liquido)}</b>
+                  </li>
+                ))}
+              </ul>
+
+              {det.revisao && (
+                <div className="adm-revprev">
+                  Última revisão: <b>{det.revisao.veredicto}</b>
+                  {det.revisao.comentario ? ` — “${det.revisao.comentario}”` : ''}
+                </div>
+              )}
+
+              {erroForm && (
+                <textarea
+                  className="adm-coment"
+                  placeholder="O que está errado? (ex.: mamão foi lido como manteiga; faltou um item)"
+                  value={coment}
+                  onChange={(e) => setComent(e.target.value)}
+                  autoFocus
+                />
+              )}
+              <div className="adm-acoes">
+                <button className="adm-certa" onClick={() => revisar('ok')}>
+                  ✓ Certa
+                </button>
+                <button className="adm-errada" onClick={() => revisar('erro')} disabled={erroForm && !coment.trim()}>
+                  ✕ {erroForm ? 'Confirmar erro' : 'Errada'}
+                </button>
+                {erroForm && (
+                  <button className="adm-cancelar" onClick={() => setErroForm(false)}>
+                    cancelar
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
