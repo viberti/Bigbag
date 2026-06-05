@@ -7,7 +7,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { similaridade } from '../normaliza/similaridade.js';
+import { similaridade, normalizarNome } from '../normaliza/similaridade.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -173,6 +173,48 @@ adminRouter.get('/sugestoes-merge', async (req, res) => {
   }
 });
 
+// Auto-merge: funde TODOS os SKUs com nome canónico idêntico (normalizado) num
+// só, mantendo o mais usado. Resolve a fragmentação de nomes iguais de uma vez.
+adminRouter.post('/skus/auto-merge', async (req, res) => {
+  const pool = getPool();
+  const conn = await pool.getConnection();
+  try {
+    const [skus] = await conn.query(
+      'SELECT s.id, s.nome_canonico, COUNT(i.id) AS n FROM sku_normalizado s LEFT JOIN item i ON i.sku_id = s.id GROUP BY s.id',
+    );
+    const grupos = new Map();
+    for (const s of skus) {
+      const k = normalizarNome(s.nome_canonico);
+      if (!k) continue;
+      (grupos.get(k) || grupos.set(k, []).get(k)).push(s);
+    }
+    await conn.beginTransaction();
+    let removidos = 0;
+    let nGrupos = 0;
+    for (const arr of grupos.values()) {
+      if (arr.length < 2) continue;
+      arr.sort((a, b) => b.n - a.n); // mantém o mais usado
+      const para = arr[0].id;
+      for (let i = 1; i < arr.length; i++) {
+        const de = arr[i].id;
+        await conn.query('UPDATE item SET sku_id = ? WHERE sku_id = ?', [para, de]);
+        await conn.query("UPDATE sku_alias SET sku_id = ?, origem = 'manual' WHERE sku_id = ?", [para, de]);
+        await conn.query('DELETE FROM sku_normalizado WHERE id = ?', [de]);
+        removidos++;
+      }
+      nGrupos++;
+    }
+    await conn.commit();
+    res.json({ ok: true, grupos: nGrupos, skus_removidos: removidos });
+  } catch (e) {
+    await conn.rollback();
+    console.error('[admin/auto-merge] erro:', e.message);
+    res.status(500).json({ erro: 'Falha no auto-merge' });
+  } finally {
+    conn.release();
+  }
+});
+
 // Fundir o SKU `de` no SKU `para` (repõe itens + aliases e apaga o `de`).
 adminRouter.post('/skus/merge', async (req, res) => {
   const pool = getPool();
@@ -254,7 +296,9 @@ adminRouter.get('/faturas/:id', async (req, res) => {
       'SELECT veredicto, comentario, criado_em FROM revisao WHERE fatura_id = ? ORDER BY id DESC LIMIT 1',
       [id],
     );
-    res.json({ fatura: f, itens, revisao: rev || null, imagem_url: `/api/faturas/${id}/imagem` });
+    const ext = String(f.ficheiro_original || '').split('.').pop().toLowerCase();
+    const tipo_ficheiro = ext === 'pdf' ? 'pdf' : 'imagem';
+    res.json({ fatura: f, itens, revisao: rev || null, imagem_url: `/api/faturas/${id}/imagem`, tipo_ficheiro });
   } catch (e) {
     console.error('[admin/faturas/:id] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar nota' });

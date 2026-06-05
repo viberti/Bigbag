@@ -25,6 +25,7 @@ export const associar = (id, descricao) => jsend(`/api/admin/skus/${id}/associar
 export const dissociar = (id, descricao) => jsend(`/api/admin/skus/${id}/dissociar`, 'POST', { descricao });
 export const fundirSkus = (de, para) => jsend('/api/admin/skus/merge', 'POST', { de, para });
 export const sugestoesMerge = (limiar) => jget(`/api/admin/sugestoes-merge?limiar=${limiar}`);
+export const autoMergeIdenticos = () => jsend('/api/admin/skus/auto-merge', 'POST', {});
 export const qualidade = () => jget('/api/admin/qualidade');
 
 // Notas

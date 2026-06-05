@@ -253,8 +253,25 @@ function TabFusoes() {
     }
   }
 
+  async function autoFundir() {
+    setOcupado(true);
+    try {
+      const r = await adm.autoMergeIdenticos();
+      setMsg(`✓ ${r.skus_removidos} SKU(s) idêntico(s) fundido(s) em ${r.grupos} grupo(s)`);
+      await recarregar();
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   return (
     <div className="adm-fusoes">
+      <div className="adm-auto">
+        <button className="adm-auto-btn" onClick={autoFundir} disabled={ocupado}>
+          ⚡ Fundir nomes idênticos automaticamente
+        </button>
+        <span className="adm-sug-dica">junta de uma vez todos os SKUs com o mesmo nome canónico.</span>
+      </div>
       <div className="adm-sug-top">
         <span>Sensibilidade:</span>
         {[0.5, 0.6, 0.7, 0.8].map((l) => (
@@ -370,6 +387,7 @@ function TabNotas() {
   const [img, setImg] = useState('');
   const [coment, setComent] = useState('');
   const [erroForm, setErroForm] = useState(false);
+  const [zoom, setZoom] = useState(false);
   const imgRef = useRef('');
 
   const recarregar = () => adm.listarNotas(status).then((r) => setNotas(r.faturas)).catch(() => {});
@@ -388,6 +406,7 @@ function TabNotas() {
     setDet(null);
     setComent('');
     setErroForm(false);
+    setZoom(false);
     setImg('');
     const d = await adm.carregarNota(id);
     setDet(d);
@@ -442,7 +461,15 @@ function TabNotas() {
           <p className="adm-vazio">Escolha uma nota à esquerda.</p>
         ) : (
           <div className="adm-nota-grid">
-            <div className="adm-img">{img ? <img src={img} alt="nota" /> : <div className="adm-semimg">sem imagem</div>}</div>
+            <div className="adm-img">
+              {!img ? (
+                <div className="adm-semimg">sem imagem</div>
+              ) : det.tipo_ficheiro === 'pdf' ? (
+                <iframe className="adm-pdf" src={img} title="nota (PDF)" />
+              ) : (
+                <img src={img} alt="nota" onClick={() => setZoom(true)} title="clique para ampliar" />
+              )}
+            </div>
             <div className="adm-nota-info">
               <h2>
                 {det.fatura.cadeia} · {dataCurta(det.fatura.data_compra)}
@@ -454,9 +481,11 @@ function TabNotas() {
               <ul className="adm-itens">
                 {det.itens.map((it) => (
                   <li key={it.id}>
-                    <span className="adm-prod">{it.nome_canonico || it.descricao_original}</span>
-                    <span className="adm-cru">{it.descricao_original}</span>
                     <b>{eur(it.preco_liquido)}</b>
+                    <span className="adm-prod">{it.descricao_original}</span>
+                    {it.nome_canonico && it.nome_canonico !== it.descricao_original && (
+                      <span className="adm-cru">→ {it.nome_canonico}</span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -494,6 +523,15 @@ function TabNotas() {
           </div>
         )}
       </section>
+
+      {zoom && img && (
+        <div className="adm-zoom" onClick={() => setZoom(false)}>
+          <button className="adm-zoom-x" onClick={() => setZoom(false)} aria-label="fechar">
+            ✕
+          </button>
+          <img src={img} alt="nota ampliada" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   );
 }
