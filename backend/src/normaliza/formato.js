@@ -7,9 +7,9 @@ const num = (s) => Number(String(s).replace(',', '.'));
 // Converte (valor, unidade) → { unidade_base, valor } na base kg/L.
 function paraBase(valor, unidade) {
   const u = unidade.toLowerCase();
-  if (u === 'kg') return { unidade_base: 'kg', valor };
-  if (u === 'g' || u === 'gr') return { unidade_base: 'kg', valor: valor / 1000 };
-  if (u === 'l') return { unidade_base: 'L', valor };
+  if (u === 'kg' || u === 'k' || u === 'kgs') return { unidade_base: 'kg', valor }; // "2K" = 2 kg (arroz, feijão…)
+  if (u === 'g' || u === 'gr' || u === 'grs') return { unidade_base: 'kg', valor: valor / 1000 };
+  if (u === 'l' || u === 'lt') return { unidade_base: 'L', valor };
   if (u === 'ml') return { unidade_base: 'L', valor: valor / 1000 };
   if (u === 'cl') return { unidade_base: 'L', valor: valor / 100 };
   return { unidade_base: 'un', valor };
@@ -37,15 +37,15 @@ export function extrairFormato(descricao) {
   }
 
   // 2) Multipack: "4X115G", "2 x 1L"
-  m = s.match(/(\d+)\s*[x×X]\s*(\d+(?:[.,]\d+)?)\s*(kg|gr|g|ml|cl|l)\b/i);
+  m = s.match(/(\d+)\s*[x×X]\s*(\d+(?:[.,]\d+)?)\s*(kgs|kg|k|grs|gr|g|ml|cl|lt|l)\b/i);
   if (m) {
     const n = num(m[1]);
     const base = paraBase(num(m[2]), m[3]);
     return { unidade_base: base.unidade_base, formato_valor: round3(n * base.valor) };
   }
 
-  // 3) Formato simples: "425GR", "250G", "1,5L", "330 ML"
-  m = s.match(/(\d+(?:[.,]\d+)?)\s*(kg|gr|g|ml|cl|l)\b/i);
+  // 3) Formato simples: "425GR", "250G", "1,5L", "330 ML", "2K" (=2 kg, arroz/feijão).
+  m = s.match(/(\d+(?:[.,]\d+)?)\s*(kgs|kg|k|grs|gr|g|ml|cl|lt|l)\b/i);
   if (m) {
     const base = paraBase(num(m[1]), m[2]);
     return { unidade_base: base.unidade_base, formato_valor: round3(base.valor) };
@@ -54,6 +54,18 @@ export function extrairFormato(descricao) {
   // 4) Unidades: "16UN"
   m = s.match(/(\d+)\s*un\b/i);
   if (m) return { unidade_base: 'un', formato_valor: num(m[1]) };
+
+  // 4b) Pacotes por CONTAGEM (ovos, dúzias) → normaliza a €/unidade, para
+  // comparar pacotes de 6/12/18/24 entre lojas de forma justa.
+  m = s.match(/(\d+)\s*dz\b/i);
+  if (m) return { unidade_base: 'un', formato_valor: num(m[1]) * 12 }; // "2DZ" = 24
+  if (/meia\s*d[uú]zia/i.test(s)) return { unidade_base: 'un', formato_valor: 6 };
+  if (/\bd[uú]zia\b/i.test(s)) return { unidade_base: 'un', formato_valor: 12 };
+  m = s.match(/(\d+)\s*ovos?\b/i) || s.match(/\bovos?\s+(\d+)\b/i); // "24 OVOS", "OVOS 18"
+  if (m) {
+    const n = num(m[1]);
+    if (n >= 4 && n <= 60) return { unidade_base: 'un', formato_valor: n };
+  }
 
   // 5) Sem formato → unidade simples
   return { unidade_base: 'un', formato_valor: 1 };

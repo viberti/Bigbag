@@ -4,8 +4,9 @@
 //      já refletida no valor). total ≈ Σ valor − desconto_global.
 //   B) valor é BRUTO e o desconto_direto é REAL (ex. Lidl "Promoção -0,20",
 //      subtraída de facto). total ≈ Σ(valor − desconto_direto) − desconto_global.
-// Depois distribui o desconto_global (se houver) proporcionalmente sobre a base
-// líquida, pelo método do maior resto, para a soma bater ao cêntimo.
+// O preço por item é SEMPRE o impresso na linha; o desconto_global (cartão) NÃO
+// é espalhado pelos itens — é um desconto da NOTA, registado à parte. A soma dos
+// itens (subtotal líquido) − desconto_global tem de bater com o total impresso.
 //
 // Entrada: itens[{ valor, desconto_direto?, ... }], { descontoGlobal, totalImpresso }
 // Saída:  { itens (com preco_unitario e preco_liquido), subtotal, convencao,
@@ -27,38 +28,20 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso })
   // Base líquida por item (antes do desconto global).
   const base = itens.map((it) => (convencao === 'B' ? valor(it) - descLinha(it) : valor(it)));
   const baseSubtotal = base.reduce((s, v) => s + v, 0);
-  // Alvo = total CALCULADO (base − desconto), NÃO o total impresso. Assim só se
-  // distribui o desconto real; uma diferença de extração (ex.: 1 cêntimo num
-  // item) NÃO é "raspada" pelos itens — fica como discrepância sinalizada e os
-  // preços por item mantêm-se fiéis ao impresso.
-  const targetCents = Math.round((baseSubtotal - descontoGlobal) * 100);
-
-  // Distribui o desconto global proporcionalmente sobre a base líquida.
-  const raw = base.map((v) => v - (baseSubtotal > 0 ? (descontoGlobal * v) / baseSubtotal : 0));
-  const floorCents = raw.map((v) => Math.floor(v * 100));
-  const remainder = raw.map((v, i) => v * 100 - floorCents[i]);
-  let need = targetCents - floorCents.reduce((s, c) => s + c, 0);
-
-  const ordem = remainder
-    .map((r, i) => ({ i, r }))
-    .sort((a, b) => b.r - a.r)
-    .map((x) => x.i);
-
-  const addCents = new Array(itens.length).fill(0);
-  if (need > 0) {
-    for (let k = 0; k < need; k++) addCents[ordem[k % ordem.length]] += 1;
-  } else if (need < 0) {
-    const inv = [...ordem].reverse();
-    for (let k = 0; k < -need; k++) addCents[inv[k % inv.length]] -= 1;
-  }
-
+  // O preço de cada item é o que está IMPRESSO na linha (a base líquida da
+  // convenção: valor, ou valor − desconto da própria linha), NUNCA raspado pelo
+  // desconto global. O "Desconto Cartão"/global é um desconto DA NOTA, aplicado
+  // no pagamento — não pertence a produtos específicos, por isso espalhá-lo
+  // cêntimo a cêntimo distorcia cada preço (um sumo de 2,49 aparecia como 2,37).
+  // Fica registado em desconto_global da fatura; o total reconciliado abaixo
+  // confirma que (subtotal − desconto_global) bate com o total impresso.
   const out = itens.map((it, i) => ({
     ...it,
     preco_unitario: valor(it),
-    preco_liquido: (floorCents[i] + addCents[i]) / 100,
+    preco_liquido: Math.round(base[i] * 100) / 100,
   }));
 
-  const totalReconciliado = out.reduce((s, it) => s + it.preco_liquido, 0);
+  const totalReconciliado = Math.round((baseSubtotal - descontoGlobal) * 100) / 100;
 
   // Sinal de qualidade HONESTO: a base líquida (já na convenção escolhida) menos
   // o desconto global devia bater com o TOTAL A PAGAR. Se não bater, a extração

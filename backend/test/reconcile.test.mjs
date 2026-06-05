@@ -9,12 +9,15 @@ const valores = [
 ];
 const itens = valores.map((valor, i) => ({ valor, descricao_original: `item ${i}` }));
 
-test('soma dos líquidos bate com o TOTAL A PAGAR ao cêntimo', () => {
+test('total reconciliado = subtotal − desconto global = TOTAL A PAGAR', () => {
   const r = distribuirDesconto(itens, { descontoGlobal: 4.96, totalImpresso: 38.1 });
   assert.equal(Math.round(r.subtotal * 100), 4306); // 43,06
   assert.equal(Math.round(r.totalReconciliado * 100), 3810); // 38,10 exato
   assert.equal(r.extracaoBate, true); // 43,06 - 4,96 == 38,10
   assert.equal(r.discrepancia, 0);
+  // o desconto de cartão NÃO é espalhado pelos itens: cada líquido fica fiel ao
+  // impresso, logo a soma dos líquidos é o SUBTOTAL (43,06), não o total.
+  assert.equal(Math.round(r.itens.reduce((s, it) => s + it.preco_liquido, 0) * 100), 4306);
 });
 
 test('discrepância apanha um item-fantasma (ex. POUPANCA 0,47 a mais)', () => {
@@ -24,12 +27,12 @@ test('discrepância apanha um item-fantasma (ex. POUPANCA 0,47 a mais)', () => {
   assert.equal(r.extracaoBate, false);
 });
 
-test('cada líquido é <= ao preço impresso (desconto reduz)', () => {
+test('desconto global (cartão) NÃO é espalhado: cada líquido = impresso', () => {
   const r = distribuirDesconto(itens, { descontoGlobal: 4.96, totalImpresso: 38.1 });
-  for (const it of r.itens) {
-    assert.ok(it.preco_liquido <= it.preco_unitario + 1e-9, `${it.descricao_original}: liquido > unitario`);
+  r.itens.forEach((it, i) => {
+    assert.equal(it.preco_liquido, valores[i]); // fiel ao impresso, sem raspar cêntimos
     assert.ok(it.preco_liquido > 0);
-  }
+  });
 });
 
 test('todos os líquidos têm 2 casas decimais (cêntimos inteiros)', () => {

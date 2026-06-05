@@ -18,7 +18,8 @@ leitura/OCR), devolve SÓ um objeto JSON:
   "confianca": number        // 0..1 — baixa se a descrição for ambígua/ilegível
 }
 Regras:
-- Expande abreviaturas (BOL=Bolacha, QJ=Queijo, IOG=Iogurte, C/=com, S/=sem).
+- Expande abreviaturas (BOL=Bolacha, QJ=Queijo, IOG=Iogurte, C/=com, S/=sem, SAB=Sabonete, DET=Detergente, CHAMP=Champô).
+- NÃO transformes produtos de HIGIENE/BELEZA/LIMPEZA em alimentos: "SAB." é Sabonete (não "Arroz"); palavras como sabonete, champô, gel, creme, serum, detergente, lixívia, amaciador indicam que NÃO é comida — mantém a categoria certa.
 - Ignora quantidade/código no início ("1 ", "2 ", "Uni ", "I ") — não faz parte do nome.
 - CORRIGE erros óbvios de leitura para o produto real que de facto existe, usando
   o teu conhecimento de produtos de supermercado portugueses:

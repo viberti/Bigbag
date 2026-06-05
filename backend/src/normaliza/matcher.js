@@ -113,3 +113,36 @@ export async function normalizarItensFatura(db, faturaId, opts = {}) {
   }
   return cont;
 }
+
+// Funde SKUs com nome canónico IDÊNTICO (normalizado) num só (mantém o mais
+// usado), movendo itens e aliases. `soNomesRaw` (opcional) limita aos nomes
+// dados — usado na ingestão para juntar só os da nota nova; sem ele, varre tudo
+// (botão "auto-merge" do /admin). Devolve { grupos, removidos }.
+export async function mergeNomesIdenticos(db, soNomesRaw) {
+  const filtro = soNomesRaw ? new Set([...soNomesRaw].map((x) => normalizarNome(x)).filter(Boolean)) : null;
+  const [skus] = await db.query(
+    'SELECT s.id, s.nome_canonico, COUNT(i.id) AS n FROM sku_normalizado s LEFT JOIN item i ON i.sku_id = s.id GROUP BY s.id',
+  );
+  const grupos = new Map();
+  for (const s of skus) {
+    const k = normalizarNome(s.nome_canonico);
+    if (!k || (filtro && !filtro.has(k))) continue;
+    (grupos.get(k) || grupos.set(k, []).get(k)).push(s);
+  }
+  let removidos = 0;
+  let nGrupos = 0;
+  for (const arr of grupos.values()) {
+    if (arr.length < 2) continue;
+    arr.sort((a, b) => b.n - a.n);
+    const para = arr[0].id;
+    for (let i = 1; i < arr.length; i++) {
+      const de = arr[i].id;
+      await db.query('UPDATE item SET sku_id = ? WHERE sku_id = ?', [para, de]);
+      await db.query("UPDATE sku_alias SET sku_id = ?, origem = 'manual' WHERE sku_id = ?", [para, de]);
+      await db.query('DELETE FROM sku_normalizado WHERE id = ?', [de]);
+      removidos++;
+    }
+    nGrupos++;
+  }
+  return { grupos: nGrupos, removidos };
+}

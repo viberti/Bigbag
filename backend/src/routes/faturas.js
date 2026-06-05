@@ -15,7 +15,7 @@ import { preProcessarImagem } from '../ingest/imagem.js';
 import { distribuirDesconto } from '../ingest/reconcile.js';
 import { persistirFatura } from '../ingest/persist.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
-import { normalizarItensFatura } from '../normaliza/matcher.js';
+import { normalizarItensFatura, mergeNomesIdenticos } from '../normaliza/matcher.js';
 import { guardarMensagem } from '../historico.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
@@ -127,6 +127,18 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     await normalizarItensFatura(getPool(), fatura_id).catch((e) =>
       console.error('[faturas] canonicalização:', e.message),
     );
+
+    // Funde automaticamente SKUs com nome idêntico criados por esta nota (evita
+    // que duplicados de nome se acumulem). Só os nomes desta fatura. Best-effort.
+    try {
+      const [skuRows] = await getPool().query(
+        'SELECT DISTINCT s.nome_canonico FROM item i JOIN sku_normalizado s ON s.id = i.sku_id WHERE i.fatura_id = ?',
+        [fatura_id],
+      );
+      await mergeNomesIdenticos(getPool(), new Set(skuRows.map((r) => r.nome_canonico)));
+    } catch (e) {
+      console.error('[faturas] merge idênticos:', e.message);
+    }
 
     // Nome legível (canónico) por descrição, para o cartão mostrar o produto
     // limpo em vez do abreviado do talão. Best-effort.

@@ -167,9 +167,9 @@ function Chat({ onSair, nome }) {
   // Processa UMA nota (sem gerir `ocupado` — quem chama é que gere, para o lote).
   // `dewarp` só no caminho do scanner de documento; `origem` marca o caminho
   // (scan/foto/galeria/arquivo) para depois comparar a leitura por caminho.
-  async function processarUma(file, { dewarp = false, origem = 'arquivo', prefixo = '' } = {}) {
+  async function processarUma(file, { dewarp = false, origem = 'arquivo', prefixo = '', etiqueta } = {}) {
     const ehImagem = file.type?.startsWith('image/');
-    add({ lado: 'user', tipo: 'ficheiro', nome: file.name });
+    add({ lado: 'user', tipo: 'ficheiro', nome: etiqueta || t('nota.enviada') });
     add({ lado: 'bot', tipo: 'pensar', texto: prefixo + (dewarp && ehImagem ? t('nota.scanning') : t('nota.reading')) });
     try {
       const enviar = dewarp && ehImagem ? await digitalizar(file) : file; // dewarp só no caminho 'scan'
@@ -209,7 +209,8 @@ function Chat({ onSair, nome }) {
     try {
       for (let i = 0; i < lista.length; i++) {
         const prefixo = lista.length > 1 ? t('cap.lote', { i: i + 1, n: lista.length }) + ' ' : '';
-        await processarUma(lista[i], { dewarp: false, origem, prefixo });
+        const etiqueta = lista.length > 1 ? t('nota.enviadaN', { i: i + 1, n: lista.length }) : t('nota.enviada');
+        await processarUma(lista[i], { dewarp: false, origem, prefixo, etiqueta });
       }
     } finally {
       setOcupado(false);
@@ -343,11 +344,12 @@ function Chat({ onSair, nome }) {
           ref={fileRef}
           type="file"
           accept="image/*,application/pdf"
+          multiple
           hidden
           onChange={(e) => {
-            const f = e.target.files?.[0];
+            const arr = e.target.files ? Array.from(e.target.files) : [];
             e.target.value = '';
-            fatura(f, { dewarp: false, origem: 'arquivo' });
+            faturaLote(arr, 'arquivo');
           }}
         />
         <input

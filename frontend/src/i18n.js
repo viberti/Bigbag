@@ -22,6 +22,8 @@ const STRINGS = {
     'cam.capture': 'Capturar',
     'cam.file': 'Galeria / PDF',
     'cam.error': 'Sem acesso à câmera. Use um arquivo.',
+    'nota.enviada': 'Nota',
+    'nota.enviadaN': 'Nota {i}/{n}',
     'nota.scanning': 'digitalizando…',
     'nota.reading': 'lendo a nota…',
     'nota.duplicate': 'Você já me enviou essa nota ({loja}, {data}).',

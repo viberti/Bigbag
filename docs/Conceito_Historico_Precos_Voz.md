@@ -68,7 +68,7 @@ Dois subsistemas independentes que partilham a BD. Toda a IA passa pelo **OpenRo
 | --- | --- |
 | Fim de prazo de validade (etiqueta rosa Continente) | Detetar "Aprox. fim prazo validade", associar ao item acima, marcar `is_clearance` e isolar da série histórica |
 | Desconto por item ("Poupança" sob o produto) | Subtrair ao bruto; registar o líquido; guardar `desconto_direto` |
-| Desconto global no fim da nota (Cartão Continente) | Distribuir proporcionalmente por todos os SKUs para a soma bater com o total pago |
+| Desconto global no fim da nota (Cartão Continente) | NÃO espalhar pelos itens (distorcia cada preço): guardar em `fatura.desconto_global` como desconto da nota; cada `preco_liquido` = preço impresso na linha. Reconciliação: `Σbase − desconto_global` deve bater com o total pago |
 | Itens não-produto (saco, taxas) | Marcar `is_non_product`; excluir do histórico de preços, manter para reconciliar o total |
 
 ### 4.2 Normalização de SKU
