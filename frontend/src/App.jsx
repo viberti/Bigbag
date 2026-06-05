@@ -446,11 +446,29 @@ const ORDEM_SECAO = [
   'Ovos',
   'Congelados',
   'Mercearia',
-  'Mercearia Doce',
   'Bebidas',
   'Higiene',
   'Limpeza',
+  'Outros',
 ];
+
+// Mapeia as categorias granulares do canonicalizador para secções coesas.
+function secaoDe(cat) {
+  const c = String(cat || '').toLowerCase();
+  if (c.includes('fruta') || c.includes('legume') || c.includes('hort')) return 'Frutas e Legumes';
+  if (c.includes('pão') || c.includes('pao') || c.includes('padaria') || c.includes('pastelaria')) return 'Padaria';
+  if (c.includes('talho') || c.includes('carne')) return 'Talho';
+  if (c.includes('charcut') || c.includes('enchido') || c.includes('fiambre') || c.includes('presunto')) return 'Charcutaria';
+  if (c.includes('peixe') || c.includes('marisco') || c.includes('peixaria')) return 'Peixaria';
+  if (c.includes('latic') || c.includes('queijo') || c.includes('iogurte')) return 'Laticínios';
+  if (c.includes('ovo')) return 'Ovos';
+  if (c.includes('congel')) return 'Congelados';
+  if (c.includes('bebida')) return 'Bebidas';
+  if (c.includes('higiene')) return 'Higiene';
+  if (c.includes('limpeza') || c.includes('detergente')) return 'Limpeza';
+  if (c.includes('mercearia') || c.includes('doce') || c.includes('snack') || c.includes('cereal')) return 'Mercearia';
+  return cat ? 'Mercearia' : 'Outros';
+}
 
 // Overlay dos produtos habituais: toca num produto para o pôr/tirar do carrinho.
 // Agrupado por secção do mercado, com animação ao adicionar.
@@ -470,7 +488,7 @@ function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }
   // Agrupa por secção e ordena.
   const grupos = {};
   for (const p of produtos || []) {
-    const sec = p.categoria || 'Outros';
+    const sec = secaoDe(p.categoria);
     (grupos[sec] = grupos[sec] || []).push(p);
   }
   const ord = (s) => {
