@@ -142,7 +142,7 @@ export async function detalhes_fatura(db, { loja, data } = {}) {
   const f = fats[0];
   const [itens] = await db.query(
     `SELECT COALESCE(s.nome_canonico, i.descricao_original) AS produto,
-            i.descricao_original, i.preco_unitario AS preco
+            i.descricao_original, COALESCE(i.preco_unitario, i.preco_liquido) AS preco
      FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
      WHERE i.fatura_id = ? ORDER BY i.id`,
     [f.id],
