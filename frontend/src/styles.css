@@ -221,3 +221,15 @@ body {
 .adm-par-seta { color: var(--muted); margin: 0 8px; }
 .adm-pares button { background: var(--verde-escuro); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .adm-pares button:disabled { opacity: 0.5; }
+
+.adm-qualidade { padding: 18px 24px; overflow-y: auto; }
+.adm-qtab { margin-bottom: 26px; max-width: 760px; }
+.adm-qtab h3 { font-size: 14px; color: var(--muted); margin: 0 0 8px; }
+.adm-tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
+.adm-tabela th, .adm-tabela td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #ffffff10; }
+.adm-tabela th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.adm-tabela td { font-variant-numeric: tabular-nums; }
+.adm-tabela em { color: var(--muted); font-style: normal; font-size: 12px; }
+.q-bom { color: var(--verde); }
+.q-medio { color: #e0b341; }
+.q-mau { color: #ff8a80; }

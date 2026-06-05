@@ -30,12 +30,23 @@ export default function Admin() {
           <button className={aba === 'notas' ? 'on' : ''} onClick={() => setAba('notas')}>
             Notas
           </button>
+          <button className={aba === 'qualidade' ? 'on' : ''} onClick={() => setAba('qualidade')}>
+            Qualidade
+          </button>
         </nav>
         <a className="adm-link" href="/">
           ← app
         </a>
       </header>
-      {aba === 'produtos' ? <TabProdutos /> : aba === 'fusoes' ? <TabFusoes /> : <TabNotas />}
+      {aba === 'produtos' ? (
+        <TabProdutos />
+      ) : aba === 'fusoes' ? (
+        <TabFusoes />
+      ) : aba === 'qualidade' ? (
+        <TabQualidade />
+      ) : (
+        <TabNotas />
+      )}
     </div>
   );
 }
@@ -276,6 +287,76 @@ function TabFusoes() {
         </ul>
       )}
       <p className="adm-aviso">Mantém o nome com mais compras (em negrito); o outro é absorvido.</p>
+    </div>
+  );
+}
+
+// ────────────────────────────── Qualidade ─────────────────────────────
+function pct(num, den) {
+  if (!den) return '—';
+  return Math.round((num / den) * 100) + '%';
+}
+
+function TabelaQualidade({ titulo, linhas }) {
+  return (
+    <div className="adm-qtab">
+      <h3>{titulo}</h3>
+      <table className="adm-tabela">
+        <thead>
+          <tr>
+            <th>{titulo}</th>
+            <th>Notas</th>
+            <th>Reconcilia</th>
+            <th>Disc. média</th>
+            <th>Revisão (✓/✕)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.map((l) => {
+            const taxa = (l.reconciliam / l.n) * 100;
+            return (
+              <tr key={l.chave}>
+                <td>{l.chave}</td>
+                <td>{l.n}</td>
+                <td>
+                  <span className={taxa >= 80 ? 'q-bom' : taxa >= 50 ? 'q-medio' : 'q-mau'}>
+                    {l.reconciliam}/{l.n} · {pct(l.reconciliam, l.n)}
+                  </span>
+                </td>
+                <td>{l.disc_media != null ? Number(l.disc_media).toFixed(2).replace('.', ',') : '—'}</td>
+                <td>
+                  {l.revistas > 0 ? (
+                    <span>
+                      <b className="q-bom">{l.rev_ok}</b> / <b className="q-mau">{l.rev_erro}</b>
+                      <em> ({l.revistas} de {l.n})</em>
+                    </span>
+                  ) : (
+                    <em>—</em>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TabQualidade() {
+  const [dados, setDados] = useState(null);
+  useEffect(() => {
+    adm.qualidade().then(setDados).catch(() => setDados({ cadeias: [], origens: [] }));
+  }, []);
+  if (!dados) return <p className="adm-vazio">a calcular…</p>;
+  return (
+    <div className="adm-qualidade">
+      <p className="adm-aviso">
+        «Reconcilia» = soma dos itens bate com o total impresso (sinal automático). «Revisão» = vereditos teus na
+        aba Notas. Onde a reconciliação cai, vale a pena olhar a leitura dessa cadeia/caminho.
+      </p>
+      <TabelaQualidade titulo="Cadeia" linhas={dados.cadeias} />
+      <TabelaQualidade titulo="Origem" linhas={dados.origens} />
     </div>
   );
 }

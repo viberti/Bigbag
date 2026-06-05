@@ -261,6 +261,34 @@ adminRouter.get('/faturas/:id', async (req, res) => {
   }
 });
 
+// Acerto da leitura por CADEIA e por ORIGEM de captura: taxa de reconciliação
+// (sinal honesto) + vereditos do operador. É o que diz onde focar (regras por
+// mercado? que caminho de captura lê melhor?).
+adminRouter.get('/qualidade', async (req, res) => {
+  try {
+    const pool = getPool();
+    const sql = (groupExpr) => `
+      SELECT ${groupExpr} AS chave,
+             COUNT(*) AS n,
+             SUM(f.needs_review = 0) AS reconciliam,
+             ROUND(AVG(ABS(f.discrepancia)), 3) AS disc_media,
+             COUNT(r.id) AS revistas,
+             SUM(r.veredicto = 'ok') AS rev_ok,
+             SUM(r.veredicto = 'erro') AS rev_erro
+        FROM fatura f
+        JOIN loja l ON l.id = f.loja_id
+        LEFT JOIN revisao r ON r.id = (SELECT MAX(r2.id) FROM revisao r2 WHERE r2.fatura_id = f.id)
+        GROUP BY ${groupExpr}
+        ORDER BY n DESC`;
+    const [cadeias] = await pool.query(sql('l.cadeia'));
+    const [origens] = await pool.query(sql("COALESCE(f.origem_captura, '—')"));
+    res.json({ cadeias, origens });
+  } catch (e) {
+    console.error('[admin/qualidade] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a calcular qualidade' });
+  }
+});
+
 // Guardar o veredicto do operador sobre a leitura.
 adminRouter.post('/faturas/:id/revisao', async (req, res) => {
   try {
