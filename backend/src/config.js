@@ -16,10 +16,14 @@ export const config = {
   },
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY || '',
-    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+    // Modelo geral (consulta, canonicalização, extração de PDF-texto): barato.
+    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite',
+    // Extração de fatura por IMAGEM (VLM): modelo mais forte (precisão em
+    // térmicas amassadas vale mais que a economia).
+    modelExtracao: process.env.OPENROUTER_MODEL_EXTRACAO || 'google/gemini-2.5-flash',
     timeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS) || 20000,
-    // Voz: modelo de transcrição (trocável). Vazio = usa o modelo principal.
-    sttModel: process.env.OPENROUTER_STT_MODEL || '',
+    // Voz: modelo de transcrição (áudio é sensível; manter um modelo forte).
+    sttModel: process.env.OPENROUTER_STT_MODEL || 'google/gemini-2.5-flash',
   },
   auth: {
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',

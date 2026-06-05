@@ -75,6 +75,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     const resultado = await persistirFatura(getPool(), dados, {
       ficheiroOriginal: ficheiro,
       metodo,
+      modelo: ehPdf ? config.openrouter.model : config.openrouter.modelExtracao,
       totalReconciliado: rec.totalReconciliado,
       discrepancia: rec.discrepancia,
       needsReview: !rec.extracaoBate,

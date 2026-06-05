@@ -4,6 +4,7 @@
 // registo.)
 import { visionPrompt, chatCompletion } from '../openrouter.js';
 import { normalizarItens } from './normalize.js';
+import { config } from '../config.js';
 
 const PROMPT = `És um extrator de faturas de supermercado português (Continente, Pingo Doce, Mercadona, Aldi, Lidl).
 Lê a imagem da fatura (talão térmico, pode estar amassado) e devolve SÓ um objeto JSON, sem texto à volta, sem markdown.
@@ -54,7 +55,7 @@ export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
     prompt: PROMPT,
     imageBase64,
     mime,
-    model,
+    model: model || config.openrouter.modelExtracao, // imagem → modelo forte
     timeoutMs,
     responseFormat: { type: 'json_object' },
   });
