@@ -47,6 +47,17 @@ app.get('/api/custos', requireAuth, async (req, res) => {
   }
 });
 
+// Qualidade da extração por modelo (sinal de reconciliação).
+app.get('/api/qualidade', requireAuth, async (req, res) => {
+  try {
+    const { resumoQualidade } = await import('./custo.js');
+    res.json(await resumoQualidade());
+  } catch (e) {
+    console.error('[qualidade] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar qualidade' });
+  }
+});
+
 // Perfil do usuário (memória de longo prazo) — o que o assistente sabe.
 app.get('/api/perfil', requireAuth, async (req, res) => {
   try {
