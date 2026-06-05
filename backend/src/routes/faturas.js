@@ -11,6 +11,7 @@ import { config } from '../config.js';
 import { getPool } from '../db.js';
 import { extrairFatura, extrairFaturaDeTexto } from '../ingest/extract.js';
 import { extrairTextoPdf } from '../ingest/pdf.js';
+import { preProcessarImagem } from '../ingest/imagem.js';
 import { distribuirDesconto } from '../ingest/reconcile.js';
 import { persistirFatura } from '../ingest/persist.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
@@ -34,7 +35,8 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       dados = await extrairFaturaDeTexto(texto);
       metodo = 'ocr_llm';
     } else {
-      dados = await extrairFatura({ imageBase64: req.file.buffer.toString('base64'), mime });
+      const img = await preProcessarImagem(req.file.buffer); // resize + contraste
+      dados = await extrairFatura({ imageBase64: img.buffer.toString('base64'), mime: img.mime });
       metodo = 'vlm';
     }
 
