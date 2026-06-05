@@ -68,7 +68,7 @@ export const toolDefs = [
       parameters: {
         type: 'object',
         properties: {
-          periodo_inicio: { type: 'string', description: "Data inicial ISO 'YYYY-MM-DD'." },
+          periodo_inicio: { type: 'string', description: "Data inicial ISO 'YYYY-MM-DD'. Se omitida, todo o histórico." },
           periodo_fim: { type: 'string', description: "Data final ISO 'YYYY-MM-DD'. Se omitida, até hoje." },
           alvo: {
             type: 'string',
@@ -76,7 +76,7 @@ export const toolDefs = [
           },
           loja: { type: 'string', description: "Opcional: cadeia/loja ('Lidl', 'Continente') para filtrar." },
         },
-        required: ['periodo_inicio'],
+        required: [],
       },
     },
   },
@@ -98,13 +98,13 @@ export const toolDefs = [
             type: 'string',
             description: "Opcional: cadeia/loja ('Lidl', 'Continente', 'Mercadona'). Para 'quanto gastei no Lidl'.",
           },
-          periodo_inicio: { type: 'string', description: "Data inicial ISO 'YYYY-MM-DD'." },
+          periodo_inicio: { type: 'string', description: "Data inicial ISO 'YYYY-MM-DD'. Se omitida, todo o histórico." },
           periodo_fim: {
             type: 'string',
             description: "Data final ISO 'YYYY-MM-DD'. Se omitida, até hoje.",
           },
         },
-        required: ['alvo', 'periodo_inicio'],
+        required: [],
       },
     },
   },

@@ -144,8 +144,9 @@ export async function historico_preco(db, { produto, desde }) {
 // 5) Listar o que foi comprado num período (itens com data, loja e preço).
 //    Opcionalmente filtrado por produto/categoria. Exclui não-produto e revisão.
 export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo, loja }) {
+  const inicio = periodo_inicio || '1900-01-01';
   const fim = periodo_fim || new Date().toISOString().slice(0, 10);
-  const params = [periodo_inicio, fim];
+  const params = [inicio, fim];
   let filtroAlvo = '';
   if (alvo && normaliza(alvo) !== 'tudo') {
     const m = matchProduto(alvo);
@@ -178,8 +179,9 @@ export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo, lo
 //    SUPOSIÇÃO: 'tudo' = total de gasto em produtos, não a fatura absoluta
 //    (sacos/taxas ficam de fora). Reversível se preferires o total bruto.
 export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim, loja }) {
+  const inicio = periodo_inicio || '1900-01-01'; // sem período → todo o histórico
   const fim = periodo_fim || new Date().toISOString().slice(0, 10);
-  const params = [periodo_inicio, fim];
+  const params = [inicio, fim];
   let filtroAlvo = '';
   if (alvo && normaliza(alvo) !== 'tudo') {
     const m = matchProduto(alvo); // procura nome/marca/categoria/descrição (+ sinónimos)
@@ -204,7 +206,7 @@ export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim, loja 
   return {
     alvo: alvo ?? 'tudo',
     loja: loja ?? null,
-    periodo_inicio,
+    periodo_inicio: inicio,
     periodo_fim: fim,
     total: rows[0].total,
     n_itens: rows[0].n_itens,
