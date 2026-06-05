@@ -100,6 +100,7 @@ function Chat({ onSair, nome }) {
   const [texto, setTexto] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [aGravar, setAGravar] = useState(false);
+  const [camAberta, setCamAberta] = useState(false);
   const fimRef = useRef(null);
   const fileRef = useRef(null);
   const mrRef = useRef(null);
@@ -262,7 +263,7 @@ function Chat({ onSair, nome }) {
           perguntar();
         }}
       >
-        <button type="button" className="icone" onClick={() => fileRef.current?.click()} disabled={ocupado} aria-label="fatura">
+        <button type="button" className="icone" onClick={() => setCamAberta(true)} disabled={ocupado} aria-label="fatura">
           📷
         </button>
         <input
@@ -299,6 +300,98 @@ function Chat({ onSair, nome }) {
           </button>
         )}
       </form>
+
+      <Camera
+        aberto={camAberta}
+        onFechar={() => setCamAberta(false)}
+        onFicheiro={() => {
+          setCamAberta(false);
+          fileRef.current?.click();
+        }}
+        onCapturar={(f) => {
+          setCamAberta(false);
+          fatura(f);
+        }}
+      />
+    </div>
+  );
+}
+
+// Captura guiada ao vivo: câmara traseira + moldura de alinhamento, para a nota
+// preencher o quadro (legibilidade na origem). Ao capturar, devolve um File que
+// segue o fluxo normal (digitalizar/dewarp + upload). Fallback para ficheiro.
+function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [erro, setErro] = useState('');
+
+  useEffect(() => {
+    if (!aberto) return;
+    let cancelado = false;
+    setErro('');
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        });
+        if (cancelado) return stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+      } catch {
+        if (!cancelado) setErro(t('cam.error'));
+      }
+    })();
+    return () => {
+      cancelado = true;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, [aberto]);
+
+  if (!aberto) return null;
+
+  function capturar() {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth;
+    canvas.height = v.videoHeight;
+    canvas.getContext('2d').drawImage(v, 0, 0);
+    canvas.toBlob((blob) => blob && onCapturar(new File([blob], 'nota.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.95);
+  }
+
+  return (
+    <div className="cam-overlay">
+      <div className="cam-topo">
+        <button className="cam-x" onClick={onFechar} aria-label="fechar">
+          ✕
+        </button>
+      </div>
+      {erro ? (
+        <div className="cam-erro">
+          <p>{erro}</p>
+          <button className="cam-file" onClick={onFicheiro}>
+            {t('cam.file')}
+          </button>
+        </div>
+      ) : (
+        <>
+          <video ref={videoRef} className="cam-video" playsInline muted autoPlay />
+          <div className="cam-moldura" />
+          <p className="cam-hint">{t('cam.hint')}</p>
+          <div className="cam-acoes">
+            <button className="cam-file" onClick={onFicheiro}>
+              {t('cam.file')}
+            </button>
+            <button className="cam-cap" onClick={capturar} aria-label={t('cam.capture')} />
+            <span className="cam-spacer" />
+          </div>
+        </>
+      )}
     </div>
   );
 }
