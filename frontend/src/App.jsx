@@ -583,9 +583,6 @@ function ItemCarrinho({ it, onRemover }) {
       >
         <span className="lista-nome">{it.nome}</span>
         {it.preco != null && <span className="lista-preco">{eur(it.preco)}</span>}
-        <button className="lista-rm" onClick={() => onRemover(it.nome)} aria-label="remover">
-          ✕
-        </button>
       </div>
     </li>
   );
