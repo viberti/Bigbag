@@ -19,12 +19,12 @@ export const vozRouter = Router();
 
 vozRouter.post('/', requireAuth, upload.single('audio'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ erro: 'Falta o ficheiro "audio"' });
+    if (!req.file) return res.status(400).json({ erro: 'Falta o arquivo "audio"' });
     const mime = req.file.mimetype || 'audio/webm';
 
     // 1) transcrição (áudio → texto)
     const transcricao = await transcrever(req.file.buffer.toString('base64'), { mime });
-    if (!transcricao) return res.status(422).json({ erro: 'Não percebi o áudio.', transcricao: '' });
+    if (!transcricao) return res.status(422).json({ erro: 'Não entendi o áudio.', transcricao: '' });
 
     // 2) guardar a nota de voz
     await mkdir(config.uploads.voz, { recursive: true });

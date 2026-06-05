@@ -21,7 +21,7 @@ export const faturasRouter = Router();
 
 faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ erro: 'Falta o ficheiro "fatura" (imagem ou PDF)' });
+    if (!req.file) return res.status(400).json({ erro: 'Falta o arquivo "fatura" (imagem ou PDF)' });
     const mime = req.file.mimetype || 'application/octet-stream';
     const ehPdf = mime === 'application/pdf' || /\.pdf$/i.test(req.file.originalname || '');
 

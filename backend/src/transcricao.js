@@ -26,7 +26,7 @@ export async function transcrever(audioBase64, { mime, format, model, timeoutMs 
         content: [
           {
             type: 'text',
-            text: 'Transcreve este áudio em português europeu. Devolve SÓ a transcrição exata, sem comentários nem pontuação inventada.',
+            text: 'Transcreva este áudio em português. Retorne SÓ a transcrição exata, sem comentários nem pontuação inventada.',
           },
           { type: 'input_audio', input_audio: { data: audioBase64, format: fmt } },
         ],

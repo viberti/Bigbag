@@ -15,7 +15,7 @@ export default function App() {
       .then(setSessao)
       .catch(() => setSessao(null));
   }, []);
-  if (sessao === undefined) return <div className="centro">a carregar…</div>;
+  if (sessao === undefined) return <div className="centro">carregando…</div>;
   if (!sessao)
     return (
       <Login
@@ -59,8 +59,8 @@ function Login({ onEntrar }) {
     <form className="login" onSubmit={submeter}>
       <h1>🛍️ Bigbag</h1>
       <p className="subtitulo">Histórico de preços de compras</p>
-      <input placeholder="utilizador" value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
-      <input placeholder="password" type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
+      <input placeholder="usuário" value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
+      <input placeholder="senha" type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
       {erro && <div className="erro-txt">{erro}</div>}
       <button disabled={aEntrar || !user || !pass}>{aEntrar ? '…' : 'Entrar'}</button>
     </form>
@@ -127,17 +127,17 @@ function Chat({ onSair, nome }) {
     if (!file || ocupado) return;
     add({ lado: 'user', tipo: 'ficheiro', nome: file.name });
     setOcupado(true);
-    add({ lado: 'bot', tipo: 'pensar', texto: 'a ler a fatura…' });
+    add({ lado: 'bot', tipo: 'pensar', texto: 'lendo a nota…' });
     try {
       const out = await enviarFatura(file);
       tiraPensar();
       if (out.erro) add({ lado: 'bot', tipo: 'erro', texto: out.detalhe || out.erro });
       else if (out.duplicada)
-        add({ lado: 'bot', tipo: 'resposta', texto: `Esta fatura já estava registada (${out.loja?.nome || out.loja?.cadeia}, ${dataCurta(out.data_compra)}). Não foi duplicada.` });
+        add({ lado: 'bot', tipo: 'resposta', texto: `Esta nota já estava registrada (${out.loja?.nome || out.loja?.cadeia}, ${dataCurta(out.data_compra)}). Não foi duplicada.` });
       else add({ lado: 'bot', tipo: 'compra', dados: out });
     } catch {
       tiraPensar();
-      add({ lado: 'bot', tipo: 'erro', texto: 'Falha ao enviar a fatura.' });
+      add({ lado: 'bot', tipo: 'erro', texto: 'Falha ao enviar a nota.' });
     } finally {
       setOcupado(false);
     }
@@ -153,7 +153,7 @@ function Chat({ onSair, nome }) {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
         setOcupado(true);
-        add({ lado: 'bot', tipo: 'pensar', texto: 'a ouvir…' });
+        add({ lado: 'bot', tipo: 'pensar', texto: 'ouvindo…' });
         try {
           const out = await enviarVoz(blob);
           tiraPensar();
@@ -220,7 +220,7 @@ function Chat({ onSair, nome }) {
         />
         <input
           className="campo"
-          placeholder="Escreve uma pergunta…"
+          placeholder="Escreva uma pergunta…"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           disabled={ocupado}
