@@ -35,6 +35,7 @@ const SINONIMOS = {
   limpeza: ['limpeza', 'detergente', 'lixivia', 'sabao', 'amaciador'],
   higiene: ['higiene', 'champo', 'gel de banho', 'sabonete', 'pasta de dentes', 'escova', 'cosmetic'],
   laticinios: ['laticinio', 'leite', 'iogurte', 'queijo', 'manteiga', 'natas', 'requeijao'],
+  pastelaria: ['pastelaria', 'padaria', 'bolo', 'napolitana', 'croissant', 'folhado', 'queque', 'pao de deus'],
 };
 
 export function expandirAlvo(alvo) {
@@ -110,6 +111,107 @@ export async function comparar_precos_por_loja(db, { produto }) {
      WHERE rn = 1
      ORDER BY preco_por_base ASC`,
     m.params,
+  );
+  return rows;
+}
+
+// 8) Produtos que o usuário compra COM FREQUÊNCIA (em várias idas distintas) —
+//    a "lista de compras habitual". idas = nº de compras distintas; meses = nº
+//    de meses distintos. Para "o que compro habitualmente", "todo mês".
+export async function produtos_habituais(db, { min_idas, periodo_inicio, periodo_fim, loja } = {}) {
+  const inicio = periodo_inicio || '1900-01-01';
+  const fim = periodo_fim || new Date().toISOString().slice(0, 10);
+  const minIdas = Math.max(2, Number(min_idas) || 2);
+  const ml = matchLoja(loja);
+  const [rows] = await db.query(
+    `SELECT COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+            COUNT(DISTINCT f.id) AS idas,
+            COUNT(DISTINCT DATE_FORMAT(f.data_compra, '%Y-%m')) AS meses,
+            COUNT(*) AS unidades,
+            ROUND(SUM(i.preco_liquido), 2) AS total
+     ${BASE_JOINS}
+     WHERE i.is_non_product = FALSE
+       AND f.needs_review = FALSE
+       AND DATE(f.data_compra) >= ?
+       AND DATE(f.data_compra) <= ?
+       ${ml.sql}
+     GROUP BY produto
+     HAVING idas >= ?
+     ORDER BY idas DESC, meses DESC, unidades DESC
+     LIMIT 40`,
+    [inicio, fim, ...ml.params, minIdas],
+  );
+  return rows;
+}
+
+// 7) Detalhes de uma fatura específica (itens e preços impressos). Sem filtros
+//    devolve a MAIS RECENTE adicionada; ou filtra por loja/data. Para "os
+//    valores da última fatura estão certos?", "o que comprei na fatura de X".
+export async function detalhes_fatura(db, { loja, data } = {}) {
+  const cond = [];
+  const params = [];
+  if (loja && String(loja).trim()) {
+    cond.push('(l.cadeia LIKE ? OR l.nome LIKE ?)');
+    params.push(`%${loja}%`, `%${loja}%`);
+  }
+  if (data) {
+    cond.push('DATE(f.data_compra) = ?');
+    params.push(data);
+  }
+  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+  const [fats] = await db.query(
+    `SELECT f.id, l.cadeia, l.nome AS loja, DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
+            f.total_impresso AS total, f.needs_review, f.metodo_extracao AS metodo
+     FROM fatura f JOIN loja l ON l.id = f.loja_id
+     ${where}
+     ORDER BY f.criado_em DESC LIMIT 1`,
+    params,
+  );
+  if (!fats.length) return { encontrada: false };
+  const f = fats[0];
+  const [itens] = await db.query(
+    `SELECT COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+            i.descricao_original, COALESCE(i.preco_unitario, i.preco_liquido) AS preco
+     FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+     WHERE i.fatura_id = ? ORDER BY i.id`,
+    [f.id],
+  );
+  return {
+    encontrada: true,
+    loja: f.loja,
+    cadeia: f.cadeia,
+    data: f.data,
+    total: f.total,
+    em_revisao: !!f.needs_review,
+    metodo_extracao: f.metodo,
+    itens,
+  };
+}
+
+// 6) Produto(s) mais barato(s) que casam com um termo (produto OU categoria),
+//    pelo preço por unidade-base — do mais barato ao mais caro. Uma linha por
+//    produto (observação mais recente). Para "qual o queijo mais barato".
+export async function produto_mais_barato(db, { alvo, loja }) {
+  const m = matchProduto(alvo);
+  const ml = matchLoja(loja);
+  const [rows] = await db.query(
+    `SELECT cadeia, loja, produto, preco_por_base, unidade_base, data FROM (
+        SELECT l.cadeia, l.nome AS loja,
+               COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+               i.preco_por_base, s.unidade_base,
+               DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
+               ROW_NUMBER() OVER (PARTITION BY COALESCE(s.nome_canonico, i.descricao_original)
+                                  ORDER BY f.data_compra DESC, i.id DESC) AS rn
+        ${BASE_JOINS}
+        WHERE ${m.sql}
+          AND i.is_clearance = FALSE AND i.is_non_product = FALSE AND f.needs_review = FALSE
+          AND i.preco_por_base IS NOT NULL
+          ${ml.sql}
+     ) t
+     WHERE rn = 1
+     ORDER BY preco_por_base ASC
+     LIMIT 10`,
+    [...m.params, ...ml.params],
   );
   return rows;
 }

@@ -41,6 +41,9 @@ body {
 }
 .chat header strong { font-size: 17px; }
 .link { background: none; border: none; color: var(--verde); cursor: pointer; font-size: 14px; }
+.header-acoes { display: flex; align-items: center; gap: 12px; }
+.icone-cab { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0; line-height: 1; }
+.icone-cab:disabled { opacity: 0.5; }
 
 .thread {
   flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 8px;

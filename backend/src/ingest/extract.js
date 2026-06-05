@@ -4,6 +4,7 @@
 // registo.)
 import { visionPrompt, chatCompletion } from '../openrouter.js';
 import { normalizarItens } from './normalize.js';
+import { config } from '../config.js';
 
 const PROMPT = `És um extrator de faturas de supermercado português (Continente, Pingo Doce, Mercadona, Aldi, Lidl).
 Lê a imagem da fatura (talão térmico, pode estar amassado) e devolve SÓ um objeto JSON, sem texto à volta, sem markdown.
@@ -32,7 +33,7 @@ Regras:
 - O NIF da LOJA é o do estabelecimento/vendedor (perto do nome no topo), NÃO o NIF do cliente.
 - "Aprox. fim prazo validade" aparece NA LINHA ABAIXO do produto — associa ao item imediatamente acima (is_clearance=true).
 - Linhas de desconto sob um produto ("Poupança", "Promoção", "Promoção Lidl Plus", "Desconto") pertencem a esse produto: soma a magnitude (positiva) no desconto_direto desse item. NUNCA cries um item separado para um desconto. O "valor" do item é o preço impresso na linha do produto (tal como aparece, mesmo que haja desconto por baixo).
-- Itens a peso aparecem como "0,505 kg x 6,19 EUR/kg" → o "valor" é o total da linha (ex. 3,13); guarda na descrição o texto do produto.
+- Itens a peso aparecem como "0,505 kg x 6,19 EUR/kg" → o "valor" é o PREÇO IMPRESSO na linha do produto (a coluna de preço, à direita do nome), e NÃO o resultado de kg × €/kg, que pode diferir por arredondamento. Ex.: se a linha do produto diz 2,29 € e por baixo "0,618 kg x 3,59 €/kg", o valor é 2,29 (não 2,22).
 - Não inventes itens nem valores. Se um valor não for legível, usa null no campo numérico desse item e mantém a descrição.
 - Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.
 - IGNORA o rodapé de fidelização/cartão: "ACUMULOU NO SEU CARTAO", "DESCONTO CUPAO", "SALDO NO CARTAO", "Saldo de selos", "Selos ganhos", "Já ganhou com o cartão", cupões lidos/emitidos, pontos. NÃO são itens nem descontos desta compra — não os contes em desconto_global nem em desconto_direto.`;
@@ -49,16 +50,24 @@ function parseJsonLoose(txt) {
   return JSON.parse(s);
 }
 
-export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
-  const bruto = await visionPrompt({
-    prompt: PROMPT,
-    imageBase64,
-    mime,
-    model,
-    timeoutMs,
-    responseFormat: { type: 'json_object' },
-  });
-  const dados = parseJsonLoose(bruto);
+export async function extrairFatura({ imageBase64, mime, model, timeoutMs, correcao }) {
+  const prompt = correcao ? `${PROMPT}\n\nATENÇÃO — a tua extração anterior não fechou. ${correcao}` : PROMPT;
+  const pedir = () =>
+    visionPrompt({
+      prompt,
+      imageBase64,
+      mime,
+      model: model || config.openrouter.modelExtracao, // imagem → modelo forte
+      timeoutMs,
+      responseFormat: { type: 'json_object' },
+      contexto: 'extracao_imagem',
+    });
+  let dados;
+  try {
+    dados = parseJsonLoose(await pedir());
+  } catch {
+    dados = parseJsonLoose(await pedir()); // nova tentativa em caso de JSON malformado
+  }
   if (!dados || !Array.isArray(dados.itens)) {
     throw new Error('Extração VLM não devolveu itens válidos');
   }
@@ -68,14 +77,16 @@ export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
 
 // Abordagem B — OCR/texto + LLM. Para faturas digitais em PDF (texto já
 // extraído). Mesmo esquema/regras; só muda a entrada (texto em vez de imagem).
-export async function extrairFaturaDeTexto(texto, { model, timeoutMs } = {}) {
+export async function extrairFaturaDeTexto(texto, { model, timeoutMs, correcao } = {}) {
+  const atencao = correcao ? `\n\nATENÇÃO — a tua extração anterior não fechou. ${correcao}` : '';
   const bruto = await chatCompletion({
     messages: [
-      { role: 'user', content: `${PROMPT}\n\nEis o TEXTO de uma fatura (já extraído do PDF):\n"""\n${texto}\n"""` },
+      { role: 'user', content: `${PROMPT}${atencao}\n\nEis o TEXTO de uma fatura (já extraído do PDF):\n"""\n${texto}\n"""` },
     ],
     model,
     timeoutMs,
     responseFormat: { type: 'json_object' },
+    contexto: 'extracao_texto',
   });
   const dados = parseJsonLoose(bruto);
   if (!dados || !Array.isArray(dados.itens)) {

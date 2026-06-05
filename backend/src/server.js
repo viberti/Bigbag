@@ -36,6 +36,40 @@ app.get('/api/historico', requireAuth, async (req, res) => {
   }
 });
 
+// Custos das chamadas ao modelo (por contexto e por modelo).
+app.get('/api/custos', requireAuth, async (req, res) => {
+  try {
+    const { resumoCustos } = await import('./custo.js');
+    res.json(await resumoCustos());
+  } catch (e) {
+    console.error('[custos] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar custos' });
+  }
+});
+
+// Qualidade da extração por modelo (sinal de reconciliação).
+app.get('/api/qualidade', requireAuth, async (req, res) => {
+  try {
+    const { resumoQualidade } = await import('./custo.js');
+    res.json(await resumoQualidade());
+  } catch (e) {
+    console.error('[qualidade] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar qualidade' });
+  }
+});
+
+// Lista de compras habitual (produtos recorrentes) — para o ícone na PWA.
+app.get('/api/habituais', requireAuth, async (req, res) => {
+  try {
+    const { produtos_habituais } = await import('./queries.js');
+    const { getPool } = await import('./db.js');
+    res.json({ produtos: await produtos_habituais(getPool(), { min_idas: 2 }) });
+  } catch (e) {
+    console.error('[habituais] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar lista habitual' });
+  }
+});
+
 // Perfil do usuário (memória de longo prazo) — o que o assistente sabe.
 app.get('/api/perfil', requireAuth, async (req, res) => {
   try {

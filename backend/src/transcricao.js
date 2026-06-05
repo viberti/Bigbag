@@ -34,6 +34,7 @@ export async function transcrever(audioBase64, { mime, format, model, timeoutMs 
     ],
     model: model || config.openrouter.sttModel || config.openrouter.model,
     timeoutMs,
+    contexto: 'transcricao',
   });
   return String(texto || '').trim();
 }

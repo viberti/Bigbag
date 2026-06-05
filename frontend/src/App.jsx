@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais } from './api.js';
+import { digitalizar } from './scanner.js';
 import { t, detetarLocale } from './i18n.js';
 
 detetarLocale('pt-BR'); // default; usa o idioma do browser se houver dicionário
@@ -130,9 +131,13 @@ function Chat({ onSair, nome }) {
     if (!file || ocupado) return;
     add({ lado: 'user', tipo: 'ficheiro', nome: file.name });
     setOcupado(true);
-    add({ lado: 'bot', tipo: 'pensar', texto: t('nota.reading') });
+    const ehImagem = file.type?.startsWith('image/');
+    add({ lado: 'bot', tipo: 'pensar', texto: ehImagem ? t('nota.scanning') : t('nota.reading') });
     try {
-      const out = await enviarFatura(file);
+      // Digitaliza no browser (recorte + perspectiva). Falha → original.
+      const enviar = ehImagem ? await digitalizar(file) : file;
+      setMsgs((xs) => xs.map((m) => (m.tipo === 'pensar' ? { ...m, texto: t('nota.reading') } : m)));
+      const out = await enviarFatura(enviar);
       tiraPensar();
       if (out.erro) add({ lado: 'bot', tipo: 'erro', texto: out.detalhe || out.erro });
       else if (out.duplicada)
@@ -188,13 +193,34 @@ function Chat({ onSair, nome }) {
     setAGravar(false);
   }
 
+  async function mostrarHabituais() {
+    if (ocupado) return;
+    setOcupado(true);
+    add({ lado: 'bot', tipo: 'pensar' });
+    try {
+      const produtos = await carregarHabituais();
+      tiraPensar();
+      add({ lado: 'bot', tipo: 'habituais', produtos });
+    } catch {
+      tiraPensar();
+      add({ lado: 'bot', tipo: 'erro', texto: t('err.query') });
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   return (
     <div className="chat">
       <header>
         <strong>🛍️ Bigbag</strong>
-        <button className="link" onClick={onSair}>
-          {t('chat.logout')}
-        </button>
+        <div className="header-acoes">
+          <button className="icone-cab" onClick={mostrarHabituais} disabled={ocupado} aria-label="lista habitual" title={t('habituais.title')}>
+            🛒
+          </button>
+          <button className="link" onClick={onSair}>
+            {t('chat.logout')}
+          </button>
+        </div>
       </header>
 
       <div className="thread">
@@ -264,6 +290,7 @@ function Bolha({ m }) {
     <div className={cls}>
       {m.tipo === 'ficheiro' && <div className="ficheiro">📄 {m.nome}</div>}
       {m.tipo === 'compra' && <CartaoCompra d={m.dados} />}
+      {m.tipo === 'habituais' && <CartaoHabituais produtos={m.produtos} />}
       {m.tipo === 'resposta' && <Resposta m={m} />}
       {m.tipo === 'erro' && <span className="erro-txt">{m.texto}</span>}
       {m.tipo === 'texto' && <span className="txt">{m.texto}</span>}
@@ -296,6 +323,23 @@ function Resposta({ m }) {
   );
 }
 
+function CartaoHabituais({ produtos }) {
+  if (!produtos || !produtos.length) return <span className="txt">{t('habituais.empty')}</span>;
+  return (
+    <div className="compra">
+      <div className="compra-cab">{t('habituais.title')}</div>
+      <ul className="compra-itens">
+        {produtos.map((p, i) => (
+          <li key={i}>
+            <span>{p.produto}</span>
+            <b>{t('habituais.times', { n: p.idas })}</b>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function CartaoCompra({ d }) {
   const [aberto, setAberto] = useState(false);
   const itens = d.itens || [];
@@ -317,7 +361,7 @@ function CartaoCompra({ d }) {
         {mostra.map((it, i) => (
           <li key={i}>
             <span>{it.descricao_original}</span>
-            <b>{eur(it.preco_liquido)}</b>
+            <b>{eur(it.preco_unitario ?? it.preco_liquido)}</b>
           </li>
         ))}
       </ul>

@@ -42,6 +42,59 @@ export const toolDefs = [
   {
     type: 'function',
     function: {
+      name: 'produtos_habituais',
+      description:
+        "Lista os produtos que o usuário compra COM FREQUÊNCIA/regularmente (em várias idas às compras distintas), ordenados dos mais recorrentes. Usar para 'produtos que compro habitualmente', 'minha lista de compras habitual', 'o que compro todo mês'. Retorna por produto: idas (nº de compras distintas), meses (meses distintos em que comprou), unidades e total.",
+      parameters: {
+        type: 'object',
+        properties: {
+          min_idas: {
+            type: 'integer',
+            description: "Mínimo de compras distintas para ser 'habitual' (default 2). Para 'todo mês', repare também no campo 'meses'.",
+          },
+          periodo_inicio: { type: 'string', description: "Opcional, ISO 'YYYY-MM-DD'. Se omitido, todo o histórico." },
+          periodo_fim: { type: 'string', description: "Opcional, ISO 'YYYY-MM-DD'." },
+          loja: { type: 'string', description: 'Opcional: cadeia/loja.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'detalhes_fatura',
+      description:
+        "Mostra os itens e preços de UMA fatura/compra específica. Sem parâmetros = a MAIS RECENTE adicionada (para 'a última fatura', 'a que acabei de enviar', 'os valores dessa compra estão certos?'). Ou filtra por loja e/ou data (ex.: 'a fatura do Continente de 4 de maio').",
+      parameters: {
+        type: 'object',
+        properties: {
+          loja: { type: 'string', description: "Opcional: cadeia/loja ('Aldi', 'Continente')." },
+          data: { type: 'string', description: "Opcional: data da compra ISO 'YYYY-MM-DD'." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'produto_mais_barato',
+      description:
+        "Encontra o(s) produto(s) MAIS BARATO(S) que casam com um termo (produto ou categoria), pelo preço por unidade-base (€/kg, €/L, €/un), do mais barato ao mais caro. Usar para 'qual o queijo mais barato', 'qual a fruta mais barata'. (Diferente de comparar_precos_por_loja, que compara o MESMO produto entre lojas.)",
+      parameters: {
+        type: 'object',
+        properties: {
+          alvo: { type: 'string', description: "Produto ou categoria, ex.: 'queijo', 'fruta', 'iogurte'." },
+          loja: { type: 'string', description: 'Opcional: limitar a uma cadeia/loja.' },
+        },
+        required: ['alvo'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'historico_preco',
       description:
         "Devolve a evolução do preço de um produto ao longo do tempo (lista de preço por data e loja). Usar para perguntas sobre subida/descida de preço ou 'quanto custava antes'.",
@@ -79,7 +132,7 @@ export const toolDefs = [
             type: 'string',
             enum: ['item', 'produto'],
             description:
-              "Como agrupar. 'produto' = lista focada nos produtos (cada produto com total gasto, SEM loja/data) — usar para 'que produtos comprei', 'lista de produtos'. 'item' (default) = linha-a-linha por ida (com data e loja) — para 'as minhas compras'.",
+              "Como agrupar. 'produto' = lista focada nos produtos (cada produto com o total gasto e QUANTAS VEZES foi comprado, no campo 'vezes', SEM loja/data) — usar para 'que produtos comprei', 'lista sem repetições', 'quantas vezes comprei cada X'. 'item' (default) = linha-a-linha por ida (com data e loja).",
           },
         },
         required: [],
@@ -141,6 +194,9 @@ const dispatch = {
   historico_preco: queries.historico_preco,
   total_gasto: queries.total_gasto,
   listar_compras: queries.listar_compras,
+  produto_mais_barato: queries.produto_mais_barato,
+  detalhes_fatura: queries.detalhes_fatura,
+  produtos_habituais: queries.produtos_habituais,
 };
 
 // Executa uma tool call do LLM. `args` é o objeto de argumentos já parseado.

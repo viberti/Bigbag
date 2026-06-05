@@ -30,7 +30,15 @@ async function upsertLoja(conn, loja) {
 export async function persistirFatura(
   pool,
   dados,
-  { ficheiroOriginal = null, metodo = 'vlm', totalReconciliado, discrepancia = null, needsReview = false, extracaoJson = null } = {},
+  {
+    ficheiroOriginal = null,
+    metodo = 'vlm',
+    modelo = null,
+    totalReconciliado,
+    discrepancia = null,
+    needsReview = false,
+    extracaoJson = null,
+  } = {},
 ) {
   const conn = await pool.getConnection();
   try {
@@ -57,8 +65,8 @@ export async function persistirFatura(
     const [rf] = await conn.query(
       `INSERT INTO fatura
          (loja_id, data_compra, numero_fatura, total_impresso, total_reconciliado, discrepancia, needs_review,
-          desconto_global, ficheiro_original, metodo_extracao, extracao_json)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          desconto_global, ficheiro_original, metodo_extracao, modelo, extracao_json)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         lojaId,
         data,
@@ -70,6 +78,7 @@ export async function persistirFatura(
         num(dados.desconto_global) || 0,
         ficheiroOriginal,
         metodo,
+        modelo,
         extracaoJson != null ? JSON.stringify(extracaoJson) : null,
       ],
     );

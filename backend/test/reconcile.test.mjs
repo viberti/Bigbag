@@ -57,6 +57,17 @@ test('LIDL: valor bruto + desconto de linha (convenção B), total 64,70', () =>
   assert.equal(r.itens[0].preco_liquido, 2.93); // 3,13 − 0,20
 });
 
+test('sem desconto, diferença de extração NÃO rapa cêntimos (preço fiel ao impresso)', () => {
+  // 3,49 + 2,29 + 3,59 = 9,37 impresso, mas total da nota 9,27 (0,10 a menos)
+  const itens = [{ valor: 3.49 }, { valor: 2.29 }, { valor: 3.59 }];
+  const r = distribuirDesconto(itens, { descontoGlobal: 0, totalImpresso: 9.27 });
+  assert.equal(r.itens[0].preco_liquido, 3.49); // mantém o impresso
+  assert.equal(r.itens[1].preco_liquido, 2.29);
+  assert.equal(r.itens[2].preco_liquido, 3.59);
+  assert.equal(r.discrepancia, 0.1); // diferença sinalizada
+  assert.equal(r.extracaoBate, false);
+});
+
 test('sem desconto global, líquido = impresso', () => {
   const r = distribuirDesconto([{ valor: 2.5 }, { valor: 1.5 }], { descontoGlobal: 0, totalImpresso: 4.0 });
   assert.equal(r.itens[0].preco_liquido, 2.5);

@@ -11,9 +11,11 @@ import { config } from '../config.js';
 import { getPool } from '../db.js';
 import { extrairFatura, extrairFaturaDeTexto } from '../ingest/extract.js';
 import { extrairTextoPdf } from '../ingest/pdf.js';
+import { preProcessarImagem } from '../ingest/imagem.js';
 import { distribuirDesconto } from '../ingest/reconcile.js';
 import { persistirFatura } from '../ingest/persist.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
+import { guardarMensagem } from '../historico.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -26,18 +28,45 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     const ehPdf = mime === 'application/pdf' || /\.pdf$/i.test(req.file.originalname || '');
 
     // 1) extração — PDF (texto+LLM, Abordagem B) OU imagem (VLM, Abordagem A)
-    let dados;
     let metodo;
+    let reextrair; // (correcao?) → nova extração, para a auto-correção
     if (ehPdf) {
       const texto = await extrairTextoPdf(req.file.buffer);
-      dados = await extrairFaturaDeTexto(texto);
       metodo = 'ocr_llm';
+      reextrair = (correcao) => extrairFaturaDeTexto(texto, { correcao });
     } else {
-      dados = await extrairFatura({ imageBase64: req.file.buffer.toString('base64'), mime });
+      const img = await preProcessarImagem(req.file.buffer); // resize + contraste
+      const imageBase64 = img.buffer.toString('base64');
       metodo = 'vlm';
+      reextrair = (correcao) => extrairFatura({ imageBase64, mime: img.mime, correcao });
+    }
+    const reconciliar = (d) =>
+      distribuirDesconto(d.itens, { descontoGlobal: Number(d.desconto_global) || 0, totalImpresso: d.total_impresso });
+
+    let dados = await reextrair();
+    let rec = reconciliar(dados);
+
+    // 1b) AUTO-CORREÇÃO — loop LIMITADO: realimenta a discrepância e fica com o
+    // melhor. Para ao reconciliar, ao não melhorar, ou ao atingir o limite.
+    for (let i = 0; i < config.openrouter.maxCorrecoes && !rec.extracaoBate && dados.total_impresso != null; i++) {
+      const hint = `A soma dos itens deu ${rec.subtotal} mas o total impresso é ${dados.total_impresso} (diferença ${rec.discrepancia}). Reverifica com atenção: itens a peso (usa o PREÇO IMPRESSO na linha, não kg×€/kg), descontos/promoções, e itens em falta ou a mais. Devolve o JSON corrigido.`;
+      let dados2;
+      let rec2;
+      try {
+        dados2 = await reextrair(hint);
+        rec2 = reconciliar(dados2);
+      } catch {
+        break; // erro na re-extração → mantém o melhor até agora
+      }
+      if (Math.abs(rec2.discrepancia) < Math.abs(rec.discrepancia)) {
+        dados = dados2;
+        rec = rec2;
+      } else {
+        break; // não melhorou → não insistir (evita gastar sem ganho)
+      }
     }
 
-    // snapshot do que o VLM extraiu (antes da reconciliação), para debug
+    // snapshot do que foi extraído (antes da reconciliação), para debug
     const extracaoJson = {
       loja: dados.loja,
       data_compra: dados.data_compra,
@@ -46,13 +75,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       total_impresso: dados.total_impresso,
       itens: dados.itens,
     };
-
-    // 2) reconciliação determinística (distribui desconto global)
-    const rec = distribuirDesconto(dados.itens, {
-      descontoGlobal: Number(dados.desconto_global) || 0,
-      totalImpresso: dados.total_impresso,
-    });
-    dados.itens = rec.itens;
+    dados.itens = rec.itens; // reconciliados
 
     // 2b) Camada 1 da normalização: formato → preco_por_base (€/kg, €/L, €/un)
     for (const it of dados.itens) {
@@ -74,6 +97,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     const resultado = await persistirFatura(getPool(), dados, {
       ficheiroOriginal: ficheiro,
       metodo,
+      modelo: ehPdf ? config.openrouter.model : config.openrouter.modelExtracao,
       totalReconciliado: rec.totalReconciliado,
       discrepancia: rec.discrepancia,
       needsReview: !rec.extracaoBate,
@@ -90,6 +114,15 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       });
     }
     const { fatura_id, loja_id, n_itens } = resultado;
+
+    // Regista o upload na conversa, para o assistente ter contexto
+    // ("a última fatura", "os valores dessa compra estão certos?").
+    const dataCurta = String(dados.data_compra || '').slice(0, 10);
+    await guardarMensagem(
+      req.user.id,
+      'assistant',
+      `📄 Fatura adicionada: ${dados.loja?.cadeia || dados.loja?.nome}, ${dataCurta}, total ${Number(dados.total_impresso).toFixed(2).replace('.', ',')} €, ${n_itens} itens.${rec.extracaoBate ? '' : ' (em revisão — diferença a confirmar)'}`,
+    ).catch(() => {});
 
     // 5) resumo para o utilizador (inclui sinal de qualidade da extração)
     res.json({

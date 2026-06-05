@@ -42,6 +42,7 @@ export async function confirmarMesmoProduto(nomeA, nomeB, { model, timeoutMs } =
     model,
     timeoutMs,
     responseFormat: { type: 'json_object' },
+    contexto: 'confirmar',
   });
   try {
     return parseJson(txt).mesmo === true;
@@ -57,6 +58,7 @@ export async function canonicalizar(descricao, { model, timeoutMs } = {}) {
       model,
       timeoutMs,
       responseFormat: { type: 'json_object' },
+      contexto: 'canonicalizar',
     });
   let c;
   try {
