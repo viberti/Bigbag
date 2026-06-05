@@ -84,6 +84,7 @@ function TabProdutos() {
   const [sel, setSel] = useState(null);
   const [det, setDet] = useState(null);
   const [nome, setNome] = useState('');
+  const [simplificado, setSimplificado] = useState('');
   const [novaDesc, setNovaDesc] = useState('');
   const [alvoMerge, setAlvoMerge] = useState('');
   const [msg, setMsg] = useState('');
@@ -125,17 +126,24 @@ function TabProdutos() {
     const d = await adm.carregarSku(id);
     setDet(d);
     setNome(d.sku.nome_canonico);
+    setSimplificado(d.sku.nome_simplificado || '');
   }
   const recarregarDet = async () => {
     if (!sel) return;
     const d = await adm.carregarSku(sel);
     setDet(d);
     setNome(d.sku.nome_canonico);
+    setSimplificado(d.sku.nome_simplificado || '');
   };
 
   async function salvarNome() {
     await adm.renomearSku(sel, { nome_canonico: nome.trim() });
     setMsg('✓ nome salvo');
+    recarregarLista();
+  }
+  async function salvarSimplificado() {
+    await adm.renomearSku(sel, { nome_canonico: det.sku.nome_canonico, nome_simplificado: simplificado.trim() });
+    setMsg('✓ nome simplificado salvo');
     recarregarLista();
   }
   async function dissociar(desc) {
@@ -200,6 +208,25 @@ function TabProdutos() {
               {det.sku.marca ? `marca: ${det.sku.marca} · ` : ''}
               {det.sku.categoria || '—'} · {det.sku.unidade_base}
             </div>
+
+            <h3>Nome simplificado (lista de compras)</h3>
+            <div className="adm-linha">
+              <input
+                list="adm-simplificados"
+                placeholder="ex.: Leite, Pera, Iogurte Grego…"
+                value={simplificado}
+                onChange={(e) => setSimplificado(e.target.value)}
+              />
+              <button onClick={salvarSimplificado} disabled={simplificado.trim() === (det.sku.nome_simplificado || '')}>
+                Salvar
+              </button>
+            </div>
+            <datalist id="adm-simplificados">
+              {[...new Set(skus.map((s) => s.nome_simplificado).filter(Boolean))].sort().map((v) => (
+                <option key={v} value={v} />
+              ))}
+            </datalist>
+            <p className="adm-aviso">Agrupa variantes numa lista de compras (vários canónicos → um simplificado).</p>
 
             <h3>Nomes de produto associados</h3>
             <ul className="adm-descs">
