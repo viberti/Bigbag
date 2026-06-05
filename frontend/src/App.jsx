@@ -264,8 +264,6 @@ function Chat({ onSair, nome }) {
     setCarrinho((c) =>
       c.some((i) => i.nome === nome) ? c.filter((i) => i.nome !== nome) : [...c, { nome, categoria, preco, feito: false }],
     );
-  const alternarFeito = (nome) =>
-    setCarrinho((c) => c.map((i) => (i.nome === nome ? { ...i, feito: !i.feito } : i)));
   const removerDoCarrinho = (nome) => setCarrinho((c) => c.filter((i) => i.nome !== nome));
   const limparCarrinho = () => setCarrinho([]);
 
@@ -291,7 +289,15 @@ function Chat({ onSair, nome }) {
           <button className="icone-cab" onClick={abrirHabituais} aria-label="produtos habituais" title={t('habituais.title')}>
             🔁
           </button>
-          <button className="icone-cab cart-btn" onClick={() => setCarrinhoAberto(true)} aria-label="carrinho" title={t('cart.title')}>
+          <button
+            className="icone-cab cart-btn"
+            onClick={() => {
+              setCarrinhoAberto(true);
+              if (!habituaisLista) carregarHabituais().then(setHabituaisLista).catch(() => {});
+            }}
+            aria-label="carrinho"
+            title={t('cart.title')}
+          >
             🛒
             {carrinho.length > 0 && <span className="cart-badge">{carrinho.length}</span>}
           </button>
@@ -428,7 +434,7 @@ function Chat({ onSair, nome }) {
       <CarrinhoOverlay
         aberto={carrinhoAberto}
         carrinho={carrinho}
-        onFeito={alternarFeito}
+        catPorNome={Object.fromEntries((habituaisLista || []).map((p) => [p.produto, p.categoria]))}
         onRemover={removerDoCarrinho}
         onLimpar={limparCarrinho}
         onFechar={() => setCarrinhoAberto(false)}
@@ -538,9 +544,9 @@ function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }
 }
 
 // Overlay do carrinho: a lista de compras de hoje (marcar comprado, remover, limpar).
-// Item do carrinho: toca no nome/✓ para marcar comprado; arrasta para a DIREITA
-// para apagar (revela 🗑); o ✕ é o atalho equivalente (desktop).
-function ItemCarrinho({ it, onFeito, onRemover }) {
+// Item do carrinho: arrasta para a DIREITA para apagar (revela 🗑); o ✕ é o
+// atalho equivalente (desktop).
+function ItemCarrinho({ it, onRemover }) {
   const [dx, setDx] = useState(0);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
   function start(e) {
@@ -566,7 +572,7 @@ function ItemCarrinho({ it, onFeito, onRemover }) {
     setDx(0);
   }
   return (
-    <li className={`swipe-li ${it.feito ? 'feito' : ''}`}>
+    <li className="swipe-li">
       <div className="swipe-bg">🗑</div>
       <div
         className="swipe-fg"
@@ -575,12 +581,7 @@ function ItemCarrinho({ it, onFeito, onRemover }) {
         onTouchMove={move}
         onTouchEnd={end}
       >
-        <span className="lista-check" onClick={() => onFeito(it.nome)}>
-          {it.feito ? '☑' : '☐'}
-        </span>
-        <span className="lista-nome" onClick={() => onFeito(it.nome)}>
-          {it.nome}
-        </span>
+        <span className="lista-nome">{it.nome}</span>
         {it.preco != null && <span className="lista-preco">{eur(it.preco)}</span>}
         <button className="lista-rm" onClick={() => onRemover(it.nome)} aria-label="remover">
           ✕
@@ -590,15 +591,16 @@ function ItemCarrinho({ it, onFeito, onRemover }) {
   );
 }
 
-function CarrinhoOverlay({ aberto, carrinho, onFeito, onRemover, onLimpar, onFechar }) {
+function CarrinhoOverlay({ aberto, carrinho, catPorNome, onRemover, onLimpar, onFechar }) {
   if (!aberto) return null;
-  const faltam = carrinho.filter((i) => !i.feito).length;
+  // enriquece a categoria a partir dos habituais (auto-corrige itens antigos)
+  const itens = carrinho.map((it) => ({ ...it, categoria: it.categoria || catPorNome?.[it.nome] }));
   return (
     <div className="lista-overlay" onClick={onFechar}>
       <div className="lista-painel" onClick={(e) => e.stopPropagation()}>
         <div className="lista-cab">
           <strong>{t('cart.title')}</strong>
-          {carrinho.length > 0 && <span className="lista-conta">{t('cart.left', { n: faltam })}</span>}
+          {carrinho.length > 0 && <span className="lista-conta">{t('cart.left', { n: carrinho.length })}</span>}
           <button className="lista-x" onClick={onFechar} aria-label="fechar">
             ✕
           </button>
@@ -608,12 +610,12 @@ function CarrinhoOverlay({ aberto, carrinho, onFeito, onRemover, onLimpar, onFec
         ) : (
           <>
             <div className="lista-scroll">
-              {agruparPorSecao(carrinho).map(([sec, itens]) => (
+              {agruparPorSecao(itens).map(([sec, lista]) => (
                 <div key={sec}>
                   <div className="lista-secao">{sec}</div>
                   <ul className="lista-itens">
-                    {itens.map((it) => (
-                      <ItemCarrinho key={it.nome} it={it} onFeito={onFeito} onRemover={onRemover} />
+                    {lista.map((it) => (
+                      <ItemCarrinho key={it.nome} it={it} onRemover={onRemover} />
                     ))}
                   </ul>
                 </div>
