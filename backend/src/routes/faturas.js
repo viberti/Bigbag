@@ -28,19 +28,40 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     const ehPdf = mime === 'application/pdf' || /\.pdf$/i.test(req.file.originalname || '');
 
     // 1) extração — PDF (texto+LLM, Abordagem B) OU imagem (VLM, Abordagem A)
-    let dados;
     let metodo;
+    let reextrair; // (correcao?) → nova extração, para a auto-correção
     if (ehPdf) {
       const texto = await extrairTextoPdf(req.file.buffer);
-      dados = await extrairFaturaDeTexto(texto);
       metodo = 'ocr_llm';
+      reextrair = (correcao) => extrairFaturaDeTexto(texto, { correcao });
     } else {
       const img = await preProcessarImagem(req.file.buffer); // resize + contraste
-      dados = await extrairFatura({ imageBase64: img.buffer.toString('base64'), mime: img.mime });
+      const imageBase64 = img.buffer.toString('base64');
       metodo = 'vlm';
+      reextrair = (correcao) => extrairFatura({ imageBase64, mime: img.mime, correcao });
+    }
+    const reconciliar = (d) =>
+      distribuirDesconto(d.itens, { descontoGlobal: Number(d.desconto_global) || 0, totalImpresso: d.total_impresso });
+
+    let dados = await reextrair();
+    let rec = reconciliar(dados);
+
+    // 1b) AUTO-CORREÇÃO: se não fecha, realimenta a discrepância e fica com o melhor.
+    if (!rec.extracaoBate && dados.total_impresso != null) {
+      const hint = `A soma dos itens deu ${rec.subtotal} mas o total impresso é ${dados.total_impresso} (diferença ${rec.discrepancia}). Reverifica com atenção: itens a peso (usa o PREÇO IMPRESSO na linha, não kg×€/kg), descontos/promoções, e itens em falta ou a mais. Devolve o JSON corrigido.`;
+      try {
+        const dados2 = await reextrair(hint);
+        const rec2 = reconciliar(dados2);
+        if (Math.abs(rec2.discrepancia) < Math.abs(rec.discrepancia)) {
+          dados = dados2;
+          rec = rec2;
+        }
+      } catch {
+        /* mantém a 1ª extração */
+      }
     }
 
-    // snapshot do que o VLM extraiu (antes da reconciliação), para debug
+    // snapshot do que foi extraído (antes da reconciliação), para debug
     const extracaoJson = {
       loja: dados.loja,
       data_compra: dados.data_compra,
@@ -49,13 +70,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       total_impresso: dados.total_impresso,
       itens: dados.itens,
     };
-
-    // 2) reconciliação determinística (distribui desconto global)
-    const rec = distribuirDesconto(dados.itens, {
-      descontoGlobal: Number(dados.desconto_global) || 0,
-      totalImpresso: dados.total_impresso,
-    });
-    dados.itens = rec.itens;
+    dados.itens = rec.itens; // reconciliados
 
     // 2b) Camada 1 da normalização: formato → preco_por_base (€/kg, €/L, €/un)
     for (const it of dados.itens) {

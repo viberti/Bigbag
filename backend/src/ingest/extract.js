@@ -50,10 +50,11 @@ function parseJsonLoose(txt) {
   return JSON.parse(s);
 }
 
-export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
+export async function extrairFatura({ imageBase64, mime, model, timeoutMs, correcao }) {
+  const prompt = correcao ? `${PROMPT}\n\nATENÇÃO — a tua extração anterior não fechou. ${correcao}` : PROMPT;
   const pedir = () =>
     visionPrompt({
-      prompt: PROMPT,
+      prompt,
       imageBase64,
       mime,
       model: model || config.openrouter.modelExtracao, // imagem → modelo forte
@@ -76,10 +77,11 @@ export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
 
 // Abordagem B — OCR/texto + LLM. Para faturas digitais em PDF (texto já
 // extraído). Mesmo esquema/regras; só muda a entrada (texto em vez de imagem).
-export async function extrairFaturaDeTexto(texto, { model, timeoutMs } = {}) {
+export async function extrairFaturaDeTexto(texto, { model, timeoutMs, correcao } = {}) {
+  const atencao = correcao ? `\n\nATENÇÃO — a tua extração anterior não fechou. ${correcao}` : '';
   const bruto = await chatCompletion({
     messages: [
-      { role: 'user', content: `${PROMPT}\n\nEis o TEXTO de uma fatura (já extraído do PDF):\n"""\n${texto}\n"""` },
+      { role: 'user', content: `${PROMPT}${atencao}\n\nEis o TEXTO de uma fatura (já extraído do PDF):\n"""\n${texto}\n"""` },
     ],
     model,
     timeoutMs,
