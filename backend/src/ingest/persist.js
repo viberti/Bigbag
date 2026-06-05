@@ -1,9 +1,10 @@
 import { classificarLoja } from './classify.js';
 
 // Persiste uma fatura extraída + reconciliada. Tudo numa transação.
-// Loja: upsert por NIF (chave natural). Itens: sku_id e preco_por_base ficam
-// NULL — a normalização de SKU (e o €/unidade-base) é um passo separado, a
-// correr depois sobre descricao_original (conceito §4.2).
+// Loja: upsert por NIF (chave natural). `preco_por_base` já vem calculado
+// (Camada 1, na rota). `sku_id` é gravado NULL aqui e resolvido logo a seguir,
+// FORA da transação, por normalizarItensFatura (faz chamadas ao LLM); o script
+// de lote normalizar_skus é a rede de segurança.
 
 async function upsertLoja(conn, loja) {
   const cadeia = loja?.cadeia || 'Desconhecida';
