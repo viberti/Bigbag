@@ -58,6 +58,18 @@ app.get('/api/qualidade', requireAuth, async (req, res) => {
   }
 });
 
+// Lista de compras habitual (produtos recorrentes) — para o ícone na PWA.
+app.get('/api/habituais', requireAuth, async (req, res) => {
+  try {
+    const { produtos_habituais } = await import('./queries.js');
+    const { getPool } = await import('./db.js');
+    res.json({ produtos: await produtos_habituais(getPool(), { min_idas: 2 }) });
+  } catch (e) {
+    console.error('[habituais] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar lista habitual' });
+  }
+});
+
 // Perfil do usuário (memória de longo prazo) — o que o assistente sabe.
 app.get('/api/perfil', requireAuth, async (req, res) => {
   try {

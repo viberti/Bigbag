@@ -31,6 +31,13 @@ export async function carregarConversa() {
   return mensagens || [];
 }
 
+export async function carregarHabituais() {
+  const r = await call('/api/habituais');
+  if (!r.ok) return [];
+  const { produtos } = await r.json();
+  return produtos || [];
+}
+
 export async function consultar(pergunta) {
   const r = await call('/api/consulta', {
     method: 'POST',

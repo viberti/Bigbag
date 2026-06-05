@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais } from './api.js';
 import { t, detetarLocale } from './i18n.js';
 
 detetarLocale('pt-BR'); // default; usa o idioma do browser se houver dicionário
@@ -188,13 +188,34 @@ function Chat({ onSair, nome }) {
     setAGravar(false);
   }
 
+  async function mostrarHabituais() {
+    if (ocupado) return;
+    setOcupado(true);
+    add({ lado: 'bot', tipo: 'pensar' });
+    try {
+      const produtos = await carregarHabituais();
+      tiraPensar();
+      add({ lado: 'bot', tipo: 'habituais', produtos });
+    } catch {
+      tiraPensar();
+      add({ lado: 'bot', tipo: 'erro', texto: t('err.query') });
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   return (
     <div className="chat">
       <header>
         <strong>🛍️ Bigbag</strong>
-        <button className="link" onClick={onSair}>
-          {t('chat.logout')}
-        </button>
+        <div className="header-acoes">
+          <button className="icone-cab" onClick={mostrarHabituais} disabled={ocupado} aria-label="lista habitual" title={t('habituais.title')}>
+            🛒
+          </button>
+          <button className="link" onClick={onSair}>
+            {t('chat.logout')}
+          </button>
+        </div>
       </header>
 
       <div className="thread">
@@ -264,6 +285,7 @@ function Bolha({ m }) {
     <div className={cls}>
       {m.tipo === 'ficheiro' && <div className="ficheiro">📄 {m.nome}</div>}
       {m.tipo === 'compra' && <CartaoCompra d={m.dados} />}
+      {m.tipo === 'habituais' && <CartaoHabituais produtos={m.produtos} />}
       {m.tipo === 'resposta' && <Resposta m={m} />}
       {m.tipo === 'erro' && <span className="erro-txt">{m.texto}</span>}
       {m.tipo === 'texto' && <span className="txt">{m.texto}</span>}
@@ -292,6 +314,23 @@ function Resposta({ m }) {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function CartaoHabituais({ produtos }) {
+  if (!produtos || !produtos.length) return <span className="txt">{t('habituais.empty')}</span>;
+  return (
+    <div className="compra">
+      <div className="compra-cab">{t('habituais.title')}</div>
+      <ul className="compra-itens">
+        {produtos.map((p, i) => (
+          <li key={i}>
+            <span>{p.produto}</span>
+            <b>{t('habituais.times', { n: p.idas })}</b>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
