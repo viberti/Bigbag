@@ -28,7 +28,7 @@ adminRouter.get('/skus', async (req, res) => {
       args.push(`%${q}%`, `%${q}%`);
     }
     const [rows] = await getPool().query(
-      `SELECT s.id, s.nome_canonico, s.marca, s.categoria, s.unidade_base,
+      `SELECT s.id, s.nome_canonico, s.nome_simplificado, s.marca, s.categoria, s.unidade_base,
               COUNT(DISTINCT i.id) AS n_itens,
               COUNT(DISTINCT i.descricao_original) AS n_desc
          FROM sku_normalizado s
@@ -77,10 +77,12 @@ adminRouter.patch('/skus/:id', async (req, res) => {
     if (!nome) return res.status(400).json({ erro: 'nome_canonico obrigatório' });
     const marca = req.body?.marca === undefined ? undefined : str(req.body.marca, 80);
     const categoria = req.body?.categoria === undefined ? undefined : str(req.body.categoria, 60);
+    const simplificado = req.body?.nome_simplificado === undefined ? undefined : str(req.body.nome_simplificado, 120);
     const sets = ['nome_canonico = ?'];
     const args = [nome];
     if (marca !== undefined) { sets.push('marca = ?'); args.push(marca || null); }
     if (categoria !== undefined) { sets.push('categoria = ?'); args.push(categoria || null); }
+    if (simplificado !== undefined) { sets.push('nome_simplificado = ?'); args.push(simplificado || null); }
     args.push(id);
     await getPool().query(`UPDATE sku_normalizado SET ${sets.join(', ')} WHERE id = ?`, args);
     res.json({ ok: true });

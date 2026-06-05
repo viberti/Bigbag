@@ -124,11 +124,13 @@ export async function produtos_habituais(db, { min_idas, periodo_inicio, periodo
   const minIdas = Math.max(2, Number(min_idas) || 2);
   const ml = matchLoja(loja);
   const [rows] = await db.query(
-    `SELECT COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+    `SELECT COALESCE(s.nome_simplificado, s.nome_canonico, i.descricao_original) AS produto,
+            MAX(s.categoria) AS categoria,
             COUNT(DISTINCT f.id) AS idas,
             COUNT(DISTINCT DATE_FORMAT(f.data_compra, '%Y-%m')) AS meses,
             COUNT(*) AS unidades,
-            ROUND(SUM(i.preco_liquido), 2) AS total
+            ROUND(SUM(i.preco_liquido), 2) AS total,
+            CAST(SUBSTRING_INDEX(GROUP_CONCAT(i.preco_liquido ORDER BY f.data_compra DESC), ',', 1) AS DECIMAL(10,2)) AS ultimo_preco
      ${BASE_JOINS}
      WHERE i.is_non_product = FALSE
        AND f.needs_review = FALSE

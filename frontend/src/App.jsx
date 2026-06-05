@@ -102,6 +102,17 @@ function Chat({ onSair, nome }) {
   const [aGravar, setAGravar] = useState(false);
   const [camAberta, setCamAberta] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  // Lista de compras (carrinho), persistida no aparelho. Itens: { nome, feito }.
+  const [carrinho, setCarrinho] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('bigbag_carrinho') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [habituaisAberto, setHabituaisAberto] = useState(false);
+  const [carrinhoAberto, setCarrinhoAberto] = useState(false);
+  const [habituaisLista, setHabituaisLista] = useState(null);
   const fimRef = useRef(null);
   const fileRef = useRef(null);
   const fotoRef = useRef(null);
@@ -243,19 +254,27 @@ function Chat({ onSair, nome }) {
     setAGravar(false);
   }
 
-  async function mostrarHabituais() {
-    if (ocupado) return;
-    setOcupado(true);
-    add({ lado: 'bot', tipo: 'pensar' });
+  // Persiste o carrinho no aparelho a cada alteração.
+  useEffect(() => {
+    localStorage.setItem('bigbag_carrinho', JSON.stringify(carrinho));
+  }, [carrinho]);
+
+  const noCarrinho = (nome) => carrinho.some((i) => i.nome === nome);
+  const alternarCarrinho = (nome, categoria, preco) =>
+    setCarrinho((c) =>
+      c.some((i) => i.nome === nome) ? c.filter((i) => i.nome !== nome) : [...c, { nome, categoria, preco, feito: false }],
+    );
+  const removerDoCarrinho = (nome) => setCarrinho((c) => c.filter((i) => i.nome !== nome));
+  const limparCarrinho = () => setCarrinho([]);
+
+  // Abre as compras habituais (overlay): carrega a lista e mostra para tocar.
+  async function abrirHabituais() {
+    setHabituaisAberto(true);
+    if (habituaisLista) return;
     try {
-      const produtos = await carregarHabituais();
-      tiraPensar();
-      add({ lado: 'bot', tipo: 'habituais', produtos });
+      setHabituaisLista(await carregarHabituais());
     } catch {
-      tiraPensar();
-      add({ lado: 'bot', tipo: 'erro', texto: t('err.query') });
-    } finally {
-      setOcupado(false);
+      setHabituaisLista([]);
     }
   }
 
@@ -267,8 +286,20 @@ function Chat({ onSair, nome }) {
           <span className="versao">v{APP_VERSION}</span>
         </span>
         <div className="header-acoes">
-          <button className="icone-cab" onClick={mostrarHabituais} disabled={ocupado} aria-label="lista habitual" title={t('habituais.title')}>
+          <button className="icone-cab" onClick={abrirHabituais} aria-label="produtos habituais" title={t('habituais.title')}>
+            🔁
+          </button>
+          <button
+            className="icone-cab cart-btn"
+            onClick={() => {
+              setCarrinhoAberto(true);
+              if (!habituaisLista) carregarHabituais().then(setHabituaisLista).catch(() => {});
+            }}
+            aria-label="carrinho"
+            title={t('cart.title')}
+          >
             🛒
+            {carrinho.length > 0 && <span className="cart-badge">{carrinho.length}</span>}
           </button>
           <button className="link" onClick={onSair}>
             {t('chat.logout')}
@@ -392,6 +423,207 @@ function Chat({ onSair, nome }) {
           fatura(f, { dewarp: true, origem: 'scan' });
         }}
       />
+
+      <HabituaisOverlay
+        aberto={habituaisAberto}
+        produtos={habituaisLista}
+        noCarrinho={noCarrinho}
+        onAlternar={alternarCarrinho}
+        onFechar={() => setHabituaisAberto(false)}
+      />
+      <CarrinhoOverlay
+        aberto={carrinhoAberto}
+        carrinho={carrinho}
+        catPorNome={Object.fromEntries((habituaisLista || []).map((p) => [p.produto, p.categoria]))}
+        onRemover={removerDoCarrinho}
+        onLimpar={limparCarrinho}
+        onFechar={() => setCarrinhoAberto(false)}
+      />
+    </div>
+  );
+}
+
+// Ordem das secções do mercado (percurso típico); desconhecidas vão para o fim.
+const ORDEM_SECAO = [
+  'Frutas e Legumes',
+  'Padaria',
+  'Talho',
+  'Charcutaria',
+  'Peixaria',
+  'Laticínios',
+  'Ovos',
+  'Congelados',
+  'Mercearia',
+  'Bebidas',
+  'Higiene',
+  'Limpeza',
+  'Outros',
+];
+
+// Mapeia as categorias granulares do canonicalizador para secções coesas.
+function secaoDe(cat) {
+  const c = String(cat || '').toLowerCase();
+  if (c.includes('fruta') || c.includes('legume') || c.includes('hort')) return 'Frutas e Legumes';
+  if (c.includes('pão') || c.includes('pao') || c.includes('padaria') || c.includes('pastelaria')) return 'Padaria';
+  if (c.includes('talho') || c.includes('carne')) return 'Talho';
+  if (c.includes('charcut') || c.includes('enchido') || c.includes('fiambre') || c.includes('presunto')) return 'Charcutaria';
+  if (c.includes('peixe') || c.includes('marisco') || c.includes('peixaria')) return 'Peixaria';
+  if (c.includes('latic') || c.includes('queijo') || c.includes('iogurte')) return 'Laticínios';
+  if (c.includes('ovo')) return 'Ovos';
+  if (c.includes('congel')) return 'Congelados';
+  if (c.includes('bebida')) return 'Bebidas';
+  if (c.includes('higiene')) return 'Higiene';
+  if (c.includes('limpeza') || c.includes('detergente')) return 'Limpeza';
+  if (c.includes('mercearia') || c.includes('doce') || c.includes('snack') || c.includes('cereal')) return 'Mercearia';
+  return cat ? 'Mercearia' : 'Outros';
+}
+
+// Agrupa itens {categoria} por secção do mercado, na ordem do percurso.
+function agruparPorSecao(itens) {
+  const grupos = {};
+  for (const it of itens) {
+    const s = secaoDe(it.categoria);
+    (grupos[s] = grupos[s] || []).push(it);
+  }
+  const ord = (s) => {
+    const i = ORDEM_SECAO.indexOf(s);
+    return i < 0 ? 99 : i;
+  };
+  return Object.entries(grupos).sort((a, b) => ord(a[0]) - ord(b[0]) || a[0].localeCompare(b[0]));
+}
+
+// Overlay dos produtos habituais: lista PLANA por frequência (mais comprados
+// primeiro, sem mostrar o número). Toca para pôr/tirar do carrinho, com animação.
+function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }) {
+  const [flash, setFlash] = useState(null);
+  if (!aberto) return null;
+
+  function toque(p) {
+    const estava = noCarrinho(p.produto);
+    onAlternar(p.produto, p.categoria, p.ultimo_preco);
+    if (!estava) {
+      setFlash(p.produto);
+      setTimeout(() => setFlash((f) => (f === p.produto ? null : f)), 480);
+    }
+  }
+
+  return (
+    <div className="lista-overlay" onClick={onFechar}>
+      <div className="lista-painel" onClick={(e) => e.stopPropagation()}>
+        <div className="lista-cab">
+          <strong>{t('habituais.title')}</strong>
+          <button className="lista-x" onClick={onFechar} aria-label="fechar">
+            ✕
+          </button>
+        </div>
+        {produtos === null ? (
+          <p className="lista-vazio">{t('chat.thinking')}</p>
+        ) : produtos.length === 0 ? (
+          <p className="lista-vazio">{t('habituais.empty')}</p>
+        ) : (
+          <ul className="lista-itens lista-scroll">
+            {produtos.map((p) => {
+              const dentro = noCarrinho(p.produto);
+              return (
+                <li
+                  key={p.produto}
+                  className={`${dentro ? 'dentro' : ''} ${flash === p.produto ? 'flash' : ''}`}
+                  onClick={() => toque(p)}
+                >
+                  <span className="lista-check">{dentro ? '✓' : '+'}</span>
+                  <span className="lista-nome">{p.produto}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="lista-dica">{t('cart.addHint')}</p>
+      </div>
+    </div>
+  );
+}
+
+// Overlay do carrinho: a lista de compras de hoje (marcar comprado, remover, limpar).
+// Item do carrinho: arrasta para a DIREITA para apagar (revela 🗑); o ✕ é o
+// atalho equivalente (desktop).
+function ItemCarrinho({ it, onRemover }) {
+  const [dx, setDx] = useState(0);
+  const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
+  function start(e) {
+    const t = e.touches[0];
+    g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 };
+  }
+  function move(e) {
+    const r = g.current;
+    if (!r.mov) return;
+    const t = e.touches[0];
+    const dX = t.clientX - r.x0;
+    const dY = t.clientY - r.y0;
+    if (!r.horiz && Math.abs(dX) > Math.abs(dY) + 6) r.horiz = true;
+    if (r.horiz) {
+      r.dx = Math.max(0, dX);
+      setDx(r.dx);
+    }
+  }
+  function end() {
+    const r = g.current;
+    r.mov = false;
+    if (r.horiz && r.dx > 90) onRemover(it.nome);
+    setDx(0);
+  }
+  return (
+    <li className="swipe-li">
+      <div className="swipe-bg">🗑</div>
+      <div
+        className="swipe-fg"
+        style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+        onTouchStart={start}
+        onTouchMove={move}
+        onTouchEnd={end}
+      >
+        <span className="lista-nome">{it.nome}</span>
+        {it.preco != null && <span className="lista-preco">{eur(it.preco)}</span>}
+      </div>
+    </li>
+  );
+}
+
+function CarrinhoOverlay({ aberto, carrinho, catPorNome, onRemover, onLimpar, onFechar }) {
+  if (!aberto) return null;
+  // enriquece a categoria a partir dos habituais (auto-corrige itens antigos)
+  const itens = carrinho.map((it) => ({ ...it, categoria: it.categoria || catPorNome?.[it.nome] }));
+  return (
+    <div className="lista-overlay" onClick={onFechar}>
+      <div className="lista-painel" onClick={(e) => e.stopPropagation()}>
+        <div className="lista-cab">
+          <strong>{t('cart.title')}</strong>
+          {carrinho.length > 0 && <span className="lista-conta">{t('cart.left', { n: carrinho.length })}</span>}
+          <button className="lista-x" onClick={onFechar} aria-label="fechar">
+            ✕
+          </button>
+        </div>
+        {carrinho.length === 0 ? (
+          <p className="lista-vazio">{t('cart.empty')}</p>
+        ) : (
+          <>
+            <div className="lista-scroll">
+              {agruparPorSecao(itens).map(([sec, lista]) => (
+                <div key={sec}>
+                  <div className="lista-secao">{sec}</div>
+                  <ul className="lista-itens">
+                    {lista.map((it) => (
+                      <ItemCarrinho key={it.nome} it={it} onRemover={onRemover} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <button className="lista-limpar" onClick={onLimpar}>
+              {t('cart.clear')}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
