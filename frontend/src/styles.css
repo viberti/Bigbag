@@ -64,14 +64,23 @@ body {
 .lista-cab strong { font-size: 15px; }
 .lista-conta { color: var(--muted); font-size: 12px; }
 .lista-x { margin-left: auto; background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; }
-.lista-itens { list-style: none; margin: 0; padding: 6px 0; overflow-y: auto; }
+.lista-scroll { flex: 1; overflow-y: auto; }
+.lista-secao {
+  padding: 9px 16px 4px; color: var(--muted); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; background: var(--bot);
+}
+.lista-itens { list-style: none; margin: 0; padding: 0; }
 .lista-itens li { display: flex; align-items: center; gap: 12px; padding: 11px 16px; cursor: pointer; }
 .lista-itens li:active { background: #ffffff0c; }
-.lista-check { font-size: 17px; width: 20px; text-align: center; color: var(--verde); }
+.lista-check { font-size: 18px; width: 22px; text-align: center; color: var(--verde); }
 .lista-itens li.dentro { background: #14321f55; }
-.lista-nome { flex: 1; }
-.lista-itens em { color: var(--muted); font-style: normal; font-size: 12px; }
+.lista-nome { flex: 1; font-size: 17px; }
 .lista-itens li.feito .lista-nome { text-decoration: line-through; color: var(--muted); }
+/* animação ao adicionar ao carrinho */
+@keyframes addPulse { 0% { background: #25d36644; } 70% { background: #25d36622; } 100% { background: transparent; } }
+@keyframes checkPop { 0% { transform: scale(0.4); } 55% { transform: scale(1.5); } 100% { transform: scale(1); } }
+.lista-itens li.flash { animation: addPulse 0.5s ease-out; }
+.lista-itens li.flash .lista-check { display: inline-block; animation: checkPop 0.42s ease-out; }
 .lista-rm { background: none; border: none; color: #ff8a80; font-size: 15px; cursor: pointer; padding: 4px; }
 .lista-limpar { margin: 8px 16px 16px; padding: 10px; border-radius: 8px; border: 1px solid #2a3942; background: none; color: var(--muted); cursor: pointer; }
 .lista-vazio { color: var(--muted); text-align: center; padding: 28px 16px; }

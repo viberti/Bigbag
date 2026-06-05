@@ -435,9 +435,51 @@ function Chat({ onSair, nome }) {
   );
 }
 
+// Ordem das secções do mercado (percurso típico); desconhecidas vão para o fim.
+const ORDEM_SECAO = [
+  'Frutas e Legumes',
+  'Padaria',
+  'Talho',
+  'Charcutaria',
+  'Peixaria',
+  'Laticínios',
+  'Ovos',
+  'Congelados',
+  'Mercearia',
+  'Mercearia Doce',
+  'Bebidas',
+  'Higiene',
+  'Limpeza',
+];
+
 // Overlay dos produtos habituais: toca num produto para o pôr/tirar do carrinho.
+// Agrupado por secção do mercado, com animação ao adicionar.
 function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }) {
+  const [flash, setFlash] = useState(null);
   if (!aberto) return null;
+
+  function toque(nome) {
+    const estava = noCarrinho(nome);
+    onAlternar(nome);
+    if (!estava) {
+      setFlash(nome);
+      setTimeout(() => setFlash((f) => (f === nome ? null : f)), 480);
+    }
+  }
+
+  // Agrupa por secção e ordena.
+  const grupos = {};
+  for (const p of produtos || []) {
+    const sec = p.categoria || 'Outros';
+    (grupos[sec] = grupos[sec] || []).push(p);
+  }
+  const ord = (s) => {
+    const i = ORDEM_SECAO.indexOf(s);
+    return i < 0 ? 99 : i;
+  };
+  const secoes = Object.keys(grupos).sort((a, b) => ord(a) - ord(b) || a.localeCompare(b));
+  for (const s of secoes) grupos[s].sort((a, b) => a.produto.localeCompare(b.produto));
+
   return (
     <div className="lista-overlay" onClick={onFechar}>
       <div className="lista-painel" onClick={(e) => e.stopPropagation()}>
@@ -452,18 +494,28 @@ function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }
         ) : produtos.length === 0 ? (
           <p className="lista-vazio">{t('habituais.empty')}</p>
         ) : (
-          <ul className="lista-itens">
-            {produtos.map((p, i) => {
-              const dentro = noCarrinho(p.produto);
-              return (
-                <li key={i} className={dentro ? 'dentro' : ''} onClick={() => onAlternar(p.produto)}>
-                  <span className="lista-check">{dentro ? '✓' : '+'}</span>
-                  <span className="lista-nome">{p.produto}</span>
-                  <em>{t('habituais.times', { n: p.idas })}</em>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="lista-scroll">
+            {secoes.map((sec) => (
+              <div key={sec}>
+                <div className="lista-secao">{sec}</div>
+                <ul className="lista-itens">
+                  {grupos[sec].map((p) => {
+                    const dentro = noCarrinho(p.produto);
+                    return (
+                      <li
+                        key={p.produto}
+                        className={`${dentro ? 'dentro' : ''} ${flash === p.produto ? 'flash' : ''}`}
+                        onClick={() => toque(p.produto)}
+                      >
+                        <span className="lista-check">{dentro ? '✓' : '+'}</span>
+                        <span className="lista-nome">{p.produto}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
         )}
         <p className="lista-dica">{t('cart.addHint')}</p>
       </div>
