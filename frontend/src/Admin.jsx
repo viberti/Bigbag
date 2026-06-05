@@ -186,7 +186,7 @@ function TabProdutos() {
           {skus.map((s) => (
             <li key={s.id} className={s.id === sel ? 'on' : ''} onClick={() => abrir(s.id)}>
               <span>{s.nome_canonico}</span>
-              <em>{s.n_itens}</em>
+              <em title={`${s.n_itens} compra(s)`}>{s.n_itens}×</em>
             </li>
           ))}
         </ul>
@@ -206,7 +206,8 @@ function TabProdutos() {
             </div>
             <div className="adm-meta">
               {det.sku.marca ? `marca: ${det.sku.marca} · ` : ''}
-              {det.sku.categoria || '—'} · {det.sku.unidade_base}
+              {det.sku.categoria || '—'} · {det.sku.unidade_base} ·{' '}
+              {det.descricoes.reduce((a, d) => a + d.n, 0)} compra(s)
             </div>
 
             <h3>Nome simplificado (lista de compras)</h3>
