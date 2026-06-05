@@ -25,5 +25,22 @@ export const config = {
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || '',
     superuserEmail: process.env.SUPERUSER_EMAIL || '',
     sessionSecret: process.env.SESSION_SECRET || '',
+    // Portão temporário (até o Google OAuth estar ativo). Ver auth.js.
+    enableTestAuth: String(process.env.ENABLE_TEST_AUTH || '').toLowerCase() === 'true',
+    testUsers: parseTestUsers(process.env.TEST_USERS),
+  },
+  uploads: {
+    faturas: process.env.UPLOAD_DIR_FATURAS || './uploads/comprovantes',
+    voz: process.env.UPLOAD_DIR_VOZ || './uploads/notas_voz',
   },
 };
+
+function parseTestUsers(raw) {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((x) => x && x.u && x.p) : [];
+  } catch {
+    return [];
+  }
+}
