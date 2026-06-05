@@ -51,6 +51,12 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 2. **Leitura de fatura:** VLM direto vs. OCR+LLM. VLM direto já em uso; OCR+LLM por implementar para comparar. `fatura.metodo_extracao` regista qual gerou cada registo.
 3. ~~**Autenticação**~~ **FECHADA (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL`. As rotas exigem sessão (portão temporário até o OAuth ficar ativo).
 
+## Internacionalização (i18n) — base PT-BR, código localizável
+- **Idioma base: português do Brasil (PT-BR)**, tratando o usuário por "você". Mas **nunca hardcodar texto visível** ao usuário — codificar de forma a permitir tradução fácil.
+- **Frontend:** todo o texto da UI passa por `frontend/src/i18n.js` via `t('chave', vars)` (interpolação `{var}`, plural `{n|sing|plur}`, deteção do idioma do browser). **Traduzir = adicionar um dicionário** de idioma; os componentes não mudam.
+- **Backend (respostas do assistente):** o idioma está centralizado no system prompt (`consulta.js`); pode passar a locale-driven quando houver 2.º idioma.
+- **Exceções (não são UI, ficam como dados):** prompts internos de extração de nota e os nomes de produtos canónicos (vêm de notas de supermercados de Portugal).
+
 ## Notas técnicas
 - IA toda via **OpenRouter** (compatível OpenAI), uma só chave (`OPENROUTER_API_KEY`), cobre texto/imagem/áudio. Áudio vai em base64 (URLs não suportados para áudio).
 - `OPENROUTER_TIMEOUT_MS=20000` herdado — vigiar; pode ser curto para imagem de fatura grande num VLM. Subir se necessário.
