@@ -26,6 +26,16 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     // 1) extração VLM
     const dados = await extrairFatura({ imageBase64, mime });
 
+    // snapshot do que o VLM extraiu (antes da reconciliação), para debug
+    const extracaoJson = {
+      loja: dados.loja,
+      data_compra: dados.data_compra,
+      subtotal: dados.subtotal,
+      desconto_global: dados.desconto_global,
+      total_impresso: dados.total_impresso,
+      itens: dados.itens,
+    };
+
     // 2) reconciliação determinística (distribui desconto global)
     const rec = distribuirDesconto(dados.itens, {
       descontoGlobal: Number(dados.desconto_global) || 0,
@@ -44,6 +54,9 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       ficheiroOriginal: ficheiro,
       metodo: 'vlm',
       totalReconciliado: rec.totalReconciliado,
+      discrepancia: rec.discrepancia,
+      needsReview: !rec.extracaoBate,
+      extracaoJson,
     });
 
     // 5) resumo para o utilizador (inclui sinal de qualidade da extração)
@@ -57,6 +70,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       total_reconciliado: Math.round(rec.totalReconciliado * 100) / 100,
       desconto_global: Number(dados.desconto_global) || 0,
       extracao_bate: rec.extracaoBate,
+      needs_review: !rec.extracaoBate,
       discrepancia: rec.discrepancia,
       convencao: rec.convencao,
       n_itens,
