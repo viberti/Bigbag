@@ -27,8 +27,11 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso })
   // Base líquida por item (antes do desconto global).
   const base = itens.map((it) => (convencao === 'B' ? valor(it) - descLinha(it) : valor(it)));
   const baseSubtotal = base.reduce((s, v) => s + v, 0);
-  const targetCents =
-    totalImpresso != null ? Math.round(Number(totalImpresso) * 100) : Math.round((baseSubtotal - descontoGlobal) * 100);
+  // Alvo = total CALCULADO (base − desconto), NÃO o total impresso. Assim só se
+  // distribui o desconto real; uma diferença de extração (ex.: 1 cêntimo num
+  // item) NÃO é "raspada" pelos itens — fica como discrepância sinalizada e os
+  // preços por item mantêm-se fiéis ao impresso.
+  const targetCents = Math.round((baseSubtotal - descontoGlobal) * 100);
 
   // Distribui o desconto global proporcionalmente sobre a base líquida.
   const raw = base.map((v) => v - (baseSubtotal > 0 ? (descontoGlobal * v) / baseSubtotal : 0));

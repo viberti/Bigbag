@@ -317,7 +317,7 @@ function CartaoCompra({ d }) {
         {mostra.map((it, i) => (
           <li key={i}>
             <span>{it.descricao_original}</span>
-            <b>{eur(it.preco_liquido)}</b>
+            <b>{eur(it.preco_unitario ?? it.preco_liquido)}</b>
           </li>
         ))}
       </ul>
