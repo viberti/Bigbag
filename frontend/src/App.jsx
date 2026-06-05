@@ -102,6 +102,17 @@ function Chat({ onSair, nome }) {
   const [aGravar, setAGravar] = useState(false);
   const [camAberta, setCamAberta] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  // Lista de compras (carrinho), persistida no aparelho. Itens: { nome, feito }.
+  const [carrinho, setCarrinho] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('bigbag_carrinho') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [habituaisAberto, setHabituaisAberto] = useState(false);
+  const [carrinhoAberto, setCarrinhoAberto] = useState(false);
+  const [habituaisLista, setHabituaisLista] = useState(null);
   const fimRef = useRef(null);
   const fileRef = useRef(null);
   const fotoRef = useRef(null);
@@ -243,19 +254,27 @@ function Chat({ onSair, nome }) {
     setAGravar(false);
   }
 
-  async function mostrarHabituais() {
-    if (ocupado) return;
-    setOcupado(true);
-    add({ lado: 'bot', tipo: 'pensar' });
+  // Persiste o carrinho no aparelho a cada alteração.
+  useEffect(() => {
+    localStorage.setItem('bigbag_carrinho', JSON.stringify(carrinho));
+  }, [carrinho]);
+
+  const noCarrinho = (nome) => carrinho.some((i) => i.nome === nome);
+  const alternarCarrinho = (nome) =>
+    setCarrinho((c) => (c.some((i) => i.nome === nome) ? c.filter((i) => i.nome !== nome) : [...c, { nome, feito: false }]));
+  const alternarFeito = (nome) =>
+    setCarrinho((c) => c.map((i) => (i.nome === nome ? { ...i, feito: !i.feito } : i)));
+  const removerDoCarrinho = (nome) => setCarrinho((c) => c.filter((i) => i.nome !== nome));
+  const limparCarrinho = () => setCarrinho([]);
+
+  // Abre as compras habituais (overlay): carrega a lista e mostra para tocar.
+  async function abrirHabituais() {
+    setHabituaisAberto(true);
+    if (habituaisLista) return;
     try {
-      const produtos = await carregarHabituais();
-      tiraPensar();
-      add({ lado: 'bot', tipo: 'habituais', produtos });
+      setHabituaisLista(await carregarHabituais());
     } catch {
-      tiraPensar();
-      add({ lado: 'bot', tipo: 'erro', texto: t('err.query') });
-    } finally {
-      setOcupado(false);
+      setHabituaisLista([]);
     }
   }
 
@@ -267,8 +286,12 @@ function Chat({ onSair, nome }) {
           <span className="versao">v{APP_VERSION}</span>
         </span>
         <div className="header-acoes">
-          <button className="icone-cab" onClick={mostrarHabituais} disabled={ocupado} aria-label="lista habitual" title={t('habituais.title')}>
+          <button className="icone-cab" onClick={abrirHabituais} aria-label="produtos habituais" title={t('habituais.title')}>
+            🔁
+          </button>
+          <button className="icone-cab cart-btn" onClick={() => setCarrinhoAberto(true)} aria-label="carrinho" title={t('cart.title')}>
             🛒
+            {carrinho.length > 0 && <span className="cart-badge">{carrinho.length}</span>}
           </button>
           <a className="icone-cab" href="/explorar" aria-label="explorar compras" title="Explorar compras e preços">
             📊
@@ -395,6 +418,101 @@ function Chat({ onSair, nome }) {
           fatura(f, { dewarp: true, origem: 'scan' });
         }}
       />
+
+      <HabituaisOverlay
+        aberto={habituaisAberto}
+        produtos={habituaisLista}
+        noCarrinho={noCarrinho}
+        onAlternar={alternarCarrinho}
+        onFechar={() => setHabituaisAberto(false)}
+      />
+      <CarrinhoOverlay
+        aberto={carrinhoAberto}
+        carrinho={carrinho}
+        onFeito={alternarFeito}
+        onRemover={removerDoCarrinho}
+        onLimpar={limparCarrinho}
+        onFechar={() => setCarrinhoAberto(false)}
+      />
+    </div>
+  );
+}
+
+// Overlay dos produtos habituais: toca num produto para o pôr/tirar do carrinho.
+function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }) {
+  if (!aberto) return null;
+  return (
+    <div className="lista-overlay" onClick={onFechar}>
+      <div className="lista-painel" onClick={(e) => e.stopPropagation()}>
+        <div className="lista-cab">
+          <strong>{t('habituais.title')}</strong>
+          <button className="lista-x" onClick={onFechar} aria-label="fechar">
+            ✕
+          </button>
+        </div>
+        {produtos === null ? (
+          <p className="lista-vazio">{t('chat.thinking')}</p>
+        ) : produtos.length === 0 ? (
+          <p className="lista-vazio">{t('habituais.empty')}</p>
+        ) : (
+          <ul className="lista-itens">
+            {produtos.map((p, i) => {
+              const dentro = noCarrinho(p.produto);
+              return (
+                <li key={i} className={dentro ? 'dentro' : ''} onClick={() => onAlternar(p.produto)}>
+                  <span className="lista-check">{dentro ? '✓' : '+'}</span>
+                  <span className="lista-nome">{p.produto}</span>
+                  <em>{t('habituais.times', { n: p.idas })}</em>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="lista-dica">{t('cart.addHint')}</p>
+      </div>
+    </div>
+  );
+}
+
+// Overlay do carrinho: a lista de compras de hoje (marcar comprado, remover, limpar).
+function CarrinhoOverlay({ aberto, carrinho, onFeito, onRemover, onLimpar, onFechar }) {
+  if (!aberto) return null;
+  const faltam = carrinho.filter((i) => !i.feito).length;
+  return (
+    <div className="lista-overlay" onClick={onFechar}>
+      <div className="lista-painel" onClick={(e) => e.stopPropagation()}>
+        <div className="lista-cab">
+          <strong>{t('cart.title')}</strong>
+          {carrinho.length > 0 && <span className="lista-conta">{t('cart.left', { n: faltam })}</span>}
+          <button className="lista-x" onClick={onFechar} aria-label="fechar">
+            ✕
+          </button>
+        </div>
+        {carrinho.length === 0 ? (
+          <p className="lista-vazio">{t('cart.empty')}</p>
+        ) : (
+          <>
+            <ul className="lista-itens">
+              {carrinho.map((it) => (
+                <li key={it.nome} className={it.feito ? 'feito' : ''}>
+                  <span className="lista-check" onClick={() => onFeito(it.nome)}>
+                    {it.feito ? '☑' : '☐'}
+                  </span>
+                  <span className="lista-nome" onClick={() => onFeito(it.nome)}>
+                    {it.nome}
+                  </span>
+                  <button className="lista-rm" onClick={() => onRemover(it.nome)} aria-label="remover">
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button className="lista-limpar" onClick={onLimpar}>
+              {t('cart.clear')}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

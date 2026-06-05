@@ -45,8 +45,37 @@ body {
 .login-versao { text-align: center; margin-top: -4px; }
 .link { background: none; border: none; color: var(--verde); cursor: pointer; font-size: 14px; }
 .header-acoes { display: flex; align-items: center; gap: 12px; }
-.icone-cab { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0; line-height: 1; }
+.icone-cab { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0; line-height: 1; text-decoration: none; }
 .icone-cab:disabled { opacity: 0.5; }
+.cart-btn { position: relative; }
+.cart-badge {
+  position: absolute; top: -7px; right: -9px; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 9px; background: var(--verde); color: #04210f; font-size: 11px; font-weight: 700;
+  display: grid; place-items: center; line-height: 1;
+}
+
+/* Overlays de lista (habituais / carrinho) */
+.lista-overlay { position: fixed; inset: 0; z-index: 45; background: #000a; display: flex; align-items: flex-end; justify-content: center; }
+.lista-painel {
+  width: 100%; max-width: 460px; max-height: 78vh; background: var(--bot); border-radius: 16px 16px 0 0;
+  display: flex; flex-direction: column; box-shadow: 0 -6px 24px #000a;
+}
+.lista-cab { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #ffffff12; }
+.lista-cab strong { font-size: 15px; }
+.lista-conta { color: var(--muted); font-size: 12px; }
+.lista-x { margin-left: auto; background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+.lista-itens { list-style: none; margin: 0; padding: 6px 0; overflow-y: auto; }
+.lista-itens li { display: flex; align-items: center; gap: 12px; padding: 11px 16px; cursor: pointer; }
+.lista-itens li:active { background: #ffffff0c; }
+.lista-check { font-size: 17px; width: 20px; text-align: center; color: var(--verde); }
+.lista-itens li.dentro { background: #14321f55; }
+.lista-nome { flex: 1; }
+.lista-itens em { color: var(--muted); font-style: normal; font-size: 12px; }
+.lista-itens li.feito .lista-nome { text-decoration: line-through; color: var(--muted); }
+.lista-rm { background: none; border: none; color: #ff8a80; font-size: 15px; cursor: pointer; padding: 4px; }
+.lista-limpar { margin: 8px 16px 16px; padding: 10px; border-radius: 8px; border: 1px solid #2a3942; background: none; color: var(--muted); cursor: pointer; }
+.lista-vazio { color: var(--muted); text-align: center; padding: 28px 16px; }
+.lista-dica { color: var(--muted); font-size: 12px; text-align: center; padding: 4px 16px 14px; margin: 0; }
 
 .thread {
   flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 8px;
