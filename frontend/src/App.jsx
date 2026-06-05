@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa } from './api.js';
+import { t, detetarLocale } from './i18n.js';
+
+detetarLocale('pt-BR'); // default; usa o idioma do browser se houver dicionário
 
 const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
 const hora = () => new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
@@ -15,7 +18,7 @@ export default function App() {
       .then(setSessao)
       .catch(() => setSessao(null));
   }, []);
-  if (sessao === undefined) return <div className="centro">carregando…</div>;
+  if (sessao === undefined) return <div className="centro">{t('app.loading')}</div>;
   if (!sessao)
     return (
       <Login
@@ -49,7 +52,7 @@ function Login({ onEntrar }) {
       onEntrar(await verificarSessao());
     } catch {
       clearAuth();
-      setErro('Credenciais inválidas.');
+      setErro(t('login.invalid'));
     } finally {
       setAEntrar(false);
     }
@@ -58,18 +61,18 @@ function Login({ onEntrar }) {
   return (
     <form className="login" onSubmit={submeter}>
       <h1>🛍️ Bigbag</h1>
-      <p className="subtitulo">Histórico de preços de compras</p>
-      <input placeholder="usuário" value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
-      <input placeholder="senha" type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
+      <p className="subtitulo">{t('login.subtitle')}</p>
+      <input placeholder={t('login.user')} value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
+      <input placeholder={t('login.pass')} type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
       {erro && <div className="erro-txt">{erro}</div>}
-      <button disabled={aEntrar || !user || !pass}>{aEntrar ? '…' : 'Entrar'}</button>
+      <button disabled={aEntrar || !user || !pass}>{aEntrar ? '…' : t('login.enter')}</button>
     </form>
   );
 }
 
 function Chat({ onSair, nome }) {
   const [msgs, setMsgs] = useState([
-    { id: 'intro', lado: 'bot', tipo: 'resposta', texto: `Olá ${nome}, o que posso fazer por você?`, hora: hora() },
+    { id: 'intro', lado: 'bot', tipo: 'resposta', texto: t('chat.intro', { nome }), hora: hora() },
   ]);
   const [texto, setTexto] = useState('');
   const [ocupado, setOcupado] = useState(false);
@@ -117,7 +120,7 @@ function Chat({ onSair, nome }) {
       add({ lado: 'bot', tipo: 'resposta', texto: out.resposta, chamadas: out.chamadas });
     } catch {
       tiraPensar();
-      add({ lado: 'bot', tipo: 'erro', texto: 'Falha na consulta.' });
+      add({ lado: 'bot', tipo: 'erro', texto: t('err.query') });
     } finally {
       setOcupado(false);
     }
@@ -127,17 +130,21 @@ function Chat({ onSair, nome }) {
     if (!file || ocupado) return;
     add({ lado: 'user', tipo: 'ficheiro', nome: file.name });
     setOcupado(true);
-    add({ lado: 'bot', tipo: 'pensar', texto: 'lendo a nota…' });
+    add({ lado: 'bot', tipo: 'pensar', texto: t('nota.reading') });
     try {
       const out = await enviarFatura(file);
       tiraPensar();
       if (out.erro) add({ lado: 'bot', tipo: 'erro', texto: out.detalhe || out.erro });
       else if (out.duplicada)
-        add({ lado: 'bot', tipo: 'resposta', texto: `Esta nota já estava registrada (${out.loja?.nome || out.loja?.cadeia}, ${dataCurta(out.data_compra)}). Não foi duplicada.` });
+        add({
+          lado: 'bot',
+          tipo: 'resposta',
+          texto: t('nota.duplicate', { loja: out.loja?.nome || out.loja?.cadeia, data: dataCurta(out.data_compra) }),
+        });
       else add({ lado: 'bot', tipo: 'compra', dados: out });
     } catch {
       tiraPensar();
-      add({ lado: 'bot', tipo: 'erro', texto: 'Falha ao enviar a nota.' });
+      add({ lado: 'bot', tipo: 'erro', texto: t('err.upload') });
     } finally {
       setOcupado(false);
     }
@@ -153,18 +160,18 @@ function Chat({ onSair, nome }) {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
         setOcupado(true);
-        add({ lado: 'bot', tipo: 'pensar', texto: 'ouvindo…' });
+        add({ lado: 'bot', tipo: 'pensar', texto: t('voz.listening') });
         try {
           const out = await enviarVoz(blob);
           tiraPensar();
           if (out.erro) add({ lado: 'bot', tipo: 'erro', texto: out.detalhe || out.erro });
           else {
-            add({ lado: 'user', tipo: 'texto', texto: out.transcricao || '🎤 (áudio)' });
+            add({ lado: 'user', tipo: 'texto', texto: out.transcricao || t('voz.audio') });
             add({ lado: 'bot', tipo: 'resposta', texto: out.resposta, chamadas: out.chamadas });
           }
         } catch {
           tiraPensar();
-          add({ lado: 'bot', tipo: 'erro', texto: 'Falha na consulta por voz.' });
+          add({ lado: 'bot', tipo: 'erro', texto: t('err.voice') });
         } finally {
           setOcupado(false);
         }
@@ -173,7 +180,7 @@ function Chat({ onSair, nome }) {
       mr.start();
       setAGravar(true);
     } catch {
-      add({ lado: 'bot', tipo: 'erro', texto: 'Sem acesso ao microfone.' });
+      add({ lado: 'bot', tipo: 'erro', texto: t('err.mic') });
     }
   }
   function pararVoz() {
@@ -186,7 +193,7 @@ function Chat({ onSair, nome }) {
       <header>
         <strong>🛍️ Bigbag</strong>
         <button className="link" onClick={onSair}>
-          sair
+          {t('chat.logout')}
         </button>
       </header>
 
@@ -220,7 +227,7 @@ function Chat({ onSair, nome }) {
         />
         <input
           className="campo"
-          placeholder="Escreva uma pergunta…"
+          placeholder={t('chat.placeholder')}
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           disabled={ocupado}
@@ -249,7 +256,7 @@ function Bolha({ m }) {
   if (m.tipo === 'pensar')
     return (
       <div className="bolha bot">
-        <span className="pensar">{m.texto || '…'}</span>
+        <span className="pensar">{m.texto || t('chat.thinking')}</span>
       </div>
     );
   const cls = `bolha ${m.lado}`;
@@ -295,9 +302,16 @@ function CartaoCompra({ d }) {
   const mostra = aberto ? itens : itens.slice(0, 2);
   return (
     <div className="compra">
-      <div className="compra-cab">{d.extracao_bate ? '✓' : '⚠'} Compra adicionada</div>
+      <div className="compra-cab">
+        {d.extracao_bate ? '✓' : '⚠'} {t('nota.added')}
+      </div>
       <div className="compra-sub">
-        {d.n_itens} itens · {d.loja?.cadeia} · {dataCurta(d.data_compra)} · total {eur(d.total_impresso)}
+        {t('nota.summary', {
+          n: d.n_itens,
+          loja: d.loja?.cadeia,
+          data: dataCurta(d.data_compra),
+          total: eur(d.total_impresso),
+        })}
       </div>
       <ul className="compra-itens">
         {mostra.map((it, i) => (
@@ -309,7 +323,7 @@ function CartaoCompra({ d }) {
       </ul>
       {itens.length > 2 && (
         <button className="mais" onClick={() => setAberto(!aberto)}>
-          {aberto ? 'menos ⌃' : `+ ${itens.length - 2} itens ⌄`}
+          {aberto ? `${t('nota.less')} ⌃` : `${t('nota.more', { n: itens.length - 2 })} ⌄`}
         </button>
       )}
     </div>
