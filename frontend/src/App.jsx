@@ -5,6 +5,10 @@ import { t, detetarLocale } from './i18n.js';
 
 detetarLocale('pt-BR'); // default; usa o idioma do browser se houver dicionário
 
+// Versão do build (hash do git + data), injetada pelo Vite. Mostrada junto ao
+// logo para se ver, num relance, se o PWA está em cache antigo.
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
+
 const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
 const hora = () => new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 const dataCurta = (iso) => {
@@ -62,6 +66,7 @@ function Login({ onEntrar }) {
   return (
     <form className="login" onSubmit={submeter}>
       <h1>🛍️ Bigbag</h1>
+      <div className="versao login-versao">v{APP_VERSION}</div>
       <p className="subtitulo">{t('login.subtitle')}</p>
       <input placeholder={t('login.user')} value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
       <input placeholder={t('login.pass')} type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
@@ -212,7 +217,10 @@ function Chat({ onSair, nome }) {
   return (
     <div className="chat">
       <header>
-        <strong>🛍️ Bigbag</strong>
+        <span className="marca">
+          <strong>🛍️ Bigbag</strong>
+          <span className="versao">v{APP_VERSION}</span>
+        </span>
         <div className="header-acoes">
           <button className="icone-cab" onClick={mostrarHabituais} disabled={ocupado} aria-label="lista habitual" title={t('habituais.title')}>
             🛒
