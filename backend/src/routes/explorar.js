@@ -78,11 +78,11 @@ explorarRouter.get('/produtos/:id', async (req, res) => {
       [id],
     );
     if (!sku) return res.status(404).json({ erro: 'Produto não encontrado' });
-    // preco = preço PAGO (preco_liquido): consistente e é o que o utilizador
-    // reconhece. (O €/base fica para o assistente / comparação interna.)
+    // Devolve as duas métricas: pago (preco_liquido, o que pagaste) e unitario
+    // (preco_por_base, €/kg|un|ovo). O frontend tem um toggle entre elas.
     const [historico] = await pool.query(
-      `SELECT DATE(f.data_compra) AS data, i.preco_liquido AS preco, l.cadeia AS loja,
-              i.is_clearance AS promo, i.preco_liquido AS pago, i.desconto_direto AS desconto
+      `SELECT DATE(f.data_compra) AS data, l.cadeia AS loja, i.is_clearance AS promo,
+              i.preco_liquido AS pago, i.preco_por_base AS unitario, i.desconto_direto AS desconto
          FROM item i JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
         WHERE i.sku_id = ? AND ${FILTRO}
         ORDER BY f.data_compra`,
@@ -90,13 +90,12 @@ explorarRouter.get('/produtos/:id', async (req, res) => {
     );
     const [por_loja] = await pool.query(
       `SELECT l.cadeia AS loja, COUNT(*) AS n,
-              ROUND(AVG(i.preco_liquido), 2) AS preco_medio,
-              ROUND(MIN(i.preco_liquido), 2) AS preco_min,
-              ROUND(MAX(i.preco_liquido), 2) AS preco_max
+              ROUND(AVG(i.preco_liquido), 2) AS media_paga,
+              ROUND(AVG(i.preco_por_base), 4) AS media_unit
          FROM item i JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
         WHERE i.sku_id = ? AND ${FILTRO}
         GROUP BY l.cadeia
-        ORDER BY preco_medio ASC`,
+        ORDER BY media_paga ASC`,
       [id],
     );
     res.json({ sku, historico, por_loja });

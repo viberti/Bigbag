@@ -255,23 +255,32 @@ function Grafico({ pontos }) {
 }
 
 // ───────────────────────── estatísticas derivadas ─────────────────────────
-function calcStats(det) {
+function calcStats(det, campo) {
   const ps = det.historico || [];
-  const precos = ps.map((x) => Number(x.preco));
+  const v = (x) => Number(x[campo]);
+  const precos = ps.map(v);
   const count = ps.length;
   const min = count ? Math.min(...precos) : null;
   const max = count ? Math.max(...precos) : null;
   const last = count ? ps[count - 1] : null;
   const first = count ? ps[0] : null;
   const avg = count ? precos.reduce((a, b) => a + b, 0) / count : null;
-  const total = ps.reduce((a, x) => a + Number(x.pago || 0), 0);
+  const total = ps.reduce((a, x) => a + Number(x.pago || 0), 0); // gasto real (sempre)
   const poupanca = ps.reduce((a, x) => a + Number(x.desconto || 0), 0);
-  const trend = first && first.preco > 0 ? ((last.preco - first.preco) / first.preco) * 100 : 0;
-  const stores = (det.por_loja || []).map((l) => ({ ...l, color: corLoja(l.loja) }));
+  const trend = first && v(first) > 0 ? ((v(last) - v(first)) / v(first)) * 100 : 0;
+  const stores = (det.por_loja || [])
+    .map((l) => ({
+      loja: l.loja,
+      n: l.n,
+      media: campo === 'pago' ? Number(l.media_paga) : Number(l.media_unit),
+      media_paga: Number(l.media_paga),
+      color: corLoja(l.loja),
+    }))
+    .sort((a, b) => a.media - b.media);
   const cheapest = stores[0] || null;
-  const totalQty = ps.reduce((a, x) => a + (x.preco > 0 ? Number(x.pago) / Number(x.preco) : 0), 0);
-  const savings = cheapest ? total - cheapest.preco_medio * totalQty : 0;
-  return { ps, count, min, max, last, first, avg, total, poupanca, trend, stores, cheapest, nStores: stores.length, savings };
+  const cheapestPago = stores.length ? Math.min(...stores.map((x) => x.media_paga)) : null;
+  const savings = cheapestPago != null ? total - cheapestPago * count : 0;
+  return { ps, count, min, max, last, first, avg, total, poupanca, trend, stores, cheapest, nStores: stores.length, savings, campo };
 }
 
 // ───────────────────────────── página ─────────────────────────────
@@ -432,9 +441,11 @@ function Painel() {
 }
 
 function Detalhe({ det }) {
-  const s = calcStats(det);
+  const [modo, setModo] = useState('pago');
+  const s = calcStats(det, modo);
   const nome = det.sku.nome_canonico;
-  const pontos = s.ps.map((x) => ({ x: ddmm(x.data), y: Number(x.preco) }));
+  const un = modo === 'pago' ? '' : '/' + (det.sku.unidade_base || 'un');
+  const pontos = s.ps.map((x) => ({ x: ddmm(x.data), y: Number(x[s.campo]) }));
   const medals = ['🥇', '🥈', '🥉'];
   const podium = s.stores.slice(0, 3);
   const trendUp = s.trend >= 0;
@@ -475,29 +486,37 @@ function Detalhe({ det }) {
           <div>
             <div className="r-name">{nome}</div>
             <div className="r-cat">
-              {det.sku.categoria || '—'} · preço pago
+              {det.sku.categoria || '—'} · {modo === 'pago' ? 'preço pago' : `€/${det.sku.unidade_base || 'un'}`}
             </div>
           </div>
         </div>
+        <div className="modo-tog">
+          <button className={modo === 'pago' ? 'on' : ''} onClick={() => setModo('pago')}>
+            Preço pago
+          </button>
+          <button className={modo === 'unit' ? 'on' : ''} onClick={() => setModo('unit')}>
+            Por unidade
+          </button>
+        </div>
         <div className="r-lines">
           <div className="r-line">
-            <span className="lbl">Último preço ({s.last ? ddmm(s.last.data) : '—'})</span>
-            <span className="val big">{fmt(s.last && s.last.preco)} €</span>
+            <span className="lbl">Último ({s.last ? ddmm(s.last.data) : '—'})</span>
+            <span className="val big">{fmt(s.last && s.last[s.campo])} €{un}</span>
           </div>
           <div className="r-line">
-            <span className="lbl">Preço médio</span>
-            <span className="val">{fmt(s.avg)} €</span>
+            <span className="lbl">Médio</span>
+            <span className="val">{fmt(s.avg)} €{un}</span>
           </div>
           <div className="r-line">
-            <span className="lbl">Mais barato pago</span>
+            <span className="lbl">Mais barato</span>
             <span className="val" style={{ color: 'var(--olive-d)' }}>
-              {fmt(s.min)} €
+              {fmt(s.min)} €{un}
             </span>
           </div>
           <div className="r-line">
-            <span className="lbl">Mais caro pago</span>
+            <span className="lbl">Mais caro</span>
             <span className="val" style={{ color: 'var(--tomato-d)' }}>
-              {fmt(s.max)} €
+              {fmt(s.max)} €{un}
             </span>
           </div>
           <div className="r-line">
@@ -525,7 +544,7 @@ function Detalhe({ det }) {
       <div className="right">
         <div className="card">
           <h3>Pódio dos mercados</h3>
-          <div className="sub">média do preço pago · mais barato vence</div>
+          <div className="sub">{modo === 'pago' ? 'média do preço pago' : `média €/${det.sku.unidade_base || 'un'}`} · mais barato vence</div>
           <div className="podium">
             {[1, 0, 2].map((idx) => {
               const st = podium[idx];
@@ -534,7 +553,7 @@ function Detalhe({ det }) {
                 <div key={idx} className={`pod ${idx === 0 ? 'first' : ''}`}>
                   <div className="medal">{medals[idx]}</div>
                   <div className="sn">{st.loja}</div>
-                  <div className="pp">{fmt(st.preco_medio)} €</div>
+                  <div className="pp">{fmt(st.media)} €{un}</div>
                   <div className="ct">{st.n}× compra</div>
                 </div>
               );
@@ -546,7 +565,7 @@ function Detalhe({ det }) {
                 <div className="osrow" key={st.loja}>
                   <span className="d" style={{ background: st.color }} />
                   <span className="nm">{st.loja}</span>
-                  <span className="pr">{fmt(st.preco_medio)} €</span>
+                  <span className="pr">{fmt(st.media)} €{un}</span>
                 </div>
               ))}
             </div>
@@ -557,7 +576,8 @@ function Detalhe({ det }) {
       <div className="card chartcard">
         <h3>Variação de preço</h3>
         <div className="sub">
-          preço pago · de {s.first ? ddmm(s.first.data) : '—'} a {s.last ? ddmm(s.last.data) : '—'}
+          {modo === 'pago' ? 'preço pago' : `€/${det.sku.unidade_base || 'un'}`} · de{' '}
+          {s.first ? ddmm(s.first.data) : '—'} a {s.last ? ddmm(s.last.data) : '—'}
         </div>
         <Grafico pontos={pontos} />
       </div>
@@ -578,7 +598,7 @@ function Detalhe({ det }) {
               .slice()
               .reverse()
               .map((x, i) => {
-                const preco = Number(x.preco);
+                const preco = Number(x[s.campo]);
                 const dd = Number(x.desconto || 0);
                 const pago = Number(x.pago || 0);
                 const normal = dd > 0.005 && pago > 0 ? (preco * (pago + dd)) / pago : null;
@@ -597,7 +617,7 @@ function Detalhe({ det }) {
                           {fmt(normal)}{' '}
                         </span>
                       )}
-                      {fmt(preco)} €
+                      {fmt(preco)} €{un}
                     </td>
                   </tr>
                 );

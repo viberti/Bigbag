@@ -99,6 +99,9 @@
 .tlao .r-emoji { width: 54px; height: 54px; border-radius: 13px; background: var(--bg); border: 2px solid var(--ink); display: grid; place-items: center; font-size: 28px; flex: 0 0 auto; }
 .tlao .r-name { font-family: var(--disp); font-weight: 800; font-size: 24px; line-height: 1.08; letter-spacing: -.01em; }
 .tlao .r-cat { font-family: var(--mono); font-size: 11.5px; color: var(--ink3); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+.tlao .modo-tog { display: inline-flex; margin-top: 14px; border: 1.5px solid var(--line-d); border-radius: 10px; overflow: hidden; }
+.tlao .modo-tog button { border: none; background: var(--bg); color: var(--ink2); padding: 7px 16px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.tlao .modo-tog button.on { background: var(--ink); color: var(--bg2); }
 .tlao .r-lines { margin-top: 16px; }
 .tlao .r-line { display: flex; align-items: baseline; justify-content: space-between; padding: 9px 0; border-bottom: 1px dotted var(--line-d); gap: 10px; }
 .tlao .r-line:last-child { border-bottom: none; }
