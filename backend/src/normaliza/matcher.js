@@ -1,16 +1,18 @@
 // Camada 2+3 — resolver uma descrição de talão para um sku_normalizado.
 //   1) alias exato (cache) → instantâneo
 //   2) canonicalizar (LLM) → nome_canónico + marca + unidade
-//   3) candidatos = SKUs com mesma marca + unidade + formato compatível;
-//      pontua por SIMILARIDADE de nome (Camada 3) e decide:
+//   3) candidatos = SKUs com mesma marca + unidade; pontua por SIMILARIDADE de
+//      nome (Camada 3) sobre os de formato compatível e decide:
 //        score ≥ limiarAuto        → match
 //        limiarRevisao ≤ s < auto  → confirmar por LLM (se houver juiz), senão revisão
 //        s < limiarRevisao         → criar SKU novo
+//      Exceção: nome canónico IDÊNTICO (livre de formato) reutiliza sempre o SKU,
+//      mesmo com formato diferente — não cria duplicados iguais.
 //   4) grava alias para a próxima vez.
 // `canonicalizar` e `confirmar` são injetados (testes usam stubs).
 import { extrairFormato } from './formato.js';
 import { canonicalizar as canonicalizarLLM, confirmarMesmoProduto } from './canonical.js';
-import { melhorCandidato } from './similaridade.js';
+import { melhorCandidato, normalizarNome } from './similaridade.js';
 
 const formatoProximo = (a, b) => {
   if (a == null || b == null) return a == null && b == null;
@@ -45,7 +47,18 @@ export async function resolverSku(
     [c.marca, unidade_base],
   );
   const compat = cands.filter((s) => formatoProximo(s.formato_valor, formato_valor));
-  const { candidato, score } = melhorCandidato(c.nome_canonico, compat);
+  let { candidato, score } = melhorCandidato(c.nome_canonico, compat);
+  // Dedup de nome EXATO: o nome_canonico é livre de formato, logo dois SKUs com
+  // o mesmo nome (mesma marca/unidade) SÃO o mesmo produto — reutiliza, mesmo
+  // que o formato difira. Evita criar duplicados idênticos a cada ingestão.
+  if (score < limiarAuto) {
+    const alvo = normalizarNome(c.nome_canonico);
+    const exato = cands.find((s) => normalizarNome(s.nome_canonico) === alvo);
+    if (exato) {
+      candidato = exato;
+      score = 1;
+    }
+  }
 
   let sku_id = null;
   let via = null;
