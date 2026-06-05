@@ -20,6 +20,7 @@ Esquema exato:
   "itens": [
     {
       "descricao_original": string, // verbatim, como impresso (ex. "BOL DIGESTIVE AVEIA CNT 425GR")
+      "quantidade": number,         // unidades faturadas nesta linha: "24 OVOS"→24, "6 IOGURTES"→6; 1 se não indicado. Item a peso → 1 (o peso vem do formato).
       "valor": number,              // preço impresso nessa linha
       "iva": string|null,           // letra do escalão IVA se visível (A/B/C), senão null
       "desconto_direto": number,    // "Poupança" impressa SOB este item; 0 se não houver
@@ -34,6 +35,8 @@ Regras:
 - "Aprox. fim prazo validade" aparece NA LINHA ABAIXO do produto — associa ao item imediatamente acima (is_clearance=true).
 - Linhas de desconto sob um produto ("Poupança", "Promoção", "Promoção Lidl Plus", "Desconto") pertencem a esse produto: soma a magnitude (positiva) no desconto_direto desse item. NUNCA cries um item separado para um desconto. O "valor" do item é o preço impresso na linha do produto (tal como aparece, mesmo que haja desconto por baixo).
 - Itens a peso aparecem como "0,505 kg x 6,19 EUR/kg" → o "valor" é o PREÇO IMPRESSO na linha do produto (a coluna de preço, à direita do nome), e NÃO o resultado de kg × €/kg, que pode diferir por arredondamento. Ex.: se a linha do produto diz 2,29 € e por baixo "0,618 kg x 3,59 €/kg", o valor é 2,29 (não 2,22).
+- ITEM A PESO EM DUAS LINHAS (comum na Mercadona): o NOME do produto está numa linha e "X,XXX kg  Y,YY EUR/kg" na linha SEGUINTE — são o MESMO item, não dois. Junta-os: a "descricao_original" deve conter o NOME seguido do peso (ex. "BANANA 2,426 kg 1,20 EUR/kg") e o "valor" é o total impresso à direita (na linha do peso). NUNCA emitas um item cuja descrição seja só "X kg … EUR/kg" sem nome de produto.
+- Extrai TODOS os produtos — NÃO saltes nenhuma linha de produto, mesmo que a imagem esteja pouco nítida.
 - Não inventes itens nem valores. Se um valor não for legível, usa null no campo numérico desse item e mantém a descrição.
 - Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.
 - IGNORA o rodapé de fidelização/cartão: "ACUMULOU NO SEU CARTAO", "DESCONTO CUPAO", "SALDO NO CARTAO", "Saldo de selos", "Selos ganhos", "Já ganhou com o cartão", cupões lidos/emitidos, pontos. NÃO são itens nem descontos desta compra — não os contes em desconto_global nem em desconto_direto.`;

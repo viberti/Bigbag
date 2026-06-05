@@ -28,6 +28,9 @@ Regras:
   e usa essa correção também na "marca" quando aplicável.
 - MAS nunca inventes: se a descrição for ilegível ou ambígua e não houver um produto
   claro que encaixe, mantém-na o mais fiel possível e baixa a "confianca" (≤ 0.5).
+- Se a descrição NÃO contiver nenhuma palavra de produto — só números, pesos, unidades
+  ou preços (ex.: "2,426 kg 1,29 EUR/kg") — NÃO adivinhes um produto: devolve
+  nome_canonico "(desconhecido)" e "confianca" 0.
 - NUNCA incluas no nome números, preços, pesos ou códigos.
 O nome_canonico NUNCA inclui a marca nem o formato/peso. Dois produtos iguais de
 marcas diferentes partilham o mesmo nome_canonico (distinguem-se pela marca).`;
