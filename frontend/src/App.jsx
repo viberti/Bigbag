@@ -293,9 +293,6 @@ function Chat({ onSair, nome }) {
             🛒
             {carrinho.length > 0 && <span className="cart-badge">{carrinho.length}</span>}
           </button>
-          <a className="icone-cab" href="/explorar" aria-label="explorar compras" title="Explorar compras e preços">
-            📊
-          </a>
           <button className="link" onClick={onSair}>
             {t('chat.logout')}
           </button>
