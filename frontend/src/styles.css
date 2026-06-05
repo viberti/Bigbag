@@ -138,3 +138,8 @@ body {
 }
 .campo::placeholder { color: var(--muted); }
 .icone:disabled, .campo:disabled { opacity: 0.6; }
+.icone-mais {
+  flex: 0 0 28px; width: 28px; height: 44px; border: none; background: none; cursor: pointer;
+  font-size: 22px; line-height: 1; color: var(--muted); padding: 0;
+}
+.icone-mais:disabled { opacity: 0.5; }

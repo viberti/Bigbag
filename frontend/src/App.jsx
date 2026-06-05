@@ -290,8 +290,23 @@ function Chat({ onSair, nome }) {
           perguntar();
         }}
       >
-        <button type="button" className="icone" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="fatura">
+        <button
+          type="button"
+          className="icone"
+          onClick={() => fotoRef.current?.click()}
+          disabled={ocupado}
+          aria-label="foto da nota"
+        >
           📷
+        </button>
+        <button
+          type="button"
+          className="icone-mais"
+          onClick={() => setMenuAberto(true)}
+          disabled={ocupado}
+          aria-label="mais opções de envio"
+        >
+          ⋯
         </button>
         <input
           ref={fileRef}
@@ -357,9 +372,9 @@ function Chat({ onSair, nome }) {
         <>
           <div className="cap-menu-bd" onClick={() => setMenuAberto(false)} />
           <div className="cap-menu">
-            <button onClick={() => { setMenuAberto(false); setCamAberta(true); }}>{t('cap.scan')}</button>
             <button onClick={() => { setMenuAberto(false); fotoRef.current?.click(); }}>{t('cap.photo')}</button>
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}>{t('cap.gallery')}</button>
+            <button onClick={() => { setMenuAberto(false); setCamAberta(true); }}>{t('cap.scan')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}>{t('cap.file')}</button>
           </div>
         </>
