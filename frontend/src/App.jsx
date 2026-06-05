@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura } from './api.js';
+import { useEffect, useRef, useState } from 'react';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz } from './api.js';
 
 const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
 
@@ -38,12 +38,19 @@ export default function App() {
         <button className={aba === 'perguntar' ? 'ativo' : ''} onClick={() => setAba('perguntar')}>
           Perguntar
         </button>
+        <button className={aba === 'voz' ? 'ativo' : ''} onClick={() => setAba('voz')}>
+          Voz
+        </button>
         <button className={aba === 'fatura' ? 'ativo' : ''} onClick={() => setAba('fatura')}>
           Nova fatura
         </button>
       </nav>
 
-      <main>{aba === 'perguntar' ? <Perguntar /> : <Fatura />}</main>
+      <main>
+        {aba === 'perguntar' && <Perguntar />}
+        {aba === 'voz' && <Voz />}
+        {aba === 'fatura' && <Fatura />}
+      </main>
     </div>
   );
 }
@@ -140,6 +147,68 @@ function Perguntar() {
         <div className="resposta">
           <p style={{ whiteSpace: 'pre-wrap' }}>{resposta}</p>
           {tools.length > 0 && <div className="meta">via {tools.join(', ')}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Voz() {
+  const [estado, setEstado] = useState('idle'); // idle | a-gravar | a-processar
+  const [res, setRes] = useState(null);
+  const [erro, setErro] = useState('');
+  const mrRef = useRef(null);
+  const chunksRef = useRef([]);
+
+  async function iniciar() {
+    setErro('');
+    setRes(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
+        setEstado('a-processar');
+        try {
+          const out = await enviarVoz(blob);
+          if (out.erro) setErro(out.detalhe || out.erro);
+          else setRes(out);
+        } catch {
+          setErro('Falha na consulta por voz.');
+        } finally {
+          setEstado('idle');
+        }
+      };
+      mrRef.current = mr;
+      mr.start();
+      setEstado('a-gravar');
+    } catch {
+      setErro('Sem acesso ao microfone.');
+    }
+  }
+
+  const parar = () => mrRef.current?.stop();
+
+  return (
+    <div className="cartao">
+      <button
+        className={estado === 'a-gravar' ? 'gravar ativo' : 'gravar'}
+        onClick={estado === 'a-gravar' ? parar : iniciar}
+        disabled={estado === 'a-processar'}
+      >
+        {estado === 'a-gravar' ? '⏹️ Parar e perguntar' : estado === 'a-processar' ? '…a ouvir' : '🎤 Gravar pergunta'}
+      </button>
+
+      {erro && <div className="erro">{erro}</div>}
+
+      {res && (
+        <div className="resposta">
+          <div className="meta">disseste: “{res.transcricao}”</div>
+          <p style={{ whiteSpace: 'pre-wrap' }}>{res.resposta}</p>
+          {(res.chamadas || []).length > 0 && <div className="meta">via {res.chamadas.map((c) => c.nome).join(', ')}</div>}
         </div>
       )}
     </div>

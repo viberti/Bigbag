@@ -18,6 +18,8 @@ export const config = {
     apiKey: process.env.OPENROUTER_API_KEY || '',
     model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
     timeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS) || 20000,
+    // Voz: modelo de transcrição (trocável). Vazio = usa o modelo principal.
+    sttModel: process.env.OPENROUTER_STT_MODEL || '',
   },
   auth: {
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
