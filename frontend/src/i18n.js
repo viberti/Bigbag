@@ -13,6 +13,7 @@ const STRINGS = {
     'chat.logout': 'sair',
     'chat.placeholder': 'Escreva uma pergunta…',
     'chat.thinking': '…',
+    'nota.scanning': 'digitalizando…',
     'nota.reading': 'lendo a nota…',
     'nota.duplicate': 'Esta nota já estava registrada ({loja}, {data}). Não foi duplicada.',
     'nota.added': 'Compra adicionada',

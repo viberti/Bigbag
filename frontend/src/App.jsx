@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais } from './api.js';
+import { digitalizar } from './scanner.js';
 import { t, detetarLocale } from './i18n.js';
 
 detetarLocale('pt-BR'); // default; usa o idioma do browser se houver dicionário
@@ -130,9 +131,13 @@ function Chat({ onSair, nome }) {
     if (!file || ocupado) return;
     add({ lado: 'user', tipo: 'ficheiro', nome: file.name });
     setOcupado(true);
-    add({ lado: 'bot', tipo: 'pensar', texto: t('nota.reading') });
+    const ehImagem = file.type?.startsWith('image/');
+    add({ lado: 'bot', tipo: 'pensar', texto: ehImagem ? t('nota.scanning') : t('nota.reading') });
     try {
-      const out = await enviarFatura(file);
+      // Digitaliza no browser (recorte + perspectiva). Falha → original.
+      const enviar = ehImagem ? await digitalizar(file) : file;
+      setMsgs((xs) => xs.map((m) => (m.tipo === 'pensar' ? { ...m, texto: t('nota.reading') } : m)));
+      const out = await enviarFatura(enviar);
       tiraPensar();
       if (out.erro) add({ lado: 'bot', tipo: 'erro', texto: out.detalhe || out.erro });
       else if (out.duplicada)
