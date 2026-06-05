@@ -181,3 +181,18 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     res.status(502).json({ erro: 'Falha na ingestão', detalhe: e.message });
   }
 });
+
+// Serve a imagem original da nota (para a tela de revisão do operador).
+faturasRouter.get('/:id/imagem', requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [[f]] = await getPool().query('SELECT ficheiro_original FROM fatura WHERE id = ?', [id]);
+    if (!f?.ficheiro_original) return res.status(404).json({ erro: 'Sem imagem' });
+    res.sendFile(f.ficheiro_original, (err) => {
+      if (err && !res.headersSent) res.status(404).json({ erro: 'Imagem não encontrada' });
+    });
+  } catch (e) {
+    console.error('[faturas/imagem] erro:', e.message);
+    if (!res.headersSent) res.status(500).json({ erro: 'Falha a servir imagem' });
+  }
+});
