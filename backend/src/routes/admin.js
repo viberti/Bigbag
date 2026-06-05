@@ -54,7 +54,7 @@ adminRouter.get('/skus/:id', async (req, res) => {
     const [[sku]] = await pool.query('SELECT * FROM sku_normalizado WHERE id = ?', [id]);
     if (!sku) return res.status(404).json({ erro: 'SKU não encontrado' });
     const [descricoes] = await pool.query(
-      `SELECT i.descricao_original AS descricao, COUNT(*) AS n
+      `SELECT i.descricao_original AS descricao, COUNT(*) AS n, MAX(i.fatura_id) AS fatura_id
          FROM item i WHERE i.sku_id = ? GROUP BY i.descricao_original ORDER BY n DESC`,
       [id],
     );

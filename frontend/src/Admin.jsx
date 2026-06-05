@@ -87,11 +87,36 @@ function TabProdutos() {
   const [novaDesc, setNovaDesc] = useState('');
   const [alvoMerge, setAlvoMerge] = useState('');
   const [msg, setMsg] = useState('');
+  const [nota, setNota] = useState(null); // { url, pdf } da imagem/PDF da nota
+  const notaRef = useRef('');
 
   const recarregarLista = (busca = q) => adm.listarSkus(busca).then((r) => setSkus(r.skus)).catch(() => {});
   useEffect(() => {
     recarregarLista('');
   }, []);
+  useEffect(
+    () => () => {
+      if (notaRef.current) URL.revokeObjectURL(notaRef.current);
+    },
+    [],
+  );
+
+  async function verNota(faturaId) {
+    if (!faturaId) return;
+    if (notaRef.current) URL.revokeObjectURL(notaRef.current);
+    try {
+      const f = await adm.carregarFicheiro(faturaId);
+      notaRef.current = f.url;
+      setNota(f);
+    } catch {
+      setNota(null);
+    }
+  }
+  function fecharNota() {
+    if (notaRef.current) URL.revokeObjectURL(notaRef.current);
+    notaRef.current = '';
+    setNota(null);
+  }
 
   async function abrir(id) {
     setSel(id);
@@ -184,6 +209,9 @@ function TabProdutos() {
                   <span>
                     {d.descricao} <em>×{d.n}</em>
                   </span>
+                  <button className="adm-vernota" title="ver a nota" onClick={() => verNota(d.fatura_id)}>
+                    🧾
+                  </button>
                   <button className="adm-x" title="dissociar" onClick={() => dissociar(d.descricao)}>
                     ✕
                   </button>
@@ -225,6 +253,19 @@ function TabProdutos() {
           </>
         )}
       </section>
+
+      {nota && (
+        <div className="adm-zoom" onClick={fecharNota}>
+          <button className="adm-zoom-x" onClick={fecharNota} aria-label="fechar">
+            ✕
+          </button>
+          {nota.pdf ? (
+            <iframe className="adm-zoom-pdf" src={nota.url} title="nota (PDF)" onClick={(e) => e.stopPropagation()} />
+          ) : (
+            <img src={nota.url} alt="nota" onClick={(e) => e.stopPropagation()} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

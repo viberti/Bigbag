@@ -39,3 +39,10 @@ export async function carregarImagem(id) {
   const r = await call(`/api/faturas/${id}/imagem`);
   return URL.createObjectURL(await r.blob());
 }
+
+// Ficheiro da nota com deteção de tipo (PDF vs imagem) pelo content-type.
+export async function carregarFicheiro(id) {
+  const r = await call(`/api/faturas/${id}/imagem`);
+  const blob = await r.blob();
+  return { url: URL.createObjectURL(blob), pdf: blob.type === 'application/pdf' };
+}
