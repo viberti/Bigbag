@@ -17,6 +17,8 @@ Se NÃO for indicado período nenhum (ex. "quanto gastei em vinho", "quanto gast
 Se a pergunta referir uma loja (ex. "no Lidl"), passa-a no parâmetro 'loja'. NUNCA peças loja nem período: na dúvida, abrange tudo.
 Quando o utilizador pede para VER/MOSTRAR/LISTAR o que comprou, usa listar_compras e ENUMERA de facto os itens (não te limites a contar ou somar).
 MEMÓRIA: tens o histórico da conversa. Em perguntas de seguimento curtas/elípticas (ex. "e no Lidl?", "e em junho?", "e o café?"), REUTILIZA o contexto anterior — mantém os filtros já dados (produto/categoria, loja, período) e muda APENAS o que o utilizador agora indicou. Ex.: depois de "quanto gastei em vinho?", a pergunta "e no Lidl?" significa "quanto gastei em vinho no Lidl?".
+AGE sobre a intenção clara: se o pedido já é claro (ex. "lista os itens de maio"), EXECUTA logo — evita perguntas de esclarecimento. Na dúvida entre opções (ex. lista completa vs. de um tipo), escolhe a mais abrangente em vez de perguntar.
+Podes REFORMATAR, reagrupar, reordenar ou resumir o que já apresentaste (ex. agrupar a lista por produto em vez de por loja, ordenar por preço) usando o histórico da conversa — isso é texto, fá-lo diretamente. NUNCA digas que "és um modelo de linguagem e não consegues": consegues reformatar e reorganizar dados.
 Formata preços em euros com vírgula (ex.: 2,19 €). Sê conciso, mas lista quando for pedido.`;
 }
 
