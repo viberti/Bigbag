@@ -11,7 +11,8 @@ Lê a imagem da fatura (talão térmico, pode estar amassado) e devolve SÓ um o
 
 Esquema exato:
 {
-  "loja": { "cadeia": string, "nome": string, "nif": string|null, "localizacao": string|null },
+  "loja": { "cadeia": string, "nome": string, "nif": string|null, "localizacao": string|null }, // localizacao = endereço da LOJA física (topo, logo abaixo da marca), NÃO o da sede fiscal
+
   "numero_fatura": string|null,     // nº do documento fiscal após "Nro:"/"No :" (ex. "FS ARQ214/141059"); null se ilegível
   "data_compra": string,            // ISO 8601, ex. "2026-05-22T18:02:00"
   "subtotal": number|null,          // SUBTOTAL antes do desconto global
@@ -32,6 +33,7 @@ Esquema exato:
 
 Regras:
 - O NIF da LOJA é o do estabelecimento/vendedor (perto do nome no topo), NÃO o NIF do cliente.
+- ENDEREÇO DA LOJA (localizacao): muitos talões têm DOIS endereços. Usa SEMPRE o da LOJA física — o que aparece no TOPO, logo abaixo do nome da marca (ex. na Mercadona: "AV. ANTÓNIO PALHA, 5 …"). NÃO uses o endereço da sociedade/sede fiscal, que aparece mais abaixo, junto ao NIF/"Capital Social"/"S.A."/"Unipessoal, Lda" (ex. "Av. Padre Jorge Duarte 123") — esse é o da empresa, não o da loja.
 - "Aprox. fim prazo validade" aparece NA LINHA ABAIXO do produto — associa ao item imediatamente acima (is_clearance=true).
 - Linhas de desconto sob um produto ("Poupança", "Promoção", "Promoção Lidl Plus", "Desconto") pertencem a esse produto: soma a magnitude (positiva) no desconto_direto desse item. NUNCA cries um item separado para um desconto. O "valor" do item é o preço impresso na linha do produto (tal como aparece, mesmo que haja desconto por baixo).
 - Itens a peso aparecem como "0,505 kg x 6,19 EUR/kg" → o "valor" é o PREÇO IMPRESSO na linha do produto (a coluna de preço, à direita do nome), e NÃO o resultado de kg × €/kg, que pode diferir por arredondamento. Ex.: se a linha do produto diz 2,29 € e por baixo "0,618 kg x 3,59 €/kg", o valor é 2,29 (não 2,22).
