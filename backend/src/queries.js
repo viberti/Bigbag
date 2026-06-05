@@ -143,7 +143,7 @@ export async function historico_preco(db, { produto, desde }) {
 
 // 5) Listar o que foi comprado num período (itens com data, loja e preço).
 //    Opcionalmente filtrado por produto/categoria. Exclui não-produto e revisão.
-export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo, loja }) {
+export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo, loja, agrupar_por }) {
   const inicio = periodo_inicio || '1900-01-01';
   const fim = periodo_fim || new Date().toISOString().slice(0, 10);
   const params = [inicio, fim];
@@ -155,6 +155,26 @@ export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo, lo
   }
   const ml = matchLoja(loja);
   params.push(...ml.params);
+
+  const onde = `WHERE i.is_non_product = FALSE AND f.needs_review = FALSE
+       AND DATE(f.data_compra) >= ? AND DATE(f.data_compra) <= ? ${filtroAlvo} ${ml.sql}`;
+
+  // Modo PRODUTO: agrega por produto (soma fiável), sem loja/data — para
+  // perguntas focadas nos produtos. Default 'item' = linha-a-linha (por ida).
+  if (String(agrupar_por).toLowerCase() === 'produto') {
+    const [rows] = await db.query(
+      `SELECT COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+              COUNT(*) AS vezes,
+              ROUND(SUM(i.preco_liquido), 2) AS total
+       ${BASE_JOINS}
+       ${onde}
+       GROUP BY produto
+       ORDER BY total DESC`,
+      params,
+    );
+    return rows;
+  }
+
   const [rows] = await db.query(
     `SELECT
         DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
@@ -162,12 +182,7 @@ export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo, lo
         COALESCE(s.nome_canonico, i.descricao_original) AS produto,
         i.preco_liquido
      ${BASE_JOINS}
-     WHERE i.is_non_product = FALSE
-       AND f.needs_review = FALSE
-       AND DATE(f.data_compra) >= ?
-       AND DATE(f.data_compra) <= ?
-       ${filtroAlvo}
-       ${ml.sql}
+     ${onde}
      ORDER BY f.data_compra, l.nome, i.id`,
     params,
   );

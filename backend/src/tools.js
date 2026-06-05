@@ -75,6 +75,12 @@ export const toolDefs = [
             description: "Opcional: produto ('café') ou categoria ('Laticínios', 'bebida alcoólica') para filtrar.",
           },
           loja: { type: 'string', description: "Opcional: cadeia/loja ('Lidl', 'Continente') para filtrar." },
+          agrupar_por: {
+            type: 'string',
+            enum: ['item', 'produto'],
+            description:
+              "Como agrupar. 'produto' = lista focada nos produtos (cada produto com total gasto, SEM loja/data) — usar para 'que produtos comprei', 'lista de produtos'. 'item' (default) = linha-a-linha por ida (com data e loja) — para 'as minhas compras'.",
+          },
         },
         required: [],
       },
