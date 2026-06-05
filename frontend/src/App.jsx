@@ -253,7 +253,14 @@ function Fatura() {
 
       {erro && <div className="erro">{erro}</div>}
 
-      {res && (
+      {res?.duplicada && (
+        <div className="selo aviso">
+          ⚠ Esta fatura já estava registada ({res.loja?.nome || res.loja?.cadeia},{' '}
+          {(res.data_compra || '').slice(0, 10)}, {eur(res.total_impresso)}). Não foi duplicada.
+        </div>
+      )}
+
+      {res && !res.duplicada && (
         <div className="resultado">
           <div className="cabecalho-fatura">
             <strong>{res.loja?.nome || res.loja?.cadeia}</strong>

@@ -11,6 +11,7 @@ Lê a imagem da fatura (talão térmico, pode estar amassado) e devolve SÓ um o
 Esquema exato:
 {
   "loja": { "cadeia": string, "nome": string, "nif": string|null, "localizacao": string|null },
+  "numero_fatura": string|null,     // nº do documento fiscal após "Nro:"/"No :" (ex. "FS ARQ214/141059"); null se ilegível
   "data_compra": string,            // ISO 8601, ex. "2026-05-22T18:02:00"
   "subtotal": number|null,          // SUBTOTAL antes do desconto global
   "desconto_global": number,        // ex. "Desconto Cartão Utilizado"; 0 se não houver
