@@ -22,8 +22,10 @@ export default function App() {
         onEntrar={setSessao}
       />
     );
+  const nome = (sessao.user?.id || '').replace(/^./, (c) => c.toUpperCase());
   return (
     <Chat
+      nome={nome}
       onSair={() => {
         clearAuth();
         setSessao(null);
@@ -65,9 +67,9 @@ function Login({ onEntrar }) {
   );
 }
 
-function Chat({ onSair }) {
+function Chat({ onSair, nome }) {
   const [msgs, setMsgs] = useState([
-    { id: 'intro', lado: 'bot', tipo: 'resposta', texto: 'Olá! Pergunta-me sobre as tuas compras, ou envia uma fatura (📷 foto ou PDF).', hora: hora() },
+    { id: 'intro', lado: 'bot', tipo: 'resposta', texto: `Olá ${nome}, o que posso fazer por você?`, hora: hora() },
   ]);
   const [texto, setTexto] = useState('');
   const [ocupado, setOcupado] = useState(false);
