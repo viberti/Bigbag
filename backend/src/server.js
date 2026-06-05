@@ -5,6 +5,7 @@ import express from 'express';
 import { config } from './config.js';
 import { faturasRouter } from './routes/faturas.js';
 import { consultaRouter } from './routes/consulta.js';
+import { vozRouter } from './routes/voz.js';
 import { requireAuth } from './auth.js';
 
 const app = express();
@@ -27,6 +28,7 @@ app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.user }));
 // Rotas de aplicação (protegidas por requireAuth lá dentro).
 app.use('/api/faturas', faturasRouter);
 app.use('/api/consulta', consultaRouter);
+app.use('/api/voz', vozRouter);
 
 const server = app.listen(config.port, () => {
   console.log(`[bigbag-backend] a escutar na porta ${config.port} (${config.nodeEnv})`);

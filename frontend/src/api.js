@@ -39,3 +39,11 @@ export async function enviarFatura(file) {
   const r = await call('/api/faturas', { method: 'POST', body: fd });
   return r.json();
 }
+
+export async function enviarVoz(blob) {
+  const fd = new FormData();
+  const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
+  fd.append('audio', blob, `nota.${ext}`);
+  const r = await call('/api/voz', { method: 'POST', body: fd });
+  return r.json();
+}

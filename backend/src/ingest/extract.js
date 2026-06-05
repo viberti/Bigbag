@@ -2,7 +2,7 @@
 // multimodal e pede JSON estruturado. (Abordagem B — OCR+LLM — entra depois,
 // trocável, para comparar; metodo_extracao na fatura regista qual gerou cada
 // registo.)
-import { visionPrompt } from '../openrouter.js';
+import { visionPrompt, chatCompletion } from '../openrouter.js';
 import { normalizarItens } from './normalize.js';
 
 const PROMPT = `És um extrator de faturas de supermercado português (Continente, Pingo Doce, Mercadona, Aldi, Lidl).
@@ -33,7 +33,8 @@ Regras:
 - Linhas de desconto sob um produto ("Poupança", "Promoção", "Promoção Lidl Plus", "Desconto") pertencem a esse produto: soma a magnitude (positiva) no desconto_direto desse item. NUNCA cries um item separado para um desconto. O "valor" do item é o preço impresso na linha do produto (tal como aparece, mesmo que haja desconto por baixo).
 - Itens a peso aparecem como "0,505 kg x 6,19 EUR/kg" → o "valor" é o total da linha (ex. 3,13); guarda na descrição o texto do produto.
 - Não inventes itens nem valores. Se um valor não for legível, usa null no campo numérico desse item e mantém a descrição.
-- Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.`;
+- Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.
+- IGNORA o rodapé de fidelização/cartão: "ACUMULOU NO SEU CARTAO", "DESCONTO CUPAO", "SALDO NO CARTAO", "Saldo de selos", "Selos ganhos", "Já ganhou com o cartão", cupões lidos/emitidos, pontos. NÃO são itens nem descontos desta compra — não os contes em desconto_global nem em desconto_direto.`;
 
 function parseJsonLoose(txt) {
   let s = String(txt).trim();
@@ -59,6 +60,25 @@ export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
   const dados = parseJsonLoose(bruto);
   if (!dados || !Array.isArray(dados.itens)) {
     throw new Error('Extração VLM não devolveu itens válidos');
+  }
+  dados.itens = normalizarItens(dados.itens);
+  return dados;
+}
+
+// Abordagem B — OCR/texto + LLM. Para faturas digitais em PDF (texto já
+// extraído). Mesmo esquema/regras; só muda a entrada (texto em vez de imagem).
+export async function extrairFaturaDeTexto(texto, { model, timeoutMs } = {}) {
+  const bruto = await chatCompletion({
+    messages: [
+      { role: 'user', content: `${PROMPT}\n\nEis o TEXTO de uma fatura (já extraído do PDF):\n"""\n${texto}\n"""` },
+    ],
+    model,
+    timeoutMs,
+    responseFormat: { type: 'json_object' },
+  });
+  const dados = parseJsonLoose(bruto);
+  if (!dados || !Array.isArray(dados.itens)) {
+    throw new Error('Extração (texto) não devolveu itens válidos');
   }
   dados.itens = normalizarItens(dados.itens);
   return dados;
