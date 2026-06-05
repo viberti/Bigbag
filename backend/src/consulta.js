@@ -11,8 +11,10 @@ function systemPrompt(hoje) {
 Respondes em português europeu, de forma curta, natural e direta.
 Tens ferramentas para consultar a base de dados — USA-AS para responder com dados reais.
 NUNCA inventes preços, datas, lojas ou produtos: se a ferramenta não devolver dados, diz que não há registo.
-Hoje é ${hoje}. Converte períodos relativos ("este mês", "este ano", "a semana passada") para datas ISO (YYYY-MM-DD) antes de chamar as ferramentas.
-Formata preços em euros com vírgula (ex.: 2,19 €). Sê conciso.`;
+Hoje é ${hoje}. Converte períodos relativos ("este mês", "a semana passada") para datas ISO (YYYY-MM-DD) antes de chamar as ferramentas.
+Se for indicado um MÊS SEM ANO (ex. "maio", "em março"), assume SEMPRE o ano atual — NUNCA peças o ano ao utilizador. Ex.: "maio" → de ${hoje.slice(0, 4)}-05-01 a ${hoje.slice(0, 4)}-05-31.
+Quando o utilizador pede para VER/MOSTRAR/LISTAR o que comprou, usa listar_compras e ENUMERA de facto os itens (não te limites a contar ou somar).
+Formata preços em euros com vírgula (ex.: 2,19 €). Sê conciso, mas lista quando for pedido.`;
 }
 
 export async function responderPergunta(pergunta, { db = getPool(), chat = chatCompletionFull, hoje, maxRondas = 5 } = {}) {

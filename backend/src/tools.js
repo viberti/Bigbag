@@ -62,6 +62,26 @@ export const toolDefs = [
   {
     type: 'function',
     function: {
+      name: 'listar_compras',
+      description:
+        "Lista o que foi comprado num período (cada item com data, loja e preço pago). Usar para 'o que comprei em maio', 'mostra as minhas compras da semana passada', 'o que levei no Continente'. Pode filtrar por produto/categoria.",
+      parameters: {
+        type: 'object',
+        properties: {
+          periodo_inicio: { type: 'string', description: "Data inicial ISO 'YYYY-MM-DD'." },
+          periodo_fim: { type: 'string', description: "Data final ISO 'YYYY-MM-DD'. Se omitida, até hoje." },
+          alvo: {
+            type: 'string',
+            description: "Opcional: produto ('café') ou categoria ('Laticínios') para filtrar. Omitir para tudo.",
+          },
+        },
+        required: ['periodo_inicio'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'total_gasto',
       description:
         "Soma quanto foi gasto num produto, categoria, ou no total, num período. Usar para 'quanto gastei em X este mês/ano'.",
@@ -90,6 +110,7 @@ const dispatch = {
   comparar_precos_por_loja: queries.comparar_precos_por_loja,
   historico_preco: queries.historico_preco,
   total_gasto: queries.total_gasto,
+  listar_compras: queries.listar_compras,
 };
 
 // Executa uma tool call do LLM. `args` é o objeto de argumentos já parseado.

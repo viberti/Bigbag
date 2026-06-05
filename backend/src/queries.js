@@ -102,6 +102,35 @@ export async function historico_preco(db, { produto, desde }) {
   return rows;
 }
 
+// 5) Listar o que foi comprado num período (itens com data, loja e preço).
+//    Opcionalmente filtrado por produto/categoria. Exclui não-produto e revisão.
+export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo }) {
+  const fim = periodo_fim || new Date().toISOString().slice(0, 10);
+  const params = [periodo_inicio, fim];
+  let filtroAlvo = '';
+  if (alvo && String(alvo).trim().toLowerCase() !== 'tudo') {
+    const m = matchProduto(alvo);
+    filtroAlvo = `AND (s.categoria LIKE ? OR ${m.sql})`;
+    params.push(`%${String(alvo).trim()}%`, ...m.params);
+  }
+  const [rows] = await db.query(
+    `SELECT
+        DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
+        l.cadeia, l.nome AS loja,
+        COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+        i.preco_liquido
+     ${BASE_JOINS}
+     WHERE i.is_non_product = FALSE
+       AND f.needs_review = FALSE
+       AND DATE(f.data_compra) >= ?
+       AND DATE(f.data_compra) <= ?
+       ${filtroAlvo}
+     ORDER BY f.data_compra, l.nome, i.id`,
+    params,
+  );
+  return rows;
+}
+
 // 4) Total gasto num produto, categoria ou no geral ('tudo'), num período.
 //    Exclui não-produto (saco/taxa). Inclui clearance (é gasto real).
 //    SUPOSIÇÃO: 'tudo' = total de gasto em produtos, não a fatura absoluta

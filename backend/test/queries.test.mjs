@@ -119,6 +119,21 @@ test('total_gasto: por categoria (inclui clearance, exclui não-produto)', async
   assert.equal(Number(r.n_itens), 3);
 });
 
+test('listar_compras: enumera os itens do período (exclui não-produto)', async () => {
+  const r = await executarTool(conn, 'listar_compras', { periodo_inicio: '2099-01-01', periodo_fim: '2099-12-31' });
+  assert.equal(r.length, 5); // manteiga ×3 (inc. clearance) + café ×2; saco fora
+  assert.ok(r.every((x) => x.produto && x.preco_liquido != null && x.data));
+});
+
+test('listar_compras: filtra por alvo (só café = 2 itens)', async () => {
+  const r = await executarTool(conn, 'listar_compras', {
+    periodo_inicio: '2099-01-01',
+    periodo_fim: '2099-12-31',
+    alvo: CAFE,
+  });
+  assert.equal(r.length, 2);
+});
+
 test("total_gasto: 'tudo' no período de 2099 (isolado de faturas reais)", async () => {
   const r = await executarTool(conn, 'total_gasto', { alvo: 'tudo', periodo_inicio: '2099-01-01', periodo_fim: '2099-12-31' });
   assert.equal(Number(r.total), 12.28); // 2,39+3,50+2,19+3,20+1,00 (saco fora)
