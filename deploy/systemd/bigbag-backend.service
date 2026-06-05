@@ -1,0 +1,29 @@
+# Serviço systemd para o backend Node do Bigbag.
+# Mantém o processo vivo (reinicia em falha e no boot da máquina), sem
+# depender de um terminal aberto. Espelha o padrão do 1417.
+#
+# Instalar:
+#   sudo cp deploy/systemd/bigbag-backend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now bigbag-backend
+#
+# WorkingDirectory aponta para o checkout em /home/dev/bigbag/backend, onde o
+# .env já está (dotenv lê a partir do WorkingDirectory), por isso NÃO é
+# necessário EnvironmentFile.
+
+[Unit]
+Description=Bigbag backend (Node + Express)
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=dev
+Group=dev
+WorkingDirectory=/home/dev/bigbag/backend
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

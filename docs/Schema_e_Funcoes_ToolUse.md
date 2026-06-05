@@ -15,6 +15,7 @@
 CREATE TABLE loja (
   id            BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   cadeia        VARCHAR(40)  NOT NULL,           -- 'Continente','Pingo Doce','Mercadona','Aldi','Lidl'
+  tipo          VARCHAR(30)  NOT NULL DEFAULT 'outro', -- 'supermercado','farmacia','outro' (migração 002)
   nome          VARCHAR(120) NOT NULL,           -- nome impresso na fatura
   nif           VARCHAR(20),                     -- NIF do estabelecimento (chave natural útil)
   localizacao   VARCHAR(160),                    -- morada/zona em Braga
@@ -185,5 +186,16 @@ Formato compatível com OpenRouter / OpenAI tools. O LLM recebe a consulta (tran
 - **Datas sempre ISO** no contrato; o LLM converte "este mês" → intervalo antes de chamar (ou o backend interpreta — decidir na implementação, mas ISO no contrato evita ambiguidade).
 - **Filtros implícitos:** as comparações e históricos excluem `is_clearance` e `is_non_product` por omissão. A poupança de fim-de-validade pode ser uma função futura à parte.
 - **Resposta do backend → LLM:** JSON simples e achatado (ex. `{"produto":"manteiga Mimosa","preco":2.19,"loja":"Pingo Doce","data":"2026-05-28"}`), para o LLM formular naturalmente.
-```
-```
+
+---
+
+## 3. Notas de implementação v1 (2026-06-05) — suposições registadas
+
+Implementação inicial das 4 funções em `backend/src/queries.js`, com teste de integração (`backend/test/queries.test.mjs`, 7 casos, transação + `ROLLBACK`). Decisões tomadas com autonomia (reversíveis), a confirmar/afinar:
+
+- **Correspondência produto→SKU = LIKE ingénuo v1.** `matchProduto()` faz `LIKE '%termo%'` sobre `nome_canonico`, `marca` e `descricao_original`. É o ponto de troca para fuzzy/embeddings (conceito §4.2); está isolado numa função para não mexer nas queries quando evoluir. A collation `utf8mb4_unicode_ci` dá match insensível a maiúsculas/acentos de borla.
+- **`buscar_ultima_compra`** exclui `is_non_product` mas **inclui** `is_clearance` (é uma compra real); devolve a flag `is_clearance` para o caller saber.
+- **`comparar_precos_por_loja`** usa a observação **mais recente por loja** (`ROW_NUMBER()`), exclui clearance/não-produto e exige `preco_por_base IS NOT NULL`.
+- **`total_gasto`** exclui `is_non_product` e **inclui** `is_clearance` (gasto real). `'tudo'` = total de gasto **em produtos** (sacos/taxas fora), não a fatura bruta — reversível se preferires o total absoluto. `alvo` casa categoria **ou** produto.
+- **Datas de saída** via `DATE_FORMAT(...,'%Y-%m-%d')` → strings ISO no JSON (não objetos `Date`).
+- **Sem rota HTTP de consulta ainda.** As funções são uma biblioteca testável; a exposição por endpoint fica **atrás de auth** (requisito de segurança), a implementar com o OAuth.

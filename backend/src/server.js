@@ -3,6 +3,7 @@
 // Rotas de upload e consulta entram nos Blocos 2 e 3, atrás de auth.
 import express from 'express';
 import { config } from './config.js';
+import { faturasRouter } from './routes/faturas.js';
 
 const app = express();
 
@@ -17,6 +18,9 @@ app.get('/health', (_req, res) => {
     env: config.nodeEnv,
   });
 });
+
+// Rotas de aplicação (protegidas por requireAuth lá dentro).
+app.use('/api/faturas', faturasRouter);
 
 const server = app.listen(config.port, () => {
   console.log(`[bigbag-backend] a escutar na porta ${config.port} (${config.nodeEnv})`);

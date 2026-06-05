@@ -6,6 +6,26 @@
 
 ---
 
+## Estado do bootstrap (2026-06-05)
+
+| Passo | Estado |
+| --- | --- |
+| 1.1 Reconhecimento (porta 4200 livre) | ✅ feito |
+| 2. Utilizador `dev` + dirs `/home/dev/bigbag`, `/var/lib/bigbag/{comprovantes,notas_voz}` | ✅ feito |
+| 3. MySQL `app_bigbag` + user `bigbag` (GRANT só em `app_bigbag.*`) | ✅ feito |
+| 4. Migração 001 (4 tabelas) | ✅ aplicada |
+| 5. Backend + `.env` (chmod 600) + `npm ci` + smoke test `/health` | ✅ feito |
+| 6. systemd `bigbag-backend.service` (enabled, auto-restart testado) | ✅ feito |
+| Bloco 3 — 4 funções de consulta + teste (7/7 passa, rollback) | ✅ feito (atrás de auth, sem rota aberta) |
+| **7. Apache vhost** | ⏸️ **bloqueado: falta domínio** (e é serviço partilhado → paragem) |
+| **8. HTTPS (certbot)** | ⏸️ depende do domínio |
+| **9. UFW** | ⏸️ paragem (firewall do host; SSH 22 já aberto) |
+| **11. Revogar sudo temporário** `/etc/sudoers.d/90-bigbag-nopasswd` | ⏸️ **ainda ativo** (instalação não terminou; revogar no fim) |
+| Bloco 2 — ingestão VLM | ⏸️ falta `OPENROUTER_API_KEY` no `.env` |
+| Auth — Google OAuth | ⏸️ falta `GOOGLE_*` / `SUPERUSER_EMAIL` no `.env` |
+
+---
+
 ## 0. Convenções do projeto
 
 | Item | Valor |

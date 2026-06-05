@@ -1,0 +1,75 @@
+// Rota de ingestão de faturas. PROTEGIDA por requireAuth (a app está exposta).
+// POST /api/faturas  (multipart, campo "fatura" = imagem) →
+//   extrai (VLM) → reconcilia → grava imagem + BD → devolve resumo.
+import { Router } from 'express';
+import multer from 'multer';
+import { randomUUID } from 'node:crypto';
+import { writeFile, mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import { requireAuth } from '../auth.js';
+import { config } from '../config.js';
+import { getPool } from '../db.js';
+import { extrairFatura } from '../ingest/extract.js';
+import { distribuirDesconto } from '../ingest/reconcile.js';
+import { persistirFatura } from '../ingest/persist.js';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+
+export const faturasRouter = Router();
+
+faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Falta o ficheiro "fatura" (imagem)' });
+    const mime = req.file.mimetype || 'image/jpeg';
+    const imageBase64 = req.file.buffer.toString('base64');
+
+    // 1) extração VLM
+    const dados = await extrairFatura({ imageBase64, mime });
+
+    // 2) reconciliação determinística (distribui desconto global)
+    const rec = distribuirDesconto(dados.itens, {
+      descontoGlobal: Number(dados.desconto_global) || 0,
+      totalImpresso: dados.total_impresso,
+    });
+    dados.itens = rec.itens;
+
+    // 3) gravar a imagem original
+    await mkdir(config.uploads.faturas, { recursive: true });
+    const ext = (mime.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+    const ficheiro = path.join(config.uploads.faturas, `${randomUUID()}.${ext}`);
+    await writeFile(ficheiro, req.file.buffer, { mode: 0o600 });
+
+    // 4) persistir
+    const { fatura_id, loja_id, n_itens } = await persistirFatura(getPool(), dados, {
+      ficheiroOriginal: ficheiro,
+      metodo: 'vlm',
+      totalReconciliado: rec.totalReconciliado,
+    });
+
+    // 5) resumo para o utilizador (inclui sinal de qualidade da extração)
+    res.json({
+      fatura_id,
+      loja_id,
+      loja: dados.loja,
+      data_compra: dados.data_compra,
+      total_impresso: dados.total_impresso,
+      subtotal_extraido: Math.round(rec.subtotal * 100) / 100,
+      total_reconciliado: Math.round(rec.totalReconciliado * 100) / 100,
+      desconto_global: Number(dados.desconto_global) || 0,
+      extracao_bate: rec.extracaoBate,
+      discrepancia: rec.discrepancia,
+      n_itens,
+      itens: dados.itens.map((it) => ({
+        descricao_original: it.descricao_original,
+        preco_unitario: it.preco_unitario,
+        preco_liquido: it.preco_liquido,
+        desconto_direto: Number(it.desconto_direto) || 0,
+        is_clearance: !!it.is_clearance,
+        is_non_product: !!it.is_non_product,
+      })),
+    });
+  } catch (e) {
+    console.error('[faturas] erro:', e.message);
+    res.status(502).json({ erro: 'Falha na ingestão', detalhe: e.message });
+  }
+});
