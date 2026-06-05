@@ -20,8 +20,17 @@ function paraBase(valor, unidade) {
 export function extrairFormato(descricao) {
   const s = String(descricao || '');
 
-  // 1) Item a peso, com €/kg impresso: "0,540 kg x 6,19 EUR/kg"
-  let m = s.match(/(\d+[.,]\d+)\s*kg\s*[x×X]\s*(\d+[.,]\d+)\s*eur\s*\/\s*kg/i);
+  // 1) Item a peso, com €/kg impresso: "0,540 kg x 6,19 EUR/kg" ou "… 1,20 €/kg"
+  // (o "x" pode faltar; aceita "EUR/kg" e "€/kg").
+  let m = s.match(/(\d+[.,]\d+)\s*kg\s*[x×X]?\s*(\d+[.,]\d+)\s*(?:eur|€)\s*\/\s*kg/i);
+  if (m) {
+    const quantidadeKg = num(m[1]);
+    return { unidade_base: 'kg', formato_valor: quantidadeKg, quantidadeKg, precoKg: num(m[2]) };
+  }
+
+  // 1b) Peso SEM unidades explícitas (VLM às vezes omite): "1,170 X 1,29" =
+  // kg × €/kg. Exige vírgula decimal em ambos (distingue de multipacks "4X115G").
+  m = s.match(/(\d+,\d{2,3})\s*[x×X]\s*(\d+,\d{1,2})(?!\d)/);
   if (m) {
     const quantidadeKg = num(m[1]);
     return { unidade_base: 'kg', formato_valor: quantidadeKg, quantidadeKg, precoKg: num(m[2]) };

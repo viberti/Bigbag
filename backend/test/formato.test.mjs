@@ -29,6 +29,26 @@ test('item a peso com €/kg impresso usa o valor da fatura', () => {
   assert.equal(precoPorBase({ preco_liquido: 3.34, quantidade: 1 }, f), 6.19);
 });
 
+test('item a peso com símbolo € e sem "x" (Mercadona): "2,426 kg 1,20 €/kg"', () => {
+  const f = extrairFormato('BANANA 2,426 kg 1,20 €/kg');
+  assert.equal(f.unidade_base, 'kg');
+  assert.equal(f.quantidadeKg, 2.426);
+  assert.equal(f.precoKg, 1.2);
+  assert.equal(precoPorBase({ preco_liquido: 2.91, quantidade: 1 }, f), 1.2);
+});
+
+test('peso sem unidades "1,170 X 1,29" → kg × €/kg', () => {
+  const f = extrairFormato('BANANA 1,170 X 1,29');
+  assert.equal(f.unidade_base, 'kg');
+  assert.equal(f.quantidadeKg, 1.17);
+  assert.equal(f.precoKg, 1.29);
+});
+
+test('multipack "4X115G" NÃO é confundido com peso sem unidades', () => {
+  const f = extrairFormato('IOG MYTHOS CNT COCO 4X115G');
+  assert.equal(f.formato_valor, 0.46); // continua multipack → 0,46 kg
+});
+
 test('unidades: 16UN → €/unidade individual', () => {
   const f = extrairFormato('CREPES CONTINENTE SIMPLES 16UN');
   assert.equal(f.unidade_base, 'un');

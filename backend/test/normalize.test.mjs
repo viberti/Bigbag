@@ -22,17 +22,33 @@ test('não mexe quando não há linhas de desconto', () => {
   assert.equal(out[0].desconto_direto, 0);
 });
 
-test('dobra a linha órfã de peso (Mercadona) no nome do item acima', () => {
+test('dobra a linha órfã de peso: nome fica LIMPO, peso vai para linha_peso', () => {
   const entrada = [
     { descricao_original: '1 BANANA', valor: 1.81 },
     { descricao_original: '2,426 kg 1,20 EUR/kg', valor: 2.91 },
     { descricao_original: '1 BATATA VERMELHA', valor: 0 },
-    { descricao_original: '0,816 kg 1,70 EUR/kg', valor: 1.39 },
+    { descricao_original: '0,816 kg 1,70 €/kg', valor: 1.39 }, // com símbolo €
   ];
   const out = normalizarItens(entrada);
   assert.equal(out.length, 2); // as linhas só-de-peso desaparecem
-  assert.equal(out[0].descricao_original, '1 BANANA 2,426 kg 1,20 EUR/kg');
+  assert.equal(out[0].descricao_original, '1 BANANA'); // nome estável, sem peso
+  assert.equal(out[0].linha_peso, '2,426 kg 1,20 EUR/kg');
   assert.equal(out[0].valor, 2.91); // usa o total da linha de peso (não o 1,81 errado)
-  assert.equal(out[1].descricao_original, '1 BATATA VERMELHA 0,816 kg 1,70 EUR/kg');
+  assert.equal(out[1].descricao_original, '1 BATATA VERMELHA');
+  assert.equal(out[1].linha_peso, '0,816 kg 1,70 €/kg');
   assert.equal(out[1].valor, 1.39);
+});
+
+test('peso colado ao nome (inline/\\n) é separado para linha_peso', () => {
+  const out = normalizarItens([{ descricao_original: 'BANANA\n1,800 kg x 1,19 EUR/kg', valor: 2.14 }]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].descricao_original, 'BANANA');
+  assert.equal(out[0].linha_peso, '1,800 kg x 1,19 EUR/kg');
+});
+
+test('peso sem unidades colado ao nome ("1,170 X 1,29") é separado', () => {
+  const out = normalizarItens([{ descricao_original: 'BANANA 1,170 X 1,29', valor: 1.51 }]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].descricao_original, 'BANANA');
+  assert.equal(out[0].linha_peso, '1,170 X 1,29');
 });
