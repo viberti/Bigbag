@@ -343,11 +343,12 @@ function Chat({ onSair, nome }) {
           ref={fileRef}
           type="file"
           accept="image/*,application/pdf"
+          multiple
           hidden
           onChange={(e) => {
-            const f = e.target.files?.[0];
+            const arr = e.target.files ? Array.from(e.target.files) : [];
             e.target.value = '';
-            fatura(f, { dewarp: false, origem: 'arquivo' });
+            faturaLote(arr, 'arquivo');
           }}
         />
         <input

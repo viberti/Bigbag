@@ -80,7 +80,7 @@ explorarRouter.get('/produtos/:id', async (req, res) => {
     if (!sku) return res.status(404).json({ erro: 'Produto não encontrado' });
     const [historico] = await pool.query(
       `SELECT DATE(f.data_compra) AS data, i.preco_por_base AS preco, l.cadeia AS loja,
-              i.is_clearance AS promo, i.preco_liquido AS pago
+              i.is_clearance AS promo, i.preco_liquido AS pago, i.desconto_direto AS desconto
          FROM item i JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
         WHERE i.sku_id = ? AND ${FILTRO}
         ORDER BY f.data_compra`,

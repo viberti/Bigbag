@@ -265,12 +265,13 @@ function calcStats(det) {
   const first = count ? ps[0] : null;
   const avg = count ? precos.reduce((a, b) => a + b, 0) / count : null;
   const total = ps.reduce((a, x) => a + Number(x.pago || 0), 0);
+  const poupanca = ps.reduce((a, x) => a + Number(x.desconto || 0), 0);
   const trend = first && first.preco > 0 ? ((last.preco - first.preco) / first.preco) * 100 : 0;
   const stores = (det.por_loja || []).map((l) => ({ ...l, color: corLoja(l.loja) }));
   const cheapest = stores[0] || null;
   const totalQty = ps.reduce((a, x) => a + (x.preco > 0 ? Number(x.pago) / Number(x.preco) : 0), 0);
   const savings = cheapest ? total - cheapest.preco_medio * totalQty : 0;
-  return { ps, count, min, max, last, first, avg, total, trend, stores, cheapest, nStores: stores.length, savings };
+  return { ps, count, min, max, last, first, avg, total, poupanca, trend, stores, cheapest, nStores: stores.length, savings };
 }
 
 // ───────────────────────────── página ─────────────────────────────
@@ -506,6 +507,14 @@ function Detalhe({ det }) {
               {s.count}× · {s.nStores}
             </span>
           </div>
+          {s.poupanca > 0.005 && (
+            <div className="r-line">
+              <span className="lbl">Poupança total (descontos)</span>
+              <span className="val" style={{ color: 'var(--olive-d)' }}>
+                −{fmt(s.poupanca)} €
+              </span>
+            </div>
+          )}
         </div>
         <div className="r-total">
           <span className="lbl">Gasto total</span>
@@ -569,20 +578,31 @@ function Detalhe({ det }) {
             {s.ps
               .slice()
               .reverse()
-              .map((x, i) => (
-                <tr key={i}>
-                  <td className="date">{ddmmaa(x.data)}</td>
-                  <td>
-                    <span className="store">
-                      <span className="d" style={{ background: corLoja(x.loja) }} />
-                      {x.loja}
-                    </span>
-                  </td>
-                  <td className={`r mono ${Number(x.preco) === s.min ? 'lo' : Number(x.preco) === s.max ? 'hi' : ''}`}>
-                    {fmt(x.preco)} €
-                  </td>
-                </tr>
-              ))}
+              .map((x, i) => {
+                const preco = Number(x.preco);
+                const dd = Number(x.desconto || 0);
+                const pago = Number(x.pago || 0);
+                const normal = dd > 0.005 && pago > 0 ? (preco * (pago + dd)) / pago : null;
+                return (
+                  <tr key={i}>
+                    <td className="date">{ddmmaa(x.data)}</td>
+                    <td>
+                      <span className="store">
+                        <span className="d" style={{ background: corLoja(x.loja) }} />
+                        {x.loja}
+                      </span>
+                    </td>
+                    <td className={`r mono ${preco === s.min ? 'lo' : preco === s.max ? 'hi' : ''}`}>
+                      {normal != null && (
+                        <span className="hnormal" title="preço normal (sem desconto)">
+                          {fmt(normal)}{' '}
+                        </span>
+                      )}
+                      {fmt(preco)} €
+                    </td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>
