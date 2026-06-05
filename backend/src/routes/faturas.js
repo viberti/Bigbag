@@ -15,6 +15,7 @@ import { preProcessarImagem } from '../ingest/imagem.js';
 import { distribuirDesconto } from '../ingest/reconcile.js';
 import { persistirFatura } from '../ingest/persist.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
+import { normalizarItensFatura } from '../normaliza/matcher.js';
 import { guardarMensagem } from '../historico.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
@@ -114,6 +115,14 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       });
     }
     const { fatura_id, loja_id, n_itens } = resultado;
+
+    // 4b) Canonicalização inline (Camadas 2+3): resolve o sku_id de cada item já
+    // na ingestão, para o produto aparecer com nome canónico (e corrigido) nas
+    // consultas. Best-effort: se falhar, o item fica sem SKU e o script de lote
+    // (normalizar_skus) apanha-o depois. Não bloqueia o upload em caso de erro.
+    await normalizarItensFatura(getPool(), fatura_id).catch((e) =>
+      console.error('[faturas] canonicalização:', e.message),
+    );
 
     // Regista o upload na conversa, para o assistente ter contexto
     // ("a última fatura", "os valores dessa compra estão certos?").

@@ -5,7 +5,8 @@
 import { chatCompletion } from '../openrouter.js';
 
 const PROMPT = `És um normalizador de produtos de supermercado português.
-Dada a descrição de um item de talão (com abreviaturas), devolve SÓ um objeto JSON:
+Dada a descrição de um item de talão (com abreviaturas e, às vezes, erros de
+leitura/OCR), devolve SÓ um objeto JSON:
 {
   "nome_canonico": string,   // o produto SEM marca e SEM formato/peso, legível e genérico.
                              // ex.: "BOL DIGESTIVE AVEIA CNT 425GR" -> "Bolacha Digestive de Aveia"
@@ -16,7 +17,18 @@ Dada a descrição de um item de talão (com abreviaturas), devolve SÓ um objet
   "unidade_base": "un"|"kg"|"L",
   "confianca": number        // 0..1 — baixa se a descrição for ambígua/ilegível
 }
-Regras: expande abreviaturas (BOL=Bolacha, QJ=Queijo, IOG=Iogurte, C/=com, S/=sem).
+Regras:
+- Expande abreviaturas (BOL=Bolacha, QJ=Queijo, IOG=Iogurte, C/=com, S/=sem).
+- Ignora quantidade/código no início ("1 ", "2 ", "Uni ", "I ") — não faz parte do nome.
+- CORRIGE erros óbvios de leitura para o produto real que de facto existe, usando
+  o teu conhecimento de produtos de supermercado portugueses:
+    "OLO GIRASSOL" -> "Óleo de Girassol"   (faltou uma letra)
+    "RUPA TOMATE"  -> "Polpa de Tomate"
+    "MANTEEA"      -> "Manteiga"            (letras trocadas)
+  e usa essa correção também na "marca" quando aplicável.
+- MAS nunca inventes: se a descrição for ilegível ou ambígua e não houver um produto
+  claro que encaixe, mantém-na o mais fiel possível e baixa a "confianca" (≤ 0.5).
+- NUNCA incluas no nome números, preços, pesos ou códigos.
 O nome_canonico NUNCA inclui a marca nem o formato/peso. Dois produtos iguais de
 marcas diferentes partilham o mesmo nome_canonico (distinguem-se pela marca).`;
 

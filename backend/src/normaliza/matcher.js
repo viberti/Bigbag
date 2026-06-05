@@ -72,3 +72,31 @@ export async function resolverSku(
   await db.query('INSERT IGNORE INTO sku_alias (descricao_original, sku_id, origem) VALUES (?,?,?)', [desc, sku_id, 'llm']);
   return { sku_id, via, score: Math.round(score * 100) / 100, canonical: c };
 }
+
+// Resolve o sku_id de todos os itens (ainda sem SKU) de UMA fatura. Corre FORA
+// de qualquer transação — faz chamadas ao LLM (lentas) — e é best-effort: usa-se
+// na ingestão para já gravar o produto canónico; o script de lote é a rede de
+// segurança para o que falhar. Sequencial de propósito (evita criar SKUs
+// duplicados em corrida quando duas descrições novas mapeiam ao mesmo produto).
+export async function normalizarItensFatura(db, faturaId, opts = {}) {
+  const [rows] = await db.query(
+    'SELECT DISTINCT descricao_original FROM item WHERE fatura_id = ? AND sku_id IS NULL AND is_non_product = FALSE',
+    [faturaId],
+  );
+  const cont = { novo: 0, match: 0, 'match-llm': 0, alias: 0, revisao: 0, erro: 0 };
+  for (const { descricao_original } of rows) {
+    try {
+      const r = await resolverSku(db, descricao_original, opts);
+      if (r.sku_id) {
+        await db.query(
+          'UPDATE item SET sku_id = ? WHERE fatura_id = ? AND descricao_original = ? AND sku_id IS NULL',
+          [r.sku_id, faturaId, descricao_original],
+        );
+      }
+      cont[r.via] = (cont[r.via] || 0) + 1;
+    } catch {
+      cont.erro++;
+    }
+  }
+  return cont;
+}
