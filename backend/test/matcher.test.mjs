@@ -45,6 +45,18 @@ test('descrição diferente, mesmo produto → emparelha ao SKU existente (via m
   assert.equal(r3.sku_id, r1.sku_id); // mesmo nome+marca+formato → mesmo SKU
 });
 
+test('Camada 3: variante do mesmo produto agrupa por similaridade', async () => {
+  const stubVar = (desc) =>
+    /dop/i.test(desc)
+      ? { nome_canonico: 'Parmigiano Reggiano DOP 24 Meses ZZ', marca: null, categoria: 'Queijos', unidade_base: 'un', confianca: 0.9 }
+      : { nome_canonico: 'Parmigiano Reggiano ZZ', marca: null, categoria: 'Queijos', unidade_base: 'un', confianca: 0.9 };
+  const r1 = await resolverSku(conn, 'PARMIGIANO REGGIANO ZZ', { canonicalizar: stubVar });
+  const r2 = await resolverSku(conn, 'PARMIGIANO REGGIAND DOP 24M ZZ', { canonicalizar: stubVar });
+  assert.equal(r1.via, 'novo');
+  assert.equal(r2.via, 'match');
+  assert.equal(r2.sku_id, r1.sku_id);
+});
+
 test('confiança baixa → não liga, fica para revisão', async () => {
   const r = await resolverSku(conn, 'PRODUTO ILEGIVEL XPTO', { canonicalizar: stub });
   assert.equal(r.via, 'revisao');

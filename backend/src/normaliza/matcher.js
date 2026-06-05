@@ -1,21 +1,30 @@
-// Camada 2 — resolver uma descrição de talão para um sku_normalizado.
-// Ordem por confiança crescente em custo:
-//   1) alias exato (cache) → instantâneo, sem erro
-//   2) canonicalizar (LLM) → encontrar SKU existente (nome+marca+formato) ou criar
-//   3) confiança baixa → não liga; fica para revisão
-// `canonicalizar` é injetado (testes usam stub; produção usa canonical.js).
+// Camada 2+3 — resolver uma descrição de talão para um sku_normalizado.
+//   1) alias exato (cache) → instantâneo
+//   2) canonicalizar (LLM) → nome_canónico + marca + unidade
+//   3) candidatos = SKUs com mesma marca + unidade + formato compatível;
+//      pontua por SIMILARIDADE de nome (Camada 3) e decide:
+//        score ≥ limiarAuto        → match
+//        limiarRevisao ≤ s < auto  → confirmar por LLM (se houver juiz), senão revisão
+//        s < limiarRevisao         → criar SKU novo
+//   4) grava alias para a próxima vez.
+// `canonicalizar` e `confirmar` são injetados (testes usam stubs).
 import { extrairFormato } from './formato.js';
-import { canonicalizar as canonicalizarLLM } from './canonical.js';
+import { canonicalizar as canonicalizarLLM, confirmarMesmoProduto } from './canonical.js';
+import { melhorCandidato } from './similaridade.js';
 
 const formatoProximo = (a, b) => {
   if (a == null || b == null) return a == null && b == null;
-  return Math.abs(Number(a) - Number(b)) <= 0.01; // tolerância de formato
+  return Math.abs(Number(a) - Number(b)) <= 0.01;
 };
 
-export async function resolverSku(db, descricaoOriginal, { canonicalizar = canonicalizarLLM, limiarRevisao = 0.6 } = {}) {
+export async function resolverSku(
+  db,
+  descricaoOriginal,
+  { canonicalizar = canonicalizarLLM, confirmar = confirmarMesmoProduto, limiarAuto = 0.85, limiarRevisao = 0.6 } = {},
+) {
   const desc = String(descricaoOriginal || '').trim();
 
-  // 1) alias exato (cache) — collation utf8mb4_unicode_ci ignora caixa/acentos.
+  // 1) alias exato (cache)
   const [al] = await db.query('SELECT sku_id FROM sku_alias WHERE descricao_original = ?', [desc]);
   if (al.length) return { sku_id: al[0].sku_id, via: 'alias' };
 
@@ -26,24 +35,32 @@ export async function resolverSku(db, descricaoOriginal, { canonicalizar = canon
   }
 
   const fmt = extrairFormato(desc);
-  // Itens a peso variável (vendidos a €/kg) NÃO têm formato fixo — o peso é por
-  // compra (quantidade), não um atributo do SKU. Senão cada compra vira um SKU.
+  // peso variável (€/kg) não tem formato fixo
   const formato_valor = fmt.quantidadeKg != null ? null : fmt.formato_valor ?? null;
   const unidade_base = c.unidade_base || fmt.unidade_base || 'un';
 
-  // 3) procurar SKU existente: mesmo nome (classe) + marca + unidade, formato próximo.
-  const [skus] = await db.query(
-    'SELECT id, formato_valor FROM sku_normalizado WHERE nome_canonico = ? AND (marca <=> ?) AND unidade_base = ?',
-    [c.nome_canonico, c.marca, unidade_base],
+  // 3) candidatos: mesma marca + unidade + formato compatível
+  const [cands] = await db.query(
+    'SELECT id, nome_canonico, formato_valor FROM sku_normalizado WHERE (marca <=> ?) AND unidade_base = ?',
+    [c.marca, unidade_base],
   );
-  const existente = skus.find((s) => formatoProximo(s.formato_valor, formato_valor));
+  const compat = cands.filter((s) => formatoProximo(s.formato_valor, formato_valor));
+  const { candidato, score } = melhorCandidato(c.nome_canonico, compat);
 
-  let sku_id;
-  let via;
-  if (existente) {
-    sku_id = existente.id;
+  let sku_id = null;
+  let via = null;
+  if (candidato && score >= limiarAuto) {
+    sku_id = candidato.id;
     via = 'match';
-  } else {
+  } else if (candidato && score >= limiarRevisao && confirmar) {
+    const ok = await confirmar(c.nome_canonico, candidato.nome_canonico);
+    if (ok) {
+      sku_id = candidato.id;
+      via = 'match-llm';
+    }
+  }
+
+  if (!sku_id) {
     const [r] = await db.query(
       'INSERT INTO sku_normalizado (nome_canonico, marca, categoria, unidade_base, formato_valor) VALUES (?,?,?,?,?)',
       [c.nome_canonico, c.marca, c.categoria, unidade_base, formato_valor],
@@ -52,7 +69,6 @@ export async function resolverSku(db, descricaoOriginal, { canonicalizar = canon
     via = 'novo';
   }
 
-  // 4) gravar alias (cache) para a próxima vez.
   await db.query('INSERT IGNORE INTO sku_alias (descricao_original, sku_id, origem) VALUES (?,?,?)', [desc, sku_id, 'llm']);
-  return { sku_id, via, canonical: c };
+  return { sku_id, via, score: Math.round(score * 100) / 100, canonical: c };
 }

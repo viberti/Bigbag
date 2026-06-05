@@ -30,6 +30,26 @@ function parseJson(txt) {
   return JSON.parse(s);
 }
 
+// Juiz da zona cinzenta (Camada 3): dois nomes parecidos são o MESMO produto?
+export async function confirmarMesmoProduto(nomeA, nomeB, { model, timeoutMs } = {}) {
+  const txt = await chatCompletion({
+    messages: [
+      {
+        role: 'user',
+        content: `Dois nomes de produto de supermercado. São o MESMO produto (ignorando diferenças de escrita/qualificadores)? Responde SÓ JSON {"mesmo": true|false}.\nA: ${nomeA}\nB: ${nomeB}`,
+      },
+    ],
+    model,
+    timeoutMs,
+    responseFormat: { type: 'json_object' },
+  });
+  try {
+    return parseJson(txt).mesmo === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function canonicalizar(descricao, { model, timeoutMs } = {}) {
   const pedir = () =>
     chatCompletion({
