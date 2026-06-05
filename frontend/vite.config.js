@@ -1,8 +1,25 @@
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Versão injetada no build: hash curto do git + data. Mostrada junto ao logo
+// para se perceber, num relance, se o PWA está em cache antigo.
+function versaoBuild() {
+  let hash = 'dev';
+  try {
+    hash = execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    /* sem git (ex.: tarball) → 'dev' */
+  }
+  const data = new Date().toISOString().slice(0, 10); // YYYY-MM-DD do build
+  return `${data}·${hash}`;
+}
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(versaoBuild()),
+  },
   plugins: [
     react(),
     VitePWA({
