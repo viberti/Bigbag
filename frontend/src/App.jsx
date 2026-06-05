@@ -241,8 +241,14 @@ function Fatura() {
   return (
     <div className="cartao">
       <label className="botao-foto">
-        {aProcessar ? 'a ler a fatura…' : '📷 Fotografar / escolher fatura'}
-        <input type="file" accept="image/*" capture="environment" onChange={escolher} disabled={aProcessar} hidden />
+        {aProcessar ? 'a ler a fatura…' : '📷 Foto ou 📄 PDF da fatura'}
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          onChange={escolher}
+          disabled={aProcessar}
+          hidden
+        />
       </label>
 
       {erro && <div className="erro">{erro}</div>}
