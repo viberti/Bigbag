@@ -22,11 +22,12 @@ explorarRouter.get('/produtos', async (req, res) => {
       args.push(`%${q}%`, `%${q}%`);
     }
     const [rows] = await getPool().query(
-      `SELECT s.id, s.nome_canonico, s.nome_simplificado, s.unidade_base,
+      `SELECT s.id, s.nome_canonico, s.nome_simplificado, s.categoria, s.unidade_base,
               COUNT(DISTINCT i.fatura_id) AS n_compras,
               COUNT(DISTINCT f.loja_id) AS n_lojas,
               ROUND(MIN(i.preco_por_base), 4) AS preco_min,
               ROUND(MAX(i.preco_por_base), 4) AS preco_max,
+              CAST(SUBSTRING_INDEX(GROUP_CONCAT(i.preco_por_base ORDER BY f.data_compra DESC), ',', 1) AS DECIMAL(10,4)) AS ultimo_preco,
               ROUND(SUM(i.preco_liquido), 2) AS total_gasto,
               MAX(f.data_compra) AS ultima
          FROM sku_normalizado s

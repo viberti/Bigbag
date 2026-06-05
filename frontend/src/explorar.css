@@ -1,0 +1,133 @@
+/* Tema "talão" (neo-brutalista suave, quente) — APENAS na página /explorar.
+   Tudo scoped sob .tlao para não afetar o app (tema escuro). Portado do design. */
+.tlao {
+  --bg: #f7f1e4;
+  --bg2: #fbf7ee;
+  --card: #fffdf7;
+  --ink: #27200f;
+  --ink2: #6d6149;
+  --ink3: #9c9075;
+  --line: #e7ddca;
+  --line-d: #d8ccb2;
+  --mustard: #e0a93c;
+  --mustard-d: #c08e26;
+  --tomato: #d2542f;
+  --tomato-d: #b8431f;
+  --olive: #6b7a45;
+  --olive-d: #566436;
+  --disp: 'Bricolage Grotesque', system-ui, sans-serif;
+  --mono: 'Space Mono', ui-monospace, monospace;
+  --sans: 'Hanken Grotesk', system-ui, sans-serif;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+.tlao * { box-sizing: border-box; }
+
+.tlao .hdr { display: flex; align-items: center; gap: 14px; padding: 15px 26px; background: var(--bg2); border-bottom: 2px solid var(--ink); flex: 0 0 auto; }
+.tlao .logo-wrap { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+.tlao .logo-badge { width: 46px; height: 46px; border-radius: 13px; background: var(--mustard); border: 2px solid var(--ink); display: grid; place-items: center; box-shadow: 3px 3px 0 var(--ink); }
+.tlao .wm { font-family: var(--disp); font-weight: 800; font-size: 27px; letter-spacing: -.02em; line-height: 1; }
+.tlao .wm small { display: block; font-family: var(--sans); font-weight: 500; font-size: 11.5px; color: var(--ink2); letter-spacing: 0; margin-top: 2px; }
+.tlao .spacer { flex: 1; }
+.tlao .hstat { font-family: var(--mono); font-size: 12.5px; color: var(--ink2); text-align: right; line-height: 1.5; }
+.tlao .hstat b { font-family: var(--disp); font-weight: 800; font-size: 20px; color: var(--ink); display: block; }
+.tlao .hback { margin-left: 18px; font-family: var(--mono); font-size: 12px; color: var(--ink2); text-decoration: none; }
+
+.tlao .shell { display: flex; flex: 1; min-height: 0; }
+
+.tlao .side { width: 300px; flex: 0 0 auto; background: var(--bg2); border-right: 2px solid var(--ink); display: flex; flex-direction: column; min-height: 0; }
+.tlao .search { padding: 16px 16px 11px; }
+.tlao .search input {
+  width: 100%; border: 1.5px solid var(--line-d); background: var(--card); border-radius: 11px;
+  padding: 11px 13px 11px 38px; font: inherit; font-size: 14px; color: var(--ink);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239c9075' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='M11 11l4 4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: 13px 50%;
+}
+.tlao .search input:focus { outline: none; border-color: var(--ink); box-shadow: 3px 3px 0 var(--mustard); }
+.tlao .list-lbl { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 22px 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); font-weight: 700; }
+.tlao .list-lbl .ct { color: var(--tomato-d); }
+.tlao .plist { overflow-y: auto; flex: 1; min-height: 0; padding: 0 0 16px; }
+.tlao .cathead { position: sticky; top: 0; background: var(--bg2); z-index: 1; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); font-weight: 700; padding: 13px 22px 6px; border-bottom: 1px dotted var(--line-d); margin-bottom: 3px; }
+.tlao .pitem { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 11px; cursor: pointer; border: 1.5px solid transparent; margin: 2px 8px; }
+.tlao .pitem:hover { border-color: var(--line-d); background: var(--card); }
+.tlao .pitem.on { background: var(--ink); border-color: var(--ink); box-shadow: 2px 2px 0 var(--mustard); }
+.tlao .pico { width: 36px; height: 36px; border-radius: 9px; background: var(--card); border: 1.5px solid var(--line-d); display: grid; place-items: center; font-size: 18px; flex: 0 0 auto; }
+.tlao .pitem.on .pico { background: var(--mustard); border-color: var(--ink); }
+.tlao .pmeta { flex: 1; min-width: 0; }
+.tlao .pname { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tlao .psub { font-family: var(--mono); font-size: 10.5px; color: var(--ink3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tlao .pitem.on .pname { color: var(--bg2); }
+.tlao .pitem.on .psub { color: #cdbf9f; }
+.tlao .empty { padding: 40px 20px; text-align: center; color: var(--ink3); font-size: 13.5px; }
+
+.tlao .scroll { flex: 1; overflow-y: auto; min-height: 0; padding: 26px 30px 48px; }
+.tlao .wrap { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+@media (max-width: 1080px) { .tlao .wrap { grid-template-columns: 1fr; } }
+
+.tlao .receipt { background: var(--card); border: 2px solid var(--ink); border-radius: 4px; box-shadow: 6px 6px 0 var(--ink); padding: 24px 26px 28px; position: relative; }
+.tlao .receipt::before, .tlao .receipt::after { content: ""; position: absolute; left: 0; right: 0; height: 10px; background-image: radial-gradient(circle at 6px -2px, transparent 5px, var(--card) 5px); background-size: 14px 10px; }
+.tlao .receipt::before { top: -9px; transform: scaleY(-1); }
+.tlao .receipt::after { bottom: -9px; }
+.tlao .r-top { display: flex; align-items: center; gap: 13px; border-bottom: 2px dashed var(--line-d); padding-bottom: 16px; }
+.tlao .r-emoji { width: 54px; height: 54px; border-radius: 13px; background: var(--bg); border: 2px solid var(--ink); display: grid; place-items: center; font-size: 28px; flex: 0 0 auto; }
+.tlao .r-name { font-family: var(--disp); font-weight: 800; font-size: 24px; line-height: 1.08; letter-spacing: -.01em; }
+.tlao .r-cat { font-family: var(--mono); font-size: 11.5px; color: var(--ink3); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+.tlao .r-lines { margin-top: 16px; }
+.tlao .r-line { display: flex; align-items: baseline; justify-content: space-between; padding: 9px 0; border-bottom: 1px dotted var(--line-d); gap: 10px; }
+.tlao .r-line:last-child { border-bottom: none; }
+.tlao .r-line .lbl { font-size: 13.5px; color: var(--ink2); }
+.tlao .r-line .val { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+.tlao .r-line .val.big { font-size: 18px; }
+.tlao .r-total { margin-top: 14px; border-top: 2px solid var(--ink); padding-top: 14px; display: flex; align-items: flex-end; justify-content: space-between; }
+.tlao .r-total .lbl { font-family: var(--disp); font-weight: 800; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; }
+.tlao .r-total .val { font-family: var(--disp); font-weight: 800; font-size: 33px; line-height: 1; }
+.tlao .verdict { margin-top: 18px; background: var(--bg); border: 1.5px dashed var(--line-d); border-radius: 10px; padding: 13px 15px; font-size: 13.5px; line-height: 1.45; color: var(--ink2); }
+.tlao .verdict b { color: var(--ink); }
+.tlao .verdict .tag { display: inline-block; font-family: var(--mono); font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 6px; margin-right: 7px; vertical-align: middle; }
+.tlao .tag.good { background: #e7ecd5; color: var(--olive-d); }
+.tlao .tag.warn { background: #fbe3d6; color: var(--tomato-d); }
+
+.tlao .right { display: flex; flex-direction: column; gap: 22px; }
+.tlao .card { background: var(--card); border: 2px solid var(--ink); border-radius: 4px; box-shadow: 6px 6px 0 var(--ink); padding: 20px 22px; }
+.tlao .card h3 { margin: 0 0 3px; font-family: var(--disp); font-weight: 800; font-size: 16px; }
+.tlao .card .sub { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 16px; }
+.tlao .podium { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: end; }
+.tlao .pod { border: 2px solid var(--ink); border-radius: 10px 10px 4px 4px; padding: 12px 8px; text-align: center; background: var(--bg); }
+.tlao .pod .medal { font-size: 20px; }
+.tlao .pod .sn { font-weight: 700; font-size: 12.5px; margin-top: 5px; line-height: 1.1; }
+.tlao .pod .pp { font-family: var(--mono); font-weight: 700; font-size: 14px; margin-top: 5px; }
+.tlao .pod .ct { font-family: var(--mono); font-size: 10px; color: var(--ink3); margin-top: 3px; }
+.tlao .pod.first { background: var(--mustard); transform: translateY(-6px); box-shadow: 3px 3px 0 var(--ink); }
+.tlao .pod.first .pp { font-size: 16px; }
+.tlao .otherstores { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+.tlao .osrow { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.tlao .osrow .d { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.tlao .osrow .nm { flex: 1; font-weight: 600; }
+.tlao .osrow .pr { font-family: var(--mono); font-weight: 700; }
+
+.tlao .chartcard { grid-column: 1 / -1; }
+.tlao canvas { width: 100%; height: 230px; display: block; }
+
+.tlao .histcard { grid-column: 1 / -1; }
+.tlao .htbl { width: 100%; border-collapse: collapse; }
+.tlao .htbl th { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink3); text-align: left; padding: 0 0 9px; font-weight: 700; }
+.tlao .htbl th.r, .tlao .htbl td.r { text-align: right; }
+.tlao .htbl td { padding: 10px 0; border-top: 1px dotted var(--line-d); font-size: 14px; }
+.tlao .htbl .store { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.tlao .htbl .store .d { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.tlao .htbl .mono { font-family: var(--mono); font-weight: 700; }
+.tlao .htbl .lo { color: var(--olive-d); }
+.tlao .htbl .hi { color: var(--tomato-d); }
+.tlao .date { font-family: var(--mono); color: var(--ink2); font-size: 13px; }
+
+.tlao .carregando { margin: auto; color: var(--ink3); font-family: var(--mono); }
+.tlao .tlao-login { max-width: 320px; margin: 16vh auto; display: flex; flex-direction: column; gap: 10px; }
+.tlao .tlao-login input { border: 1.5px solid var(--line-d); background: var(--card); border-radius: 11px; padding: 11px 13px; font: inherit; }
+.tlao .tlao-login button { padding: 11px; border-radius: 11px; border: 2px solid var(--ink); background: var(--mustard); font-weight: 700; cursor: pointer; box-shadow: 3px 3px 0 var(--ink); }
