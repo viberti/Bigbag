@@ -31,13 +31,19 @@ function parseJson(txt) {
 }
 
 export async function canonicalizar(descricao, { model, timeoutMs } = {}) {
-  const txt = await chatCompletion({
-    messages: [{ role: 'user', content: `${PROMPT}\n\nDescrição: ${descricao}` }],
-    model,
-    timeoutMs,
-    responseFormat: { type: 'json_object' },
-  });
-  const c = parseJson(txt);
+  const pedir = () =>
+    chatCompletion({
+      messages: [{ role: 'user', content: `${PROMPT}\n\nDescrição: ${descricao}` }],
+      model,
+      timeoutMs,
+      responseFormat: { type: 'json_object' },
+    });
+  let c;
+  try {
+    c = parseJson(await pedir());
+  } catch {
+    c = parseJson(await pedir()); // uma nova tentativa em caso de JSON malformado
+  }
   if (!c || !c.nome_canonico) throw new Error('Canonicalização sem nome_canonico');
   return {
     nome_canonico: String(c.nome_canonico).trim(),

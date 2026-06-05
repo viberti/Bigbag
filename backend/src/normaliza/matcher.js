@@ -26,7 +26,9 @@ export async function resolverSku(db, descricaoOriginal, { canonicalizar = canon
   }
 
   const fmt = extrairFormato(desc);
-  const formato_valor = fmt.formato_valor ?? null;
+  // Itens a peso variável (vendidos a €/kg) NÃO têm formato fixo — o peso é por
+  // compra (quantidade), não um atributo do SKU. Senão cada compra vira um SKU.
+  const formato_valor = fmt.quantidadeKg != null ? null : fmt.formato_valor ?? null;
   const unidade_base = c.unidade_base || fmt.unidade_base || 'un';
 
   // 3) procurar SKU existente: mesmo nome (classe) + marca + unidade, formato próximo.
