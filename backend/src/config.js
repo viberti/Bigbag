@@ -24,6 +24,8 @@ export const config = {
     timeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS) || 20000,
     // Voz: modelo de transcrição (áudio é sensível; manter um modelo forte).
     sttModel: process.env.OPENROUTER_STT_MODEL || 'google/gemini-2.5-flash',
+    // Auto-correção da extração: nº MÁXIMO de re-tentativas quando não reconcilia.
+    maxCorrecoes: Math.max(0, Number(process.env.OPENROUTER_MAX_CORRECOES ?? 2)),
   },
   auth: {
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',

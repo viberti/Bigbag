@@ -46,18 +46,23 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     let dados = await reextrair();
     let rec = reconciliar(dados);
 
-    // 1b) AUTO-CORREÇÃO: se não fecha, realimenta a discrepância e fica com o melhor.
-    if (!rec.extracaoBate && dados.total_impresso != null) {
+    // 1b) AUTO-CORREÇÃO — loop LIMITADO: realimenta a discrepância e fica com o
+    // melhor. Para ao reconciliar, ao não melhorar, ou ao atingir o limite.
+    for (let i = 0; i < config.openrouter.maxCorrecoes && !rec.extracaoBate && dados.total_impresso != null; i++) {
       const hint = `A soma dos itens deu ${rec.subtotal} mas o total impresso é ${dados.total_impresso} (diferença ${rec.discrepancia}). Reverifica com atenção: itens a peso (usa o PREÇO IMPRESSO na linha, não kg×€/kg), descontos/promoções, e itens em falta ou a mais. Devolve o JSON corrigido.`;
+      let dados2;
+      let rec2;
       try {
-        const dados2 = await reextrair(hint);
-        const rec2 = reconciliar(dados2);
-        if (Math.abs(rec2.discrepancia) < Math.abs(rec.discrepancia)) {
-          dados = dados2;
-          rec = rec2;
-        }
+        dados2 = await reextrair(hint);
+        rec2 = reconciliar(dados2);
       } catch {
-        /* mantém a 1ª extração */
+        break; // erro na re-extração → mantém o melhor até agora
+      }
+      if (Math.abs(rec2.discrepancia) < Math.abs(rec.discrepancia)) {
+        dados = dados2;
+        rec = rec2;
+      } else {
+        break; // não melhorou → não insistir (evita gastar sem ganho)
       }
     }
 
