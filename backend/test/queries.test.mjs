@@ -134,6 +134,19 @@ test('listar_compras: filtra por alvo (só café = 2 itens)', async () => {
   assert.equal(r.length, 2);
 });
 
+test('listar_compras agrupar_por=produto: agrega por produto, sem loja/data', async () => {
+  const r = await executarTool(conn, 'listar_compras', {
+    periodo_inicio: '2099-01-01',
+    periodo_fim: '2099-12-31',
+    agrupar_por: 'produto',
+  });
+  assert.equal(r.length, 2); // Manteiga (3×) e Café (2×)
+  const cafe = r.find((x) => x.produto === CAFE);
+  assert.equal(Number(cafe.total), 6.7);
+  assert.equal(Number(cafe.vezes), 2);
+  assert.ok(!('loja' in r[0]) && !('data' in r[0]));
+});
+
 test('total_gasto: filtra por loja (só Pingo Doce = 5,39)', async () => {
   const r = await executarTool(conn, 'total_gasto', {
     alvo: 'tudo',
