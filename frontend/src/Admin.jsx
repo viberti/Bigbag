@@ -472,6 +472,16 @@ function TabNotas() {
     recarregar();
   }
 
+  async function salvarQtd(itemId, valor, atual) {
+    const q = Number(String(valor).replace(',', '.'));
+    if (!(q > 0) || q === Number(atual)) return;
+    const r = await adm.atualizarItem(itemId, q);
+    setDet((d) => ({
+      ...d,
+      itens: d.itens.map((it) => (it.id === itemId ? { ...it, quantidade: q, preco_por_base: r.preco_por_base } : it)),
+    }));
+  }
+
   const badge = (n) =>
     n.veredicto === 'ok' ? '✓' : n.veredicto === 'erro' ? '✕' : n.needs_review ? '⚠' : '·';
 
@@ -524,6 +534,24 @@ function TabNotas() {
                   <li key={it.id}>
                     <b>{eur(it.preco_liquido)}</b>
                     <span className="adm-prod">{it.descricao_original}</span>
+                    {!it.is_non_product && (
+                      <span className="adm-item-qtd">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          defaultValue={it.quantidade ?? 1}
+                          onBlur={(e) => salvarQtd(it.id, e.target.value, it.quantidade)}
+                          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                          title="quantidade/peso — corrige aqui se a leitura errou"
+                        />
+                        <em>{it.unidade_base || 'un'}</em>
+                        {it.preco_por_base != null && (
+                          <span className="adm-ppb">
+                            {eur(it.preco_por_base)}/{it.unidade_base || 'un'}
+                          </span>
+                        )}
+                      </span>
+                    )}
                     {it.nome_canonico && it.nome_canonico !== it.descricao_original && (
                       <span className="adm-cru">→ {it.nome_canonico}</span>
                     )}

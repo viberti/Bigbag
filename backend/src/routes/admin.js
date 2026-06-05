@@ -285,7 +285,7 @@ adminRouter.get('/faturas/:id', async (req, res) => {
     );
     if (!f) return res.status(404).json({ erro: 'Nota não encontrada' });
     const [itens] = await pool.query(
-      `SELECT i.id, i.descricao_original, i.sku_id, s.nome_canonico,
+      `SELECT i.id, i.descricao_original, i.sku_id, s.nome_canonico, s.unidade_base,
               i.quantidade, i.preco_unitario, i.preco_liquido, i.preco_por_base,
               i.is_clearance, i.is_non_product
          FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
@@ -330,6 +330,25 @@ adminRouter.get('/qualidade', async (req, res) => {
   } catch (e) {
     console.error('[admin/qualidade] erro:', e.message);
     res.status(500).json({ erro: 'Falha a calcular qualidade' });
+  }
+});
+
+// Editar a quantidade/peso de um item (na base do SKU: un/kg/L) e recalcular o
+// preco_por_base = preco_liquido / quantidade. É o que mantém a comparação de
+// preços correta quando a extração leu mal o peso.
+adminRouter.patch('/itens/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const q = Number(String(req.body?.quantidade ?? '').replace(',', '.'));
+    if (!Number.isFinite(q) || q <= 0) return res.status(400).json({ erro: 'quantidade inválida' });
+    const [[it]] = await getPool().query('SELECT preco_liquido FROM item WHERE id = ?', [id]);
+    if (!it) return res.status(404).json({ erro: 'Item não encontrado' });
+    const ppb = it.preco_liquido != null ? Math.round((Number(it.preco_liquido) / q) * 10000) / 10000 : null;
+    await getPool().query('UPDATE item SET quantidade = ?, preco_por_base = ? WHERE id = ?', [q, ppb, id]);
+    res.json({ ok: true, preco_por_base: ppb });
+  } catch (e) {
+    console.error('[admin/itens PATCH] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a atualizar item' });
   }
 });
 
