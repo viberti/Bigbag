@@ -260,8 +260,10 @@ function Chat({ onSair, nome }) {
   }, [carrinho]);
 
   const noCarrinho = (nome) => carrinho.some((i) => i.nome === nome);
-  const alternarCarrinho = (nome) =>
-    setCarrinho((c) => (c.some((i) => i.nome === nome) ? c.filter((i) => i.nome !== nome) : [...c, { nome, feito: false }]));
+  const alternarCarrinho = (nome, categoria) =>
+    setCarrinho((c) =>
+      c.some((i) => i.nome === nome) ? c.filter((i) => i.nome !== nome) : [...c, { nome, categoria, feito: false }],
+    );
   const alternarFeito = (nome) =>
     setCarrinho((c) => c.map((i) => (i.nome === nome ? { ...i, feito: !i.feito } : i)));
   const removerDoCarrinho = (nome) => setCarrinho((c) => c.filter((i) => i.nome !== nome));
@@ -470,33 +472,34 @@ function secaoDe(cat) {
   return cat ? 'Mercearia' : 'Outros';
 }
 
-// Overlay dos produtos habituais: toca num produto para o pôr/tirar do carrinho.
-// Agrupado por secção do mercado, com animação ao adicionar.
-function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }) {
-  const [flash, setFlash] = useState(null);
-  if (!aberto) return null;
-
-  function toque(nome) {
-    const estava = noCarrinho(nome);
-    onAlternar(nome);
-    if (!estava) {
-      setFlash(nome);
-      setTimeout(() => setFlash((f) => (f === nome ? null : f)), 480);
-    }
-  }
-
-  // Agrupa por secção e ordena.
+// Agrupa itens {categoria} por secção do mercado, na ordem do percurso.
+function agruparPorSecao(itens) {
   const grupos = {};
-  for (const p of produtos || []) {
-    const sec = secaoDe(p.categoria);
-    (grupos[sec] = grupos[sec] || []).push(p);
+  for (const it of itens) {
+    const s = secaoDe(it.categoria);
+    (grupos[s] = grupos[s] || []).push(it);
   }
   const ord = (s) => {
     const i = ORDEM_SECAO.indexOf(s);
     return i < 0 ? 99 : i;
   };
-  const secoes = Object.keys(grupos).sort((a, b) => ord(a) - ord(b) || a.localeCompare(b));
-  for (const s of secoes) grupos[s].sort((a, b) => a.produto.localeCompare(b.produto));
+  return Object.entries(grupos).sort((a, b) => ord(a[0]) - ord(b[0]) || a[0].localeCompare(b[0]));
+}
+
+// Overlay dos produtos habituais: lista PLANA por frequência (mais comprados
+// primeiro, sem mostrar o número). Toca para pôr/tirar do carrinho, com animação.
+function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }) {
+  const [flash, setFlash] = useState(null);
+  if (!aberto) return null;
+
+  function toque(p) {
+    const estava = noCarrinho(p.produto);
+    onAlternar(p.produto, p.categoria);
+    if (!estava) {
+      setFlash(p.produto);
+      setTimeout(() => setFlash((f) => (f === p.produto ? null : f)), 480);
+    }
+  }
 
   return (
     <div className="lista-overlay" onClick={onFechar}>
@@ -512,28 +515,21 @@ function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }
         ) : produtos.length === 0 ? (
           <p className="lista-vazio">{t('habituais.empty')}</p>
         ) : (
-          <div className="lista-scroll">
-            {secoes.map((sec) => (
-              <div key={sec}>
-                <div className="lista-secao">{sec}</div>
-                <ul className="lista-itens">
-                  {grupos[sec].map((p) => {
-                    const dentro = noCarrinho(p.produto);
-                    return (
-                      <li
-                        key={p.produto}
-                        className={`${dentro ? 'dentro' : ''} ${flash === p.produto ? 'flash' : ''}`}
-                        onClick={() => toque(p.produto)}
-                      >
-                        <span className="lista-check">{dentro ? '✓' : '+'}</span>
-                        <span className="lista-nome">{p.produto}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </div>
+          <ul className="lista-itens lista-scroll">
+            {produtos.map((p) => {
+              const dentro = noCarrinho(p.produto);
+              return (
+                <li
+                  key={p.produto}
+                  className={`${dentro ? 'dentro' : ''} ${flash === p.produto ? 'flash' : ''}`}
+                  onClick={() => toque(p)}
+                >
+                  <span className="lista-check">{dentro ? '✓' : '+'}</span>
+                  <span className="lista-nome">{p.produto}</span>
+                </li>
+              );
+            })}
+          </ul>
         )}
         <p className="lista-dica">{t('cart.addHint')}</p>
       </div>
@@ -559,21 +555,28 @@ function CarrinhoOverlay({ aberto, carrinho, onFeito, onRemover, onLimpar, onFec
           <p className="lista-vazio">{t('cart.empty')}</p>
         ) : (
           <>
-            <ul className="lista-itens">
-              {carrinho.map((it) => (
-                <li key={it.nome} className={it.feito ? 'feito' : ''}>
-                  <span className="lista-check" onClick={() => onFeito(it.nome)}>
-                    {it.feito ? '☑' : '☐'}
-                  </span>
-                  <span className="lista-nome" onClick={() => onFeito(it.nome)}>
-                    {it.nome}
-                  </span>
-                  <button className="lista-rm" onClick={() => onRemover(it.nome)} aria-label="remover">
-                    ✕
-                  </button>
-                </li>
+            <div className="lista-scroll">
+              {agruparPorSecao(carrinho).map(([sec, itens]) => (
+                <div key={sec}>
+                  <div className="lista-secao">{sec}</div>
+                  <ul className="lista-itens">
+                    {itens.map((it) => (
+                      <li key={it.nome} className={it.feito ? 'feito' : ''}>
+                        <span className="lista-check" onClick={() => onFeito(it.nome)}>
+                          {it.feito ? '☑' : '☐'}
+                        </span>
+                        <span className="lista-nome" onClick={() => onFeito(it.nome)}>
+                          {it.nome}
+                        </span>
+                        <button className="lista-rm" onClick={() => onRemover(it.nome)} aria-label="remover">
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
             <button className="lista-limpar" onClick={onLimpar}>
               {t('cart.clear')}
             </button>
