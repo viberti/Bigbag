@@ -37,6 +37,21 @@ test('item a peso com símbolo € e sem "x" (Mercadona): "2,426 kg 1,20 €/kg"
   assert.equal(precoPorBase({ preco_liquido: 2.91, quantidade: 1 }, f), 1.2);
 });
 
+test('"2K" no arroz = 2 kg → €/kg', () => {
+  const f = extrairFormato('ARO ARROZ LONGO COMUM 2K');
+  assert.equal(f.unidade_base, 'kg');
+  assert.equal(f.formato_valor, 2);
+  assert.equal(precoPorBase({ preco_liquido: 2.5 }, f), 1.25); // 2,50 / 2 kg
+});
+
+test('"1,5K" → 1,5 kg; "1LT" → 1 L; não confunde "330 ML"', () => {
+  assert.equal(extrairFormato('FEIJAO PRETO 1,5K').formato_valor, 1.5);
+  assert.equal(extrairFormato('LEITE UHT 1LT').unidade_base, 'L');
+  const ml = extrairFormato('AGUA 330 ML');
+  assert.equal(ml.unidade_base, 'L');
+  assert.equal(ml.formato_valor, 0.33);
+});
+
 test('peso sem unidades "1,170 X 1,29" → kg × €/kg', () => {
   const f = extrairFormato('BANANA 1,170 X 1,29');
   assert.equal(f.unidade_base, 'kg');

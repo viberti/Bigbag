@@ -7,9 +7,9 @@ const num = (s) => Number(String(s).replace(',', '.'));
 // Converte (valor, unidade) → { unidade_base, valor } na base kg/L.
 function paraBase(valor, unidade) {
   const u = unidade.toLowerCase();
-  if (u === 'kg') return { unidade_base: 'kg', valor };
-  if (u === 'g' || u === 'gr') return { unidade_base: 'kg', valor: valor / 1000 };
-  if (u === 'l') return { unidade_base: 'L', valor };
+  if (u === 'kg' || u === 'k' || u === 'kgs') return { unidade_base: 'kg', valor }; // "2K" = 2 kg (arroz, feijão…)
+  if (u === 'g' || u === 'gr' || u === 'grs') return { unidade_base: 'kg', valor: valor / 1000 };
+  if (u === 'l' || u === 'lt') return { unidade_base: 'L', valor };
   if (u === 'ml') return { unidade_base: 'L', valor: valor / 1000 };
   if (u === 'cl') return { unidade_base: 'L', valor: valor / 100 };
   return { unidade_base: 'un', valor };
@@ -37,15 +37,15 @@ export function extrairFormato(descricao) {
   }
 
   // 2) Multipack: "4X115G", "2 x 1L"
-  m = s.match(/(\d+)\s*[x×X]\s*(\d+(?:[.,]\d+)?)\s*(kg|gr|g|ml|cl|l)\b/i);
+  m = s.match(/(\d+)\s*[x×X]\s*(\d+(?:[.,]\d+)?)\s*(kgs|kg|k|grs|gr|g|ml|cl|lt|l)\b/i);
   if (m) {
     const n = num(m[1]);
     const base = paraBase(num(m[2]), m[3]);
     return { unidade_base: base.unidade_base, formato_valor: round3(n * base.valor) };
   }
 
-  // 3) Formato simples: "425GR", "250G", "1,5L", "330 ML"
-  m = s.match(/(\d+(?:[.,]\d+)?)\s*(kg|gr|g|ml|cl|l)\b/i);
+  // 3) Formato simples: "425GR", "250G", "1,5L", "330 ML", "2K" (=2 kg, arroz/feijão).
+  m = s.match(/(\d+(?:[.,]\d+)?)\s*(kgs|kg|k|grs|gr|g|ml|cl|lt|l)\b/i);
   if (m) {
     const base = paraBase(num(m[1]), m[2]);
     return { unidade_base: base.unidade_base, formato_valor: round3(base.valor) };
