@@ -2,7 +2,7 @@
 // multimodal e pede JSON estruturado. (Abordagem B — OCR+LLM — entra depois,
 // trocável, para comparar; metodo_extracao na fatura regista qual gerou cada
 // registo.)
-import { visionPrompt } from '../openrouter.js';
+import { visionPrompt, chatCompletion } from '../openrouter.js';
 import { normalizarItens } from './normalize.js';
 
 const PROMPT = `És um extrator de faturas de supermercado português (Continente, Pingo Doce, Mercadona, Aldi, Lidl).
@@ -59,6 +59,25 @@ export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
   const dados = parseJsonLoose(bruto);
   if (!dados || !Array.isArray(dados.itens)) {
     throw new Error('Extração VLM não devolveu itens válidos');
+  }
+  dados.itens = normalizarItens(dados.itens);
+  return dados;
+}
+
+// Abordagem B — OCR/texto + LLM. Para faturas digitais em PDF (texto já
+// extraído). Mesmo esquema/regras; só muda a entrada (texto em vez de imagem).
+export async function extrairFaturaDeTexto(texto, { model, timeoutMs } = {}) {
+  const bruto = await chatCompletion({
+    messages: [
+      { role: 'user', content: `${PROMPT}\n\nEis o TEXTO de uma fatura (já extraído do PDF):\n"""\n${texto}\n"""` },
+    ],
+    model,
+    timeoutMs,
+    responseFormat: { type: 'json_object' },
+  });
+  const dados = parseJsonLoose(bruto);
+  if (!dados || !Array.isArray(dados.itens)) {
+    throw new Error('Extração (texto) não devolveu itens válidos');
   }
   dados.itens = normalizarItens(dados.itens);
   return dados;
