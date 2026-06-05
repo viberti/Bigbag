@@ -76,6 +76,7 @@ body {
 .compra-itens li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px solid #ffffff14; }
 .compra-itens li span { flex: 1; }
 .compra-itens b { font-variant-numeric: tabular-nums; }
+.compra-itens .qtd { color: var(--muted); font-style: normal; font-size: 12px; }
 .mais { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px 0 0; font-size: 13px; }
 
 /* ── Lista de preços (onde mais barato) ── */
