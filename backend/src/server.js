@@ -36,6 +36,17 @@ app.get('/api/historico', requireAuth, async (req, res) => {
   }
 });
 
+// Custos das chamadas ao modelo (por contexto e por modelo).
+app.get('/api/custos', requireAuth, async (req, res) => {
+  try {
+    const { resumoCustos } = await import('./custo.js');
+    res.json(await resumoCustos());
+  } catch (e) {
+    console.error('[custos] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar custos' });
+  }
+});
+
 // Perfil do usuário (memória de longo prazo) — o que o assistente sabe.
 app.get('/api/perfil', requireAuth, async (req, res) => {
   try {

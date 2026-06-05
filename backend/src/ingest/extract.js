@@ -58,6 +58,7 @@ export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
     model: model || config.openrouter.modelExtracao, // imagem → modelo forte
     timeoutMs,
     responseFormat: { type: 'json_object' },
+    contexto: 'extracao_imagem',
   });
   const dados = parseJsonLoose(bruto);
   if (!dados || !Array.isArray(dados.itens)) {
@@ -77,6 +78,7 @@ export async function extrairFaturaDeTexto(texto, { model, timeoutMs } = {}) {
     model,
     timeoutMs,
     responseFormat: { type: 'json_object' },
+    contexto: 'extracao_texto',
   });
   const dados = parseJsonLoose(bruto);
   if (!dados || !Array.isArray(dados.itens)) {
