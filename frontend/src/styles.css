@@ -74,7 +74,8 @@ body {
 .lista-itens li:active { background: #ffffff0c; }
 .lista-check { font-size: 18px; width: 22px; text-align: center; color: var(--verde); }
 .lista-itens li.dentro { background: #14321f55; }
-.lista-nome { flex: 1; font-size: 17px; }
+.lista-nome { flex: 1; font-size: 18px; }
+.lista-preco { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lista-itens li.feito .lista-nome { text-decoration: line-through; color: var(--muted); }
 /* animação ao adicionar ao carrinho */
 @keyframes addPulse { 0% { background: #25d36644; } 70% { background: #25d36622; } 100% { background: transparent; } }
@@ -82,6 +83,10 @@ body {
 .lista-itens li.flash { animation: addPulse 0.5s ease-out; }
 .lista-itens li.flash .lista-check { display: inline-block; animation: checkPop 0.42s ease-out; }
 .lista-rm { background: none; border: none; color: #ff8a80; font-size: 15px; cursor: pointer; padding: 4px; }
+/* arrastar para a direita para apagar (carrinho) */
+.lista-itens li.swipe-li { display: block; padding: 0; position: relative; overflow: hidden; cursor: default; }
+.swipe-bg { position: absolute; inset: 0; display: flex; align-items: center; padding-left: 22px; background: #7a2e2e; color: #fff; font-size: 18px; }
+.swipe-fg { display: flex; align-items: center; gap: 12px; padding: 11px 16px; background: var(--bot); position: relative; touch-action: pan-y; }
 .lista-limpar { margin: 8px 16px 16px; padding: 10px; border-radius: 8px; border: 1px solid #2a3942; background: none; color: var(--muted); cursor: pointer; }
 .lista-vazio { color: var(--muted); text-align: center; padding: 28px 16px; }
 .lista-dica { color: var(--muted); font-size: 12px; text-align: center; padding: 4px 16px 14px; margin: 0; }

@@ -260,9 +260,9 @@ function Chat({ onSair, nome }) {
   }, [carrinho]);
 
   const noCarrinho = (nome) => carrinho.some((i) => i.nome === nome);
-  const alternarCarrinho = (nome, categoria) =>
+  const alternarCarrinho = (nome, categoria, preco) =>
     setCarrinho((c) =>
-      c.some((i) => i.nome === nome) ? c.filter((i) => i.nome !== nome) : [...c, { nome, categoria, feito: false }],
+      c.some((i) => i.nome === nome) ? c.filter((i) => i.nome !== nome) : [...c, { nome, categoria, preco, feito: false }],
     );
   const alternarFeito = (nome) =>
     setCarrinho((c) => c.map((i) => (i.nome === nome ? { ...i, feito: !i.feito } : i)));
@@ -494,7 +494,7 @@ function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }
 
   function toque(p) {
     const estava = noCarrinho(p.produto);
-    onAlternar(p.produto, p.categoria);
+    onAlternar(p.produto, p.categoria, p.ultimo_preco);
     if (!estava) {
       setFlash(p.produto);
       setTimeout(() => setFlash((f) => (f === p.produto ? null : f)), 480);
@@ -538,6 +538,58 @@ function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }
 }
 
 // Overlay do carrinho: a lista de compras de hoje (marcar comprado, remover, limpar).
+// Item do carrinho: toca no nome/✓ para marcar comprado; arrasta para a DIREITA
+// para apagar (revela 🗑); o ✕ é o atalho equivalente (desktop).
+function ItemCarrinho({ it, onFeito, onRemover }) {
+  const [dx, setDx] = useState(0);
+  const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
+  function start(e) {
+    const t = e.touches[0];
+    g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 };
+  }
+  function move(e) {
+    const r = g.current;
+    if (!r.mov) return;
+    const t = e.touches[0];
+    const dX = t.clientX - r.x0;
+    const dY = t.clientY - r.y0;
+    if (!r.horiz && Math.abs(dX) > Math.abs(dY) + 6) r.horiz = true;
+    if (r.horiz) {
+      r.dx = Math.max(0, dX);
+      setDx(r.dx);
+    }
+  }
+  function end() {
+    const r = g.current;
+    r.mov = false;
+    if (r.horiz && r.dx > 90) onRemover(it.nome);
+    setDx(0);
+  }
+  return (
+    <li className={`swipe-li ${it.feito ? 'feito' : ''}`}>
+      <div className="swipe-bg">🗑</div>
+      <div
+        className="swipe-fg"
+        style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+        onTouchStart={start}
+        onTouchMove={move}
+        onTouchEnd={end}
+      >
+        <span className="lista-check" onClick={() => onFeito(it.nome)}>
+          {it.feito ? '☑' : '☐'}
+        </span>
+        <span className="lista-nome" onClick={() => onFeito(it.nome)}>
+          {it.nome}
+        </span>
+        {it.preco != null && <span className="lista-preco">{eur(it.preco)}</span>}
+        <button className="lista-rm" onClick={() => onRemover(it.nome)} aria-label="remover">
+          ✕
+        </button>
+      </div>
+    </li>
+  );
+}
+
 function CarrinhoOverlay({ aberto, carrinho, onFeito, onRemover, onLimpar, onFechar }) {
   if (!aberto) return null;
   const faltam = carrinho.filter((i) => !i.feito).length;
@@ -561,17 +613,7 @@ function CarrinhoOverlay({ aberto, carrinho, onFeito, onRemover, onLimpar, onFec
                   <div className="lista-secao">{sec}</div>
                   <ul className="lista-itens">
                     {itens.map((it) => (
-                      <li key={it.nome} className={it.feito ? 'feito' : ''}>
-                        <span className="lista-check" onClick={() => onFeito(it.nome)}>
-                          {it.feito ? '☑' : '☐'}
-                        </span>
-                        <span className="lista-nome" onClick={() => onFeito(it.nome)}>
-                          {it.nome}
-                        </span>
-                        <button className="lista-rm" onClick={() => onRemover(it.nome)} aria-label="remover">
-                          ✕
-                        </button>
-                      </li>
+                      <ItemCarrinho key={it.nome} it={it} onFeito={onFeito} onRemover={onRemover} />
                     ))}
                   </ul>
                 </div>
