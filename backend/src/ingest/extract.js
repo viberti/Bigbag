@@ -33,7 +33,8 @@ Regras:
 - Linhas de desconto sob um produto ("Poupança", "Promoção", "Promoção Lidl Plus", "Desconto") pertencem a esse produto: soma a magnitude (positiva) no desconto_direto desse item. NUNCA cries um item separado para um desconto. O "valor" do item é o preço impresso na linha do produto (tal como aparece, mesmo que haja desconto por baixo).
 - Itens a peso aparecem como "0,505 kg x 6,19 EUR/kg" → o "valor" é o total da linha (ex. 3,13); guarda na descrição o texto do produto.
 - Não inventes itens nem valores. Se um valor não for legível, usa null no campo numérico desse item e mantém a descrição.
-- Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.`;
+- Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.
+- IGNORA o rodapé de fidelização/cartão: "ACUMULOU NO SEU CARTAO", "DESCONTO CUPAO", "SALDO NO CARTAO", "Saldo de selos", "Selos ganhos", "Já ganhou com o cartão", cupões lidos/emitidos, pontos. NÃO são itens nem descontos desta compra — não os contes em desconto_global nem em desconto_direto.`;
 
 function parseJsonLoose(txt) {
   let s = String(txt).trim();
