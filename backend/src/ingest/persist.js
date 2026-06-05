@@ -37,15 +37,33 @@ export async function persistirFatura(
     await conn.beginTransaction();
     const lojaId = await upsertLoja(conn, dados.loja);
 
+    // Deduplicação (mesma loja): nº de documento OU data+total. O "OU" apanha
+    // tanto faturas novas (com número) como as antigas (número ainda NULL).
+    const numero = dados.numero_fatura ? String(dados.numero_fatura).trim().slice(0, 60) : null;
+    const data = toMysqlDate(dados.data_compra);
+    const total = num(dados.total_impresso);
+    const [dup] = await conn.query(
+      `SELECT id FROM fatura
+        WHERE loja_id = ?
+          AND ( (? IS NOT NULL AND numero_fatura = ?) OR (data_compra = ? AND total_impresso = ?) )
+        LIMIT 1`,
+      [lojaId, numero, numero, data, total],
+    );
+    if (dup.length) {
+      await conn.rollback();
+      return { duplicada: true, fatura_id: dup[0].id, loja_id: lojaId };
+    }
+
     const [rf] = await conn.query(
       `INSERT INTO fatura
-         (loja_id, data_compra, total_impresso, total_reconciliado, discrepancia, needs_review,
+         (loja_id, data_compra, numero_fatura, total_impresso, total_reconciliado, discrepancia, needs_review,
           desconto_global, ficheiro_original, metodo_extracao, extracao_json)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       [
         lojaId,
-        toMysqlDate(dados.data_compra),
-        num(dados.total_impresso),
+        data,
+        numero,
+        total,
         totalReconciliado != null ? num(totalReconciliado) : null,
         discrepancia != null ? num(discrepancia) : null,
         needsReview ? 1 : 0,

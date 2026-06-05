@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'node:crypto';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { config } from '../config.js';
@@ -70,8 +70,8 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     const ficheiro = path.join(config.uploads.faturas, `${randomUUID()}.${ext}`);
     await writeFile(ficheiro, req.file.buffer, { mode: 0o600 });
 
-    // 4) persistir
-    const { fatura_id, loja_id, n_itens } = await persistirFatura(getPool(), dados, {
+    // 4) persistir (com deduplicação)
+    const resultado = await persistirFatura(getPool(), dados, {
       ficheiroOriginal: ficheiro,
       metodo,
       totalReconciliado: rec.totalReconciliado,
@@ -79,6 +79,17 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       needsReview: !rec.extracaoBate,
       extracaoJson,
     });
+    if (resultado.duplicada) {
+      await unlink(ficheiro).catch(() => {}); // imagem órfã: a fatura já existia
+      return res.json({
+        duplicada: true,
+        fatura_id: resultado.fatura_id,
+        loja: dados.loja,
+        data_compra: dados.data_compra,
+        total_impresso: dados.total_impresso,
+      });
+    }
+    const { fatura_id, loja_id, n_itens } = resultado;
 
     // 5) resumo para o utilizador (inclui sinal de qualidade da extração)
     res.json({
