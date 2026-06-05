@@ -24,7 +24,7 @@ const STRINGS = {
     'cam.error': 'Sem acesso à câmera. Use um arquivo.',
     'nota.scanning': 'digitalizando…',
     'nota.reading': 'lendo a nota…',
-    'nota.duplicate': 'Esta nota já estava registrada ({loja}, {data}). Não foi duplicada.',
+    'nota.duplicate': 'Você já me enviou essa nota ({loja}, {data}).',
     'nota.added': 'Compra adicionada',
     'nota.summary': '{n|item|itens} · {loja} · {data} · total {total}',
     'nota.more': '+ {n|item|itens}',

@@ -145,7 +145,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     await guardarMensagem(
       req.user.id,
       'assistant',
-      `📄 Fatura adicionada: ${dados.loja?.cadeia || dados.loja?.nome}, ${dataCurta}, total ${Number(dados.total_impresso).toFixed(2).replace('.', ',')} €, ${n_itens} itens.${rec.extracaoBate ? '' : ' (em revisão — diferença a confirmar)'}`,
+      `📄 ${dados.loja?.cadeia || dados.loja?.nome}, ${dataCurta}, total ${Number(dados.total_impresso).toFixed(2).replace('.', ',')} €, ${n_itens} itens.${rec.extracaoBate ? '' : ' (em revisão — diferença a confirmar)'}`,
     ).catch(() => {});
 
     // 5) resumo para o utilizador (inclui sinal de qualidade da extração)
