@@ -7,7 +7,8 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { similaridade, normalizarNome } from '../normaliza/similaridade.js';
+import { similaridade } from '../normaliza/similaridade.js';
+import { mergeNomesIdenticos } from '../normaliza/matcher.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -181,33 +182,10 @@ adminRouter.post('/skus/auto-merge', async (req, res) => {
   const pool = getPool();
   const conn = await pool.getConnection();
   try {
-    const [skus] = await conn.query(
-      'SELECT s.id, s.nome_canonico, COUNT(i.id) AS n FROM sku_normalizado s LEFT JOIN item i ON i.sku_id = s.id GROUP BY s.id',
-    );
-    const grupos = new Map();
-    for (const s of skus) {
-      const k = normalizarNome(s.nome_canonico);
-      if (!k) continue;
-      (grupos.get(k) || grupos.set(k, []).get(k)).push(s);
-    }
     await conn.beginTransaction();
-    let removidos = 0;
-    let nGrupos = 0;
-    for (const arr of grupos.values()) {
-      if (arr.length < 2) continue;
-      arr.sort((a, b) => b.n - a.n); // mantém o mais usado
-      const para = arr[0].id;
-      for (let i = 1; i < arr.length; i++) {
-        const de = arr[i].id;
-        await conn.query('UPDATE item SET sku_id = ? WHERE sku_id = ?', [para, de]);
-        await conn.query("UPDATE sku_alias SET sku_id = ?, origem = 'manual' WHERE sku_id = ?", [para, de]);
-        await conn.query('DELETE FROM sku_normalizado WHERE id = ?', [de]);
-        removidos++;
-      }
-      nGrupos++;
-    }
+    const r = await mergeNomesIdenticos(conn);
     await conn.commit();
-    res.json({ ok: true, grupos: nGrupos, skus_removidos: removidos });
+    res.json({ ok: true, grupos: r.grupos, skus_removidos: r.removidos });
   } catch (e) {
     await conn.rollback();
     console.error('[admin/auto-merge] erro:', e.message);
