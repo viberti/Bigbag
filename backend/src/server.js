@@ -5,6 +5,7 @@ import express from 'express';
 import { config } from './config.js';
 import { faturasRouter } from './routes/faturas.js';
 import { consultaRouter } from './routes/consulta.js';
+import { requireAuth } from './auth.js';
 
 const app = express();
 
@@ -19,6 +20,9 @@ app.get('/health', (_req, res) => {
     env: config.nodeEnv,
   });
 });
+
+// Validação de sessão (usado pelo login da PWA).
+app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.user }));
 
 // Rotas de aplicação (protegidas por requireAuth lá dentro).
 app.use('/api/faturas', faturasRouter);
