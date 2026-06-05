@@ -207,3 +207,17 @@ body {
 .adm-errada { background: #7a2e2e; color: #fff; }
 .adm-errada:disabled { opacity: 0.5; cursor: default; }
 .adm-cancelar { background: none; color: var(--muted); }
+
+.adm-fusoes { padding: 18px 24px; overflow-y: auto; }
+.adm-sug-top { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.adm-sug-top button { background: none; border: 1px solid #2a3942; color: var(--muted); padding: 5px 11px; border-radius: 6px; cursor: pointer; }
+.adm-sug-top button.on { background: #2a3942; color: var(--texto); }
+.adm-sug-dica { font-size: 12px; }
+.adm-pares { list-style: none; margin: 0; padding: 0; max-width: 820px; }
+.adm-pares li { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px solid #ffffff10; }
+.adm-par-score { flex: 0 0 44px; color: var(--verde); font-variant-numeric: tabular-nums; font-size: 13px; }
+.adm-par-nomes { flex: 1; font-size: 14px; }
+.adm-par-nomes em { color: var(--muted); font-style: normal; font-size: 12px; }
+.adm-par-seta { color: var(--muted); margin: 0 8px; }
+.adm-pares button { background: var(--verde-escuro); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+.adm-pares button:disabled { opacity: 0.5; }

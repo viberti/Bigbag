@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
+import { similaridade } from '../normaliza/similaridade.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -137,6 +138,38 @@ adminRouter.post('/skus/:id/dissociar', async (req, res) => {
     res.status(500).json({ erro: 'Falha a dissociar' });
   } finally {
     conn.release();
+  }
+});
+
+// Sugere pares de SKUs prováveis-mesmo-produto (variantes de leitura: "Batata
+// Conservada Vermelha" vs "Batata Vermelha"), por similaridade de nome dentro
+// do mesmo tipo de unidade. Para o operador rever e fundir num clique.
+adminRouter.get('/sugestoes-merge', async (req, res) => {
+  try {
+    const limiar = Math.min(0.95, Math.max(0.3, Number(req.query.limiar) || 0.6));
+    const [skus] = await getPool().query(
+      `SELECT s.id, s.nome_canonico, s.marca, s.unidade_base, COUNT(i.id) AS n_itens
+         FROM sku_normalizado s LEFT JOIN item i ON i.sku_id = s.id GROUP BY s.id`,
+    );
+    const pares = [];
+    for (let i = 0; i < skus.length; i++) {
+      for (let j = i + 1; j < skus.length; j++) {
+        const a = skus[i];
+        const b = skus[j];
+        if (a.unidade_base !== b.unidade_base) continue; // só fundir o mesmo tipo
+        const score = similaridade(a.nome_canonico, b.nome_canonico);
+        if (score >= limiar) {
+          // manter = o mais usado (canónico mais provável); fundir = o outro
+          const [manter, fundir] = a.n_itens >= b.n_itens ? [a, b] : [b, a];
+          pares.push({ score: Math.round(score * 100) / 100, manter, fundir });
+        }
+      }
+    }
+    pares.sort((x, y) => y.score - x.score);
+    res.json({ pares: pares.slice(0, 100) });
+  } catch (e) {
+    console.error('[admin/sugestoes-merge] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a sugerir fusões' });
   }
 });
 

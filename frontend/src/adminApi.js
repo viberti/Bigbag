@@ -24,6 +24,7 @@ export const renomearSku = (id, dados) => jsend(`/api/admin/skus/${id}`, 'PATCH'
 export const associar = (id, descricao) => jsend(`/api/admin/skus/${id}/associar`, 'POST', { descricao });
 export const dissociar = (id, descricao) => jsend(`/api/admin/skus/${id}/dissociar`, 'POST', { descricao });
 export const fundirSkus = (de, para) => jsend('/api/admin/skus/merge', 'POST', { de, para });
+export const sugestoesMerge = (limiar) => jget(`/api/admin/sugestoes-merge?limiar=${limiar}`);
 
 // Notas
 export const listarNotas = (status) => jget(`/api/admin/faturas?status=${status || 'all'}&limit=300`);

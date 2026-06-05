@@ -24,6 +24,9 @@ export default function Admin() {
           <button className={aba === 'produtos' ? 'on' : ''} onClick={() => setAba('produtos')}>
             Produtos
           </button>
+          <button className={aba === 'fusoes' ? 'on' : ''} onClick={() => setAba('fusoes')}>
+            Fusões
+          </button>
           <button className={aba === 'notas' ? 'on' : ''} onClick={() => setAba('notas')}>
             Notas
           </button>
@@ -32,7 +35,7 @@ export default function Admin() {
           ← app
         </a>
       </header>
-      {aba === 'produtos' ? <TabProdutos /> : <TabNotas />}
+      {aba === 'produtos' ? <TabProdutos /> : aba === 'fusoes' ? <TabFusoes /> : <TabNotas />}
     </div>
   );
 }
@@ -211,6 +214,68 @@ function TabProdutos() {
           </>
         )}
       </section>
+    </div>
+  );
+}
+
+// ─────────────────────────────── Fusões ──────────────────────────────
+function TabFusoes() {
+  const [limiar, setLimiar] = useState(0.6);
+  const [pares, setPares] = useState(null);
+  const [msg, setMsg] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+
+  const recarregar = (l = limiar) =>
+    adm.sugestoesMerge(l).then((r) => setPares(r.pares)).catch(() => setPares([]));
+  useEffect(() => {
+    recarregar();
+  }, [limiar]);
+
+  async function fundir(par) {
+    setOcupado(true);
+    try {
+      await adm.fundirSkus(par.fundir.id, par.manter.id);
+      setMsg(`✓ "${par.fundir.nome_canonico}" → "${par.manter.nome_canonico}"`);
+      await recarregar();
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <div className="adm-fusoes">
+      <div className="adm-sug-top">
+        <span>Sensibilidade:</span>
+        {[0.5, 0.6, 0.7, 0.8].map((l) => (
+          <button key={l} className={limiar === l ? 'on' : ''} onClick={() => setLimiar(l)}>
+            {l}
+          </button>
+        ))}
+        <span className="adm-sug-dica">menor = mais sugestões (e mais ruído)</span>
+        {msg && <span className="adm-ok">{msg}</span>}
+      </div>
+      {pares === null ? (
+        <p className="adm-vazio">a calcular…</p>
+      ) : pares.length === 0 ? (
+        <p className="adm-vazio">Nenhum par parecido nesta sensibilidade. 👍</p>
+      ) : (
+        <ul className="adm-pares">
+          {pares.map((par, i) => (
+            <li key={i}>
+              <span className="adm-par-score">{Math.round(par.score * 100)}%</span>
+              <span className="adm-par-nomes">
+                <b>{par.manter.nome_canonico}</b> <em>({par.manter.n_itens})</em>
+                <span className="adm-par-seta">⟵</span>
+                <span>{par.fundir.nome_canonico}</span> <em>({par.fundir.n_itens})</em>
+              </span>
+              <button onClick={() => fundir(par)} disabled={ocupado}>
+                Fundir
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="adm-aviso">Mantém o nome com mais compras (em negrito); o outro é absorvido.</p>
     </div>
   );
 }
