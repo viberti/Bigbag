@@ -47,9 +47,10 @@ export async function consultar(pergunta) {
   return r.json();
 }
 
-export async function enviarFatura(file) {
+export async function enviarFatura(file, origem) {
   const fd = new FormData();
   fd.append('fatura', file);
+  if (origem) fd.append('origem', origem);
   const r = await call('/api/faturas', { method: 'POST', body: fd });
   return r.json();
 }

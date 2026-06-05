@@ -25,6 +25,7 @@ export const faturasRouter = Router();
 faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ erro: 'Falta o arquivo "fatura" (imagem ou PDF)' });
+    const origemCaptura = (String(req.body?.origem || '').trim() || null)?.slice(0, 16) || null;
     const mime = req.file.mimetype || 'application/octet-stream';
     const ehPdf = mime === 'application/pdf' || /\.pdf$/i.test(req.file.originalname || '');
 
@@ -98,6 +99,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     const resultado = await persistirFatura(getPool(), dados, {
       ficheiroOriginal: ficheiro,
       metodo,
+      origemCaptura,
       modelo: ehPdf ? config.openrouter.model : config.openrouter.modelExtracao,
       totalReconciliado: rec.totalReconciliado,
       discrepancia: rec.discrepancia,

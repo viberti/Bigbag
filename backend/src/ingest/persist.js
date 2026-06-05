@@ -35,6 +35,7 @@ export async function persistirFatura(
     ficheiroOriginal = null,
     metodo = 'vlm',
     modelo = null,
+    origemCaptura = null,
     totalReconciliado,
     discrepancia = null,
     needsReview = false,
@@ -66,8 +67,8 @@ export async function persistirFatura(
     const [rf] = await conn.query(
       `INSERT INTO fatura
          (loja_id, data_compra, numero_fatura, total_impresso, total_reconciliado, discrepancia, needs_review,
-          desconto_global, ficheiro_original, metodo_extracao, modelo, extracao_json)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+          desconto_global, ficheiro_original, metodo_extracao, origem_captura, modelo, extracao_json)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         lojaId,
         data,
@@ -79,6 +80,7 @@ export async function persistirFatura(
         num(dados.desconto_global) || 0,
         ficheiroOriginal,
         metodo,
+        origemCaptura,
         modelo,
         extracaoJson != null ? JSON.stringify(extracaoJson) : null,
       ],
