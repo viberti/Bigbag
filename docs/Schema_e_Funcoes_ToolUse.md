@@ -43,18 +43,18 @@ CREATE TABLE sku_normalizado (
 
 -- ─────────────────────────────────────────────────────────────
 -- FATURA: uma compra. Guarda total impresso E reconciliado para
--- validar a extração (devem bater após distribuir descontos globais).
+-- validar a extração (Σ itens − desconto_global deve bater com o total).
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE fatura (
   id                  BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   loja_id             BIGINT UNSIGNED NOT NULL,
   data_compra         DATETIME NOT NULL,
   total_impresso      DECIMAL(10,2) NOT NULL,    -- o que vinha escrito na fatura
-  total_reconciliado  DECIMAL(10,2),             -- soma dos itens após regras; deve ≈ total_impresso
+  total_reconciliado  DECIMAL(10,2),             -- Σbase − desconto_global (calculado); deve ≈ total_impresso
   discrepancia        DECIMAL(10,2),             -- Σbase − desconto − total; 0 = extração bate (migração 003)
   needs_review        BOOLEAN DEFAULT FALSE,     -- TRUE se não bate; EXCLUÍDA das análises de preço (migração 003)
   extracao_json       JSON,                      -- snapshot do que o VLM extraiu, p/ debug (migração 003)
-  desconto_global     DECIMAL(10,2) DEFAULT 0,   -- ex. Cartão Continente, antes de distribuir
+  desconto_global     DECIMAL(10,2) DEFAULT 0,   -- ex. Desconto Cartão Continente; desconto DA NOTA, NÃO espalhado pelos itens
   ficheiro_original   VARCHAR(255),              -- caminho em /var/lib/<PROJ>/comprovantes
   metodo_extracao     ENUM('vlm','ocr_llm') ,    -- qual abordagem gerou estes dados (para a comparação)
   origem_captura      VARCHAR(16),               -- 'scan'|'foto'|'galeria'|'arquivo' — caminho de captura (migração 010)
@@ -75,7 +75,7 @@ CREATE TABLE item (
   descricao_original   VARCHAR(200) NOT NULL,     -- 'BOL DIGESTIVE AVEIA CNT 425GR'
   quantidade           DECIMAL(10,3) NOT NULL DEFAULT 1,  -- 3 (un) ou 0.418 (kg)
   preco_unitario       DECIMAL(10,4),             -- preço por unidade tal como na fatura
-  preco_liquido        DECIMAL(10,2) NOT NULL,    -- pago de facto neste item (após descontos)
+  preco_liquido        DECIMAL(10,2) NOT NULL,    -- preço IMPRESSO na linha (líquido do desconto da própria linha); o desconto de cartão NÃO entra aqui
   preco_por_base       DECIMAL(10,4),             -- preço normalizado p/ unidade_base do SKU (€/kg, €/L, €/un)
   is_clearance         BOOLEAN DEFAULT FALSE,     -- fim de validade: isolar da série histórica
   desconto_direto      DECIMAL(10,2) DEFAULT 0,   -- 'Poupança' na linha
@@ -89,7 +89,8 @@ CREATE TABLE item (
 
 ### Notas de design
 - **`preco_por_base` é o que faz a comparação funcionar.** Para itens por peso (fruta a granel), `preco_liquido` sozinho não é comparável; `preco_por_base` (€/kg) é. Para itens por unidade, é o preço por unidade. As funções de comparação consultam sempre `preco_por_base`.
-- **`total_reconciliado` vs `total_impresso`** é a tua métrica de qualidade da extração embutida no schema: se não baterem, a extração ou a distribuição de desconto falhou.
+- **`preco_liquido` = preço impresso na linha, NÃO raspado pelo desconto de cartão.** O desconto global ("Desconto Cartão Utilizado") é um desconto da NOTA aplicado no pagamento, não atribuível a produtos — espalhá-lo cêntimo a cêntimo distorcia cada preço (um sumo de 2,49 aparecia como 2,37). Fica só em `fatura.desconto_global`. Consequência: `Σ preco_liquido` = subtotal (valor dos produtos), não o total pago; a diferença é o benefício do cartão.
+- **`total_reconciliado` vs `total_impresso`** é a tua métrica de qualidade da extração embutida no schema: se não baterem (`Σbase − desconto_global ≠ total`), a extração perdeu/inventou/leu mal um item ou um desconto.
 - **`metodo_extracao`** na fatura permite-te, mais tarde, comparar VLM vs OCR+LLM em dados reais (a tua experiência) — sabes que abordagem gerou cada registo.
 - **`is_clearance` / `is_non_product`** são as flags das regras de negócio; as funções de consulta filtram-nas para não poluir o histórico.
 - **`descricao_original`** nunca se perde — é o que permite depurar a normalização e treinar/ajustar.
