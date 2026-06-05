@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa } from './api.js';
 
 const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
 const hora = () => new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
@@ -79,6 +79,24 @@ function Chat({ onSair }) {
 
   const add = (m) => setMsgs((xs) => [...xs, { id: `${xs.length}-${m.tipo}`, hora: hora(), ...m }]);
   const tiraPensar = () => setMsgs((xs) => xs.filter((m) => m.tipo !== 'pensar'));
+
+  // Carregar a conversa anterior ao abrir (memória entre sessões).
+  useEffect(() => {
+    carregarConversa()
+      .then((hist) => {
+        if (hist.length)
+          setMsgs(
+            hist.map((m, i) => ({
+              id: `h${i}`,
+              lado: m.papel === 'user' ? 'user' : 'bot',
+              tipo: m.papel === 'user' ? 'texto' : 'resposta',
+              texto: m.conteudo,
+              hora: m.hora,
+            })),
+          );
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: 'smooth' });

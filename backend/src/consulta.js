@@ -19,10 +19,14 @@ Quando o utilizador pede para VER/MOSTRAR/LISTAR o que comprou, usa listar_compr
 Formata preços em euros com vírgula (ex.: 2,19 €). Sê conciso, mas lista quando for pedido.`;
 }
 
-export async function responderPergunta(pergunta, { db = getPool(), chat = chatCompletionFull, hoje, maxRondas = 5 } = {}) {
+export async function responderPergunta(
+  pergunta,
+  { db = getPool(), chat = chatCompletionFull, hoje, maxRondas = 5, historico = [] } = {},
+) {
   const dataHoje = hoje || new Date().toISOString().slice(0, 10);
   const messages = [
     { role: 'system', content: systemPrompt(dataHoje) },
+    ...historico, // memória da conversa: o utilizador não repete o que já disse
     { role: 'user', content: String(pergunta || '') },
   ];
   const chamadas = [];

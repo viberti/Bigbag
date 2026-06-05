@@ -24,6 +24,13 @@ export async function verificarSessao() {
   return r.json();
 }
 
+export async function carregarConversa() {
+  const r = await call('/api/historico');
+  if (!r.ok) return [];
+  const { mensagens } = await r.json();
+  return mensagens || [];
+}
+
 export async function consultar(pergunta) {
   const r = await call('/api/consulta', {
     method: 'POST',
