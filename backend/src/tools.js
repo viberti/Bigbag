@@ -42,6 +42,22 @@ export const toolDefs = [
   {
     type: 'function',
     function: {
+      name: 'produto_mais_barato',
+      description:
+        "Encontra o(s) produto(s) MAIS BARATO(S) que casam com um termo (produto ou categoria), pelo preço por unidade-base (€/kg, €/L, €/un), do mais barato ao mais caro. Usar para 'qual o queijo mais barato', 'qual a fruta mais barata'. (Diferente de comparar_precos_por_loja, que compara o MESMO produto entre lojas.)",
+      parameters: {
+        type: 'object',
+        properties: {
+          alvo: { type: 'string', description: "Produto ou categoria, ex.: 'queijo', 'fruta', 'iogurte'." },
+          loja: { type: 'string', description: 'Opcional: limitar a uma cadeia/loja.' },
+        },
+        required: ['alvo'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'historico_preco',
       description:
         "Devolve a evolução do preço de um produto ao longo do tempo (lista de preço por data e loja). Usar para perguntas sobre subida/descida de preço ou 'quanto custava antes'.",
@@ -79,7 +95,7 @@ export const toolDefs = [
             type: 'string',
             enum: ['item', 'produto'],
             description:
-              "Como agrupar. 'produto' = lista focada nos produtos (cada produto com total gasto, SEM loja/data) — usar para 'que produtos comprei', 'lista de produtos'. 'item' (default) = linha-a-linha por ida (com data e loja) — para 'as minhas compras'.",
+              "Como agrupar. 'produto' = lista focada nos produtos (cada produto com o total gasto e QUANTAS VEZES foi comprado, no campo 'vezes', SEM loja/data) — usar para 'que produtos comprei', 'lista sem repetições', 'quantas vezes comprei cada X'. 'item' (default) = linha-a-linha por ida (com data e loja).",
           },
         },
         required: [],
@@ -141,6 +157,7 @@ const dispatch = {
   historico_preco: queries.historico_preco,
   total_gasto: queries.total_gasto,
   listar_compras: queries.listar_compras,
+  produto_mais_barato: queries.produto_mais_barato,
 };
 
 // Executa uma tool call do LLM. `args` é o objeto de argumentos já parseado.

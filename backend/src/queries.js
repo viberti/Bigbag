@@ -35,6 +35,7 @@ const SINONIMOS = {
   limpeza: ['limpeza', 'detergente', 'lixivia', 'sabao', 'amaciador'],
   higiene: ['higiene', 'champo', 'gel de banho', 'sabonete', 'pasta de dentes', 'escova', 'cosmetic'],
   laticinios: ['laticinio', 'leite', 'iogurte', 'queijo', 'manteiga', 'natas', 'requeijao'],
+  pastelaria: ['pastelaria', 'padaria', 'bolo', 'napolitana', 'croissant', 'folhado', 'queque', 'pao de deus'],
 };
 
 export function expandirAlvo(alvo) {
@@ -110,6 +111,34 @@ export async function comparar_precos_por_loja(db, { produto }) {
      WHERE rn = 1
      ORDER BY preco_por_base ASC`,
     m.params,
+  );
+  return rows;
+}
+
+// 6) Produto(s) mais barato(s) que casam com um termo (produto OU categoria),
+//    pelo preço por unidade-base — do mais barato ao mais caro. Uma linha por
+//    produto (observação mais recente). Para "qual o queijo mais barato".
+export async function produto_mais_barato(db, { alvo, loja }) {
+  const m = matchProduto(alvo);
+  const ml = matchLoja(loja);
+  const [rows] = await db.query(
+    `SELECT cadeia, loja, produto, preco_por_base, unidade_base, data FROM (
+        SELECT l.cadeia, l.nome AS loja,
+               COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+               i.preco_por_base, s.unidade_base,
+               DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
+               ROW_NUMBER() OVER (PARTITION BY COALESCE(s.nome_canonico, i.descricao_original)
+                                  ORDER BY f.data_compra DESC, i.id DESC) AS rn
+        ${BASE_JOINS}
+        WHERE ${m.sql}
+          AND i.is_clearance = FALSE AND i.is_non_product = FALSE AND f.needs_review = FALSE
+          AND i.preco_por_base IS NOT NULL
+          ${ml.sql}
+     ) t
+     WHERE rn = 1
+     ORDER BY preco_por_base ASC
+     LIMIT 10`,
+    [...m.params, ...ml.params],
   );
   return rows;
 }

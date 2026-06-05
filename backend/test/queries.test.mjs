@@ -147,6 +147,13 @@ test('listar_compras agrupar_por=produto: agrega por produto, sem loja/data', as
   assert.ok(!('loja' in r[0]) && !('data' in r[0]));
 });
 
+test('produto_mais_barato: traz o produto que casa, mais barato primeiro', async () => {
+  const r = await executarTool(conn, 'produto_mais_barato', { alvo: MANT });
+  assert.ok(r.length >= 1);
+  assert.equal(r[0].produto, MANT);
+  assert.equal(Number(r[0].preco_por_base), 2.19); // mais recente, sem clearance
+});
+
 test('total_gasto: filtra por loja (só Pingo Doce = 5,39)', async () => {
   const r = await executarTool(conn, 'total_gasto', {
     alvo: 'tudo',
