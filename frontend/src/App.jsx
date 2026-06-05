@@ -270,6 +270,9 @@ function Chat({ onSair, nome }) {
           <button className="icone-cab" onClick={mostrarHabituais} disabled={ocupado} aria-label="lista habitual" title={t('habituais.title')}>
             🛒
           </button>
+          <a className="icone-cab" href="/explorar" aria-label="explorar compras" title="Explorar compras e preços">
+            📊
+          </a>
           <button className="link" onClick={onSair}>
             {t('chat.logout')}
           </button>
