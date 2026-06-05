@@ -24,6 +24,22 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        // O novo SW assume o controlo imediatamente (sem esperar fechar abas) e
+        // limpa caches antigas — evita ficar preso numa versão antiga.
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
+        // HTML (navegação) sempre da rede quando online; cai para cache só
+        // offline. Garante que um deploy novo aparece no próximo carregamento.
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: { cacheName: 'html', networkTimeoutSeconds: 3, expiration: { maxEntries: 10 } },
+          },
+        ],
+      },
       manifest: {
         name: 'Bigbag',
         short_name: 'Bigbag',
