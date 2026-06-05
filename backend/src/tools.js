@@ -64,7 +64,7 @@ export const toolDefs = [
     function: {
       name: 'listar_compras',
       description:
-        "Lista o que foi comprado num período (cada item com data, loja e preço pago). Usar para 'o que comprei em maio', 'mostra as minhas compras da semana passada', 'o que levei no Continente'. Pode filtrar por produto/categoria.",
+        "Lista o que foi comprado num período (cada item com data, loja e preço pago). Usar para 'o que comprei em maio', 'mostra as minhas compras da semana passada', 'o que levei no Continente'. Pode filtrar por produto/categoria (alvo) e/ou por loja (loja).",
       parameters: {
         type: 'object',
         properties: {
@@ -72,8 +72,9 @@ export const toolDefs = [
           periodo_fim: { type: 'string', description: "Data final ISO 'YYYY-MM-DD'. Se omitida, até hoje." },
           alvo: {
             type: 'string',
-            description: "Opcional: produto ('café') ou categoria ('Laticínios') para filtrar. Omitir para tudo.",
+            description: "Opcional: produto ('café') ou categoria ('Laticínios', 'bebida alcoólica') para filtrar.",
           },
+          loja: { type: 'string', description: "Opcional: cadeia/loja ('Lidl', 'Continente') para filtrar." },
         },
         required: ['periodo_inicio'],
       },
@@ -84,13 +85,18 @@ export const toolDefs = [
     function: {
       name: 'total_gasto',
       description:
-        "Soma quanto foi gasto num produto, categoria, ou no total, num período. Usar para 'quanto gastei em X este mês/ano'.",
+        "Soma quanto foi gasto, num período. Pode filtrar por produto/categoria (alvo) e/ou por loja (loja). Ex.: 'quanto gastei em vinho este mês', 'quanto gastei no Lidl', 'quanto gastei em bebida alcoólica'.",
       parameters: {
         type: 'object',
         properties: {
           alvo: {
             type: 'string',
-            description: "Produto ('café'), categoria ('Laticínios'), ou 'tudo' para o total geral.",
+            description:
+              "Produto ('leite', 'vinho'), categoria ('Laticínios', 'bebida alcoólica'), ou 'tudo' para tudo. Para perguntas só sobre uma loja, usa 'tudo' aqui e preenche 'loja'.",
+          },
+          loja: {
+            type: 'string',
+            description: "Opcional: cadeia/loja ('Lidl', 'Continente', 'Mercadona'). Para 'quanto gastei no Lidl'.",
           },
           periodo_inicio: { type: 'string', description: "Data inicial ISO 'YYYY-MM-DD'." },
           periodo_fim: {

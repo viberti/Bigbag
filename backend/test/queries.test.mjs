@@ -134,6 +134,17 @@ test('listar_compras: filtra por alvo (só café = 2 itens)', async () => {
   assert.equal(r.length, 2);
 });
 
+test('total_gasto: filtra por loja (só Pingo Doce = 5,39)', async () => {
+  const r = await executarTool(conn, 'total_gasto', {
+    alvo: 'tudo',
+    periodo_inicio: '2099-01-01',
+    periodo_fim: '2099-12-31',
+    loja: 'Pingo Doce',
+  });
+  assert.equal(Number(r.total), 5.39); // manteiga 2,19 + café 3,20 (saco fora)
+  assert.equal(Number(r.n_itens), 2);
+});
+
 test("total_gasto: 'tudo' no período de 2099 (isolado de faturas reais)", async () => {
   const r = await executarTool(conn, 'total_gasto', { alvo: 'tudo', periodo_inicio: '2099-01-01', periodo_fim: '2099-12-31' });
   assert.equal(Number(r.total), 12.28); // 2,39+3,50+2,19+3,20+1,00 (saco fora)
