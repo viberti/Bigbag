@@ -1,3 +1,5 @@
+import { classificarLoja } from './classify.js';
+
 // Persiste uma fatura extraída + reconciliada. Tudo numa transação.
 // Loja: upsert por NIF (chave natural). Itens: sku_id e preco_por_base ficam
 // NULL — a normalização de SKU (e o €/unidade-base) é um passo separado, a
@@ -8,6 +10,7 @@ async function upsertLoja(conn, loja) {
   const nome = loja?.nome || cadeia;
   const nif = loja?.nif || null;
   const localizacao = loja?.localizacao || null;
+  const tipo = classificarLoja({ cadeia, nome });
 
   if (nif) {
     const [found] = await conn.query('SELECT id FROM loja WHERE nif = ?', [nif]);
@@ -17,8 +20,8 @@ async function upsertLoja(conn, loja) {
     if (found.length) return found[0].id;
   }
   const [r] = await conn.query(
-    'INSERT INTO loja (cadeia, nome, nif, localizacao) VALUES (?,?,?,?)',
-    [cadeia, nome, nif, localizacao],
+    'INSERT INTO loja (cadeia, tipo, nome, nif, localizacao) VALUES (?,?,?,?,?)',
+    [cadeia, tipo, nome, nif, localizacao],
   );
   return r.insertId;
 }

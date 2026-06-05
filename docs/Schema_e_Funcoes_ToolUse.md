@@ -15,6 +15,7 @@
 CREATE TABLE loja (
   id            BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   cadeia        VARCHAR(40)  NOT NULL,           -- 'Continente','Pingo Doce','Mercadona','Aldi','Lidl'
+  tipo          VARCHAR(30)  NOT NULL DEFAULT 'outro', -- 'supermercado','farmacia','outro' (migração 002)
   nome          VARCHAR(120) NOT NULL,           -- nome impresso na fatura
   nif           VARCHAR(20),                     -- NIF do estabelecimento (chave natural útil)
   localizacao   VARCHAR(160),                    -- morada/zona em Braga
