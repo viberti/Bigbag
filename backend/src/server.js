@@ -36,6 +36,17 @@ app.get('/api/historico', requireAuth, async (req, res) => {
   }
 });
 
+// Perfil do usuário (memória de longo prazo) — o que o assistente sabe.
+app.get('/api/perfil', requireAuth, async (req, res) => {
+  try {
+    const { carregarPerfil } = await import('./perfil.js');
+    res.json({ fatos: await carregarPerfil(req.user.id) });
+  } catch (e) {
+    console.error('[perfil] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar perfil' });
+  }
+});
+
 // Rotas de aplicação (protegidas por requireAuth lá dentro).
 app.use('/api/faturas', faturasRouter);
 app.use('/api/consulta', consultaRouter);

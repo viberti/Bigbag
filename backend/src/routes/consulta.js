@@ -5,6 +5,7 @@ import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { responderPergunta } from '../consulta.js';
 import { carregarHistorico, guardarMensagem } from '../historico.js';
+import { carregarPerfil } from '../perfil.js';
 
 export const consultaRouter = Router();
 
@@ -15,8 +16,8 @@ consultaRouter.post('/', requireAuth, async (req, res) => {
   }
   const utilizador = req.user.id;
   try {
-    const historico = await carregarHistorico(utilizador);
-    const out = await responderPergunta(pergunta, { historico });
+    const [historico, perfil] = await Promise.all([carregarHistorico(utilizador), carregarPerfil(utilizador)]);
+    const out = await responderPergunta(pergunta, { historico, utilizador, perfil });
     await guardarMensagem(utilizador, 'user', pergunta);
     await guardarMensagem(utilizador, 'assistant', out.resposta);
     res.json(out);

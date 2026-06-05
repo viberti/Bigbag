@@ -89,6 +89,24 @@ export const toolDefs = [
   {
     type: 'function',
     function: {
+      name: 'lembrar',
+      description:
+        "Guarda um FATO ou PREFERÊNCIA DURÁVEL sobre o usuário, para personalizar respostas futuras. Ex.: 'é vegetariano', 'prefere o Continente', 'não come glúten', 'tem dois filhos', 'compra sempre leite desnatado'. NÃO usar para perguntas pontuais nem dados de compras (esses já estão no banco). Use quando o usuário revelar algo estável sobre si.",
+      parameters: {
+        type: 'object',
+        properties: {
+          fato: {
+            type: 'string',
+            description: 'O fato/preferência, conciso e em 3ª pessoa. Ex.: "É vegetariano.", "Prefere comprar no Continente."',
+          },
+        },
+        required: ['fato'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'total_gasto',
       description:
         "Soma quanto foi gasto, num período. Pode filtrar por produto/categoria (alvo) e/ou por loja (loja). Ex.: 'quanto gastei em vinho este mês', 'quanto gastei no Lidl', 'quanto gastei em bebida alcoólica'.",
