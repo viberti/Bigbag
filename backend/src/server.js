@@ -59,12 +59,15 @@ app.get('/api/qualidade', requireAuth, async (req, res) => {
   }
 });
 
-// Lista de compras habitual (produtos recorrentes) — para o ícone na PWA.
+// Lista de compras habitual (produtos recorrentes) — para o ícone 🛒 na PWA.
+// Agrupa por nome simplificado (quando definido) e só conta produtos comprados
+// ≥2 vezes nos ÚLTIMOS 60 DIAS, para a lista ser útil e atual.
 app.get('/api/habituais', requireAuth, async (req, res) => {
   try {
     const { produtos_habituais } = await import('./queries.js');
     const { getPool } = await import('./db.js');
-    res.json({ produtos: await produtos_habituais(getPool(), { min_idas: 2 }) });
+    const periodo_inicio = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+    res.json({ produtos: await produtos_habituais(getPool(), { min_idas: 2, periodo_inicio }) });
   } catch (e) {
     console.error('[habituais] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar lista habitual' });

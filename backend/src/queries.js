@@ -124,7 +124,7 @@ export async function produtos_habituais(db, { min_idas, periodo_inicio, periodo
   const minIdas = Math.max(2, Number(min_idas) || 2);
   const ml = matchLoja(loja);
   const [rows] = await db.query(
-    `SELECT COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+    `SELECT COALESCE(s.nome_simplificado, s.nome_canonico, i.descricao_original) AS produto,
             COUNT(DISTINCT f.id) AS idas,
             COUNT(DISTINCT DATE_FORMAT(f.data_compra, '%Y-%m')) AS meses,
             COUNT(*) AS unidades,
