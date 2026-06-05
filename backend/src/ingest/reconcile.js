@@ -45,7 +45,18 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso })
   }));
 
   const totalReconciliado = out.reduce((s, it) => s + it.preco_liquido, 0);
-  const diff = totalImpresso != null ? Math.round((totalReconciliado - Number(totalImpresso)) * 100) / 100 : 0;
 
-  return { itens: out, subtotal, totalReconciliado, bate: Math.abs(diff) < 0.005, diff };
+  // Sinal de qualidade HONESTO (não tautológico): a soma dos valores extraídos,
+  // menos o desconto global, devia bater com o TOTAL A PAGAR. Se não bater, a
+  // extração perdeu/inventou/leu mal um item (ex. linha "Poupança" a mais).
+  const discrepancia =
+    totalImpresso != null ? Math.round((subtotal - descontoGlobal - Number(totalImpresso)) * 100) / 100 : 0;
+
+  return {
+    itens: out,
+    subtotal,
+    totalReconciliado,
+    discrepancia,
+    extracaoBate: Math.abs(discrepancia) < 0.015,
+  };
 }

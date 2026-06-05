@@ -17,6 +17,11 @@ logs/
 # Uploads locais (faturas/áudio em desenvolvimento; em produção vivem em /var/lib/bigbag)
 uploads/
 
+# Faturas reais (dados pessoais — NIF, compras). Nunca versionar.
+imagens/
+*.jpeg
+*.jpg
+
 # Sistema operativo / editores
 .DS_Store
 Thumbs.db

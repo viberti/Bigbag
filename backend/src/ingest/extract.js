@@ -3,6 +3,7 @@
 // trocável, para comparar; metodo_extracao na fatura regista qual gerou cada
 // registo.)
 import { visionPrompt } from '../openrouter.js';
+import { normalizarItens } from './normalize.js';
 
 const PROMPT = `És um extrator de faturas de supermercado português (Continente, Pingo Doce, Mercadona, Aldi, Lidl).
 Lê a imagem da fatura (talão térmico, pode estar amassado) e devolve SÓ um objeto JSON, sem texto à volta, sem markdown.
@@ -29,7 +30,7 @@ Esquema exato:
 Regras:
 - O NIF da LOJA é o do estabelecimento/vendedor (perto do nome no topo), NÃO o NIF do cliente.
 - "Aprox. fim prazo validade" aparece NA LINHA ABAIXO do produto — associa ao item imediatamente acima (is_clearance=true).
-- "Poupança" sob um produto pertence a esse produto (desconto_direto). O "valor" do item é o preço como impresso na linha do produto.
+- "Poupança" sob um produto pertence a esse produto (desconto_direto). O "valor" do item é o preço como impresso na linha do produto. NUNCA cries um item separado para "Poupança"/"Desconto" — esse montante vai só no desconto_direto do produto acima.
 - Não inventes itens nem valores. Se um valor não for legível, usa null no campo numérico desse item e mantém a descrição.
 - Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.`;
 
@@ -58,5 +59,6 @@ export async function extrairFatura({ imageBase64, mime, model, timeoutMs }) {
   if (!dados || !Array.isArray(dados.itens)) {
     throw new Error('Extração VLM não devolveu itens válidos');
   }
+  dados.itens = normalizarItens(dados.itens);
   return dados;
 }

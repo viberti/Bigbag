@@ -13,8 +13,15 @@ test('soma dos líquidos bate com o TOTAL A PAGAR ao cêntimo', () => {
   const r = distribuirDesconto(itens, { descontoGlobal: 4.96, totalImpresso: 38.1 });
   assert.equal(Math.round(r.subtotal * 100), 4306); // 43,06
   assert.equal(Math.round(r.totalReconciliado * 100), 3810); // 38,10 exato
-  assert.equal(r.bate, true);
-  assert.equal(r.diff, 0);
+  assert.equal(r.extracaoBate, true); // 43,06 - 4,96 == 38,10
+  assert.equal(r.discrepancia, 0);
+});
+
+test('discrepância apanha um item-fantasma (ex. POUPANCA 0,47 a mais)', () => {
+  const comFantasma = [...valores, 0.47].map((valor) => ({ valor }));
+  const r = distribuirDesconto(comFantasma, { descontoGlobal: 4.96, totalImpresso: 38.1 });
+  assert.equal(r.discrepancia, 0.47); // 43,53 - 4,96 - 38,10
+  assert.equal(r.extracaoBate, false);
 });
 
 test('cada líquido é <= ao preço impresso (desconto reduz)', () => {
@@ -37,5 +44,5 @@ test('sem desconto global, líquido = impresso', () => {
   const r = distribuirDesconto([{ valor: 2.5 }, { valor: 1.5 }], { descontoGlobal: 0, totalImpresso: 4.0 });
   assert.equal(r.itens[0].preco_liquido, 2.5);
   assert.equal(r.itens[1].preco_liquido, 1.5);
-  assert.equal(r.bate, true);
+  assert.equal(r.extracaoBate, true);
 });

@@ -53,10 +53,11 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       loja: dados.loja,
       data_compra: dados.data_compra,
       total_impresso: dados.total_impresso,
+      subtotal_extraido: Math.round(rec.subtotal * 100) / 100,
       total_reconciliado: Math.round(rec.totalReconciliado * 100) / 100,
       desconto_global: Number(dados.desconto_global) || 0,
-      reconciliacao_bate: rec.bate,
-      diff: rec.diff,
+      extracao_bate: rec.extracaoBate,
+      discrepancia: rec.discrepancia,
       n_itens,
       itens: dados.itens.map((it) => ({
         descricao_original: it.descricao_original,
