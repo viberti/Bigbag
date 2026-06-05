@@ -51,6 +51,26 @@
   background-repeat: no-repeat; background-position: 13px 50%;
 }
 .tlao .search input:focus { outline: none; border-color: var(--ink); box-shadow: 3px 3px 0 var(--mustard); }
+/* seletor de mês/ano */
+.tlao .dp-wrap { padding: 0 16px 9px; }
+.tlao .dp { position: relative; }
+.tlao .dp-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1.5px solid var(--line-d); background: var(--card); border-radius: 11px; padding: 9px 13px; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.tlao .dp-btn:hover { border-color: var(--ink); }
+.tlao .dp-car { color: var(--ink3); }
+.tlao .dp-bd { position: fixed; inset: 0; z-index: 9; }
+.tlao .dp-pop { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; right: 0; background: var(--card); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 6px 6px 0 var(--ink); padding: 12px; }
+.tlao .dp-ano { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tlao .dp-ano b { font-family: var(--disp); font-weight: 800; font-size: 16px; }
+.tlao .dp-ano button { width: 30px; height: 30px; border: 1.5px solid var(--line-d); background: var(--bg); border-radius: 8px; cursor: pointer; font-size: 12px; color: var(--ink); }
+.tlao .dp-ano button:disabled { opacity: .35; cursor: default; }
+.tlao .dp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.tlao .dp-mes { padding: 9px 0; border: 1.5px solid var(--line-d); background: var(--bg); border-radius: 9px; font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.tlao .dp-mes:hover:not(:disabled) { border-color: var(--ink); }
+.tlao .dp-mes:disabled { opacity: .3; cursor: default; }
+.tlao .dp-mes.on { background: var(--mustard); border-color: var(--ink); box-shadow: 2px 2px 0 var(--ink); }
+.tlao .dp-todos { width: 100%; margin-top: 10px; padding: 9px; border: 1.5px dashed var(--line-d); background: none; border-radius: 9px; font: inherit; font-size: 12.5px; color: var(--ink2); cursor: pointer; }
+.tlao .dp-todos:hover { border-color: var(--ink); color: var(--ink); }
+
 .tlao .list-lbl { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 22px 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); font-weight: 700; }
 .tlao .list-lbl .ct { color: var(--tomato-d); }
 .tlao .plist { overflow-y: auto; flex: 1; min-height: 0; padding: 0 0 16px; }

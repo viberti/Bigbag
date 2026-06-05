@@ -11,15 +11,37 @@ explorarRouter.use(requireAuth);
 // Filtros comuns: só produtos, faturas que reconciliam.
 const FILTRO = 'i.is_non_product = FALSE AND f.needs_review = FALSE AND i.preco_por_base IS NOT NULL';
 
+// Meses com compras (para o seletor): 'YYYY-MM' + nº de notas.
+explorarRouter.get('/meses', async (_req, res) => {
+  try {
+    const [rows] = await getPool().query(
+      `SELECT DATE_FORMAT(f.data_compra, '%Y-%m') AS mes, COUNT(DISTINCT f.id) AS n
+         FROM fatura f WHERE f.needs_review = FALSE AND f.data_compra IS NOT NULL
+        GROUP BY mes ORDER BY mes`,
+    );
+    res.json({ meses: rows });
+  } catch (e) {
+    console.error('[explorar/meses] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar meses' });
+  }
+});
+
 // Lista de produtos comprados, com resumo de preço/frequência/lojas.
+// ?mes=YYYY-MM filtra aos produtos comprados nesse mês (e estatísticas do mês).
 explorarRouter.get('/produtos', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim().slice(0, 80);
+    const mes = String(req.query.mes || '').trim();
     const args = [];
     let busca = '';
     if (q) {
       busca = 'AND (s.nome_canonico LIKE ? OR s.nome_simplificado LIKE ?)';
       args.push(`%${q}%`, `%${q}%`);
+    }
+    let filtroMes = '';
+    if (/^\d{4}-\d{2}$/.test(mes)) {
+      filtroMes = "AND DATE_FORMAT(f.data_compra, '%Y-%m') = ?";
+      args.push(mes);
     }
     const [rows] = await getPool().query(
       `SELECT s.id, s.nome_canonico, s.nome_simplificado, s.categoria, s.unidade_base,
@@ -33,7 +55,7 @@ explorarRouter.get('/produtos', async (req, res) => {
          FROM sku_normalizado s
          JOIN item i ON i.sku_id = s.id
          JOIN fatura f ON f.id = i.fatura_id
-        WHERE ${FILTRO} ${busca}
+        WHERE ${FILTRO} ${busca} ${filtroMes}
         GROUP BY s.id
         ORDER BY n_compras DESC, ultima DESC
         LIMIT 300`,

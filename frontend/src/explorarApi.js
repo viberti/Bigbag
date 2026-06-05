@@ -14,5 +14,7 @@ async function jget(path) {
   return res.json();
 }
 
-export const listarProdutos = (q) => jget(`/api/explorar/produtos?q=${encodeURIComponent(q || '')}`);
+export const listarProdutos = (q, mes) =>
+  jget(`/api/explorar/produtos?q=${encodeURIComponent(q || '')}${mes ? `&mes=${mes}` : ''}`);
 export const carregarProduto = (id) => jget(`/api/explorar/produtos/${id}`);
+export const listarMeses = () => jget('/api/explorar/meses');

@@ -74,6 +74,77 @@ function corLoja(n) {
   return `hsl(${h} 42% 45%)`;
 }
 
+const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MESES_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const nomeMes = (mes) => {
+  const [y, m] = String(mes).split('-');
+  return `${MESES_FULL[+m - 1]} ${y}`;
+};
+
+// Seletor de mês/ano no estilo talão. onEscolher(null) = todos os meses.
+function DatePicker({ mes, meses, onEscolher }) {
+  const [aberto, setAberto] = useState(false);
+  const anos = [...new Set(meses.map((x) => x.mes.slice(0, 4)))].sort();
+  const [ano, setAno] = useState('');
+  useEffect(() => {
+    setAno(mes ? mes.slice(0, 4) : anos[anos.length - 1] || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mes, aberto, meses.length]);
+  const comData = new Set(meses.map((x) => x.mes));
+  const i = anos.indexOf(ano);
+  return (
+    <div className="dp">
+      <button className="dp-btn" onClick={() => setAberto((a) => !a)}>
+        <span>📅 {mes ? nomeMes(mes) : 'Todos os meses'}</span>
+        <span className="dp-car">▾</span>
+      </button>
+      {aberto && (
+        <>
+          <div className="dp-bd" onClick={() => setAberto(false)} />
+          <div className="dp-pop">
+            <div className="dp-ano">
+              <button disabled={i <= 0} onClick={() => setAno(anos[i - 1])}>
+                ◀
+              </button>
+              <b>{ano || '—'}</b>
+              <button disabled={i < 0 || i >= anos.length - 1} onClick={() => setAno(anos[i + 1])}>
+                ▶
+              </button>
+            </div>
+            <div className="dp-grid">
+              {MESES_PT.map((nm, k) => {
+                const val = `${ano}-${String(k + 1).padStart(2, '0')}`;
+                return (
+                  <button
+                    key={k}
+                    className={`dp-mes ${mes === val ? 'on' : ''}`}
+                    disabled={!comData.has(val)}
+                    onClick={() => {
+                      onEscolher(val);
+                      setAberto(false);
+                    }}
+                  >
+                    {nm}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              className="dp-todos"
+              onClick={() => {
+                onEscolher(null);
+                setAberto(false);
+              }}
+            >
+              Todos os meses
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ───────────────────────── logo (mascote saco) ─────────────────────────
 function Logo({ size = 34 }) {
   return (
@@ -242,17 +313,28 @@ function Login({ onEntrar }) {
 function Painel() {
   const [produtos, setProdutos] = useState([]);
   const [q, setQ] = useState('');
+  const [mes, setMes] = useState(null);
+  const [meses, setMeses] = useState([]);
   const [current, setCurrent] = useState(null);
   const [det, setDet] = useState(null);
   const scrollRef = useRef(null);
 
   useEffect(() => {
-    exp.listarProdutos('').then((r) => {
+    exp.listarMeses().then((r) => setMeses(r.meses)).catch(() => {});
+  }, []);
+
+  // (re)carrega a lista ao mudar o mês (filtro do servidor) e seleciona o 1.º.
+  useEffect(() => {
+    exp.listarProdutos('', mes).then((r) => {
       setProdutos(r.produtos);
       if (r.produtos[0]) abrir(r.produtos[0].id);
+      else {
+        setCurrent(null);
+        setDet(null);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [mes]);
 
   async function abrir(id) {
     setCurrent(id);
@@ -312,6 +394,9 @@ function Painel() {
         <aside className="side">
           <div className="search">
             <input placeholder="procurar produto…" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
+          </div>
+          <div className="dp-wrap">
+            <DatePicker mes={mes} meses={meses} onEscolher={setMes} />
           </div>
           <div className="list-lbl">
             <span>A tua lista</span>
