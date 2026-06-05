@@ -12,6 +12,7 @@ import { config } from '../config.js';
 import { transcrever, formatoDeMime } from '../transcricao.js';
 import { responderPergunta } from '../consulta.js';
 import { carregarHistorico, guardarMensagem } from '../historico.js';
+import { carregarPerfil } from '../perfil.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -33,8 +34,8 @@ vozRouter.post('/', requireAuth, upload.single('audio'), async (req, res) => {
 
     // 3) interpretar pela MESMA cadeia de texto (tool use), com memória
     const utilizador = req.user.id;
-    const historico = await carregarHistorico(utilizador);
-    const out = await responderPergunta(transcricao, { historico });
+    const [historico, perfil] = await Promise.all([carregarHistorico(utilizador), carregarPerfil(utilizador)]);
+    const out = await responderPergunta(transcricao, { historico, utilizador, perfil });
     await guardarMensagem(utilizador, 'user', transcricao);
     await guardarMensagem(utilizador, 'assistant', out.resposta);
     res.json({ transcricao, ...out });

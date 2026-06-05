@@ -5,8 +5,9 @@
 import { chatCompletionFull } from './openrouter.js';
 import { toolDefs, executarTool } from './tools.js';
 import { getPool } from './db.js';
+import { guardarFato } from './perfil.js';
 
-function systemPrompt(hoje) {
+function systemPrompt(hoje, perfil = []) {
   return `Você é o assistente do Bigbag, um histórico pessoal de preços de compras de supermercado.
 Responda em português do Brasil (PT-BR), tratando o usuário por "você", de forma curta, natural e direta.
 Você tem ferramentas para consultar o banco de dados — USE-AS para responder com dados reais.
@@ -22,16 +23,21 @@ FOCO da lista:
 MEMÓRIA: você tem o histórico da conversa. Em perguntas de acompanhamento curtas/elípticas (ex.: "e no Lidl?", "e em junho?", "e o café?"), REUTILIZE o contexto anterior — mantenha os filtros já informados (produto/categoria, loja, período) e mude APENAS o que o usuário indicou agora. Ex.: depois de "quanto gastei em vinho?", a pergunta "e no Lidl?" significa "quanto gastei em vinho no Lidl?".
 AJA sobre a intenção clara: se o pedido já está claro (ex.: "liste os itens de maio"), EXECUTE logo — evite perguntas de esclarecimento. Na dúvida entre opções (ex.: lista completa vs. de um tipo), escolha a mais abrangente em vez de perguntar.
 Você PODE reformatar, reagrupar, reordenar ou resumir o que já apresentou (ex.: agrupar a lista por produto em vez de por loja, ordenar por preço) usando o histórico da conversa — isso é texto, faça diretamente. NUNCA diga que "é um modelo de linguagem e não consegue": você consegue reformatar e reorganizar dados.
+${
+    perfil.length
+      ? `O QUE VOCÊ JÁ SABE SOBRE O USUÁRIO (use para personalizar as respostas; nunca invente nada além disto):\n- ${perfil.join('\n- ')}\n`
+      : ''
+  }Quando o usuário revelar uma PREFERÊNCIA ou FATO DURÁVEL sobre si (dieta, loja preferida, agregado familiar, alergias…), chame a ferramenta 'lembrar' para guardá-lo — não guarde perguntas pontuais nem dados de compras.
 Formate preços em euros com vírgula (ex.: 2,19 €). Seja conciso, mas liste quando for pedido.`;
 }
 
 export async function responderPergunta(
   pergunta,
-  { db = getPool(), chat = chatCompletionFull, hoje, maxRondas = 5, historico = [] } = {},
+  { db = getPool(), chat = chatCompletionFull, hoje, maxRondas = 5, historico = [], utilizador, perfil = [] } = {},
 ) {
   const dataHoje = hoje || new Date().toISOString().slice(0, 10);
   const messages = [
-    { role: 'system', content: systemPrompt(dataHoje) },
+    { role: 'system', content: systemPrompt(dataHoje, perfil) },
     ...historico, // memória da conversa: o utilizador não repete o que já disse
     { role: 'user', content: String(pergunta || '') },
   ];
@@ -56,7 +62,13 @@ export async function responderPergunta(
       }
       let resultado;
       try {
-        resultado = await executarTool(db, nome, args);
+        if (nome === 'lembrar') {
+          // memória de longo prazo: guarda o fato no perfil do usuário
+          if (utilizador) await guardarFato(utilizador, args.fato, { db });
+          resultado = { ok: true, guardado: args.fato };
+        } else {
+          resultado = await executarTool(db, nome, args);
+        }
       } catch (e) {
         resultado = { erro: e.message };
       }
