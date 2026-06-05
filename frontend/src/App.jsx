@@ -101,8 +101,11 @@ function Chat({ onSair, nome }) {
   const [ocupado, setOcupado] = useState(false);
   const [aGravar, setAGravar] = useState(false);
   const [camAberta, setCamAberta] = useState(false);
+  const [menuAberto, setMenuAberto] = useState(false);
   const fimRef = useRef(null);
   const fileRef = useRef(null);
+  const fotoRef = useRef(null);
+  const galeriaRef = useRef(null);
   const mrRef = useRef(null);
   const chunksRef = useRef([]);
 
@@ -150,17 +153,18 @@ function Chat({ onSair, nome }) {
     }
   }
 
-  async function fatura(file) {
-    if (!file || ocupado) return;
-    add({ lado: 'user', tipo: 'ficheiro', nome: file.name });
-    setOcupado(true);
+  // Processa UMA nota (sem gerir `ocupado` — quem chama é que gere, para o lote).
+  // `dewarp` só no caminho do scanner de documento; `origem` marca o caminho
+  // (scan/foto/galeria/arquivo) para depois comparar a leitura por caminho.
+  async function processarUma(file, { dewarp = false, origem = 'arquivo', prefixo = '' } = {}) {
     const ehImagem = file.type?.startsWith('image/');
-    add({ lado: 'bot', tipo: 'pensar', texto: ehImagem ? t('nota.scanning') : t('nota.reading') });
+    add({ lado: 'user', tipo: 'ficheiro', nome: file.name });
+    add({ lado: 'bot', tipo: 'pensar', texto: prefixo + (dewarp && ehImagem ? t('nota.scanning') : t('nota.reading')) });
     try {
-      // Digitaliza no browser (recorte + perspectiva). Falha → original.
-      const enviar = ehImagem ? await digitalizar(file) : file;
-      setMsgs((xs) => xs.map((m) => (m.tipo === 'pensar' ? { ...m, texto: t('nota.reading') } : m)));
-      const out = await enviarFatura(enviar);
+      const enviar = dewarp && ehImagem ? await digitalizar(file) : file; // dewarp só no caminho 'scan'
+      if (dewarp && ehImagem)
+        setMsgs((xs) => xs.map((m) => (m.tipo === 'pensar' ? { ...m, texto: prefixo + t('nota.reading') } : m)));
+      const out = await enviarFatura(enviar, origem);
       tiraPensar();
       if (out.erro) add({ lado: 'bot', tipo: 'erro', texto: out.detalhe || out.erro });
       else if (out.duplicada)
@@ -173,6 +177,29 @@ function Chat({ onSair, nome }) {
     } catch {
       tiraPensar();
       add({ lado: 'bot', tipo: 'erro', texto: t('err.upload') });
+    }
+  }
+
+  async function fatura(file, opts = {}) {
+    if (!file || ocupado) return;
+    setOcupado(true);
+    try {
+      await processarUma(file, opts);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  // Envio em lote (galeria): processa sequencialmente para não martelar a API.
+  async function faturaLote(files, origem = 'galeria') {
+    const lista = Array.from(files || []);
+    if (!lista.length || ocupado) return;
+    setOcupado(true);
+    try {
+      for (let i = 0; i < lista.length; i++) {
+        const prefixo = lista.length > 1 ? t('cap.lote', { i: i + 1, n: lista.length }) + ' ' : '';
+        await processarUma(lista[i], { dewarp: false, origem, prefixo });
+      }
     } finally {
       setOcupado(false);
     }
@@ -263,7 +290,7 @@ function Chat({ onSair, nome }) {
           perguntar();
         }}
       >
-        <button type="button" className="icone" onClick={() => setCamAberta(true)} disabled={ocupado} aria-label="fatura">
+        <button type="button" className="icone" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="fatura">
           📷
         </button>
         <input
@@ -274,7 +301,32 @@ function Chat({ onSair, nome }) {
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
-            fatura(f);
+            fatura(f, { dewarp: false, origem: 'arquivo' });
+          }}
+        />
+        <input
+          ref={fotoRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            fatura(f, { dewarp: false, origem: 'foto' });
+          }}
+        />
+        <input
+          ref={galeriaRef}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            const fs = e.target.files;
+            const arr = fs ? Array.from(fs) : [];
+            e.target.value = '';
+            faturaLote(arr, 'galeria');
           }}
         />
         <input
@@ -301,16 +353,28 @@ function Chat({ onSair, nome }) {
         )}
       </form>
 
+      {menuAberto && (
+        <>
+          <div className="cap-menu-bd" onClick={() => setMenuAberto(false)} />
+          <div className="cap-menu">
+            <button onClick={() => { setMenuAberto(false); setCamAberta(true); }}>{t('cap.scan')}</button>
+            <button onClick={() => { setMenuAberto(false); fotoRef.current?.click(); }}>{t('cap.photo')}</button>
+            <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}>{t('cap.gallery')}</button>
+            <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}>{t('cap.file')}</button>
+          </div>
+        </>
+      )}
+
       <Camera
         aberto={camAberta}
         onFechar={() => setCamAberta(false)}
         onFicheiro={() => {
           setCamAberta(false);
-          fileRef.current?.click();
+          galeriaRef.current?.click();
         }}
         onCapturar={(f) => {
           setCamAberta(false);
-          fatura(f);
+          fatura(f, { dewarp: true, origem: 'scan' });
         }}
       />
     </div>

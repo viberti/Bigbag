@@ -57,6 +57,7 @@ CREATE TABLE fatura (
   desconto_global     DECIMAL(10,2) DEFAULT 0,   -- ex. Cartão Continente, antes de distribuir
   ficheiro_original   VARCHAR(255),              -- caminho em /var/lib/<PROJ>/comprovantes
   metodo_extracao     ENUM('vlm','ocr_llm') ,    -- qual abordagem gerou estes dados (para a comparação)
+  origem_captura      VARCHAR(16),               -- 'scan'|'foto'|'galeria'|'arquivo' — caminho de captura (migração 010)
   criado_em           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_fatura_loja FOREIGN KEY (loja_id) REFERENCES loja(id),
   KEY idx_fatura_data (data_compra)
