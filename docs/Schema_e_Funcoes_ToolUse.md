@@ -92,6 +92,7 @@ CREATE TABLE item (
 - **`metodo_extracao`** na fatura permite-te, mais tarde, comparar VLM vs OCR+LLM em dados reais (a tua experiência) — sabes que abordagem gerou cada registo.
 - **`is_clearance` / `is_non_product`** são as flags das regras de negócio; as funções de consulta filtram-nas para não poluir o histórico.
 - **`descricao_original`** nunca se perde — é o que permite depurar a normalização e treinar/ajustar.
+- **Normalização de SKU corre na ingestão (Camadas 1-3).** Logo após gravar a fatura, cada item é resolvido para um `sku_normalizado` (alias-cache → canonicalização por LLM → match por similaridade); o script de lote `normalizar_skus` é a rede de segurança para o que ficar sem SKU. A canonicalização **corrige erros óbvios de leitura/OCR** ("OLO GIRASSOL"→"Óleo de Girassol", "RUPA TOMATE"→"Polpa de Tomate") usando conhecimento de produto — mas com guarda-corpos: **nunca altera números** (quantidade/preço vêm intactos da extração, não passam por esta camada), **nunca inventa** (se ilegível/ambíguo, baixa a confiança e o item fica para revisão com `sku_id` null), e o `descricao_original` cru fica sempre para auditoria. As consultas mostram `COALESCE(nome_canonico, descricao_original)`, por isso o nome corrigido aparece automaticamente.
 
 ---
 
