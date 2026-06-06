@@ -335,12 +335,20 @@ Três aplicações no mesmo bundle, escolhidas por *path* em `main.jsx`:
   documento com dewarp / foto / galeria em lote / arquivo-PDF multi-selecção),
   chat de perguntas, e **carrinho de compras** (toca nos produtos habituais →
   carrinho agrupado por secção de mercado, swipe para apagar, persistido em
-  `localStorage`).
+  `localStorage`). Os **habituais têm cache offline** (stale-while-revalidate) —
+  a app abre e o carrinho funciona **dentro do supermercado sem rede**.
 - **Operador (`/admin`)** — desktop: gerir SKUs canónicos (renomear,
-  associar/dissociar descrições, fundir produtos, auto-merge de nomes
-  idênticos), rever a leitura de cada nota (imagem + itens lado a lado, marcar
-  certa/errada com comentário), editar quantidades, e ver qualidade por
-  cadeia/origem de captura.
+  associar/dissociar descrições — gravando alias `manual` —, fundir produtos,
+  auto-merge de nomes idênticos), e **rever a leitura de cada nota** (imagem +
+  itens lado a lado) com:
+  - **diagnóstico de reconciliação** — a pista cirúrgica e as linhas
+    inconsistentes (`qtd×unitário≠total`) apontam o provável erro, em vez de só
+    "em revisão";
+  - **editar quantidades** e marcar certa/errada com comentário;
+  - **reprocessar** a nota — re-extrai sobre o ficheiro guardado, aplicando
+    melhorias de extração/reconciliação **retroativamente, sem re-upload**
+    (aliases manuais preservados);
+  - **qualidade** por cadeia / origem de captura / **método** (VLM vs OCR+LLM).
 - **Comprador (`/explorar`)** — desktop: explorar produtos, preço pago vs por
   unidade, variação ao longo do tempo (gráfico desenhado em canvas, sem libs),
   comparação por mercado, com selector de mês/ano.
@@ -440,8 +448,10 @@ Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
 - **Leitura semântica do TALÃO** (descontos, quantidades, multipacks, IVA de
   grossista, formatos por cadeia). ~100% das falhas de reconciliação medidas vêm
   daqui — não de imagem, não de canonicalização. Já endurecido: multipack
-  "N×preço", `desconto_global` só "Desconto Cartão", coluna "Quant" dos
-  grossistas, **IVA de cash-and-carry** e a pista cirúrgica.
+  "N×preço", `desconto_global` só "Desconto Cartão", coluna "Quant" e **conteúdo
+  do pack** ("6*"), **IVA de cash-and-carry**, a pista cirúrgica e a **validação
+  por linha** (`qtd×unitário=total`, 2ª camada independente do total). O operador
+  fecha o ciclo com o **diagnóstico** + **reprocessar** (fixes retroativos).
 - **Lição metodológica:** o #140 do Makro parecia "quantidade", mas **ver a
   imagem** revelou que era **IVA** (a `pistaCirurgica` casou a coincidência de o
   IVA ser igual ao valor de uma linha). Antes de assumir a causa de uma falha,
