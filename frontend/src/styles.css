@@ -222,6 +222,10 @@ body {
 .cap-tips { justify-self: end; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center;
   color: #fff; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); }
 
+/* debug temporário da deteção */
+.cap-dbg { position: absolute; top: calc(70px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 9; text-align: center;
+  font-family: ui-monospace, monospace; font-size: 12px; color: #9effc4; text-shadow: 0 1px 3px #000; pointer-events: none; }
+
 /* flash */
 .cap-flash { position: absolute; inset: 0; z-index: 20; background: #fff; opacity: 0; pointer-events: none; }
 @keyframes capflash { 0% { opacity: 0; } 12% { opacity: .92; } 100% { opacity: 0; } }

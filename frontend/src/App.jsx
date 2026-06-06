@@ -869,6 +869,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
   const [processando, setProcessando] = useState(false);
   const [preview, setPreview] = useState(null); // { url, file, info, importado }
   const [lock, setLock] = useState('searching'); // searching | near | locked
+  const [dbg, setDbg] = useState(''); // diagnóstico temporário da deteção
 
   // Câmara
   useEffect(() => {
@@ -940,9 +941,12 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
         small.width = LARG;
         small.height = Math.round(v.videoHeight * esc);
         sctx.drawImage(v, 0, 0, small.width, small.height);
+        const tdet = performance.now();
         const c = await detectarPapel(small);
+        const ms = Math.round(performance.now() - tdet);
         if (parar) return;
         let novo = 'searching';
+        let diag = `cv:${window.cv?.Mat ? 'Y' : 'N'} det:${c ? 'Y' : 'N'} ${ms}ms`;
         if (c) {
           const pts = [c.topLeftCorner, c.topRightCorner, c.bottomRightCorner, c.bottomLeftCorner];
           const xs = pts.map((p) => p.x);
@@ -957,7 +961,9 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
           const naBorda = (p) => (p.x < small.width * m || p.x > small.width * (1 - m)) && (p.y < small.height * m || p.y > small.height * (1 - m));
           const moldura = pts.filter(naBorda).length >= 3 || cov > 0.93;
           novo = cov >= 0.28 && cov <= 0.9 && skew <= 1.8 && !moldura ? 'locked' : 'near';
+          diag += ` cov:${cov.toFixed(2)} sk:${skew.toFixed(1)} mol:${moldura ? 'Y' : 'N'}`;
         }
+        setDbg(diag + ' → ' + novo);
         setLock(novo);
         if (ov.width !== v.videoWidth || ov.height !== v.videoHeight) {
           ov.width = v.videoWidth;
@@ -1060,6 +1066,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
           <Ico name="close" size={22} />
         </button>
       </div>
+      {dbg && estado === 'live' && <div className="cap-dbg">{dbg}</div>}
       <div className="cap-guide">
         <div className="cap-pill">
           <span className="dot" />
