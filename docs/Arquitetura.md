@@ -355,8 +355,12 @@ Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
 
 ## 15. Pontos em aberto / evolução
 
-- **Match produto→SKU** é hoje `LIKE` ingénuo numa função isolada; o ponto de
-  troca natural é fuzzy-match / embeddings sobre `nome_canonico`.
+- **Match produto→SKU (consulta)**: `LIKE` (primário, apanha fragmentos) +
+  **fallback fuzzy ao nível do caractere** (Levenshtein, sem deps) que dispara só
+  quando o LIKE não acha SKU — cobre plural/typo/truncagem ("manteigas",
+  "iorgute"). O passo seguinte, se fizer falta, são embeddings sobre
+  `nome_canonico`. (Na **ingestão**, o `matcher.js` já usa Dice por tokens + juiz
+  LLM.)
 - **Comparação de abordagens de leitura** (VLM vs OCR+LLM) no mesmo input ainda
   por fazer — a telemetria já suporta a experiência.
 - **Transcrição de voz**: fixar STT-separado vs áudio-direto após experimentação.
