@@ -14,10 +14,18 @@ leitura/OCR), devolve SÓ um objeto JSON:
                              //      "BANANA 1,800 kg" -> "Banana"
   "marca": string|null,      // marca comercial se identificável (Mimosa, Heinz, Continente, Lidl...), senão null
   "categoria": string,       // ex.: "Laticínios", "Mercearia Doce", "Frutas e Legumes", "Talho"
-  "unidade_base": "un"|"kg"|"L",
+  "unidade_base": "un"|"kg"|"L",  // a unidade NATURAL de comparação (ver regra abaixo)
   "confianca": number        // 0..1 — baixa se a descrição for ambígua/ilegível
 }
 Regras:
+- unidade_base = a unidade em que o produto se COMPARA, não a embalagem:
+    * "kg" para o que se vende/pesa a PESO: café, queijo, fiambre/charcutaria, carne,
+      peixe, manteiga, arroz, massa, açúcar, frutas e legumes a granel.
+    * "L" para LÍQUIDOS: leite, sumo, refrigerante, azeite, óleo, água, natas, cerveja, vinho.
+    * "un" SÓ para o que é genuinamente CONTADO à unidade: ovos, iogurtes, latas,
+      pacotes de bolachas, escovas, sabonetes.
+  Na dúvida entre "un" e peso para um sólido que se vende por peso (ex.: café 250g,
+  queijo 200g), escolhe SEMPRE "kg" — assim compara-se €/kg entre formatos diferentes.
 - Expande abreviaturas comuns: BOL=Bolacha, QJ=Queijo, IOG=Iogurte, C/=com, S/=sem,
   SAB=Sabonete, DET=Detergente, CHAMP=Champô, DIG=Digestive, INT/INTEG=Integral,
   NAT=Natural, M/G ou MG (em laticínios)=Meio-Gordo, MAGRO/MG (light)=Magro,
