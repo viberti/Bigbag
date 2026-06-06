@@ -934,14 +934,12 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
               : t('cam.original', {
                   motivo:
                     {
-                      'sem contorno': 'não vi as bordas do talão',
-                      'apanhou a moldura/fundo': 'fundo confuso — sem recorte',
-                      'quadrilátero torto (cunha)': 'ângulo difícil — sem recorte',
-                      'contorno pequeno demais': 'talão pequeno — sem recorte',
-                      'contorno ocupa a imagem toda': 'sem recorte',
-                      'sem cantos': 'sem recorte',
+                      'sem contorno': 'não detetei as bordas do talão',
+                      'contorno ocupa a imagem toda': 'o talão preenche o ecrã todo',
+                      'contorno implausível': 'bordas detetadas pequenas demais',
+                      'sem cantos': 'cantos não detetados',
                       'não-imagem': 'não é imagem',
-                    }[preview.info?.motivo] || preview.info?.motivo || 'sem recorte',
+                    }[preview.info?.motivo] || preview.info?.motivo || 'desconhecido',
                 })}
             {preview.res ? <span className="cam-res"> · captura {preview.res}</span> : null}
           </p>

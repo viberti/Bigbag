@@ -29,7 +29,7 @@ const STRINGS = {
     'cam.enviar': '✓ Enviar',
     'cam.ajeitado': '📐 ajeitada (cobertura {c}%)',
     'cam.recortado': '✂️ recortada (sem ajuste de perspetiva · {c}%)',
-    'cam.original': '📷 foto normal · {motivo}',
+    'cam.original': 'foto original — {motivo}',
     'nota.enviada': 'Nota',
     'nota.enviadaN': 'Nota {i}/{n}',
     'nota.scanning': 'digitalizando…',
