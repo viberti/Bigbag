@@ -468,6 +468,7 @@ function TabNotas() {
   const [coment, setComent] = useState('');
   const [erroForm, setErroForm] = useState(false);
   const [zoom, setZoom] = useState(false);
+  const [reprocessando, setReprocessando] = useState(false);
   const imgRef = useRef('');
 
   const recarregar = () => adm.listarNotas(status).then((r) => setNotas(r.faturas)).catch(() => {});
@@ -509,6 +510,22 @@ function TabNotas() {
     setErroForm(false);
     setComent('');
     recarregar();
+  }
+
+  async function reprocessar() {
+    if (!sel || reprocessando) return;
+    if (!window.confirm('Reprocessar re-lê a nota do ficheiro com a extração atual e SUBSTITUI os itens (perde edições manuais nesta nota). Continuar?'))
+      return;
+    setReprocessando(true);
+    try {
+      await adm.reprocessarNota(sel);
+      await abrir(sel);
+      recarregar();
+    } catch {
+      /* erro silencioso — a nota fica como estava */
+    } finally {
+      setReprocessando(false);
+    }
   }
 
   async function salvarQtd(itemId, valor, atual) {
@@ -567,7 +584,25 @@ function TabNotas() {
               <div className="adm-meta">
                 total {eur(det.fatura.total_impresso)} · {det.itens.length} itens ·{' '}
                 {det.fatura.needs_review ? '⚠ em revisão' : 'reconcilia'} · origem {det.fatura.origem_captura || '—'}
+                <button className="adm-reproc" onClick={reprocessar} disabled={reprocessando} title="re-lê a nota do ficheiro com a extração atual">
+                  {reprocessando ? 'a reprocessar…' : '🔄 Reprocessar'}
+                </button>
               </div>
+              {det.diagnostico && (
+                <div className="adm-diag">
+                  <div className="adm-diag-h">
+                    ⚠ Diagnóstico
+                    {det.diagnostico.discrepancia ? ` · diferença no total ${eur(det.diagnostico.discrepancia)}` : ''}
+                  </div>
+                  {det.diagnostico.pista && <div className="adm-diag-l">{det.diagnostico.pista}</div>}
+                  {det.diagnostico.linhas_inconsistentes?.map((l, i) => (
+                    <div className="adm-diag-l" key={i}>
+                      Linha <b>{l.descricao}</b>: {l.quantidade} × {eur(l.preco_unitario)} = {eur(l.esperado)}, mas o valor
+                      lido foi {eur(l.valor)}.
+                    </div>
+                  ))}
+                </div>
+              )}
               <ul className="adm-itens">
                 {det.itens.map((it) => (
                   <li key={it.id}>

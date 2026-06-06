@@ -70,6 +70,8 @@ Dois subsistemas independentes que partilham a BD. Toda a IA passa pelo **OpenRo
 | Desconto por item ("Poupança" sob o produto) | Subtrair ao bruto; registar o líquido; guardar `desconto_direto` |
 | Desconto global no fim da nota (Cartão Continente) | NÃO espalhar pelos itens (distorcia cada preço): guardar em `fatura.desconto_global` como desconto da nota; cada `preco_liquido` = preço impresso na linha. Reconciliação: `Σbase − desconto_global` deve bater com o total pago |
 | Itens não-produto (saco, taxas) | Marcar `is_non_product`; excluir do histórico de preços, manter para reconciliar o total |
+| Multipack "N × preço" (Continente) / coluna "Quant" (grossista) | `quantidade` = N; `valor` = TOTAL da linha (não o unitário). Nunca deixar `quantidade` a null |
+| IVA de grossista / cash-and-carry (Makro) | Preços das linhas SEM IVA; o IVA é somado ao total. Captar em `iva`; reconciliação `Σbase − desconto_global + iva = total`. (Nuance em aberto: comparar preço s/IVA do Makro com c/IVA do supermercado é injusto — falta normalizar) |
 
 ### 4.2 Normalização de SKU
 `BOL DIGESTIVE AVEIA CNT 425GR` → `Bolacha Digestive de Aveia · Continente · 425g · Mercearia Doce`. É o pedaço mais subestimado: agrupar o **mesmo** produto escrito de formas diferentes entre lojas/datas é o que faz a consulta "onde está mais barato" funcionar. Candidato a experimentação: LLM puro vs. embeddings + similaridade.

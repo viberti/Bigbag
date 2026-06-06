@@ -22,7 +22,7 @@ const formatoProximo = (a, b) => {
 export async function resolverSku(
   db,
   descricaoOriginal,
-  { canonicalizar = canonicalizarLLM, confirmar = confirmarMesmoProduto, limiarAuto = 0.85, limiarRevisao = 0.6 } = {},
+  { canonicalizar = canonicalizarLLM, confirmar = confirmarMesmoProduto, limiarAuto = 0.85, limiarRevisao = 0.6, cadeia } = {},
 ) {
   const desc = String(descricaoOriginal || '').trim();
 
@@ -30,8 +30,8 @@ export async function resolverSku(
   const [al] = await db.query('SELECT sku_id FROM sku_alias WHERE descricao_original = ?', [desc]);
   if (al.length) return { sku_id: al[0].sku_id, via: 'alias' };
 
-  // 2) canonicalizar
-  const c = await canonicalizar(desc);
+  // 2) canonicalizar (com contexto da cadeia, se conhecido)
+  const c = await canonicalizar(desc, { cadeia });
   if (!c || (c.confianca != null && c.confianca < limiarRevisao)) {
     return { sku_id: null, via: 'revisao', canonical: c || null };
   }

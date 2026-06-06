@@ -12,15 +12,17 @@
 // Saída:  { itens (com preco_unitario e preco_liquido), subtotal, convencao,
 //           totalReconciliado, discrepancia, extracaoBate }
 
-export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso }) {
+export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso, iva = 0 }) {
   const valor = (it) => Number(it.valor || 0);
   const descLinha = (it) => Math.abs(Number(it.desconto_direto || 0));
+  const ivaAdd = Number(iva) || 0; // IVA somado a seguir (grossista/cash-and-carry); 0 nos talões normais
 
   const subtotalBruto = itens.reduce((s, it) => s + valor(it), 0);
   const somaDescLinha = itens.reduce((s, it) => s + descLinha(it), 0);
 
-  // Árbitro = TOTAL A PAGAR. Escolhe a convenção cujo candidato lhe fica mais perto.
-  const alvo = totalImpresso != null ? Number(totalImpresso) : subtotalBruto - somaDescLinha - descontoGlobal;
+  // Árbitro = TOTAL SEM o IVA somado (as linhas são sem IVA nos grossistas).
+  // Escolhe a convenção cujo candidato lhe fica mais perto.
+  const alvo = totalImpresso != null ? Number(totalImpresso) - ivaAdd : subtotalBruto - somaDescLinha - descontoGlobal;
   const candA = subtotalBruto - descontoGlobal;
   const candB = subtotalBruto - somaDescLinha - descontoGlobal;
   const convencao = Math.abs(candB - alvo) < Math.abs(candA - alvo) ? 'B' : 'A';
@@ -41,13 +43,15 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso })
     preco_liquido: Math.round(base[i] * 100) / 100,
   }));
 
-  const totalReconciliado = Math.round((baseSubtotal - descontoGlobal) * 100) / 100;
+  const totalReconciliado = Math.round((baseSubtotal - descontoGlobal + ivaAdd) * 100) / 100;
 
-  // Sinal de qualidade HONESTO: a base líquida (já na convenção escolhida) menos
-  // o desconto global devia bater com o TOTAL A PAGAR. Se não bater, a extração
-  // perdeu/inventou/leu mal um item ou um desconto.
+  // Sinal de qualidade HONESTO: base líquida − desconto_global + IVA somado devia
+  // bater com o TOTAL A PAGAR. Se não bater, a extração perdeu/inventou/leu mal um
+  // item, um desconto ou o IVA. (Nos talões normais ivaAdd=0 → fórmula original.)
   const discrepancia =
-    totalImpresso != null ? Math.round((baseSubtotal - descontoGlobal - Number(totalImpresso)) * 100) / 100 : 0;
+    totalImpresso != null
+      ? Math.round((baseSubtotal - descontoGlobal + ivaAdd - Number(totalImpresso)) * 100) / 100
+      : 0;
 
   return {
     itens: out,
@@ -57,6 +61,29 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso })
     discrepancia,
     extracaoBate: Math.abs(discrepancia) < 0.015,
   };
+}
+
+// Validação POR LINHA — 2.ª camada de qualidade, INDEPENDENTE do total da nota.
+// Quando a linha mostra um multiplicador explícito (preco_unitario != null e
+// quantidade ≥ 2), confirma que quantidade × preco_unitario ≈ valor (total da
+// linha). Apanha o erro clássico do multipack — o "valor" lido como o preço
+// unitário (ex.: "2 X 0,59" gravado como 0,59 em vez de 1,18) — mesmo quando a
+// nota inteira por acaso fecha. Só dispara com multiplicador explícito (evita
+// falsos positivos em linhas de 1 unidade ou a peso). Devolve as linhas fora.
+export function validarLinhas(itens = []) {
+  const fora = [];
+  for (const it of itens) {
+    const q = Number(it.quantidade) || 1;
+    const u = it.preco_unitario == null ? null : Number(it.preco_unitario);
+    const v = Math.abs(Number(it.valor) || 0);
+    if (q >= 2 && u != null && u > 0) {
+      const esperado = Math.round(q * u * 100) / 100;
+      if (Math.abs(esperado - v) > 0.02) {
+        fora.push({ descricao: String(it.descricao_original || '').slice(0, 40), quantidade: q, preco_unitario: u, valor: v, esperado });
+      }
+    }
+  }
+  return fora;
 }
 
 // Pista CIRÚRGICA para o loop de auto-correção: dado o resultado da reconciliação
