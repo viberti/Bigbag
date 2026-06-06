@@ -10,6 +10,7 @@ import { getPool } from '../db.js';
 import { similaridade } from '../normaliza/similaridade.js';
 import { mergeNomesIdenticos } from '../normaliza/matcher.js';
 import { pistaCirurgica, validarLinhas } from '../ingest/reconcile.js';
+import { reprocessarFatura } from '../ingest/reprocess.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -348,6 +349,19 @@ adminRouter.patch('/itens/:id', async (req, res) => {
   } catch (e) {
     console.error('[admin/itens PATCH] erro:', e.message);
     res.status(500).json({ erro: 'Falha a atualizar item' });
+  }
+});
+
+// Reprocessar a nota: re-corre a extração sobre o ficheiro guardado (apanha as
+// melhorias de prompt/reconciliação) e substitui os itens. Substitui edições
+// manuais nessa nota — usar quando a leitura saiu errada.
+adminRouter.post('/faturas/:id/reprocessar', async (req, res) => {
+  try {
+    const r = await reprocessarFatura(getPool(), Number(req.params.id));
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    console.error('[admin/reprocessar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha ao reprocessar', detalhe: e.message });
   }
 });
 
