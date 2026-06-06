@@ -132,18 +132,37 @@ export async function digitalizar(file, onInfo) {
     const r = cv.boundingRect(contour); // sempre disponível, para o recorte
     const bboxPct = areaImg ? Math.round((100 * (r.width * r.height)) / areaImg) : null;
 
-    // 1) Tentar correção de perspetiva com os 4 cantos.
+    // 1) Tentar correção de perspetiva com os 4 cantos — MAS só se o
+    //    quadrilátero for de confiança. O jscanify falha em 2 modos comuns que
+    //    produzem lixo (o "funil"): (a) agarra a MOLDURA da imagem/fundo em vez
+    //    do papel — os cantos ficam colados às bordas; (b) devolve um
+    //    quadrilátero em CUNHA (um lado muito maior que o oposto). Nesses casos
+    //    NÃO distorcemos: enviamos a foto normal (o VLM lê-a na mesma).
     const c = scanner.getCornerPoints(contour);
     const temCantos =
       c && c.topLeftCorner && c.topRightCorner && c.bottomLeftCorner && c.bottomRightCorner;
+    let motivoRecusa = null;
     if (temCantos) {
-      const w = Math.round(
-        Math.max(dist(c.topLeftCorner, c.topRightCorner), dist(c.bottomLeftCorner, c.bottomRightCorner)),
-      );
-      const h = Math.round(
-        Math.max(dist(c.topLeftCorner, c.bottomLeftCorner), dist(c.topRightCorner, c.bottomRightCorner)),
-      );
-      if (w > 60 && h > 60) {
+      const W = fonte.width;
+      const H = fonte.height;
+      const m = 0.04; // 4% das bordas = "colado à moldura"
+      const naMoldura = (p) =>
+        (p.x < W * m || p.x > W * (1 - m)) && (p.y < H * m || p.y > H * (1 - m));
+      const nMoldura = [c.topLeftCorner, c.topRightCorner, c.bottomLeftCorner, c.bottomRightCorner].filter(
+        naMoldura,
+      ).length;
+      const top = dist(c.topLeftCorner, c.topRightCorner);
+      const bot = dist(c.bottomLeftCorner, c.bottomRightCorner);
+      const lft = dist(c.topLeftCorner, c.bottomLeftCorner);
+      const rgt = dist(c.topRightCorner, c.bottomRightCorner);
+      const cunha = Math.max(top / bot, bot / top, lft / rgt, rgt / lft); // 1 = retângulo perfeito
+      const w = Math.round(Math.max(top, bot));
+      const h = Math.round(Math.max(lft, rgt));
+      if (nMoldura >= 3 || (bboxPct != null && bboxPct > 92)) motivoRecusa = 'apanhou a moldura/fundo';
+      else if (cunha > 2.5) motivoRecusa = 'quadrilátero torto (cunha)';
+      else if (!(w > 60 && h > 60)) motivoRecusa = 'contorno pequeno demais';
+
+      if (!motivoRecusa) {
         const cobertura = areaImg ? Math.round((100 * (w * h)) / areaImg) : null;
         const canvas = scanner.extractPaper(fonte, w, h, c);
         const blob = await paraBlob(canvas);
@@ -152,8 +171,8 @@ export async function digitalizar(file, onInfo) {
       }
     }
 
-    // 2) Sem cantos bons → recortar pela bounding box, se valer a pena
-    //    (contorno plausível e que não seja já quase a imagem toda).
+    // 2) Sem dewarp de confiança → recortar pela bounding box, se valer a pena
+    //    (recorte nunca distorce; só corta o fundo). Não se for quase a imagem toda.
     if (r.width > 60 && r.height > 60 && bboxPct != null && bboxPct < 92) {
       const canvas = recortarBBox(fonte, r);
       const blob = await paraBlob(canvas);
@@ -161,10 +180,10 @@ export async function digitalizar(file, onInfo) {
       return blob ? paraFicheiro(blob) : file;
     }
 
-    // 3) Nada a fazer com proveito → original.
+    // 3) Nada de confiança → foto normal (usável; o VLM lê na mesma).
     info({
       dewarped: false,
-      motivo: temCantos ? 'contorno ocupa a imagem toda' : 'sem cantos',
+      motivo: motivoRecusa || (temCantos ? 'contorno ocupa a imagem toda' : 'sem cantos'),
       cobertura: bboxPct,
       ms: desde(t0),
     });
@@ -178,5 +197,30 @@ export async function digitalizar(file, onInfo) {
     } catch {
       /* noop */
     }
+  }
+}
+
+// Deteta o quadrilátero do papel num frame (canvas/imagem já desenhado) e
+// devolve os 4 cantos em coordenadas da fonte, ou null. Leve, para o realce ao
+// vivo do contorno sobre o feed da câmara (chamado a poucos fps). Reutiliza o
+// mesmo OpenCV/jscanify; nunca lança (devolve null em qualquer falha).
+export async function detectarPapel(fonte) {
+  try {
+    if (!window.cv?.Mat) await carregarOpenCV();
+    const { default: Jscanify } = await import('./vendor/jscanify.js');
+    const scanner = new Jscanify();
+    const cv = window.cv;
+    const mat = cv.imread(fonte);
+    try {
+      const contour = scanner.findPaperContour(mat);
+      if (!contour) return null;
+      const c = scanner.getCornerPoints(contour);
+      if (c?.topLeftCorner && c?.topRightCorner && c?.bottomLeftCorner && c?.bottomRightCorner) return c;
+      return null;
+    } finally {
+      mat.delete();
+    }
+  } catch {
+    return null;
   }
 }
