@@ -12,7 +12,7 @@ import { getPool } from '../db.js';
 import { extrairFatura, extrairFaturaDeTexto } from '../ingest/extract.js';
 import { extrairTextoPdf } from '../ingest/pdf.js';
 import { preProcessarImagem } from '../ingest/imagem.js';
-import { distribuirDesconto } from '../ingest/reconcile.js';
+import { distribuirDesconto, pistaCirurgica } from '../ingest/reconcile.js';
 import { persistirFatura } from '../ingest/persist.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
 import { normalizarItensFatura, mergeNomesIdenticos } from '../normaliza/matcher.js';
@@ -51,7 +51,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     // 1b) AUTO-CORREÇÃO — loop LIMITADO: realimenta a discrepância e fica com o
     // melhor. Para ao reconciliar, ao não melhorar, ou ao atingir o limite.
     for (let i = 0; i < config.openrouter.maxCorrecoes && !rec.extracaoBate && dados.total_impresso != null; i++) {
-      const hint = `A soma dos itens deu ${rec.subtotal} mas o total impresso é ${dados.total_impresso} (diferença ${rec.discrepancia}). Reverifica com atenção: itens a peso (usa o PREÇO IMPRESSO na linha, não kg×€/kg), descontos/promoções, e itens em falta ou a mais. Devolve o JSON corrigido.`;
+      const hint = `A soma dos itens deu ${rec.subtotal} mas o total impresso é ${dados.total_impresso} (diferença ${rec.discrepancia}). Reverifica com atenção: itens a peso (usa o PREÇO IMPRESSO na linha, não kg×€/kg), descontos/promoções, e itens em falta ou a mais.${pistaCirurgica(rec.itens, rec.discrepancia)} Devolve o JSON corrigido.`;
       let dados2;
       let rec2;
       try {

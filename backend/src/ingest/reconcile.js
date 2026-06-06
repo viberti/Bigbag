@@ -77,7 +77,7 @@ export function pistaCirurgica(itens = [], discrepancia = 0) {
   if (porValor) {
     return d > 0
       ? ` PISTA: a diferença (${alvo.toFixed(2)}) é igual ao valor do item "${nome(porValor)}" — ele pode estar DUPLICADO/a mais; confirma se não aparece duas vezes.`
-      : ` PISTA: a diferença (${alvo.toFixed(2)}) é igual ao valor do item "${nome(porValor)}" — pode FALTAR um item desse valor, ou esse valor foi lido a menos.`;
+      : ` PISTA: a diferença (${alvo.toFixed(2)}) é igual ao valor do item "${nome(porValor)}" — a sua QUANTIDADE pode ser maior que 1, pode FALTAR um item desse valor, ou esse valor foi lido a menos.`;
   }
   // 2) um desconto de LINHA que casa com a diferença → convenção/desconto mal tratado
   const porDesc = itens.find((it) => Number(it.desconto_direto) && casa(it.desconto_direto));
