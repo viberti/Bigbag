@@ -483,6 +483,8 @@ body {
 .adm-lig-sel em { color: var(--muted); font-style: normal; font-size: 12px; }
 .adm-lig-atual { margin-top: 8px; font-size: 13px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .adm-lig-atual .adm-x { background: none; border: 1px solid #ff6b6b66; color: #ff6b6b; padding: 4px 9px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+/* Lista de associação na aba Produtos (busca + clicar p/ associar) */
+.adm-assoc-lista { max-height: 320px; max-width: 640px; margin-top: 8px; }
 
 .adm-qualidade { padding: 18px 24px; overflow-y: auto; }
 .adm-qtab { margin-bottom: 26px; max-width: 760px; }

@@ -176,14 +176,15 @@ function TabProdutos() {
     await recarregarDet();
     recarregarLista();
   }
-  async function associar() {
-    const d = novaDesc.trim();
+  async function associar(desc) {
+    const d = (typeof desc === 'string' ? desc : novaDesc).trim();
     if (!d) return;
     await adm.associar(sel, d);
-    setNovaDesc('');
+    if (typeof desc !== 'string') setNovaDesc(''); // limpa só quando veio do input
     await recarregarDet();
     recarregarLista();
-    setMsg('✓ associado');
+    carregarLivres(); // atualiza a lista de candidatos (badges/mapeamento)
+    setMsg(`✓ "${d}" associado`);
   }
   async function criar() {
     const nome2 = novoNome.trim();
@@ -195,7 +196,8 @@ function TabProdutos() {
     if (r?.id) await abrir(r.id); // seleciona o novo → operador associa as descrições
     setMsg('✓ produto criado — associe abaixo as descrições das lojas');
   }
-  const carregarLivres = () => adm.descricoesLivres(novaDesc).then((r) => setDescLivres(r.descricoes || [])).catch(() => {});
+  const carregarLivres = (q = novaDesc) =>
+    adm.descricoesLivres(q).then((r) => setDescLivres(r.descricoes || [])).catch(() => {});
   async function fundir() {
     const para = Number(alvoMerge);
     if (!para || para === sel) return;
@@ -320,26 +322,45 @@ function TabProdutos() {
 
             <div className="adm-linha">
               <input
-                list="adm-descs-livres"
-                placeholder="associar descrição de loja (digite ou escolha)…"
+                placeholder="procurar descrição de loja para associar…"
                 value={novaDesc}
-                onFocus={carregarLivres}
+                onFocus={() => carregarLivres()}
                 onChange={(e) => {
                   setNovaDesc(e.target.value);
-                  carregarLivres();
+                  carregarLivres(e.target.value);
                 }}
               />
-              <button onClick={associar} disabled={!novaDesc.trim()}>
-                Associar
+              <button onClick={() => associar()} disabled={!novaDesc.trim()}>
+                Associar texto
               </button>
             </div>
-            <datalist id="adm-descs-livres">
-              {descLivres.map((d) => (
-                <option key={d.descricao} value={d.descricao}>
-                  {d.atual ? `→ ${d.atual} · ${d.n}×` : `sem produto · ${d.n}×`}
-                </option>
-              ))}
-            </datalist>
+            <ul className="adm-lig-lista adm-assoc-lista">
+              {descLivres.length === 0 ? (
+                <li className="adm-vazio2">escreva acima para procurar descrições…</li>
+              ) : (
+                descLivres.map((d) => {
+                  const jaAqui = d.atual_id === det.sku.id;
+                  return (
+                    <li key={d.descricao}>
+                      <span className="adm-lig-desc">
+                        {d.descricao} <em>×{d.n}</em>
+                        {d.cadeia ? <em className="adm-lig-marca"> · {d.cadeia}</em> : null}
+                      </span>
+                      <span className="adm-lig-meta">
+                        {d.atual ? (
+                          <span className={`adm-conf ${jaAqui ? 'adm-conf-bom' : 'adm-conf-medio'}`}>{d.atual}</span>
+                        ) : (
+                          <span className="adm-conf adm-conf-ruim">sem produto</span>
+                        )}
+                        <button onClick={() => associar(d.descricao)} disabled={jaAqui}>
+                          {jaAqui ? 'aqui' : 'Associar'}
+                        </button>
+                      </span>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
 
             <h3>Fundir com outro produto</h3>
             <div className="adm-linha">
