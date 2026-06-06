@@ -361,8 +361,12 @@ Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
   "iorgute"). O passo seguinte, se fizer falta, são embeddings sobre
   `nome_canonico`. (Na **ingestão**, o `matcher.js` já usa Dice por tokens + juiz
   LLM.)
-- **Comparação de abordagens de leitura** (VLM vs OCR+LLM) no mesmo input ainda
-  por fazer — a telemetria já suporta a experiência.
+- **Comparação de abordagens de leitura** (VLM vs OCR+LLM): há (a) um painel
+  descritivo por método no `/admin` (com a ressalva de que método≈tipo de input)
+  e (b) um *harness* par-a-par (`scripts/compara_extracao.mjs`) que corre os dois
+  sobre o mesmo PDF. Resultado em 16 PDFs: OCR+LLM (texto) ≥ VLM (16/16 vs 15/16
+  a reconciliar; |disc| 0,000 vs 0,054). Recomendação: manter OCR+LLM p/ PDF e
+  VLM p/ imagem. Falta validar com veredictos de operador (reconciliar ≠ correto).
 - **Transcrição de voz**: fixar STT-separado vs áudio-direto após experimentação.
 - **OAuth** a finalizar (substituir o portão temporário).
 - **i18n do backend** a tornar *locale-driven* quando houver 2.º idioma.

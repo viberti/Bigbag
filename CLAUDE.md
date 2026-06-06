@@ -54,7 +54,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 
 ## Decisões ainda em aberto (não inventar — usar a opção segura e assinalar)
 1. **Transcrição de voz:** STT separado vs. áudio-direto ao LLM. **v1 em uso:** áudio-direto via chat (`input_audio` base64), de forma trocável em `transcricao.js`. Falta experimentar STT-separado antes de fixar.
-2. **Leitura de fatura:** VLM direto vs. OCR+LLM. **Ambos em uso, por tipo de ficheiro:** VLM p/ imagem, OCR-texto+LLM p/ PDF; `fatura.metodo_extracao` regista qual gerou cada registo. Falta a comparação head-to-head no mesmo input.
+2. **Leitura de fatura:** VLM direto vs. OCR+LLM. **Ambos em uso, por tipo de ficheiro:** VLM p/ imagem, OCR-texto+LLM p/ PDF; `fatura.metodo_extracao` regista qual gerou cada registo. **Head-to-head feito (2026-06-06)** — `backend/scripts/compara_extracao.mjs` corre os dois sobre o mesmo PDF: em 16 PDFs Continente, **OCR+LLM (texto) ≥ VLM**: reconciliam 16/16 vs 15/16, |disc| média 0,000 vs 0,054 (o VLM divide mal itens multilinha, ex. #211/#87). **Recomendação: manter OCR+LLM para PDF, VLM para imagem** (fotos não têm texto a extrair — fora deste teste). Falta a confirmação por veredicto de operador (reconciliar ≠ ler certo) para fechar formalmente.
 3. ~~**Autenticação**~~ **FECHADA (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL`. As rotas exigem sessão (portão temporário até o OAuth ficar ativo).
 
 ## Internacionalização (i18n) — base PT-BR, código localizável
