@@ -203,6 +203,13 @@ Resolve duas convenções de talão, auto-detectadas pelo TOTAL A PAGAR:
   "Poupança" é informativa. `total ≈ Σ valor − desconto_global`.
 - **Convenção B** (ex.: Lidl): o `valor` é bruto e o desconto da linha é real e
   subtraído. `total ≈ Σ(valor − desconto_linha) − desconto_global`.
+- **IVA de grossista / cash-and-carry** (ex.: Makro): os preços das linhas são
+  **SEM IVA**; o "Total s/IVA" = Σ linhas, e o IVA é **somado** até ao "Valor
+  Total". Capta-se o IVA somado no campo `iva` (0 nos talões normais, onde o
+  preço já inclui IVA) e a reconciliação passa a `Σbase − desconto_global + iva =
+  total`. *Descoberto ao VER a imagem do #140* — a discrepância de −7,77 era o
+  IVA, não uma quantidade (e a `pistaCirurgica` chegou a casar a coincidência de
+  o IVA ser igual ao valor de uma linha: lição de que value-matching engana).
 
 Decisões-chave:
 
@@ -398,6 +405,14 @@ Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
 - **Transcrição de voz**: fixar STT-separado vs áudio-direto após experimentação.
 - **OAuth** a finalizar (substituir o portão temporário).
 - **i18n do backend** a tornar *locale-driven* quando houver 2.º idioma.
+- **Preço com vs sem IVA**: a reconciliação de grossista (Makro) já está certa,
+  mas o `preco_liquido` desses itens fica **sem IVA**, enquanto os supermercados
+  são **com IVA** — comparar os dois é enganador. Falta normalizar o IVA por item
+  (o talão dá o IVA por escalão, não por linha) para a comparação cruzada ser justa.
+- **Cascata de custo** (forward, alto valor): a extração de imagem (VLM) é ~87% do
+  gasto. Tentar primeiro um modelo leve (flash-lite) e **escalar ao VLM só quando
+  a `discrepancia` não bate** — corta ~75% do maior custo. Mede-se com um harness
+  flash vs flash-lite antes de fixar.
 
 ## 16. Maturidade por área — onde estão (e não estão) os problemas reais
 
@@ -416,11 +431,15 @@ Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
   falha na amostra atual.
 
 ### O gargalo REAL (onde investir)
-- **Leitura semântica de descontos, quantidades e multipacks.** ~100% das falhas
-  de reconciliação medidas vêm daqui — não de imagem, não de canonicalização.
-  Ex.: Makro a granel (quantidade a menos), multipack "N×preço", poupança vs
-  desconto de cartão. Já endurecido (regra de multipack, `desconto_global` só
-  "Desconto Cartão", pista cirúrgica) — mas é o que continua a render.
+- **Leitura semântica do TALÃO** (descontos, quantidades, multipacks, IVA de
+  grossista, formatos por cadeia). ~100% das falhas de reconciliação medidas vêm
+  daqui — não de imagem, não de canonicalização. Já endurecido: multipack
+  "N×preço", `desconto_global` só "Desconto Cartão", coluna "Quant" dos
+  grossistas, **IVA de cash-and-carry** e a pista cirúrgica.
+- **Lição metodológica:** o #140 do Makro parecia "quantidade", mas **ver a
+  imagem** revelou que era **IVA** (a `pistaCirurgica` casou a coincidência de o
+  IVA ser igual ao valor de uma linha). Antes de assumir a causa de uma falha,
+  **olhar o talão** — value-matching e palpites enganam.
 
 ### Levers de ESCALA / custo (forward-looking, no backlog — não agora)
 - **Custo:** a extração de imagem (VLM) é **~87% do gasto** ($0,0032/chamada).
