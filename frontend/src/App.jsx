@@ -943,9 +943,17 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
         small.height = Math.round(v.videoHeight * esc);
         sctx.drawImage(v, 0, 0, small.width, small.height);
         const tdet = performance.now();
-        const c = await detectarPapel(small);
+        // race com timeout: se a deteção pendurar, não bloqueia o loop (ocupado liberta no finally)
+        const c = await Promise.race([
+          detectarPapel(small),
+          new Promise((r) => setTimeout(() => r('TIMEOUT'), 1800)),
+        ]);
         const ms = Math.round(performance.now() - tdet);
         if (parar) return;
+        if (c === 'TIMEOUT') {
+          setDbg(`timeout ${ms}ms cv:${window.cv?.Mat ? 'Y' : 'N'}`);
+          return;
+        }
         let novo = 'searching';
         let diag = `cv:${window.cv?.Mat ? 'Y' : 'N'} det:${c ? 'Y' : 'N'} ${ms}ms`;
         if (c) {

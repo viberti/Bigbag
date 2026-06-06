@@ -192,18 +192,15 @@ export async function detectarPapel(fonte) {
     const { default: Jscanify } = await import('./vendor/jscanify.js');
     const scanner = new Jscanify();
     const cv = window.cv;
-    const mat = cv.imread(fonte);
-    const gray = new cv.Mat();
+    const mat = cv.imread(fonte); // RGBA direto, como o digitalizar (que funciona)
     try {
-      cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY); // Canny precisa de 1 canal
-      const contour = scanner.findPaperContour(gray);
+      const contour = scanner.findPaperContour(mat);
       if (!contour) return null;
       const c = scanner.getCornerPoints(contour);
       if (c?.topLeftCorner && c?.topRightCorner && c?.bottomLeftCorner && c?.bottomRightCorner) return c;
       return null;
     } finally {
       mat.delete();
-      gray.delete();
     }
   } catch {
     return null;
