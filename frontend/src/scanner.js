@@ -65,6 +65,22 @@ const desde = (t0) => Math.round(performance.now() - t0);
 const paraBlob = (canvas) => new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
 const paraFicheiro = (blob) => new File([blob], 'fatura.jpg', { type: 'image/jpeg' });
 
+// Fotos nativas chegam a 12+ MP (~50MB de Mat no OpenCV) — pesado e arriscado
+// em memória no telemóvel. Reduz a fonte para no máximo MAX_LADO px no lado
+// maior antes de processar. 2800px continua mais nítido que o scan ao vivo
+// (~2528px) e é seguro. Devolve a própria imagem se já for pequena.
+const MAX_LADO = 2800;
+function reduzirFonte(img) {
+  const maior = Math.max(img.width, img.height);
+  if (maior <= MAX_LADO) return img;
+  const escala = MAX_LADO / maior;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.width * escala);
+  canvas.height = Math.round(img.height * escala);
+  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
 // Recorta a imagem original pela bounding box (com uma pequena margem) e
 // devolve um canvas. Usado quando não há 4 cantos bons para o warp.
 function recortarBBox(img, r, pad = 8) {
@@ -103,15 +119,16 @@ export async function digitalizar(file, onInfo) {
     const { default: Jscanify } = await import('./vendor/jscanify.js');
     const scanner = new Jscanify();
     const img = await ficheiroParaImagem(file);
+    const fonte = reduzirFonte(img); // <= MAX_LADO px, seguro em memória
     const cv = window.cv;
-    mat = cv.imread(img);
+    mat = cv.imread(fonte);
     const contour = scanner.findPaperContour(mat);
     if (!contour) {
       info({ dewarped: false, motivo: 'sem contorno', ms: desde(t0) });
       return file;
     }
 
-    const areaImg = img.width * img.height;
+    const areaImg = fonte.width * fonte.height;
     const r = cv.boundingRect(contour); // sempre disponível, para o recorte
     const bboxPct = areaImg ? Math.round((100 * (r.width * r.height)) / areaImg) : null;
 
@@ -128,9 +145,9 @@ export async function digitalizar(file, onInfo) {
       );
       if (w > 60 && h > 60) {
         const cobertura = areaImg ? Math.round((100 * (w * h)) / areaImg) : null;
-        const canvas = scanner.extractPaper(img, w, h, c);
+        const canvas = scanner.extractPaper(fonte, w, h, c);
         const blob = await paraBlob(canvas);
-        info({ dewarped: true, w, h, cobertura, original: `${img.width}×${img.height}`, ms: desde(t0) });
+        info({ dewarped: true, w, h, cobertura, original: `${fonte.width}×${fonte.height}`, ms: desde(t0) });
         return blob ? paraFicheiro(blob) : file;
       }
     }
@@ -138,7 +155,7 @@ export async function digitalizar(file, onInfo) {
     // 2) Sem cantos bons → recortar pela bounding box, se valer a pena
     //    (contorno plausível e que não seja já quase a imagem toda).
     if (r.width > 60 && r.height > 60 && bboxPct != null && bboxPct < 92) {
-      const canvas = recortarBBox(img, r);
+      const canvas = recortarBBox(fonte, r);
       const blob = await paraBlob(canvas);
       info({ dewarped: false, recortado: true, cobertura: bboxPct, ms: desde(t0) });
       return blob ? paraFicheiro(blob) : file;

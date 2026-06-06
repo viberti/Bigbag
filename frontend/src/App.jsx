@@ -138,7 +138,8 @@ function Chat({ onSair, nome }) {
   const [habituaisOffline, setHabituaisOffline] = useState(false);
   const fimRef = useRef(null);
   const fileRef = useRef(null);
-  const fotoRef = useRef(null);
+  const fotoRef = useRef(null); // foto crua (escape: "Foto normal")
+  const fotoScanRef = useRef(null); // foto nativa + jscanify (botão 📷)
   const galeriaRef = useRef(null);
   const mrRef = useRef(null);
   const chunksRef = useRef([]);
@@ -377,7 +378,7 @@ function Chat({ onSair, nome }) {
           perguntar();
         }}
       >
-        <button type="button" className="round" onClick={() => fotoRef.current?.click()} disabled={ocupado} aria-label="foto da nota">
+        <button type="button" className="round" onClick={() => fotoScanRef.current?.click()} disabled={ocupado} aria-label="foto da nota">
           <Ico name="camera" size={21} />
         </button>
         <button type="button" className="round" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="mais opções">
@@ -396,6 +397,18 @@ function Chat({ onSair, nome }) {
           }}
         />
         <input
+          ref={fotoScanRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            fatura(f, { dewarp: true, origem: 'foto' }); // câmara nativa (alta res) + jscanify
+          }}
+        />
+        <input
           ref={fotoRef}
           type="file"
           accept="image/*"
@@ -404,7 +417,7 @@ function Chat({ onSair, nome }) {
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
-            fatura(f, { dewarp: false, origem: 'foto' });
+            fatura(f, { dewarp: false, origem: 'foto' }); // foto crua, sem processar
           }}
         />
         <input
