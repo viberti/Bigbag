@@ -23,7 +23,8 @@ Esquema exato:
     {
       "descricao_original": string, // verbatim, como impresso (ex. "BOL DIGESTIVE AVEIA CNT 425GR")
       "quantidade": number,         // unidades faturadas nesta linha: "24 OVOS"→24, "6 IOGURTES"→6; 1 se não indicado. Item a peso → 1 (o peso vem do formato).
-      "valor": number,              // preço impresso nessa linha
+      "preco_unitario": number|null,// preço POR UNIDADE quando a linha o mostra explicitamente: "2 X 0,59"→0,59; coluna "Preço U.V." do grossista. null se não houver multiplicador (compra de 1). NUNCA pôr aqui o total da linha.
+      "valor": number,              // TOTAL impresso nessa linha (a coluna à direita). Em "2 X 0,59 … 1,18" o valor é 1,18, NÃO 0,59.
       "iva": string|null,           // letra do escalão IVA se visível (A/B/C), senão null
       "desconto_direto": number,    // "Poupança" impressa SOB este item; 0 se não houver
       "is_clearance": boolean,      // true se a linha "Aprox. fim prazo validade" estiver associada a este item

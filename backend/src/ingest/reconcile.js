@@ -63,6 +63,29 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso, i
   };
 }
 
+// Validação POR LINHA — 2.ª camada de qualidade, INDEPENDENTE do total da nota.
+// Quando a linha mostra um multiplicador explícito (preco_unitario != null e
+// quantidade ≥ 2), confirma que quantidade × preco_unitario ≈ valor (total da
+// linha). Apanha o erro clássico do multipack — o "valor" lido como o preço
+// unitário (ex.: "2 X 0,59" gravado como 0,59 em vez de 1,18) — mesmo quando a
+// nota inteira por acaso fecha. Só dispara com multiplicador explícito (evita
+// falsos positivos em linhas de 1 unidade ou a peso). Devolve as linhas fora.
+export function validarLinhas(itens = []) {
+  const fora = [];
+  for (const it of itens) {
+    const q = Number(it.quantidade) || 1;
+    const u = it.preco_unitario == null ? null : Number(it.preco_unitario);
+    const v = Math.abs(Number(it.valor) || 0);
+    if (q >= 2 && u != null && u > 0) {
+      const esperado = Math.round(q * u * 100) / 100;
+      if (Math.abs(esperado - v) > 0.02) {
+        fora.push({ descricao: String(it.descricao_original || '').slice(0, 40), quantidade: q, preco_unitario: u, valor: v, esperado });
+      }
+    }
+  }
+  return fora;
+}
+
 // Pista CIRÚRGICA para o loop de auto-correção: dado o resultado da reconciliação
 // que não bateu, tenta apontar a LINHA que explica a diferença, em vez de mandar
 // o modelo procurar às cegas. Determinístico, barato. Estratégia SEGURA — só por

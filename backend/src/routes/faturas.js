@@ -12,7 +12,7 @@ import { getPool } from '../db.js';
 import { extrairFatura, extrairFaturaDeTexto } from '../ingest/extract.js';
 import { extrairTextoPdf } from '../ingest/pdf.js';
 import { preProcessarImagem } from '../ingest/imagem.js';
-import { distribuirDesconto, pistaCirurgica } from '../ingest/reconcile.js';
+import { distribuirDesconto, pistaCirurgica, validarLinhas } from '../ingest/reconcile.js';
 import { persistirFatura } from '../ingest/persist.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
 import { normalizarItensFatura, mergeNomesIdenticos } from '../normaliza/matcher.js';
@@ -49,24 +49,38 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
         iva: Number(d.iva) || 0,
       });
 
+    // Pista para uma linha inconsistente (qtd×unitário ≠ total) — 2.ª camada.
+    const hintLinhas = (linhas) => {
+      if (!linhas?.length) return '';
+      const l = linhas[0];
+      return ` ATENÇÃO À LINHA "${l.descricao}": quantidade ${l.quantidade} × unitário ${l.preco_unitario} = ${l.esperado}, mas o "valor" lido foi ${l.valor}. O "valor" é o TOTAL da linha — corrige para ${l.esperado} (ou relê a quantidade/unitário).`;
+    };
+    // "Badness" combinada: discrepância do total + nº de linhas inconsistentes.
+    const problemas = (r, linhas) => Math.abs(r.discrepancia) + (linhas?.length || 0);
+
     let dados = await reextrair();
     let rec = reconciliar(dados);
+    let linhasInc = validarLinhas(dados.itens);
 
-    // 1b) AUTO-CORREÇÃO — loop LIMITADO: realimenta a discrepância e fica com o
-    // melhor. Para ao reconciliar, ao não melhorar, ou ao atingir o limite.
-    for (let i = 0; i < config.openrouter.maxCorrecoes && !rec.extracaoBate && dados.total_impresso != null; i++) {
-      const hint = `A soma dos itens deu ${rec.subtotal} mas o total impresso é ${dados.total_impresso} (diferença ${rec.discrepancia}). Reverifica com atenção: itens a peso (usa o PREÇO IMPRESSO na linha, não kg×€/kg), descontos/promoções, e itens em falta ou a mais.${pistaCirurgica(rec.itens, rec.discrepancia)} Devolve o JSON corrigido.`;
+    // 1b) AUTO-CORREÇÃO — loop LIMITADO: realimenta a discrepância do total E as
+    // inconsistências por linha (qtd×unitário≠total). Fica com o melhor; para ao
+    // ficar limpo, ao não melhorar, ou ao atingir o limite.
+    for (let i = 0; i < config.openrouter.maxCorrecoes && (!rec.extracaoBate || linhasInc.length) && dados.total_impresso != null; i++) {
+      const hint = `A soma dos itens deu ${rec.subtotal} mas o total impresso é ${dados.total_impresso} (diferença ${rec.discrepancia}). Reverifica com atenção: itens a peso (usa o PREÇO IMPRESSO na linha, não kg×€/kg), descontos/promoções, e itens em falta ou a mais.${pistaCirurgica(rec.itens, rec.discrepancia)}${hintLinhas(linhasInc)} Devolve o JSON corrigido.`;
       let dados2;
       let rec2;
+      let linhasInc2;
       try {
         dados2 = await reextrair(hint);
         rec2 = reconciliar(dados2);
+        linhasInc2 = validarLinhas(dados2.itens);
       } catch {
         break; // erro na re-extração → mantém o melhor até agora
       }
-      if (Math.abs(rec2.discrepancia) < Math.abs(rec.discrepancia)) {
+      if (problemas(rec2, linhasInc2) < problemas(rec, linhasInc)) {
         dados = dados2;
         rec = rec2;
+        linhasInc = linhasInc2;
       } else {
         break; // não melhorou → não insistir (evita gastar sem ganho)
       }
@@ -110,7 +124,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       modelo: ehPdf ? config.openrouter.model : config.openrouter.modelExtracao,
       totalReconciliado: rec.totalReconciliado,
       discrepancia: rec.discrepancia,
-      needsReview: !rec.extracaoBate,
+      needsReview: !rec.extracaoBate || linhasInc.length > 0,
       extracaoJson,
     });
     if (resultado.duplicada) {
@@ -179,7 +193,8 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       total_reconciliado: Math.round(rec.totalReconciliado * 100) / 100,
       desconto_global: Number(dados.desconto_global) || 0,
       extracao_bate: rec.extracaoBate,
-      needs_review: !rec.extracaoBate,
+      needs_review: !rec.extracaoBate || linhasInc.length > 0,
+      linhas_inconsistentes: linhasInc,
       discrepancia: rec.discrepancia,
       convencao: rec.convencao,
       n_itens,

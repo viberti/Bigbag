@@ -2,7 +2,7 @@
 // (22/05/2026): subtotal 43,06, Desconto Cartão 4,96, TOTAL A PAGAR 38,10.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { distribuirDesconto, pistaCirurgica } from '../src/ingest/reconcile.js';
+import { distribuirDesconto, pistaCirurgica, validarLinhas } from '../src/ingest/reconcile.js';
 
 const valores = [
   0.99, 1.38, 1.39, 1.99, 3.99, 1.89, 1.69, 1.99, 1.51, 0.99, 2.98, 4.69, 1.79, 0.99, 1.19, 1.34, 1.29, 1.99, 8.99,
@@ -92,6 +92,26 @@ test('sem iva (talão normal): fórmula inalterada', () => {
   const r = distribuirDesconto([{ valor: 2.5 }, { valor: 1.5 }], { descontoGlobal: 0, totalImpresso: 4.0 });
   assert.equal(r.extracaoBate, true);
   assert.equal(r.discrepancia, 0);
+});
+
+test('validarLinhas: multipack correto (2×0,59=1,18) → sem flag', () => {
+  assert.equal(validarLinhas([{ quantidade: 2, preco_unitario: 0.59, valor: 1.18, descricao_original: 'X' }]).length, 0);
+});
+
+test('validarLinhas: multipack mal lido (valor=unitário) → flag com o esperado', () => {
+  const fora = validarLinhas([{ quantidade: 2, preco_unitario: 0.59, valor: 0.59, descricao_original: 'SAB.JASMIM' }]);
+  assert.equal(fora.length, 1);
+  assert.equal(fora[0].esperado, 1.18);
+  assert.match(fora[0].descricao, /SAB\.JASMIM/);
+});
+
+test('validarLinhas: grossista (3×2,59=7,77) correto → sem flag', () => {
+  assert.equal(validarLinhas([{ quantidade: 3, preco_unitario: 2.59, valor: 7.77, descricao_original: 'PASSATA' }]).length, 0);
+});
+
+test('validarLinhas: qtd 1 ou sem unitário → não verifica (sem falsos positivos)', () => {
+  assert.equal(validarLinhas([{ quantidade: 1, preco_unitario: 2.5, valor: 2.5 }]).length, 0);
+  assert.equal(validarLinhas([{ quantidade: 2, preco_unitario: null, valor: 5 }]).length, 0);
 });
 
 test('pistaCirurgica: bate → sem pista', () => {
