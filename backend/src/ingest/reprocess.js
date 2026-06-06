@@ -13,6 +13,7 @@ import { config } from '../config.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
 import { normalizarItensFatura } from '../normaliza/matcher.js';
 import { recomputarPpbFatura } from '../normaliza/ppb.js';
+import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
 
@@ -132,6 +133,8 @@ export async function reprocessarFatura(pool, faturaId) {
   // respeitando o unidade_base do SKU. Best-effort.
   await normalizarItensFatura(pool, faturaId, { cadeia: f.cadeia }).catch(() => {});
   await recomputarPpbFatura(pool, faturaId).catch(() => {});
+  // Auto-correção de outliers (pack não capturado) — mesma passada da ingestão.
+  await autoCorrigirOutliers(pool, { aplicar: true }).catch(() => {});
 
   return { fatura_id: faturaId, n_itens: itens.length, needs_review: needsReview, discrepancia: rec.discrepancia };
 }

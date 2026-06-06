@@ -17,6 +17,7 @@ import { persistirFatura } from '../ingest/persist.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
 import { normalizarItensFatura, mergeNomesIdenticos } from '../normaliza/matcher.js';
 import { recomputarPpbFatura } from '../normaliza/ppb.js';
+import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 import { guardarMensagem } from '../historico.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
@@ -152,6 +153,13 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     // SKU (agora resolvido) — garante que todos os itens do mesmo produto
     // comparam na mesma base (café sempre €/kg, ovos €/ovo). Best-effort.
     await recomputarPpbFatura(getPool(), fatura_id).catch((e) => console.error('[faturas] recomputar ppb:', e.message));
+
+    // 4d) Auto-correção de outliers: se algum item desta nota ficou com ppb muito
+    // fora da mediana do seu SKU (ex.: pack de 6/12 não capturado), tenta corrigir
+    // (÷pack) e marca como inferido. Best-effort; só age quando está MUITO longe.
+    await autoCorrigirOutliers(getPool(), { aplicar: true }).catch((e) =>
+      console.error('[faturas] auto-correção ppb:', e.message),
+    );
 
     // Funde automaticamente SKUs com nome idêntico criados por esta nota (evita
     // que duplicados de nome se acumulem). Só os nomes desta fatura. Best-effort.
