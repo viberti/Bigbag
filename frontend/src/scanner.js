@@ -186,6 +186,14 @@ export async function digitalizar(file, onInfo) {
 // vivo do contorno sobre o feed da câmara (chamado a poucos fps). Converte para
 // cinzento antes do Canny (o findPaperContour corre Canny direto na imagem) — é
 // o que torna a deteção fiável, sobretudo em frames pequenos. Nunca lança.
+// Ordena 4 pontos em {topLeft, topRight, bottomRight, bottomLeft} pelo método
+// soma/diferença (robusto à ordem que o approxPolyDP devolve).
+function ordenarCantos(p) {
+  const soma = [...p].sort((a, b) => a.x + a.y - (b.x + b.y));
+  const dif = [...p].sort((a, b) => a.y - a.x - (b.y - b.x));
+  return { topLeftCorner: soma[0], bottomRightCorner: soma[3], topRightCorner: dif[0], bottomLeftCorner: dif[3] };
+}
+
 export let detStage = '-'; // marcador de etapa (diagnóstico)
 // Deteta o talão num frame. Em vez do Canny-maior-contorno do jscanify (que
 // agarra a moldura/textura do fundo), isola a região CLARA (o papel) por
@@ -229,10 +237,24 @@ export async function detectarPapel(fonte) {
       detStage = 'rej';
       return null;
     }
-    const c = scanner.getCornerPoints(best);
-    detStage = 'done';
-    if (c?.topLeftCorner && c?.topRightCorner && c?.bottomLeftCorner && c?.bottomRightCorner) return c;
-    return null;
+    // EXIGE um quadrilátero limpo (4 vértices, convexo) — distingue um talão
+    // retangular de um borrão de reflexos. Sem isso, não há "lock" (não engana).
+    detStage = 'approx';
+    const approx = new cv.Mat();
+    try {
+      const peri = cv.arcLength(best, true);
+      cv.approxPolyDP(best, approx, 0.03 * peri, true);
+      if (approx.rows !== 4 || !cv.isContourConvex(approx)) {
+        detStage = 'naoQuad(' + approx.rows + ')';
+        return null;
+      }
+      const p = [];
+      for (let i = 0; i < 4; i++) p.push({ x: approx.data32S[i * 2], y: approx.data32S[i * 2 + 1] });
+      detStage = 'done';
+      return ordenarCantos(p);
+    } finally {
+      approx.delete();
+    }
   } catch (e) {
     detStage = 'err:' + String(e?.message || e).slice(0, 24);
     return null;
