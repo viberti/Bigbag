@@ -6,6 +6,7 @@ import { chatCompletionFull } from './openrouter.js';
 import { toolDefs, executarTool } from './tools.js';
 import { getPool } from './db.js';
 import { guardarFato } from './perfil.js';
+import { config } from './config.js';
 
 function systemPrompt(hoje, perfil = []) {
   return `Você é o assistente do Bigbag, um histórico pessoal de preços de compras de supermercado.
@@ -51,7 +52,7 @@ export async function responderPergunta(
   const chamadas = [];
 
   for (let ronda = 0; ronda < maxRondas; ronda++) {
-    const msg = await chat({ messages, tools: toolDefs });
+    const msg = await chat({ messages, tools: toolDefs, model: config.openrouter.modelConsulta });
     messages.push(msg);
 
     const toolCalls = msg.tool_calls || [];

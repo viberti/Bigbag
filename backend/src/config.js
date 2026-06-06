@@ -16,8 +16,12 @@ export const config = {
   },
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY || '',
-    // Modelo geral (consulta, canonicalização, extração de PDF-texto): barato.
+    // Modelo geral (canonicalização, extração de PDF-texto): barato.
     model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite',
+    // Consulta (tool-use): o flash-lite é inconsistente a chamar ferramentas
+    // (ora chama, ora devolve vazio); o flash (full) é muito mais fiável e a
+    // consulta é uma fração mínima do custo (a extração é ~87%).
+    modelConsulta: process.env.OPENROUTER_MODEL_CONSULTA || 'google/gemini-2.5-flash',
     // Extração de fatura por IMAGEM (VLM): modelo mais forte (precisão em
     // térmicas amassadas vale mais que a economia).
     modelExtracao: process.env.OPENROUTER_MODEL_EXTRACAO || 'google/gemini-2.5-flash',
