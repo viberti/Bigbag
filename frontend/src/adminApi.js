@@ -27,6 +27,7 @@ export const fundirSkus = (de, para) => jsend('/api/admin/skus/merge', 'POST', {
 export const sugestoesMerge = (limiar) => jget(`/api/admin/sugestoes-merge?limiar=${limiar}`);
 export const autoMergeIdenticos = () => jsend('/api/admin/skus/auto-merge', 'POST', {});
 export const qualidade = () => jget('/api/admin/qualidade');
+export const qualidadePreco = (fator) => jget(`/api/admin/qualidade-preco${fator ? '?fator=' + fator : ''}`);
 
 // Notas
 export const listarNotas = (status) => jget(`/api/admin/faturas?status=${status || 'all'}&limit=300`);

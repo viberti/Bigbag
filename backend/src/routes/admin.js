@@ -333,6 +333,71 @@ adminRouter.get('/qualidade', async (req, res) => {
   }
 });
 
+// Qualidade de PREÇO: para cada SKU com ≥2 observações, marca os itens cujo
+// preco_por_base se afasta muito da mediana (>fator× ou <1/fator×). Apanha
+// inconsistências de unidade/quantidade/formato — ovos per-caixa vs per-ovo,
+// café per-pacote vs per-kg, leituras garbled — que distorcem a comparação.
+// 2.ª camada de validação ao NÍVEL DO PRODUTO (a validarLinhas é dentro da nota).
+adminRouter.get('/qualidade-preco', async (req, res) => {
+  try {
+    const fator = Math.min(Math.max(Number(req.query.fator) || 3, 1.5), 20);
+    const [rows] = await getPool().query(
+      `SELECT s.id sku_id, s.nome_canonico, s.unidade_base, i.id item_id, i.descricao_original,
+              i.quantidade, i.preco_liquido, i.preco_por_base, i.fatura_id, l.cadeia,
+              DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data
+         FROM item i
+         JOIN sku_normalizado s ON s.id = i.sku_id
+         JOIN fatura f ON f.id = i.fatura_id
+         JOIN loja l ON l.id = f.loja_id
+        WHERE i.preco_por_base > 0 AND i.is_non_product = 0 AND i.is_clearance = 0`,
+    );
+    const porSku = new Map();
+    for (const r of rows) {
+      if (!porSku.has(r.sku_id)) porSku.set(r.sku_id, []);
+      porSku.get(r.sku_id).push(r);
+    }
+    const mediana = (arr) => {
+      const v = arr.map((x) => Number(x.preco_por_base)).sort((a, b) => a - b);
+      const m = v.length >> 1;
+      return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+    };
+    const grupos = [];
+    for (const itens of porSku.values()) {
+      if (itens.length < 2) continue;
+      const med = mediana(itens);
+      if (!(med > 0)) continue;
+      const outliers = itens
+        .filter((x) => Number(x.preco_por_base) > med * fator || Number(x.preco_por_base) < med / fator)
+        .map((o) => ({
+          item_id: o.item_id,
+          fatura_id: o.fatura_id,
+          descricao: o.descricao_original,
+          quantidade: o.quantidade,
+          preco_liquido: o.preco_liquido,
+          preco_por_base: o.preco_por_base,
+          cadeia: o.cadeia,
+          data: o.data,
+          desvio: Math.round((Number(o.preco_por_base) / med) * 10) / 10,
+        }))
+        .sort((a, b) => b.desvio - a.desvio);
+      if (outliers.length)
+        grupos.push({
+          sku_id: itens[0].sku_id,
+          nome: itens[0].nome_canonico,
+          unidade_base: itens[0].unidade_base,
+          mediana: Math.round(med * 10000) / 10000,
+          n: itens.length,
+          outliers,
+        });
+    }
+    grupos.sort((a, b) => (b.outliers[0]?.desvio || 0) - (a.outliers[0]?.desvio || 0));
+    res.json({ fator, grupos });
+  } catch (e) {
+    console.error('[admin/qualidade-preco] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a calcular qualidade de preço' });
+  }
+});
+
 // Editar a quantidade/peso de um item (na base do SKU: un/kg/L) e recalcular o
 // preco_por_base = preco_liquido / quantidade. É o que mantém a comparação de
 // preços correta quando a extração leu mal o peso.

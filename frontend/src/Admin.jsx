@@ -33,6 +33,9 @@ export default function Admin() {
           <button className={aba === 'qualidade' ? 'on' : ''} onClick={() => setAba('qualidade')}>
             Qualidade
           </button>
+          <button className={aba === 'precos' ? 'on' : ''} onClick={() => setAba('precos')}>
+            Preços
+          </button>
         </nav>
         <a className="adm-link" href="/">
           ← app
@@ -44,6 +47,8 @@ export default function Admin() {
         <TabFusoes />
       ) : aba === 'qualidade' ? (
         <TabQualidade />
+      ) : aba === 'precos' ? (
+        <TabPrecos />
       ) : (
         <TabNotas />
       )}
@@ -454,6 +459,92 @@ function TabQualidade() {
       </p>
       <TabelaQualidade titulo="Cadeia" linhas={dados.cadeias} />
       <TabelaQualidade titulo="Origem" linhas={dados.origens} />
+    </div>
+  );
+}
+
+// ───────────────────────────── Qualidade de preço ─────────────────────────────
+function TabPrecos() {
+  const [dados, setDados] = useState(null);
+  const [reproc, setReproc] = useState(null);
+  const carregar = () => adm.qualidadePreco().then(setDados).catch(() => setDados({ grupos: [] }));
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  async function reprocessar(faturaId) {
+    if (reproc) return;
+    if (!window.confirm('Reprocessar a nota deste item (re-lê do ficheiro e substitui os itens)?')) return;
+    setReproc(faturaId);
+    try {
+      await adm.reprocessarNota(faturaId);
+      await carregar();
+    } catch {
+      /* fica como está */
+    } finally {
+      setReproc(null);
+    }
+  }
+
+  if (!dados) return <p className="adm-vazio">a calcular…</p>;
+  return (
+    <div className="adm-qualidade">
+      <p className="adm-aviso">
+        Itens cujo preço por unidade-base se afasta muito da mediana do produto — provável erro de
+        unidade/quantidade/formato (ex.: ovos per-caixa vs per-ovo, café per-pacote vs per-kg, leitura garbled).
+        Corrige a quantidade na aba Notas, ou reprocessa a nota aqui (🔄).
+      </p>
+      {dados.grupos.length === 0 ? (
+        <p className="adm-vazio2">Sem outliers de preço. 🎉</p>
+      ) : (
+        dados.grupos.map((g) => (
+          <div className="adm-qtab" key={g.sku_id}>
+            <h3>
+              {g.nome}{' '}
+              <em>
+                · mediana {eur(g.mediana)}/{g.unidade_base} · {g.n} compras
+              </em>
+            </h3>
+            <table className="adm-tabela">
+              <thead>
+                <tr>
+                  <th>Item lido</th>
+                  <th>Loja · data</th>
+                  <th>preço/base</th>
+                  <th>desvio</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {g.outliers.map((o) => (
+                  <tr key={o.item_id}>
+                    <td>
+                      {o.descricao} <em>(q={o.quantidade}, pago {eur(o.preco_liquido)})</em>
+                    </td>
+                    <td>
+                      {o.cadeia} · {o.data}
+                    </td>
+                    <td className="q-mau">
+                      {eur(o.preco_por_base)}/{g.unidade_base}
+                    </td>
+                    <td>{o.desvio}×</td>
+                    <td>
+                      <button
+                        className="adm-reproc"
+                        disabled={reproc === o.fatura_id}
+                        onClick={() => reprocessar(o.fatura_id)}
+                        title="reprocessar a nota deste item"
+                      >
+                        {reproc === o.fatura_id ? '…' : '🔄'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))
+      )}
     </div>
   );
 }
