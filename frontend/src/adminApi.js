@@ -38,6 +38,7 @@ export const revisarNota = (id, veredicto, comentario) =>
   jsend(`/api/admin/faturas/${id}/revisao`, 'POST', { veredicto, comentario });
 export const atualizarItem = (id, quantidade) => jsend(`/api/admin/itens/${id}`, 'PATCH', { quantidade });
 export const reprocessarNota = (id) => jsend(`/api/admin/faturas/${id}/reprocessar`, 'POST', {});
+export const apagarNota = (id) => jsend(`/api/admin/faturas/${id}`, 'DELETE');
 
 // Imagem (precisa de auth → object URL). Lembrar de revokeObjectURL.
 export async function carregarImagem(id) {

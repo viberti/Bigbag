@@ -5,6 +5,7 @@
 //  3) Fundir SKUs (ex.: "Burrata" + "Burrata de Búfala").
 // Operações de escrita usam transação onde tocam em várias tabelas.
 import { Router } from 'express';
+import { unlink } from 'node:fs/promises';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { similaridade } from '../normaliza/similaridade.js';
@@ -475,6 +476,43 @@ adminRouter.post('/faturas/:id/reprocessar', async (req, res) => {
     console.error('[admin/reprocessar] erro:', e.message);
     res.status(500).json({ erro: 'Falha ao reprocessar', detalhe: e.message });
   }
+});
+
+// Apagar uma nota (itens + revisões + ficheiro + SKUs órfãos). Para notas com
+// captura má — apaga e o utilizador re-digitaliza. Irreversível.
+adminRouter.delete('/faturas/:id', async (req, res) => {
+  const pool = getPool();
+  const conn = await pool.getConnection();
+  let ficheiro = null;
+  try {
+    const id = Number(req.params.id);
+    await conn.beginTransaction();
+    const [[f]] = await conn.query('SELECT ficheiro_original FROM fatura WHERE id = ?', [id]);
+    if (!f) {
+      await conn.rollback();
+      return res.status(404).json({ erro: 'Nota não encontrada' });
+    }
+    ficheiro = f.ficheiro_original;
+    await conn.query('DELETE FROM revisao WHERE fatura_id = ?', [id]);
+    await conn.query('DELETE FROM item WHERE fatura_id = ?', [id]);
+    await conn.query('DELETE FROM fatura WHERE id = ?', [id]);
+    // SKUs que ficaram sem nenhum item → remover (+ os seus aliases)
+    const [orf] = await conn.query('SELECT s.id FROM sku_normalizado s LEFT JOIN item i ON i.sku_id = s.id WHERE i.id IS NULL');
+    const ids = orf.map((o) => o.id);
+    if (ids.length) {
+      await conn.query('DELETE FROM sku_alias WHERE sku_id IN (?)', [ids]);
+      await conn.query('DELETE FROM sku_normalizado WHERE id IN (?)', [ids]);
+    }
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    console.error('[admin/faturas DELETE] erro:', e.message);
+    return res.status(500).json({ erro: 'Falha a apagar a nota' });
+  } finally {
+    conn.release();
+  }
+  if (ficheiro) await unlink(ficheiro).catch(() => {}); // ficheiro fora da transação
+  res.json({ ok: true });
 });
 
 // Guardar o veredicto do operador sobre a leitura.

@@ -687,6 +687,23 @@ function TabNotas() {
     }
   }
 
+  async function apagar() {
+    if (!sel || reprocessando) return;
+    if (!window.confirm('Apagar esta nota DEFINITIVAMENTE (itens + ficheiro)? Útil para notas com foto má — depois digitaliza de novo no app.'))
+      return;
+    setReprocessando(true);
+    try {
+      await adm.apagarNota(sel);
+      setSel(null);
+      setDet(null);
+      recarregar();
+    } catch {
+      /* erro silencioso */
+    } finally {
+      setReprocessando(false);
+    }
+  }
+
   async function salvarQtd(itemId, valor, atual) {
     const q = Number(String(valor).replace(',', '.'));
     if (!(q > 0) || q === Number(atual)) return;
@@ -745,6 +762,9 @@ function TabNotas() {
                 {det.fatura.needs_review ? '⚠ em revisão' : 'reconcilia'} · origem {det.fatura.origem_captura || '—'}
                 <button className="adm-reproc" onClick={reprocessar} disabled={reprocessando} title="re-lê a nota do ficheiro com a extração atual">
                   {reprocessando ? 'a reprocessar…' : '🔄 Reprocessar'}
+                </button>
+                <button className="adm-apagar" onClick={apagar} disabled={reprocessando} title="apagar a nota (para re-digitalizar)">
+                  🗑 Apagar
                 </button>
               </div>
               {det.diagnostico && (
