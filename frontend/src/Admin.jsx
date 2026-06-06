@@ -24,6 +24,9 @@ export default function Admin() {
           <button className={aba === 'produtos' ? 'on' : ''} onClick={() => setAba('produtos')}>
             Produtos
           </button>
+          <button className={aba === 'ligar' ? 'on' : ''} onClick={() => setAba('ligar')}>
+            Ligar nomes
+          </button>
           <button className={aba === 'fusoes' ? 'on' : ''} onClick={() => setAba('fusoes')}>
             Fusões
           </button>
@@ -46,6 +49,8 @@ export default function Admin() {
       </header>
       {aba === 'produtos' ? (
         <TabProdutos />
+      ) : aba === 'ligar' ? (
+        <TabLigar />
       ) : aba === 'fusoes' ? (
         <TabFusoes />
       ) : aba === 'revisao' ? (
@@ -377,6 +382,149 @@ function TabProdutos() {
 }
 
 // ─────────────────────────────── Fusões ──────────────────────────────
+// ───────────── Ligar nomes (descrição da nota → produto canónico) ─────────────
+// Tela centrada na DESCRIÇÃO do talão: procura uma descrição, vê a que produto
+// canónico está ligada (ou não), e liga-a a um SKU pesquisável. Inverso da aba
+// Produtos (que parte do SKU). Usa associar/dissociar (alias manual, conf. 100).
+function TabLigar() {
+  const [qDesc, setQDesc] = useState('');
+  const [descricoes, setDescricoes] = useState([]);
+  const [sel, setSel] = useState(null); // descrição selecionada
+  const [qSku, setQSku] = useState('');
+  const [skus, setSkus] = useState([]);
+  const [msg, setMsg] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+
+  const recarregarDesc = (q = qDesc) =>
+    adm.descricoesLivres(q).then((r) => setDescricoes(r.descricoes || [])).catch(() => setDescricoes([]));
+  useEffect(() => {
+    recarregarDesc();
+  }, [qDesc]);
+  useEffect(() => {
+    adm.listarSkus(qSku).then((r) => setSkus(r.skus || [])).catch(() => setSkus([]));
+  }, [qSku]);
+
+  async function ligar(sku) {
+    if (!sel) return;
+    setOcupado(true);
+    try {
+      const r = await adm.associar(sku.id, sel.descricao);
+      setMsg(`✓ "${sel.descricao}" → ${sku.nome_canonico} (${r.itens_atualizados} item(s))`);
+      const novo = { ...sel, atual_id: sku.id, atual: sku.nome_canonico, atual_unidade: sku.unidade_base };
+      setSel(novo);
+      await recarregarDesc();
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function desligar() {
+    if (!sel?.atual_id) return;
+    setOcupado(true);
+    try {
+      await adm.dissociar(sel.atual_id, sel.descricao);
+      setMsg(`✓ "${sel.descricao}" desligado de ${sel.atual}`);
+      const novo = { ...sel, atual_id: null, atual: null, atual_unidade: null };
+      setSel(novo);
+      await recarregarDesc();
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <div className="adm-ligar">
+      <div className="adm-lig-col">
+        <h3>Nome na nota</h3>
+        <input
+          className="adm-lig-busca"
+          placeholder="procurar descrição do talão…"
+          value={qDesc}
+          onChange={(e) => setQDesc(e.target.value)}
+        />
+        <ul className="adm-lig-lista">
+          {descricoes.length === 0 ? (
+            <li className="adm-vazio">sem resultados</li>
+          ) : (
+            descricoes.map((d) => (
+              <li
+                key={d.descricao}
+                className={sel?.descricao === d.descricao ? 'on' : ''}
+                onClick={() => setSel(d)}
+              >
+                <span className="adm-lig-desc">{d.descricao}</span>
+                <span className="adm-lig-meta">
+                  <em>×{d.n}</em>
+                  {d.atual ? (
+                    <span className="adm-conf adm-conf-bom">{d.atual}</span>
+                  ) : (
+                    <span className="adm-conf adm-conf-ruim">sem produto</span>
+                  )}
+                </span>
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
+
+      <div className="adm-lig-col">
+        {!sel ? (
+          <p className="adm-vazio">← escolhe uma descrição à esquerda</p>
+        ) : (
+          <>
+            <h3>Ligar a um produto canónico</h3>
+            <div className="adm-lig-sel">
+              <b>{sel.descricao}</b> <em>({sel.cadeia || '—'})</em>
+              <div className="adm-lig-atual">
+                {sel.atual ? (
+                  <>
+                    ligado a <b>{sel.atual}</b> <em className="adm-un">({sel.atual_unidade})</em>
+                    <button className="adm-x" onClick={desligar} disabled={ocupado} title="desligar">
+                      ✕ desligar
+                    </button>
+                  </>
+                ) : (
+                  <span className="adm-conf adm-conf-ruim">sem produto canónico</span>
+                )}
+              </div>
+            </div>
+            {msg && <p className="adm-ok">{msg}</p>}
+            <input
+              className="adm-lig-busca"
+              placeholder="procurar produto canónico…"
+              value={qSku}
+              onChange={(e) => setQSku(e.target.value)}
+            />
+            <ul className="adm-lig-lista">
+              {skus.length === 0 ? (
+                <li className="adm-vazio">sem produtos — procura por outro nome</li>
+              ) : (
+                skus.map((s) => (
+                  <li key={s.id}>
+                    <span className="adm-lig-desc">
+                      {s.nome_canonico} <em className="adm-un">({s.unidade_base})</em>
+                      {s.marca ? <em className="adm-lig-marca"> · {s.marca}</em> : null}
+                    </span>
+                    <span className="adm-lig-meta">
+                      <em>{s.n_itens} compra(s)</em>
+                      <button
+                        onClick={() => ligar(s)}
+                        disabled={ocupado || s.id === sel.atual_id}
+                      >
+                        {s.id === sel.atual_id ? 'ligado' : 'Ligar'}
+                      </button>
+                    </span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TabFusoes() {
   const [limiar, setLimiar] = useState(0.6);
   const [pares, setPares] = useState(null);

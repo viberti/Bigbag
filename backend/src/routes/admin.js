@@ -164,10 +164,15 @@ adminRouter.get('/descricoes-livres', async (req, res) => {
     const q = str(req.query.q, 60);
     const like = q ? `%${q}%` : '%';
     const [rows] = await getPool().query(
-      `SELECT i.descricao_original AS descricao, COUNT(*) AS n, s.nome_canonico AS atual
-         FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+      `SELECT i.descricao_original AS descricao, COUNT(*) AS n,
+              s.id AS atual_id, s.nome_canonico AS atual, s.unidade_base AS atual_unidade,
+              MAX(l.cadeia) AS cadeia
+         FROM item i
+         LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+         LEFT JOIN fatura f ON f.id = i.fatura_id
+         LEFT JOIN loja l ON l.id = f.loja_id
         WHERE i.is_non_product = 0 AND i.descricao_original LIKE ?
-        GROUP BY i.descricao_original ORDER BY n DESC LIMIT 50`,
+        GROUP BY i.descricao_original ORDER BY n DESC LIMIT 80`,
       [like],
     );
     res.json({ descricoes: rows });

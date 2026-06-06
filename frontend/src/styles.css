@@ -465,6 +465,25 @@ body {
 .adm-un { color: var(--muted); font-style: normal; font-size: 12px; }
 .adm-pares button:disabled { opacity: 0.5; }
 
+/* Ligar nomes (descrição da nota → produto canónico) */
+.adm-ligar { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; padding: 18px 24px; overflow-y: auto; align-items: start; }
+.adm-lig-col h3 { margin: 0 0 10px; font-size: 15px; }
+.adm-lig-busca { width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); margin-bottom: 10px; box-sizing: border-box; }
+.adm-lig-lista { list-style: none; margin: 0; padding: 0; max-height: 64vh; overflow-y: auto; }
+.adm-lig-lista li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; border: 1px solid #ffffff10; margin-bottom: 6px; }
+.adm-lig-col:first-child .adm-lig-lista li { cursor: pointer; }
+.adm-lig-lista li.on { background: var(--verde-escuro); border-color: var(--verde); }
+.adm-lig-desc { font-size: 14px; flex: 1; }
+.adm-lig-marca { color: var(--muted); font-style: normal; font-size: 12px; }
+.adm-lig-meta { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.adm-lig-meta em { color: var(--muted); font-style: normal; font-size: 12px; white-space: nowrap; }
+.adm-lig-meta button { background: var(--verde-escuro); color: #fff; border: none; padding: 7px 14px; border-radius: 8px; cursor: pointer; }
+.adm-lig-meta button:disabled { opacity: 0.5; cursor: default; }
+.adm-lig-sel { padding: 10px 12px; border: 1px solid #ffffff14; border-radius: 8px; margin-bottom: 12px; }
+.adm-lig-sel em { color: var(--muted); font-style: normal; font-size: 12px; }
+.adm-lig-atual { margin-top: 8px; font-size: 13px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adm-lig-atual .adm-x { background: none; border: 1px solid #ff6b6b66; color: #ff6b6b; padding: 4px 9px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+
 .adm-qualidade { padding: 18px 24px; overflow-y: auto; }
 .adm-qtab { margin-bottom: 26px; max-width: 760px; }
 .adm-qtab h3 { font-size: 14px; color: var(--muted); margin: 0 0 8px; }
