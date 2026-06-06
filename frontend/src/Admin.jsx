@@ -429,10 +429,15 @@ function TabelaQualidade({ titulo, linhas }) {
   );
 }
 
+// Rótulos legíveis do método de extração (e lembra que método = tipo de input).
+const ROTULO_METODO = { vlm: 'VLM (imagem)', ocr_llm: 'OCR+LLM (PDF)' };
+const rotularMetodo = (linhas = []) =>
+  linhas.map((l) => ({ ...l, chave: ROTULO_METODO[l.chave] || l.chave }));
+
 function TabQualidade() {
   const [dados, setDados] = useState(null);
   useEffect(() => {
-    adm.qualidade().then(setDados).catch(() => setDados({ cadeias: [], origens: [] }));
+    adm.qualidade().then(setDados).catch(() => setDados({ cadeias: [], origens: [], metodos: [] }));
   }, []);
   if (!dados) return <p className="adm-vazio">a calcular…</p>;
   return (
@@ -440,6 +445,12 @@ function TabQualidade() {
       <p className="adm-aviso">
         «Reconcilia» = soma dos itens bate com o total impresso (sinal automático). «Revisão» = vereditos teus na
         aba Notas. Onde a reconciliação cai, vale a pena olhar a leitura dessa cadeia/caminho.
+      </p>
+      <TabelaQualidade titulo="Método" linhas={rotularMetodo(dados.metodos)} />
+      <p className="adm-aviso adm-aviso-fraco">
+        ⚠️ O método está ligado ao tipo de input (VLM = imagem, OCR+LLM = PDF). Esta tabela compara sobretudo
+        «foto vs PDF», não «VLM vs OCR+LLM» de forma justa — para isso é preciso correr os dois métodos sobre a
+        MESMA nota (experiência par-a-par).
       </p>
       <TabelaQualidade titulo="Cadeia" linhas={dados.cadeias} />
       <TabelaQualidade titulo="Origem" linhas={dados.origens} />

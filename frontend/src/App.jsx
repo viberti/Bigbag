@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais } from './api.js';
+import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar } from './scanner.js';
+import { MARK, ICON } from './marca.js';
 import { t, detetarLocale } from './i18n.js';
 
 detetarLocale('pt-BR'); // default; usa o idioma do browser se houver dicionário
@@ -11,14 +13,36 @@ const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '
 
 const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
 const hora = () => new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const dataHora = (ts) =>
+  ts ? new Date(ts).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
 const dataCurta = (iso) => {
   const s = String(iso || '').slice(0, 10);
   return s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
 };
 const fmtQtd = (q) => (Number.isInteger(q) ? String(q) : q.toFixed(3).replace(/0+$/, '').replace('.', ','));
 
-// Agrega linhas idênticas (mesmo produto E mesmo preço) somando a quantidade —
-// não repetir o mesmo produto no cartão. Usa o nome canónico (legível).
+// Wrappers SVG do handoff (marca + ícones de linha).
+const Mark = ({ size = 30, chip = false }) => <span className="mk" dangerouslySetInnerHTML={{ __html: MARK({ size, chip }) }} />;
+const Ico = ({ name, size = 21, stroke }) => <span className="ico" dangerouslySetInnerHTML={{ __html: ICON(name, { size, stroke }) }} />;
+
+// Realce subtil na resposta do assistente: valores em € (verde) e cadeias (menta).
+const CADEIAS = /\b(Continente|Pingo Doce|Mercadona|Lidl|Aldi|Auchan|Minipre[çc]o|Makro|Intermarch[ée])\b/g;
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function realce(txt) {
+  let h = escapeHtml(txt);
+  h = h.replace(/(\d+(?:[.,]\d{1,2})?\s?€)/g, '<span class="eur">$1</span>');
+  h = h.replace(CADEIAS, '<span class="store">$1</span>');
+  return h;
+}
+
+// Chips de sugestão (arranque rápido de conversa).
+const SUGESTOES = [
+  { ic: 'chart', label: 'sugg.trend', q: 'sugg.trendQ' },
+  { ic: 'store', label: 'sugg.cheap', q: 'sugg.cheapQ' },
+  { ic: 'receipt', label: 'sugg.receipt', q: 'sugg.receiptQ' },
+];
+
+// Agrega linhas idênticas (mesmo produto E mesmo preço) somando a quantidade.
 function agregarItens(itens) {
   const m = new Map();
   for (const it of itens) {
@@ -41,12 +65,7 @@ export default function App() {
       .catch(() => setSessao(null));
   }, []);
   if (sessao === undefined) return <div className="centro">{t('app.loading')}</div>;
-  if (!sessao)
-    return (
-      <Login
-        onEntrar={setSessao}
-      />
-    );
+  if (!sessao) return <Login onEntrar={setSessao} />;
   const nome = (sessao.user?.id || '').replace(/^./, (c) => c.toUpperCase());
   return (
     <Chat
@@ -112,7 +131,11 @@ function Chat({ onSair, nome }) {
   });
   const [habituaisAberto, setHabituaisAberto] = useState(false);
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
-  const [habituaisLista, setHabituaisLista] = useState(null);
+  // Habituais com stale-while-revalidate: arranca da cache offline (renderiza
+  // já, mesmo sem rede), e revalida em fundo quando online.
+  const [habituaisLista, setHabituaisLista] = useState(() => lerCacheHabituais()?.produtos ?? null);
+  const [habituaisTs, setHabituaisTs] = useState(() => lerCacheHabituais()?.ts ?? null);
+  const [habituaisOffline, setHabituaisOffline] = useState(false);
   const fimRef = useRef(null);
   const fileRef = useRef(null);
   const fotoRef = useRef(null);
@@ -165,8 +188,6 @@ function Chat({ onSair, nome }) {
   }
 
   // Processa UMA nota (sem gerir `ocupado` — quem chama é que gere, para o lote).
-  // `dewarp` só no caminho do scanner de documento; `origem` marca o caminho
-  // (scan/foto/galeria/arquivo) para depois comparar a leitura por caminho.
   async function processarUma(file, { dewarp = false, origem = 'arquivo', prefixo = '', etiqueta } = {}) {
     const ehImagem = file.type?.startsWith('image/');
     add({ lado: 'user', tipo: 'ficheiro', nome: etiqueta || t('nota.enviada') });
@@ -224,7 +245,7 @@ function Chat({ onSair, nome }) {
       chunksRef.current = [];
       mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
       mr.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((tr) => tr.stop());
         const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
         setOcupado(true);
         add({ lado: 'bot', tipo: 'pensar', texto: t('voz.listening') });
@@ -260,85 +281,107 @@ function Chat({ onSair, nome }) {
     localStorage.setItem('bigbag_carrinho', JSON.stringify(carrinho));
   }, [carrinho]);
 
-  const noCarrinho = (nome) => carrinho.some((i) => i.nome === nome);
-  const alternarCarrinho = (nome, categoria, preco) =>
-    setCarrinho((c) =>
-      c.some((i) => i.nome === nome) ? c.filter((i) => i.nome !== nome) : [...c, { nome, categoria, preco, feito: false }],
-    );
-  const removerDoCarrinho = (nome) => setCarrinho((c) => c.filter((i) => i.nome !== nome));
+  const noCarrinho = (n) => carrinho.some((i) => i.nome === n);
+  const alternarCarrinho = (n, categoria, preco) =>
+    setCarrinho((c) => (c.some((i) => i.nome === n) ? c.filter((i) => i.nome !== n) : [...c, { nome: n, categoria, preco, feito: false }]));
+  const removerDoCarrinho = (n) => setCarrinho((c) => c.filter((i) => i.nome !== n));
   const limparCarrinho = () => setCarrinho([]);
 
-  // Abre as compras habituais (overlay): carrega a lista e mostra para tocar.
-  async function abrirHabituais() {
-    setHabituaisAberto(true);
-    if (habituaisLista) return;
+  // Revalida os habituais: busca à rede e, em sucesso, atualiza estado + cache.
+  // Em falha (offline), MANTÉM a cache — nunca branqueia a lista — e sinaliza.
+  const revalidarHabituais = useCallback(async () => {
     try {
-      setHabituaisLista(await carregarHabituais());
+      const produtos = await carregarHabituais();
+      setHabituaisLista(produtos);
+      setHabituaisTs(gravarCacheHabituais(produtos));
+      setHabituaisOffline(false);
     } catch {
-      setHabituaisLista([]);
+      const cache = lerCacheHabituais();
+      if (cache) {
+        setHabituaisLista((x) => x ?? cache.produtos);
+        setHabituaisTs(cache.ts);
+        setHabituaisOffline(true);
+      } else {
+        setHabituaisLista((x) => x ?? []);
+      }
     }
+  }, []);
+
+  // Aquece a cache assim que a app abre (e o carrinho já tem secção/preço).
+  useEffect(() => {
+    revalidarHabituais();
+  }, [revalidarHabituais]);
+
+  function abrirHabituais() {
+    setCarrinhoAberto(false);
+    setHabituaisAberto(true);
+    revalidarHabituais();
+  }
+  function abrirCarrinho() {
+    setHabituaisAberto(false);
+    setCarrinhoAberto(true);
+    revalidarHabituais();
+  }
+  function novaConversa() {
+    setMsgs([{ id: 'intro', lado: 'bot', tipo: 'resposta', texto: t('chat.intro', { nome }), hora: hora() }]);
   }
 
+  const catPorNome = Object.fromEntries((habituaisLista || []).map((p) => [p.produto, p.categoria]));
+
   return (
-    <div className="chat">
-      <header>
-        <span className="marca">
-          <strong>🛍️ Bigbag</strong>
-          <span className="versao">v{APP_VERSION}</span>
-        </span>
-        <div className="header-acoes">
-          <button className="icone-cab" onClick={abrirHabituais} aria-label="produtos habituais" title={t('habituais.title')}>
-            🔁
-          </button>
-          <button
-            className="icone-cab cart-btn"
-            onClick={() => {
-              setCarrinhoAberto(true);
-              if (!habituaisLista) carregarHabituais().then(setHabituaisLista).catch(() => {});
-            }}
-            aria-label="carrinho"
-            title={t('cart.title')}
-          >
-            🛒
-            {carrinho.length > 0 && <span className="cart-badge">{carrinho.length}</span>}
-          </button>
-          <button className="link" onClick={onSair}>
-            {t('chat.logout')}
-          </button>
+    <div className="bb">
+      <BgDeco />
+
+      <header className="top">
+        <div className="brand">
+          <Mark size={34} chip />
+          <span className="brand-txt">
+            <span className="wm">
+              Big<span className="b2">Bag</span>
+            </span>
+            <span className="ver">v{APP_VERSION}</span>
+          </span>
         </div>
+        <span className="sp" />
+        <button className="ibtn" onClick={novaConversa} title={t('chat.newConv')} aria-label={t('chat.newConv')}>
+          <Ico name="sync" size={21} />
+        </button>
+        <button className="ibtn" onClick={abrirHabituais} title={t('habituais.title')} aria-label={t('habituais.title')}>
+          <Ico name="usual" size={21} />
+        </button>
+        <button className="ibtn" onClick={abrirCarrinho} title={t('cart.title')} aria-label={t('cart.title')}>
+          <Ico name="cart" size={21} />
+          {carrinho.length > 0 && <span className="badge">{carrinho.length}</span>}
+        </button>
       </header>
 
-      <div className="thread">
+      <main className="chat">
         {msgs.map((m) => (
           <Bolha key={m.id} m={m} />
         ))}
+        <div className="sugg">
+          {SUGESTOES.map((s) => (
+            <button key={s.ic} type="button" className="schip" onClick={() => perguntar(t(s.q))} disabled={ocupado}>
+              <Ico name={s.ic} size={15} />
+              <span>{t(s.label)}</span>
+            </button>
+          ))}
+        </div>
         <div ref={fimRef} />
-      </div>
+      </main>
 
       <form
-        className="barra"
+        className="inputbar"
         onSubmit={(e) => {
           e.preventDefault();
           perguntar();
         }}
       >
-        <button
-          type="button"
-          className="icone"
-          onClick={() => fotoRef.current?.click()}
-          disabled={ocupado}
-          aria-label="foto da nota"
-        >
-          📷
+        <button type="button" className="round" onClick={() => fotoRef.current?.click()} disabled={ocupado} aria-label="foto da nota">
+          <Ico name="camera" size={21} />
         </button>
-        <button
-          type="button"
-          className="icone-mais"
-          onClick={() => setMenuAberto(true)}
-          disabled={ocupado}
-          aria-label="mais opções de envio"
-        >
-          ⋯
+        <button type="button" className="round" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="mais opções">
+          <Ico name="more" size={21} />
         </button>
         <input
           ref={fileRef}
@@ -371,32 +414,32 @@ function Chat({ onSair, nome }) {
           multiple
           hidden
           onChange={(e) => {
-            const fs = e.target.files;
-            const arr = fs ? Array.from(fs) : [];
+            const arr = e.target.files ? Array.from(e.target.files) : [];
             e.target.value = '';
             faturaLote(arr, 'galeria');
           }}
         />
-        <input
-          className="campo"
-          placeholder={t('chat.placeholder')}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          disabled={ocupado}
-        />
+        <div className="field">
+          <input
+            placeholder={t('chat.placeholder')}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            disabled={ocupado}
+          />
+        </div>
         {texto.trim() ? (
-          <button type="submit" className="icone enviar" disabled={ocupado} aria-label="enviar">
-            ➤
+          <button type="submit" className="send" disabled={ocupado} aria-label="enviar">
+            <Ico name="send" size={20} />
           </button>
         ) : (
           <button
             type="button"
-            className={`icone mic ${aGravar ? 'ativo' : ''}`}
+            className={`send ${aGravar ? 'rec' : ''}`}
             onClick={aGravar ? pararVoz : iniciarVoz}
             disabled={ocupado}
             aria-label="gravar"
           >
-            {aGravar ? '⏹' : '🎤'}
+            <Ico name={aGravar ? 'stop' : 'mic'} size={20} />
           </button>
         )}
       </form>
@@ -426,17 +469,22 @@ function Chat({ onSair, nome }) {
         }}
       />
 
-      <HabituaisOverlay
+      <HabituaisSheet
         aberto={habituaisAberto}
         produtos={habituaisLista}
+        offline={habituaisOffline}
+        dataCache={dataHora(habituaisTs)}
+        cartCount={carrinho.length}
         noCarrinho={noCarrinho}
         onAlternar={alternarCarrinho}
         onFechar={() => setHabituaisAberto(false)}
       />
-      <CarrinhoOverlay
+      <CarrinhoSheet
         aberto={carrinhoAberto}
         carrinho={carrinho}
-        catPorNome={Object.fromEntries((habituaisLista || []).map((p) => [p.produto, p.categoria]))}
+        catPorNome={catPorNome}
+        offline={habituaisOffline}
+        dataCache={dataHora(habituaisTs)}
         onRemover={removerDoCarrinho}
         onLimpar={limparCarrinho}
         onFechar={() => setCarrinhoAberto(false)}
@@ -445,287 +493,45 @@ function Chat({ onSair, nome }) {
   );
 }
 
-// Ordem das secções do mercado (percurso típico); desconhecidas vão para o fim.
-const ORDEM_SECAO = [
-  'Frutas e Legumes',
-  'Padaria',
-  'Talho',
-  'Charcutaria',
-  'Peixaria',
-  'Laticínios',
-  'Ovos',
-  'Congelados',
-  'Mercearia',
-  'Bebidas',
-  'Higiene',
-  'Limpeza',
-  'Outros',
-];
-
-// Mapeia as categorias granulares do canonicalizador para secções coesas.
-function secaoDe(cat) {
-  const c = String(cat || '').toLowerCase();
-  if (c.includes('fruta') || c.includes('legume') || c.includes('hort')) return 'Frutas e Legumes';
-  if (c.includes('pão') || c.includes('pao') || c.includes('padaria') || c.includes('pastelaria')) return 'Padaria';
-  if (c.includes('talho') || c.includes('carne')) return 'Talho';
-  if (c.includes('charcut') || c.includes('enchido') || c.includes('fiambre') || c.includes('presunto')) return 'Charcutaria';
-  if (c.includes('peixe') || c.includes('marisco') || c.includes('peixaria')) return 'Peixaria';
-  if (c.includes('latic') || c.includes('queijo') || c.includes('iogurte')) return 'Laticínios';
-  if (c.includes('ovo')) return 'Ovos';
-  if (c.includes('congel')) return 'Congelados';
-  if (c.includes('bebida')) return 'Bebidas';
-  if (c.includes('higiene')) return 'Higiene';
-  if (c.includes('limpeza') || c.includes('detergente')) return 'Limpeza';
-  if (c.includes('mercearia') || c.includes('doce') || c.includes('snack') || c.includes('cereal')) return 'Mercearia';
-  return cat ? 'Mercearia' : 'Outros';
-}
-
-// Agrupa itens {categoria} por secção do mercado, na ordem do percurso.
-function agruparPorSecao(itens) {
-  const grupos = {};
-  for (const it of itens) {
-    const s = secaoDe(it.categoria);
-    (grupos[s] = grupos[s] || []).push(it);
-  }
-  const ord = (s) => {
-    const i = ORDEM_SECAO.indexOf(s);
-    return i < 0 ? 99 : i;
-  };
-  return Object.entries(grupos).sort((a, b) => ord(a[0]) - ord(b[0]) || a[0].localeCompare(b[0]));
-}
-
-// Overlay dos produtos habituais: lista PLANA por frequência (mais comprados
-// primeiro, sem mostrar o número). Toca para pôr/tirar do carrinho, com animação.
-function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }) {
-  const [flash, setFlash] = useState(null);
-  if (!aberto) return null;
-
-  function toque(p) {
-    const estava = noCarrinho(p.produto);
-    onAlternar(p.produto, p.categoria, p.ultimo_preco);
-    if (!estava) {
-      setFlash(p.produto);
-      setTimeout(() => setFlash((f) => (f === p.produto ? null : f)), 480);
-    }
-  }
-
-  return (
-    <div className="lista-overlay" onClick={onFechar}>
-      <div className="lista-painel" onClick={(e) => e.stopPropagation()}>
-        <div className="lista-cab">
-          <strong>{t('habituais.title')}</strong>
-          <button className="lista-x" onClick={onFechar} aria-label="fechar">
-            ✕
-          </button>
-        </div>
-        {produtos === null ? (
-          <p className="lista-vazio">{t('chat.thinking')}</p>
-        ) : produtos.length === 0 ? (
-          <p className="lista-vazio">{t('habituais.empty')}</p>
-        ) : (
-          <ul className="lista-itens lista-scroll">
-            {produtos.map((p) => {
-              const dentro = noCarrinho(p.produto);
-              return (
-                <li
-                  key={p.produto}
-                  className={`${dentro ? 'dentro' : ''} ${flash === p.produto ? 'flash' : ''}`}
-                  onClick={() => toque(p)}
-                >
-                  <span className="lista-check">{dentro ? '✓' : '+'}</span>
-                  <span className="lista-nome">{p.produto}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <p className="lista-dica">{t('cart.addHint')}</p>
-      </div>
-    </div>
-  );
-}
-
-// Overlay do carrinho: a lista de compras de hoje (marcar comprado, remover, limpar).
-// Item do carrinho: arrasta para a DIREITA para apagar (revela 🗑); o ✕ é o
-// atalho equivalente (desktop).
-function ItemCarrinho({ it, onRemover }) {
-  const [dx, setDx] = useState(0);
-  const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
-  function start(e) {
-    const t = e.touches[0];
-    g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 };
-  }
-  function move(e) {
-    const r = g.current;
-    if (!r.mov) return;
-    const t = e.touches[0];
-    const dX = t.clientX - r.x0;
-    const dY = t.clientY - r.y0;
-    if (!r.horiz && Math.abs(dX) > Math.abs(dY) + 6) r.horiz = true;
-    if (r.horiz) {
-      r.dx = Math.max(0, dX);
-      setDx(r.dx);
-    }
-  }
-  function end() {
-    const r = g.current;
-    r.mov = false;
-    if (r.horiz && r.dx > 90) onRemover(it.nome);
-    setDx(0);
-  }
-  return (
-    <li className="swipe-li">
-      <div className="swipe-bg">🗑</div>
-      <div
-        className="swipe-fg"
-        style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
-        onTouchStart={start}
-        onTouchMove={move}
-        onTouchEnd={end}
-      >
-        <span className="lista-nome">{it.nome}</span>
-        {it.preco != null && <span className="lista-preco">{eur(it.preco)}</span>}
-      </div>
-    </li>
-  );
-}
-
-function CarrinhoOverlay({ aberto, carrinho, catPorNome, onRemover, onLimpar, onFechar }) {
-  if (!aberto) return null;
-  // enriquece a categoria a partir dos habituais (auto-corrige itens antigos)
-  const itens = carrinho.map((it) => ({ ...it, categoria: it.categoria || catPorNome?.[it.nome] }));
-  return (
-    <div className="lista-overlay" onClick={onFechar}>
-      <div className="lista-painel" onClick={(e) => e.stopPropagation()}>
-        <div className="lista-cab">
-          <strong>{t('cart.title')}</strong>
-          {carrinho.length > 0 && <span className="lista-conta">{t('cart.left', { n: carrinho.length })}</span>}
-          <button className="lista-x" onClick={onFechar} aria-label="fechar">
-            ✕
-          </button>
-        </div>
-        {carrinho.length === 0 ? (
-          <p className="lista-vazio">{t('cart.empty')}</p>
-        ) : (
-          <>
-            <div className="lista-scroll">
-              {agruparPorSecao(itens).map(([sec, lista]) => (
-                <div key={sec}>
-                  <div className="lista-secao">{sec}</div>
-                  <ul className="lista-itens">
-                    {lista.map((it) => (
-                      <ItemCarrinho key={it.nome} it={it} onRemover={onRemover} />
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-            <button className="lista-limpar" onClick={onLimpar}>
-              {t('cart.clear')}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Captura guiada ao vivo: câmara traseira + moldura de alinhamento, para a nota
-// preencher o quadro (legibilidade na origem). Ao capturar, devolve um File que
-// segue o fluxo normal (digitalizar/dewarp + upload). Fallback para ficheiro.
-function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const [erro, setErro] = useState('');
-
-  useEffect(() => {
-    if (!aberto) return;
-    let cancelado = false;
-    setErro('');
-    (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: false,
-        });
-        if (cancelado) return stream.getTracks().forEach((t) => t.stop());
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
-        }
-      } catch {
-        if (!cancelado) setErro(t('cam.error'));
-      }
-    })();
-    return () => {
-      cancelado = true;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    };
-  }, [aberto]);
-
-  if (!aberto) return null;
-
-  function capturar() {
-    const v = videoRef.current;
-    if (!v || !v.videoWidth) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = v.videoWidth;
-    canvas.height = v.videoHeight;
-    canvas.getContext('2d').drawImage(v, 0, 0);
-    canvas.toBlob((blob) => blob && onCapturar(new File([blob], 'nota.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.95);
-  }
-
-  return (
-    <div className="cam-overlay">
-      <div className="cam-topo">
-        <button className="cam-x" onClick={onFechar} aria-label="fechar">
-          ✕
-        </button>
-      </div>
-      {erro ? (
-        <div className="cam-erro">
-          <p>{erro}</p>
-          <button className="cam-file" onClick={onFicheiro}>
-            {t('cam.file')}
-          </button>
-        </div>
-      ) : (
-        <>
-          <video ref={videoRef} className="cam-video" playsInline muted autoPlay />
-          <div className="cam-moldura" />
-          <p className="cam-hint">{t('cam.hint')}</p>
-          <div className="cam-acoes">
-            <button className="cam-file" onClick={onFicheiro}>
-              {t('cam.file')}
-            </button>
-            <button className="cam-cap" onClick={capturar} aria-label={t('cam.capture')} />
-            <span className="cam-spacer" />
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
+// ── Mensagens ──────────────────────────────────────────────────────────────
 function Bolha({ m }) {
+  const me = m.lado === 'user';
   if (m.tipo === 'pensar')
     return (
-      <div className="bolha bot">
-        <span className="pensar">{m.texto || t('chat.thinking')}</span>
+      <div className="row bot">
+        <div className="av">
+          <Mark size={30} />
+        </div>
+        <div className="bubble">
+          <span className="typing">
+            <i />
+            <i />
+            <i />
+          </span>
+          {m.texto && <span className="ttxt"> {m.texto}</span>}
+        </div>
       </div>
     );
-  const cls = `bolha ${m.lado}`;
   return (
-    <div className={cls}>
-      {m.tipo === 'ficheiro' && <div className="ficheiro">📄 {m.nome}</div>}
-      {m.tipo === 'compra' && <CartaoCompra d={m.dados} />}
-      {m.tipo === 'habituais' && <CartaoHabituais produtos={m.produtos} />}
-      {m.tipo === 'resposta' && <Resposta m={m} />}
-      {m.tipo === 'erro' && <span className="erro-txt">{m.texto}</span>}
-      {m.tipo === 'texto' && <span className="txt">{m.texto}</span>}
-      <span className="hora">{m.hora}</span>
+    <div className={`row ${me ? 'me' : 'bot'}`}>
+      {!me && (
+        <div className="av">
+          <Mark size={30} />
+        </div>
+      )}
+      <div className="bubble">
+        {m.tipo === 'ficheiro' && (
+          <span className="fic">
+            <Ico name="receipt" size={17} /> {m.nome}
+          </span>
+        )}
+        {m.tipo === 'texto' && <span className="txt">{m.texto}</span>}
+        {m.tipo === 'resposta' && <Resposta m={m} />}
+        {m.tipo === 'erro' && <span className="erro-txt">{m.texto}</span>}
+        {m.tipo === 'compra' && <CartaoCompra d={m.dados} />}
+        {m.tipo === 'habituais' && <CartaoHabituais produtos={m.produtos} />}
+        <span className="time">{m.hora}</span>
+      </div>
     </div>
   );
 }
@@ -735,8 +541,8 @@ function Resposta({ m }) {
     (c) => c.nome === 'comparar_precos_por_loja' && Array.isArray(c.resultado) && c.resultado.length,
   );
   return (
-    <div>
-      {m.texto && <p className="txt">{m.texto}</p>}
+    <>
+      {m.texto && <span className="txt" dangerouslySetInnerHTML={{ __html: realce(m.texto) }} />}
       {cmp && (
         <ul className="precos">
           {cmp.resultado.map((l, i) => (
@@ -750,7 +556,7 @@ function Resposta({ m }) {
           ))}
         </ul>
       )}
-    </div>
+    </>
   );
 }
 
@@ -804,6 +610,310 @@ function CartaoCompra({ d }) {
           {aberto ? `${t('nota.less')} ⌃` : `${t('nota.more', { n: itens.length - 2 })} ⌄`}
         </button>
       )}
+    </div>
+  );
+}
+
+// ── Folhas (bottom sheets) ───────────────────────────────────────────────────
+function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCarrinho, onAlternar, onFechar }) {
+  return (
+    <>
+      <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('habituais.title')}>
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">{t('habituais.title')}</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        {offline && <p className="sheet-offline">{t('habituais.offline', { data: dataCache })}</p>}
+        <div className="usual-list">
+          {produtos === null ? (
+            <p className="sheet-vazio">{t('chat.thinking')}</p>
+          ) : produtos.length === 0 ? (
+            <p className="sheet-vazio">{t('habituais.empty')}</p>
+          ) : (
+            produtos.map((p) => {
+              const dentro = noCarrinho(p.produto);
+              return (
+                <div
+                  key={p.produto}
+                  className={`urow ${dentro ? 'in' : ''}`}
+                  onClick={() => onAlternar(p.produto, p.categoria, p.ultimo_preco)}
+                >
+                  <div className="uname">{p.produto}</div>
+                  <div className="utoggle">
+                    <Ico name={dentro ? 'check' : 'plus'} size={18} stroke={2.4} />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="sheet-f">
+          <span>{t('habituais.footer', { n: cartCount })}</span> <span className="hint">{t('habituais.footerHint')}</span>
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Linha do carrinho: arrasta para a DIREITA para apagar (revela 🗑).
+function ItemCarrinho({ it, onRemover }) {
+  const [dx, setDx] = useState(0);
+  const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
+  function start(e) {
+    const tt = e.touches[0];
+    g.current = { x0: tt.clientX, y0: tt.clientY, horiz: false, mov: true, dx: 0 };
+  }
+  function move(e) {
+    const r = g.current;
+    if (!r.mov) return;
+    const tt = e.touches[0];
+    const dX = tt.clientX - r.x0;
+    const dY = tt.clientY - r.y0;
+    if (!r.horiz && Math.abs(dX) > Math.abs(dY) + 6) r.horiz = true;
+    if (r.horiz) {
+      r.dx = Math.max(0, dX);
+      setDx(r.dx);
+    }
+  }
+  function end() {
+    const r = g.current;
+    r.mov = false;
+    if (r.horiz && r.dx > 90) onRemover(it.nome);
+    setDx(0);
+  }
+  return (
+    <div className="crow-li">
+      <div className="crow-bg">
+        <Ico name="close" size={18} />
+      </div>
+      <div
+        className="crow"
+        style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+        onTouchStart={start}
+        onTouchMove={move}
+        onTouchEnd={end}
+      >
+        <span className="cn">{it.nome}</span>
+        {it.preco != null && <span className="cp">{eur(it.preco)}</span>}
+      </div>
+    </div>
+  );
+}
+
+function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRemover, onLimpar, onFechar }) {
+  const itens = carrinho.map((it) => ({ ...it, categoria: it.categoria || catPorNome?.[it.nome] }));
+  const total = carrinho.reduce((s, it) => s + (Number(it.preco) || 0), 0);
+  return (
+    <>
+      <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('cart.title')}>
+        <div className="sheet-h">
+          <span className="cart-ic">
+            <Ico name="cart" size={20} />
+          </span>
+          <span className="t">{t('cart.sheetTitle')}</span>
+          {carrinho.length > 0 && <span className="cart-count">{t('cart.left', { n: carrinho.length })}</span>}
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        {offline && <p className="sheet-offline">{t('habituais.offline', { data: dataCache })}</p>}
+        {carrinho.length === 0 ? (
+          <div className="cart-empty">{t('cart.empty')}</div>
+        ) : (
+          <div className="cart-list">
+            {agruparPorSecao(itens).map(([sec, lista]) => (
+              <div key={sec}>
+                <div className="cart-cat">{sec}</div>
+                {lista.map((it) => (
+                  <ItemCarrinho key={it.nome} it={it} onRemover={onRemover} />
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="cart-foot">
+          <div className="cart-total">
+            <span>{t('cart.total')}</span>
+            <b>{eur(total)}</b>
+          </div>
+          <button className="cart-clear" onClick={onLimpar} disabled={!carrinho.length}>
+            {t('cart.clear')}
+          </button>
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Ordem das secções do mercado (percurso típico); desconhecidas vão para o fim.
+const ORDEM_SECAO = [
+  'Frutas e Legumes', 'Padaria', 'Talho', 'Charcutaria', 'Peixaria', 'Laticínios',
+  'Ovos', 'Congelados', 'Mercearia', 'Bebidas', 'Higiene', 'Limpeza', 'Outros',
+];
+
+function secaoDe(cat) {
+  const c = String(cat || '').toLowerCase();
+  if (c.includes('fruta') || c.includes('legume') || c.includes('hort')) return 'Frutas e Legumes';
+  if (c.includes('pão') || c.includes('pao') || c.includes('padaria') || c.includes('pastelaria')) return 'Padaria';
+  if (c.includes('talho') || c.includes('carne')) return 'Talho';
+  if (c.includes('charcut') || c.includes('enchido') || c.includes('fiambre') || c.includes('presunto')) return 'Charcutaria';
+  if (c.includes('peixe') || c.includes('marisco') || c.includes('peixaria')) return 'Peixaria';
+  if (c.includes('latic') || c.includes('queijo') || c.includes('iogurte')) return 'Laticínios';
+  if (c.includes('ovo')) return 'Ovos';
+  if (c.includes('congel')) return 'Congelados';
+  if (c.includes('bebida')) return 'Bebidas';
+  if (c.includes('higiene')) return 'Higiene';
+  if (c.includes('limpeza') || c.includes('detergente')) return 'Limpeza';
+  if (c.includes('mercearia') || c.includes('doce') || c.includes('snack') || c.includes('cereal')) return 'Mercearia';
+  return cat ? 'Mercearia' : 'Outros';
+}
+
+function agruparPorSecao(itens) {
+  const grupos = {};
+  for (const it of itens) {
+    const s = secaoDe(it.categoria);
+    (grupos[s] = grupos[s] || []).push(it);
+  }
+  const ord = (s) => {
+    const i = ORDEM_SECAO.indexOf(s);
+    return i < 0 ? 99 : i;
+  };
+  return Object.entries(grupos).sort((a, b) => ord(a[0]) - ord(b[0]) || a[0].localeCompare(b[0]));
+}
+
+// Captura guiada ao vivo: câmara traseira + moldura de alinhamento.
+function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [erro, setErro] = useState('');
+
+  useEffect(() => {
+    if (!aberto) return;
+    let cancelado = false;
+    setErro('');
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        });
+        if (cancelado) return stream.getTracks().forEach((tr) => tr.stop());
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+      } catch {
+        if (!cancelado) setErro(t('cam.error'));
+      }
+    })();
+    return () => {
+      cancelado = true;
+      streamRef.current?.getTracks().forEach((tr) => tr.stop());
+      streamRef.current = null;
+    };
+  }, [aberto]);
+
+  if (!aberto) return null;
+
+  function capturar() {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth;
+    canvas.height = v.videoHeight;
+    canvas.getContext('2d').drawImage(v, 0, 0);
+    canvas.toBlob((blob) => blob && onCapturar(new File([blob], 'nota.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.95);
+  }
+
+  return (
+    <div className="cam-overlay">
+      <div className="cam-topo">
+        <button className="cam-x" onClick={onFechar} aria-label="fechar">
+          ✕
+        </button>
+      </div>
+      {erro ? (
+        <div className="cam-erro">
+          <p>{erro}</p>
+          <button className="cam-file" onClick={onFicheiro}>
+            {t('cam.file')}
+          </button>
+        </div>
+      ) : (
+        <>
+          <video ref={videoRef} className="cam-video" playsInline muted autoPlay />
+          <div className="cam-moldura" />
+          <p className="cam-hint">{t('cam.hint')}</p>
+          <div className="cam-acoes">
+            <button className="cam-file" onClick={onFicheiro}>
+              {t('cam.file')}
+            </button>
+            <button className="cam-cap" onClick={capturar} aria-label={t('cam.capture')} />
+            <span className="cam-spacer" />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Marca de água do fundo (glifos de mercearia, do handoff).
+function BgDeco() {
+  return (
+    <div className="bg-deco" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <pattern id="bbpat" width="280" height="280" patternUnits="userSpaceOnUse" patternTransform="rotate(-8) scale(1.04)">
+            <g fill="none" stroke="#c7efd9" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+              <g transform="translate(48,56) rotate(-6)">
+                <path d="M0 -8 C-11 -20 -26 -12 -24 4 C-22 17 -9 24 0 26 C9 24 22 17 24 4 C26 -12 11 -20 0 -8 Z" />
+                <path d="M0 -10 C0 -16 3 -21 9 -23" />
+                <path d="M3 -15 C9 -21 17 -19 17 -13 C11 -11 5 -11 3 -15 Z" />
+              </g>
+              <g transform="translate(150,46) rotate(8)">
+                <path d="M-7 -24 L7 -24 L7 -14 C7 -10 11 -8 11 -2 L11 20 a4 4 0 0 1 -4 4 L-7 24 a4 4 0 0 1 -4 -4 L-11 -2 C-11 -8 -7 -10 -7 -14 Z" />
+                <path d="M-11 6 L11 6" />
+              </g>
+              <g transform="translate(238,72) rotate(-12)">
+                <path d="M0 26 L-13 -4 C-8 -11 8 -11 13 -4 Z" />
+                <path d="M0 -6 L0 -22 M0 -8 L-9 -19 M0 -8 L9 -19" />
+              </g>
+              <g transform="translate(70,150)">
+                <path d="M-19 -13 L-13 -13 L-10 9 a3 3 0 0 0 3 2.5 L13 11.5 a3 3 0 0 0 3 -2.4 L20 -5 L-11 -5" />
+                <circle cx="-6" cy="18" r="2.4" />
+                <circle cx="12" cy="18" r="2.4" />
+              </g>
+              <g transform="translate(186,150) rotate(4)">
+                <path d="M-22 7 C-22 -14 22 -14 22 7 a4 4 0 0 1 -4 4 L-18 11 a4 4 0 0 1 -4 -4 Z" />
+                <path d="M-12 -3 L-8 1 M-2 -5 L2 -1 M8 -3 L12 1" />
+              </g>
+              <g transform="translate(250,188)">
+                <path d="M0 26 L0 6" />
+                <circle cx="-8" cy="-4" r="9" />
+                <circle cx="8" cy="-4" r="9" />
+                <circle cx="0" cy="-12" r="9" />
+                <circle cx="0" cy="4" r="8" />
+              </g>
+              <g transform="translate(54,232) rotate(-8)">
+                <path d="M-20 0 C-12 -12 8 -12 16 0 C8 12 -12 12 -20 0 Z" />
+                <path d="M16 0 L27 -8 L27 8 Z" />
+                <circle cx="-9" cy="-2" r="1.6" />
+              </g>
+              <g transform="translate(156,238) rotate(6)">
+                <path d="M-12 24 L-12 -8 L0 -20 L12 -8 L12 24 Z" />
+                <path d="M-12 -8 L12 -8 M0 -20 L0 -8" />
+              </g>
+            </g>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#bbpat)" />
+      </svg>
     </div>
   );
 }

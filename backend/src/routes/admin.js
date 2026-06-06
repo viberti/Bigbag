@@ -306,7 +306,8 @@ adminRouter.get('/qualidade', async (req, res) => {
         ORDER BY n DESC`;
     const [cadeias] = await pool.query(sql('l.cadeia'));
     const [origens] = await pool.query(sql("COALESCE(f.origem_captura, '—')"));
-    res.json({ cadeias, origens });
+    const [metodos] = await pool.query(sql("COALESCE(f.metodo_extracao, '—')"));
+    res.json({ cadeias, origens, metodos });
   } catch (e) {
     console.error('[admin/qualidade] erro:', e.message);
     res.status(500).json({ erro: 'Falha a calcular qualidade' });

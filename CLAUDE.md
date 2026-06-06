@@ -24,8 +24,9 @@ Fora desta lista, age sem perguntar.
 ## Testar antes de dar por feito (obrigatório)
 Uma tarefa só está concluída depois de verificada a funcionar — não basta compilar:
 - Backend: o endpoint responde como esperado (curl ao `/health` e à rota nova); a migração aplica sem erro.
-- As 4 funções de tool use devem ser testáveis **por texto** antes de haver voz (ver ordem de construção).
+- As funções de tool use devem ser testáveis **por texto** antes de haver voz.
 - Frontend: a build passa (`npm run build`) e o fluxo principal funciona no browser.
+- Lógica pura (reconcile, formato) tem testes em `backend/test/*.test.mjs`. Os testes que tocam BD/LLM só correm no servidor (não há MySQL local no PC) — corre os de lógica com `node --test test/<ficheiro>.test.mjs`.
 - Se algo não dá para testar automaticamente, di-lo explicitamente e descreve como verificaste à mão.
 - Não marques nada como "feito" com um teste a falhar ou por correr.
 
@@ -39,16 +40,21 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor. Atualizar se o processo de deploy/infra mudar.
 - Quando fechares uma "decisão em aberto" (transcrição, leitura de fatura, autenticação), regista a escolha e o porquê no documento de conceito.
 
-## Estado atual (atualizar periodicamente — 2026-06-05)
-- **Infra:** FECHADA. `https://bigbag.hal9klabs.com` público (Apache vhost + Let's Encrypt + redirect), `bigbag-backend.service` (systemd, enabled, auto-restart), BD `app_bigbag` + 4 tabelas + `loja.tipo` (migração 002).
-- **Ingestão (Bloco 2):** a funcionar (VLM direto). Endpoint `POST /api/faturas` (atrás de auth) → extração → reconciliação (sinal honesto `discrepancia`) → BD. Lojas classificadas por `tipo` (supermercado/farmacia/outro).
-- **Consulta (Bloco 3):** 4 funções + tool use implementadas e testadas (texto). Rota HTTP de consulta ainda por expor.
-- **Auth:** OAuth configurado no `.env` mas a aguardar passo na Google Console (redirect URI). Entretanto, **portão temporário** `ENABLE_TEST_AUTH` (HTTP Basic, users `gustavo`/`sue`) protege as rotas expostas. Trocar pelo OAuth quando pronto.
+## Estado atual (atualizar periodicamente — 2026-06-06)
+- **Infra:** FECHADA. `https://bigbag.hal9klabs.com` público (Apache vhost + Let's Encrypt + redirect), `bigbag-backend.service` (systemd, enabled, auto-restart, porta 4200). BD `app_bigbag`, migrações aplicadas até **012** (`loja.tipo`, `origem_captura`, `revisao`, `nome_simplificado`).
+- **Três superfícies** (routing por path em `frontend/src/main.jsx`):
+  - **App de chat (`/`)** — PWA do utilizador: envia notas (📷 → menu: digitalizar documento / foto / galeria em lote / arquivo-PDF multi-seleção), faz perguntas, e tem **carrinho de compras** (🔁 habituais → 🛒, agrupado por secção do mercado, swipe→ apaga, persistido em localStorage).
+  - **Operador (`/admin`)** — desktop: gerir SKUs canónicos (renomear, associar/dissociar descrições, fundir, auto-merge de nomes idênticos), rever notas (imagem + itens, certo/errado + comentário), editar quantidade, ver qualidade por cadeia/origem, e preencher `nome_simplificado`.
+  - **Comprador (`/explorar`)** — desktop, tema "talão": explorar produtos, preço pago vs por-unidade, variação (gráfico), por mercado, com seletor de mês/ano.
+- **Ingestão (Bloco 2):** a funcionar. `POST /api/faturas` (auth): VLM direto p/ imagem, OCR-texto+LLM p/ PDF → extração → reconciliação (sinal honesto `discrepancia`; **desconto de cartão NÃO é espalhado** pelos itens — `preco_liquido` = preço impresso) → normalização (formato → `preco_por_base`) → canonicalização inline (LLM) + auto-merge de nomes idênticos. `origem_captura` regista o caminho de captura, para comparar leituras.
+- **Consulta (Bloco 3):** **9 funções** + tool use, testadas (texto), expostas em `POST /api/consulta` (texto) e `POST /api/voz`. Funções: `buscar_ultima_compra`, `comparar_precos_por_loja`, `produtos_habituais`, `detalhes_fatura`, `produto_mais_barato`, `historico_preco`, `listar_compras`, `total_gasto`, `lembrar`.
+- **Auth:** OAuth configurado no `.env`, a aguardar redirect URI na Google Console. Entretanto, **portão temporário** `ENABLE_TEST_AUTH` (HTTP Basic, users `gustavo`/`sue`) protege as rotas. Trocar pelo OAuth quando pronto.
 - **Sudo temporário** `90-bigbag-nopasswd` ainda ativo (instalação não terminou).
+- **Backlog / pendências menores:** re-enviar #202/#203/#205 (preços impressos limpos); operador corrigir 3 ovos truncados do Lidl no `/admin`; lote da manhã (#86–93) com preços ligeiramente raspados (batem na mesma).
 
 ## Decisões ainda em aberto (não inventar — usar a opção segura e assinalar)
-1. **Transcrição de voz:** STT separado vs. áudio-direto ao LLM. Ambas via OpenRouter. Implementar de forma trocável; experimentar antes de fixar.
-2. **Leitura de fatura:** VLM direto vs. OCR+LLM. VLM direto já em uso; OCR+LLM por implementar para comparar. `fatura.metodo_extracao` regista qual gerou cada registo.
+1. **Transcrição de voz:** STT separado vs. áudio-direto ao LLM. **v1 em uso:** áudio-direto via chat (`input_audio` base64), de forma trocável em `transcricao.js`. Falta experimentar STT-separado antes de fixar.
+2. **Leitura de fatura:** VLM direto vs. OCR+LLM. **Ambos em uso, por tipo de ficheiro:** VLM p/ imagem, OCR-texto+LLM p/ PDF; `fatura.metodo_extracao` regista qual gerou cada registo. **Head-to-head feito (2026-06-06)** — `backend/scripts/compara_extracao.mjs` corre os dois sobre o mesmo PDF: em 16 PDFs Continente, **OCR+LLM (texto) ≥ VLM**: reconciliam 16/16 vs 15/16, |disc| média 0,000 vs 0,054 (o VLM divide mal itens multilinha, ex. #211/#87). **Recomendação: manter OCR+LLM para PDF, VLM para imagem** (fotos não têm texto a extrair — fora deste teste). Falta a confirmação por veredicto de operador (reconciliar ≠ ler certo) para fechar formalmente.
 3. ~~**Autenticação**~~ **FECHADA (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL`. As rotas exigem sessão (portão temporário até o OAuth ficar ativo).
 
 ## Internacionalização (i18n) — base PT-BR, código localizável

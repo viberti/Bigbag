@@ -2,7 +2,7 @@
 // (22/05/2026): subtotal 43,06, Desconto Cartão 4,96, TOTAL A PAGAR 38,10.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { distribuirDesconto } from '../src/ingest/reconcile.js';
+import { distribuirDesconto, pistaCirurgica } from '../src/ingest/reconcile.js';
 
 const valores = [
   0.99, 1.38, 1.39, 1.99, 3.99, 1.89, 1.69, 1.99, 1.51, 0.99, 2.98, 4.69, 1.79, 0.99, 1.19, 1.34, 1.29, 1.99, 8.99,
@@ -76,4 +76,34 @@ test('sem desconto global, líquido = impresso', () => {
   assert.equal(r.itens[0].preco_liquido, 2.5);
   assert.equal(r.itens[1].preco_liquido, 1.5);
   assert.equal(r.extracaoBate, true);
+});
+
+test('pistaCirurgica: bate → sem pista', () => {
+  assert.equal(pistaCirurgica([{ valor: 2.5, descricao_original: 'X' }], 0), '');
+});
+
+test('pistaCirurgica: diferença = valor de um item (d<0 → pode FALTAR, nomeia)', () => {
+  const itens = [{ valor: 7.77, descricao_original: 'ARROZ ARO 5KG' }, { valor: 2.0, descricao_original: 'Y' }];
+  const p = pistaCirurgica(itens, -7.77);
+  assert.match(p, /ARROZ ARO 5KG/);
+  assert.match(p, /FALTAR|menos/);
+});
+
+test('pistaCirurgica: diferença = valor de um item (d>0 → DUPLICADO)', () => {
+  const p = pistaCirurgica([{ valor: 3.49, descricao_original: 'LEITE' }], 3.49);
+  assert.match(p, /LEITE/);
+  assert.match(p, /DUPLICADO|duas vezes/);
+});
+
+test('pistaCirurgica: diferença = desconto de linha → aponta o desconto', () => {
+  const itens = [{ valor: 4.19, desconto_direto: 0.8, descricao_original: 'IOGURTE' }];
+  const p = pistaCirurgica(itens, -0.8);
+  assert.match(p, /IOGURTE/);
+  assert.match(p, /desconto/i);
+});
+
+test('pistaCirurgica: sem casamento → só direção (ABAIXO menciona quantidade/pack)', () => {
+  const p = pistaCirurgica([{ valor: 5.0, descricao_original: 'X' }], -7.77);
+  assert.match(p, /ABAIXO/);
+  assert.match(p, /QUANTIDADE|pack|FALTA/);
 });

@@ -58,3 +58,34 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso })
     extracaoBate: Math.abs(discrepancia) < 0.015,
   };
 }
+
+// Pista CIRÚRGICA para o loop de auto-correção: dado o resultado da reconciliação
+// que não bateu, tenta apontar a LINHA que explica a diferença, em vez de mandar
+// o modelo procurar às cegas. Determinístico, barato. Estratégia SEGURA — só por
+// CASAMENTO com a discrepância (valor de item / desconto de linha), nunca por
+// "valor outlier" (o Makro & cash-and-carry têm itens caros legítimos → falsos
+// ponteiros). Sem casamento, dá só a DIREÇÃO (acima/abaixo). Devolve '' se bate.
+export function pistaCirurgica(itens = [], discrepancia = 0) {
+  const d = Math.round(Number(discrepancia) * 100) / 100;
+  if (!d) return '';
+  const alvo = Math.abs(d);
+  const casa = (x) => Math.abs(Math.abs(Number(x) || 0) - alvo) <= 0.02;
+  const nome = (it) => String(it.descricao_original || it.descricao || '').trim().slice(0, 40);
+
+  // 1) um item cujo VALOR casa com a diferença → duplicado (d>0) ou em falta (d<0)
+  const porValor = itens.find((it) => casa(it.valor));
+  if (porValor) {
+    return d > 0
+      ? ` PISTA: a diferença (${alvo.toFixed(2)}) é igual ao valor do item "${nome(porValor)}" — ele pode estar DUPLICADO/a mais; confirma se não aparece duas vezes.`
+      : ` PISTA: a diferença (${alvo.toFixed(2)}) é igual ao valor do item "${nome(porValor)}" — a sua QUANTIDADE pode ser maior que 1, pode FALTAR um item desse valor, ou esse valor foi lido a menos.`;
+  }
+  // 2) um desconto de LINHA que casa com a diferença → convenção/desconto mal tratado
+  const porDesc = itens.find((it) => Number(it.desconto_direto) && casa(it.desconto_direto));
+  if (porDesc) {
+    return ` PISTA: a diferença (${alvo.toFixed(2)}) é igual ao desconto da linha "${nome(porDesc)}" — verifica se esse desconto foi contado certo (não a dobrar nem em falta).`;
+  }
+  // 3) sem casamento exato → só a direção
+  return d > 0
+    ? ` PISTA: a soma está ${alvo.toFixed(2)} ACIMA do total — provável item DUPLICADO/a mais, ou um desconto não subtraído.`
+    : ` PISTA: a soma está ${alvo.toFixed(2)} ABAIXO do total — provável item EM FALTA, uma QUANTIDADE/pack lido a menos (em "N X preço" o valor é o TOTAL da linha), ou um valor lido a menos.`;
+}

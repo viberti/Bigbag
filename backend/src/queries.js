@@ -7,10 +7,16 @@
 //  - Excluem `is_clearance` (fim de validade) e `is_non_product` (saco/taxa).
 //  - A correspondência "produto em linguagem natural" → SKU é do BACKEND.
 //
-// SUPOSIÇÃO REGISTADA (v1, reversível): a correspondência produto→SKU é um
-// match ingénuo por LIKE sobre nome_canonico/marca/descricao_original. É o
-// "candidato a experimentação: LLM puro vs. embeddings" do conceito §4.2 —
-// fica isolado em matchProduto() para trocar depois sem mexer nas queries.
+// Correspondência produto→SKU (isolada em matchProduto(), para trocar sem mexer
+// nas queries): LIKE sobre nome_canonico/marca/categoria/descricao_original
+// (apanha fragmentos: "café" → "Café Moído Delta") + expansão de sinónimos para
+// categorias amplas. FALLBACK fuzzy ao nível do caractere (Levenshtein) quando o
+// LIKE não acha nenhum SKU: apanha plural/typo/truncagem do utilizador
+// ("manteigas"→"manteiga", "iorgute"→"iogurte") sem o custo de embeddings.
+import { similaridadeTermo } from './normaliza/similaridade.js';
+
+// Limiar do fallback fuzzy: ≥ casa; abaixo ignora (evita falsos positivos).
+const LIMIAR_FUZZY = 0.7;
 
 const BASE_JOINS = `
   FROM item i
@@ -49,7 +55,7 @@ export function expandirAlvo(alvo) {
 // Fragmento WHERE + params para casar um produto/categoria em linguagem natural.
 // Procura em nome_canonico, marca, categoria e descricao_original, com expansão
 // de sinónimos para termos amplos.
-function matchProduto(produto) {
+async function matchProduto(db, produto) {
   const termos = expandirAlvo(produto);
   const conds = [];
   const params = [];
@@ -58,7 +64,35 @@ function matchProduto(produto) {
     conds.push('(s.nome_canonico LIKE ? OR s.marca LIKE ? OR s.categoria LIKE ? OR i.descricao_original LIKE ?)');
     params.push(like, like, like, like);
   }
+  // Fallback fuzzy: só para alvo ÚNICO (não para categorias já expandidas) e
+  // termos com ≥4 letras (curtos, o LIKE substring já chega). Resolve sku_ids
+  // por semelhança de caractere e injeta-os no match.
+  if (db && termos.length === 1) {
+    const ids = await resolverFuzzy(db, produto);
+    if (ids.length) {
+      conds.push(`i.sku_id IN (${ids.map(() => '?').join(',')})`);
+      params.push(...ids);
+    }
+  }
   return { sql: `(${conds.join(' OR ')})`, params };
+}
+
+// Encontra sku_ids cujo nome canónico se PARECE com o termo (Levenshtein), mas
+// SÓ quando o LIKE não acha nenhum SKU — assim não corre no caso comum nem
+// adiciona ruído quando o match normal já funciona. Tabela de SKUs é pequena.
+async function resolverFuzzy(db, produto) {
+  const termo = normaliza(produto).replace(/\s+/g, '');
+  if (termo.length < 4) return []; // termos curtos: o LIKE substring resolve
+  const like = `%${String(produto).trim()}%`;
+  const [hit] = await db.query(
+    'SELECT 1 FROM sku_normalizado WHERE nome_canonico LIKE ? OR marca LIKE ? OR categoria LIKE ? LIMIT 1',
+    [like, like, like],
+  );
+  if (hit.length) return []; // o LIKE já casa um SKU → sem fuzzy
+  const [skus] = await db.query('SELECT id, nome_canonico FROM sku_normalizado');
+  const ids = [];
+  for (const s of skus) if (similaridadeTermo(produto, s.nome_canonico) >= LIMIAR_FUZZY) ids.push(s.id);
+  return ids;
 }
 
 // Fragmento de filtro por loja/cadeia (opcional).
@@ -71,7 +105,7 @@ function matchLoja(loja) {
 // 1) Compra mais recente de um produto: preço pago, loja e data.
 //    Exclui não-produto; mantém clearance (é uma compra real) mas sinaliza-o.
 export async function buscar_ultima_compra(db, { produto }) {
-  const m = matchProduto(produto);
+  const m = await matchProduto(db, produto);
   const [rows] = await db.query(
     `SELECT
         COALESCE(s.nome_canonico, i.descricao_original) AS produto,
@@ -94,7 +128,7 @@ export async function buscar_ultima_compra(db, { produto }) {
 // 2) Comparar preço entre lojas pela unidade-base, do mais barato ao mais caro.
 //    Usa a observação MAIS RECENTE por loja. Exclui clearance e não-produto.
 export async function comparar_precos_por_loja(db, { produto }) {
-  const m = matchProduto(produto);
+  const m = await matchProduto(db, produto);
   const [rows] = await db.query(
     `SELECT cadeia, loja, preco_por_base, unidade_base, data FROM (
         SELECT
@@ -194,7 +228,7 @@ export async function detalhes_fatura(db, { loja, data } = {}) {
 //    pelo preço por unidade-base — do mais barato ao mais caro. Uma linha por
 //    produto (observação mais recente). Para "qual o queijo mais barato".
 export async function produto_mais_barato(db, { alvo, loja }) {
-  const m = matchProduto(alvo);
+  const m = await matchProduto(db, alvo);
   const ml = matchLoja(loja);
   const [rows] = await db.query(
     `SELECT cadeia, loja, produto, preco_por_base, unidade_base, data FROM (
@@ -221,7 +255,7 @@ export async function produto_mais_barato(db, { alvo, loja }) {
 // 3) Evolução do preço ao longo do tempo (preço por data e loja).
 //    `desde` opcional (ISO 'YYYY-MM-DD'). Exclui clearance e não-produto.
 export async function historico_preco(db, { produto, desde }) {
-  const m = matchProduto(produto);
+  const m = await matchProduto(db, produto);
   const params = [...m.params];
   let filtroData = '';
   if (desde) {
@@ -253,7 +287,7 @@ export async function listar_compras(db, { periodo_inicio, periodo_fim, alvo, lo
   const params = [inicio, fim];
   let filtroAlvo = '';
   if (alvo && normaliza(alvo) !== 'tudo') {
-    const m = matchProduto(alvo);
+    const m = await matchProduto(db, alvo);
     filtroAlvo = `AND ${m.sql}`;
     params.push(...m.params);
   }
@@ -303,7 +337,7 @@ export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim, loja 
   const params = [inicio, fim];
   let filtroAlvo = '';
   if (alvo && normaliza(alvo) !== 'tudo') {
-    const m = matchProduto(alvo); // procura nome/marca/categoria/descrição (+ sinónimos)
+    const m = await matchProduto(db, alvo); // procura nome/marca/categoria/descrição (+ sinónimos)
     filtroAlvo = `AND ${m.sql}`;
     params.push(...m.params);
   }
