@@ -431,11 +431,14 @@ export async function comparar_lojas(db, {} = {}) {
      SELECT cadeia,
             COUNT(*) AS produtos_comparados,
             SUM(preco_por_base = min_preco) AS vezes_mais_barata,
-            ROUND(AVG(100 * (preco_por_base - min_preco) / min_preco), 1) AS premio_medio_pct
+            ROUND(100 * SUM(preco_por_base = min_preco) / COUNT(*)) AS vitorias_pct,
+            -- prémio médio sobre o mais barato, limitado a 100%/produto para um
+            -- outlier (ruído de formato) não dominar a média.
+            ROUND(AVG(100 * LEAST((preco_por_base - min_preco) / min_preco, 1.0)), 1) AS premio_medio_pct
      FROM comp
      WHERE n_cadeias >= 2
      GROUP BY cadeia
-     ORDER BY premio_medio_pct ASC, vezes_mais_barata DESC`,
+     ORDER BY vitorias_pct DESC, premio_medio_pct ASC`,
   );
   return rows;
 }
