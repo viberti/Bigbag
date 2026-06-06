@@ -420,6 +420,7 @@ body {
 .adm-item-qtd input { width: 66px; padding: 3px 6px; border-radius: 6px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); font-size: 12px; text-align: right; }
 .adm-item-qtd em { color: var(--muted); font-style: normal; font-size: 11px; }
 .adm-ppb { color: var(--verde); font-size: 11px; }
+.adm-ppb.adm-sempeso { color: #e0b34a; } /* item a peso sem peso na nota → €/base indisponível */
 .adm-revprev { background: #131c21; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
 .adm-diag { background: rgba(224, 179, 65, 0.1); border: 1px solid rgba(224, 179, 65, 0.3); border-radius: 8px; padding: 10px 12px; margin: 10px 0 14px; }
 .adm-diag-h { color: #e0b341; font-weight: 700; font-size: 13px; margin-bottom: 4px; }

@@ -798,11 +798,15 @@ function TabNotas() {
                           title="quantidade/peso — corrige aqui se a leitura errou"
                         />
                         <em>{it.unidade_base || 'un'}</em>
-                        {it.preco_por_base != null && (
+                        {it.preco_por_base != null ? (
                           <span className="adm-ppb">
                             {eur(it.preco_por_base)}/{it.unidade_base || 'un'}
                           </span>
-                        )}
+                        ) : it.unidade_base === 'kg' || it.unidade_base === 'L' ? (
+                          <span className="adm-ppb adm-sempeso">
+                            sem peso na nota — escreve o peso ({it.unidade_base}) p/ obter €/{it.unidade_base}
+                          </span>
+                        ) : null}
                       </span>
                     )}
                     {it.nome_canonico && it.nome_canonico !== it.descricao_original && (
