@@ -186,23 +186,34 @@ export async function digitalizar(file, onInfo) {
 // vivo do contorno sobre o feed da câmara (chamado a poucos fps). Converte para
 // cinzento antes do Canny (o findPaperContour corre Canny direto na imagem) — é
 // o que torna a deteção fiável, sobretudo em frames pequenos. Nunca lança.
+export let detStage = '-'; // marcador de etapa (diagnóstico do hang ao vivo)
 export async function detectarPapel(fonte) {
   try {
+    detStage = 'cv';
     if (!window.cv?.Mat) await carregarOpenCV();
+    detStage = 'import';
     const { default: Jscanify } = await import('./vendor/jscanify.js');
     const scanner = new Jscanify();
     const cv = window.cv;
+    detStage = 'imread';
     const mat = cv.imread(fonte); // RGBA direto, como o digitalizar (que funciona)
     try {
+      detStage = 'contour';
       const contour = scanner.findPaperContour(mat);
-      if (!contour) return null;
+      if (!contour) {
+        detStage = 'noContour';
+        return null;
+      }
+      detStage = 'corners';
       const c = scanner.getCornerPoints(contour);
+      detStage = 'done';
       if (c?.topLeftCorner && c?.topRightCorner && c?.bottomLeftCorner && c?.bottomRightCorner) return c;
       return null;
     } finally {
       mat.delete();
     }
-  } catch {
+  } catch (e) {
+    detStage = 'err:' + String(e?.message || e).slice(0, 24);
     return null;
   }
 }

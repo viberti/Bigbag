@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
-import { digitalizar } from './scanner.js';
+import { digitalizar, detectarPapel, detStage } from './scanner.js';
 import { MARK, ICON } from './marca.js';
 import { t, detetarLocale } from './i18n.js';
 
@@ -936,7 +936,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     const id = setInterval(async () => {
       const v = videoRef.current;
       const ov = overlayRef.current;
-      setDbg(`v${APP_VERSION} #${detNRef.current} ${lastResRef.current} | occ:${ocupado ? 'Y' : 'N'} cv:${window.cv?.Mat ? 'Y' : 'N'} vw:${v?.videoWidth || 0}`);
+      setDbg(`v${APP_VERSION} #${detNRef.current} ${lastResRef.current} | st:${detStage} occ:${ocupado ? 'Y' : 'N'} cv:${window.cv?.Mat ? 'Y' : 'N'}`);
       if (!v || !v.videoWidth || ocupado || parar) return;
       ocupado = true;
       try {
