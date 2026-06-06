@@ -158,6 +158,10 @@ body {
 .cam-cap { width: 70px; height: 70px; border-radius: 50%; background: #fff; border: 4px solid #ffffff80; cursor: pointer; }
 .cam-cap:active { background: #ddd; }
 .cam-file { background: #0008; color: #fff; border: none; padding: 10px 14px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.cam-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 0; }
+.cam-acoes-prev { justify-content: center; gap: 18px; }
+.cam-enviar { background: linear-gradient(140deg, #2ec46e, #1f7a4d); color: #06231a; border: none; padding: 13px 28px; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(46, 196, 110, 0.45); }
+.cam-cap:disabled { opacity: 0.5; }
 .cam-spacer { width: 64px; }
 .cam-erro { position: absolute; inset: 0; z-index: 2; margin: auto; height: fit-content; text-align: center; color: #fff; display: flex; flex-direction: column; gap: 14px; padding: 0 32px; }
 .mais { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px 0 0; font-size: 13px; }
@@ -211,6 +215,11 @@ body {
 .adm-lista { border-right: 1px solid #000a; overflow-y: auto; background: #131c21; }
 .adm-busca, .adm-filtro { padding: 10px; position: sticky; top: 0; background: #131c21; border-bottom: 1px solid #0006; }
 .adm-busca input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); }
+.adm-novo-bar { padding: 0 10px 8px; background: #131c21; border-bottom: 1px solid #0006; }
+.adm-novo-btn { width: 100%; background: none; border: 1px dashed #3a4a52; color: var(--muted); padding: 7px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.adm-novo-btn:hover { color: var(--texto); border-color: var(--verde); }
+.adm-novo-form { padding: 4px 10px 10px; display: flex; flex-direction: column; gap: 6px; background: #131c21; border-bottom: 1px solid #0006; }
+.adm-novo-form > input { padding: 8px 10px; border-radius: 8px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); font-size: 14px; }
 .adm-filtro { display: flex; gap: 4px; }
 .adm-filtro button { flex: 1; background: none; border: 1px solid #2a3942; color: var(--muted); padding: 6px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .adm-filtro button.on { background: #2a3942; color: var(--texto); }
@@ -316,6 +325,9 @@ body {
 .adm-reproc { margin-left: 12px; background: #2a3942; color: var(--texto); border: 1px solid #3a4a52; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .adm-reproc:hover { background: #34464f; }
 .adm-reproc:disabled { opacity: 0.5; cursor: default; }
+.adm-apagar { margin-left: 8px; background: rgba(210, 84, 47, 0.12); color: #ff8a73; border: 1px solid rgba(210, 84, 47, 0.4); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.adm-apagar:hover { background: rgba(210, 84, 47, 0.2); }
+.adm-apagar:disabled { opacity: 0.5; cursor: default; }
 .adm-coment { width: 100%; min-height: 70px; padding: 10px; border-radius: 8px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); font-size: 14px; resize: vertical; }
 .adm-acoes { display: flex; gap: 10px; margin-top: 12px; }
 .adm-certa, .adm-errada, .adm-cancelar { padding: 10px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; }

@@ -72,21 +72,34 @@ export function extrairFormato(descricao) {
 }
 
 // Calcula preco_por_base a partir do item (preco_liquido, quantidade) e formato.
-export function precoPorBase({ preco_liquido, quantidade = 1 }, formato) {
+// `unidadeAlvo` = a unidade de comparação AUTORITATIVA do SKU. Sem ela, usa a do
+// formato (retrocompatível). Com ela, TODOS os itens do mesmo produto comparam na
+// MESMA base — e se o alvo é peso/volume mas a descrição não traz peso/volume,
+// devolve null (incomputável honesto) em vez de um €/embalagem enganador.
+export function precoPorBase({ preco_liquido, quantidade = 1 }, formato, unidadeAlvo) {
   const liq = Number(preco_liquido);
   if (!Number.isFinite(liq)) return null;
   const q = Number(quantidade) || 1;
+  const alvo = unidadeAlvo || formato.unidade_base;
 
-  // Peso com €/kg impresso → usa o valor da fatura (mais fiável).
-  if (formato.precoKg != null) return round4(formato.precoKg);
-
-  if (formato.unidade_base === 'kg' || formato.unidade_base === 'L') {
-    const total = formato.formato_valor * q;
-    return total > 0 ? round4(liq / total) : null;
+  if (alvo === 'kg' || alvo === 'L') {
+    // Peso com €/kg impresso → usa o valor da fatura (mais fiável).
+    if (formato.precoKg != null && alvo === 'kg') return round4(formato.precoKg);
+    // Peso/volume NO FORMATO (ex.: "250G", "900G"): €/base. `quantidade` é o nº de
+    // EMBALAGENS — mas extrações antigas gravaram o peso lá (q=0,25 p/ 250g); um q
+    // fracionário não é nº de embalagens, por isso conta como 1 (evita dupla contagem).
+    if (formato.unidade_base === alvo && formato.formato_valor > 0) {
+      const embalagens = q >= 1 ? q : 1;
+      return round4(liq / (formato.formato_valor * embalagens));
+    }
+    // Sem peso no formato mas `quantidade` fracionária = PESO de balcão na própria
+    // quantidade (ex.: "ALPERCE" 0,514 kg) → €/base = preço / peso.
+    if (q > 0 && q < 1) return round4(liq / q);
+    return null;
   }
-  // 'un': se o formato traz contagem do pacote (ex. 16UN), €/unidade individual;
-  // senão, €/unidade comprada.
-  const n = formato.formato_valor > 1 ? formato.formato_valor : q;
+  // alvo 'un': se o formato traz contagem do pacote (ex. 16UN), €/unidade
+  // individual; senão, €/unidade comprada.
+  const n = formato.unidade_base === 'un' && formato.formato_valor > 1 ? formato.formato_valor : q;
   return n > 0 ? round4(liq / n) : null;
 }
 

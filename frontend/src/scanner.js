@@ -35,9 +35,24 @@ function ficheiroParaImagem(file) {
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-export async function digitalizar(file) {
-  if (!file || !file.type?.startsWith('image/')) return file; // PDF/outros: passa direto
+// `onInfo` (opcional) recebe um diagnóstico do que a digitalização fez — para se
+// PERCEBER se o jscanify correu, ou caiu para a original (e porquê). `cobertura`
+// = % da imagem que o contorno detetado ocupa: ~100% = sem perspetiva a corrigir.
+export async function digitalizar(file, onInfo) {
+  const info = (o) => {
+    try {
+      console.log('[scan]', JSON.stringify(o));
+      onInfo?.(o);
+    } catch {
+      /* noop */
+    }
+  };
+  if (!file || !file.type?.startsWith('image/')) {
+    info({ dewarped: false, motivo: 'não-imagem' });
+    return file;
+  }
   let mat;
+  const t0 = performance.now();
   try {
     await carregarOpenCV();
     const { default: Jscanify } = await import('./vendor/jscanify.js');
@@ -46,16 +61,28 @@ export async function digitalizar(file) {
     const cv = window.cv;
     mat = cv.imread(img);
     const contour = scanner.findPaperContour(mat);
-    if (!contour) return file;
+    if (!contour) {
+      info({ dewarped: false, motivo: 'sem contorno', ms: Math.round(performance.now() - t0) });
+      return file;
+    }
     const c = scanner.getCornerPoints(contour);
-    if (!c?.topLeftCorner) return file;
+    if (!c?.topLeftCorner) {
+      info({ dewarped: false, motivo: 'sem cantos' });
+      return file;
+    }
     const w = Math.round(Math.max(dist(c.topLeftCorner, c.topRightCorner), dist(c.bottomLeftCorner, c.bottomRightCorner)));
     const h = Math.round(Math.max(dist(c.topLeftCorner, c.bottomLeftCorner), dist(c.topRightCorner, c.bottomRightCorner)));
-    if (!(w > 60 && h > 60)) return file; // contorno implausível → original
+    const cobertura = img.width && img.height ? Math.round((100 * (w * h)) / (img.width * img.height)) : null;
+    if (!(w > 60 && h > 60)) {
+      info({ dewarped: false, motivo: 'contorno implausível', w, h });
+      return file;
+    }
     const canvas = scanner.extractPaper(img, w, h, c);
     const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+    info({ dewarped: true, w, h, cobertura, original: `${img.width}×${img.height}`, ms: Math.round(performance.now() - t0) });
     return blob ? new File([blob], 'fatura.jpg', { type: 'image/jpeg' }) : file;
-  } catch {
+  } catch (e) {
+    info({ dewarped: false, motivo: 'erro: ' + (e?.message || e) });
     return file; // qualquer erro → envia a original
   } finally {
     try {

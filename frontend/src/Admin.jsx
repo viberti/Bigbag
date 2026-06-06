@@ -33,6 +33,9 @@ export default function Admin() {
           <button className={aba === 'qualidade' ? 'on' : ''} onClick={() => setAba('qualidade')}>
             Qualidade
           </button>
+          <button className={aba === 'precos' ? 'on' : ''} onClick={() => setAba('precos')}>
+            Preços
+          </button>
         </nav>
         <a className="adm-link" href="/">
           ← app
@@ -44,6 +47,8 @@ export default function Admin() {
         <TabFusoes />
       ) : aba === 'qualidade' ? (
         <TabQualidade />
+      ) : aba === 'precos' ? (
+        <TabPrecos />
       ) : (
         <TabNotas />
       )}
@@ -88,6 +93,10 @@ function TabProdutos() {
   const [novaDesc, setNovaDesc] = useState('');
   const [alvoMerge, setAlvoMerge] = useState('');
   const [msg, setMsg] = useState('');
+  const [criando, setCriando] = useState(false);
+  const [novoNome, setNovoNome] = useState('');
+  const [novaUnidade, setNovaUnidade] = useState('un');
+  const [descLivres, setDescLivres] = useState([]);
   const [nota, setNota] = useState(null); // { url, pdf } da imagem/PDF da nota
   const notaRef = useRef('');
 
@@ -146,6 +155,12 @@ function TabProdutos() {
     setMsg('✓ nome simplificado salvo');
     recarregarLista();
   }
+  async function salvarUnidade(u) {
+    if (!det || u === det.sku.unidade_base) return;
+    const r = await adm.renomearSku(sel, { nome_canonico: det.sku.nome_canonico, unidade_base: u });
+    setMsg(`✓ unidade → ${u} · ${r?.recomputados || 0} preços recalculados`);
+    await recarregarDet();
+  }
   async function dissociar(desc) {
     await adm.dissociar(sel, desc);
     await recarregarDet();
@@ -160,6 +175,17 @@ function TabProdutos() {
     recarregarLista();
     setMsg('✓ associado');
   }
+  async function criar() {
+    const nome2 = novoNome.trim();
+    if (!nome2) return;
+    const r = await adm.criarSku({ nome_canonico: nome2, unidade_base: novaUnidade });
+    setNovoNome('');
+    setCriando(false);
+    await recarregarLista();
+    if (r?.id) await abrir(r.id); // seleciona o novo → operador associa as descrições
+    setMsg('✓ produto criado — associe abaixo as descrições das lojas');
+  }
+  const carregarLivres = () => adm.descricoesLivres(novaDesc).then((r) => setDescLivres(r.descricoes || [])).catch(() => {});
   async function fundir() {
     const para = Number(alvoMerge);
     if (!para || para === sel) return;
@@ -182,6 +208,32 @@ function TabProdutos() {
         >
           <input placeholder="procurar produto…" value={q} onChange={(e) => setQ(e.target.value)} />
         </form>
+        <div className="adm-novo-bar">
+          <button type="button" className="adm-novo-btn" onClick={() => setCriando((c) => !c)}>
+            {criando ? '× cancelar' : '+ Novo produto'}
+          </button>
+        </div>
+        {criando && (
+          <div className="adm-novo-form">
+            <input
+              autoFocus
+              placeholder="nome do produto (ex.: Mamão)"
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && criar()}
+            />
+            <div className="adm-linha">
+              <select value={novaUnidade} onChange={(e) => setNovaUnidade(e.target.value)}>
+                <option value="un">un — contado</option>
+                <option value="kg">kg — peso</option>
+                <option value="L">L — líquido</option>
+              </select>
+              <button onClick={criar} disabled={!novoNome.trim()}>
+                Criar
+              </button>
+            </div>
+          </div>
+        )}
         <ul>
           {skus.map((s) => (
             <li key={s.id} className={s.id === sel ? 'on' : ''} onClick={() => abrir(s.id)}>
@@ -206,8 +258,17 @@ function TabProdutos() {
             </div>
             <div className="adm-meta">
               {det.sku.marca ? `marca: ${det.sku.marca} · ` : ''}
-              {det.sku.categoria || '—'} · {det.sku.unidade_base} ·{' '}
-              {det.descricoes.reduce((a, d) => a + d.n, 0)} compra(s)
+              {det.sku.categoria || '—'} · {det.descricoes.reduce((a, d) => a + d.n, 0)} compra(s)
+            </div>
+
+            <h3>Unidade de comparação</h3>
+            <div className="adm-linha">
+              <select value={det.sku.unidade_base} onChange={(e) => salvarUnidade(e.target.value)}>
+                <option value="un">un — contado (ovos, latas, iogurtes)</option>
+                <option value="kg">kg — peso (café, queijo, fruta, carne)</option>
+                <option value="L">L — líquido (leite, sumo, azeite)</option>
+              </select>
+              <span className="adm-vazio2">recalcula o €/base de todas as compras deste produto</span>
             </div>
 
             <h3>Nome simplificado (lista de compras)</h3>
@@ -249,14 +310,26 @@ function TabProdutos() {
 
             <div className="adm-linha">
               <input
-                placeholder="associar outra descrição (texto exato do talão)…"
+                list="adm-descs-livres"
+                placeholder="associar descrição de loja (digite ou escolha)…"
                 value={novaDesc}
-                onChange={(e) => setNovaDesc(e.target.value)}
+                onFocus={carregarLivres}
+                onChange={(e) => {
+                  setNovaDesc(e.target.value);
+                  carregarLivres();
+                }}
               />
               <button onClick={associar} disabled={!novaDesc.trim()}>
                 Associar
               </button>
             </div>
+            <datalist id="adm-descs-livres">
+              {descLivres.map((d) => (
+                <option key={d.descricao} value={d.descricao}>
+                  {d.atual ? `→ ${d.atual} · ${d.n}×` : `sem produto · ${d.n}×`}
+                </option>
+              ))}
+            </datalist>
 
             <h3>Fundir com outro produto</h3>
             <div className="adm-linha">
@@ -458,6 +531,92 @@ function TabQualidade() {
   );
 }
 
+// ───────────────────────────── Qualidade de preço ─────────────────────────────
+function TabPrecos() {
+  const [dados, setDados] = useState(null);
+  const [reproc, setReproc] = useState(null);
+  const carregar = () => adm.qualidadePreco().then(setDados).catch(() => setDados({ grupos: [] }));
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  async function reprocessar(faturaId) {
+    if (reproc) return;
+    if (!window.confirm('Reprocessar a nota deste item (re-lê do ficheiro e substitui os itens)?')) return;
+    setReproc(faturaId);
+    try {
+      await adm.reprocessarNota(faturaId);
+      await carregar();
+    } catch {
+      /* fica como está */
+    } finally {
+      setReproc(null);
+    }
+  }
+
+  if (!dados) return <p className="adm-vazio">a calcular…</p>;
+  return (
+    <div className="adm-qualidade">
+      <p className="adm-aviso">
+        Itens cujo preço por unidade-base se afasta muito da mediana do produto — provável erro de
+        unidade/quantidade/formato (ex.: ovos per-caixa vs per-ovo, café per-pacote vs per-kg, leitura garbled).
+        Corrige a quantidade na aba Notas, ou reprocessa a nota aqui (🔄).
+      </p>
+      {dados.grupos.length === 0 ? (
+        <p className="adm-vazio2">Sem outliers de preço. 🎉</p>
+      ) : (
+        dados.grupos.map((g) => (
+          <div className="adm-qtab" key={g.sku_id}>
+            <h3>
+              {g.nome}{' '}
+              <em>
+                · mediana {eur(g.mediana)}/{g.unidade_base} · {g.n} compras
+              </em>
+            </h3>
+            <table className="adm-tabela">
+              <thead>
+                <tr>
+                  <th>Item lido</th>
+                  <th>Loja · data</th>
+                  <th>preço/base</th>
+                  <th>desvio</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {g.outliers.map((o) => (
+                  <tr key={o.item_id}>
+                    <td>
+                      {o.descricao} <em>(q={o.quantidade}, pago {eur(o.preco_liquido)})</em>
+                    </td>
+                    <td>
+                      {o.cadeia} · {o.data}
+                    </td>
+                    <td className="q-mau">
+                      {eur(o.preco_por_base)}/{g.unidade_base}
+                    </td>
+                    <td>{o.desvio}×</td>
+                    <td>
+                      <button
+                        className="adm-reproc"
+                        disabled={reproc === o.fatura_id}
+                        onClick={() => reprocessar(o.fatura_id)}
+                        title="reprocessar a nota deste item"
+                      >
+                        {reproc === o.fatura_id ? '…' : '🔄'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────── Notas ───────────────────────────────
 function TabNotas() {
   const [status, setStatus] = useState('pendente');
@@ -528,6 +687,23 @@ function TabNotas() {
     }
   }
 
+  async function apagar() {
+    if (!sel || reprocessando) return;
+    if (!window.confirm('Apagar esta nota DEFINITIVAMENTE (itens + ficheiro)? Útil para notas com foto má — depois digitaliza de novo no app.'))
+      return;
+    setReprocessando(true);
+    try {
+      await adm.apagarNota(sel);
+      setSel(null);
+      setDet(null);
+      recarregar();
+    } catch {
+      /* erro silencioso */
+    } finally {
+      setReprocessando(false);
+    }
+  }
+
   async function salvarQtd(itemId, valor, atual) {
     const q = Number(String(valor).replace(',', '.'));
     if (!(q > 0) || q === Number(atual)) return;
@@ -586,6 +762,9 @@ function TabNotas() {
                 {det.fatura.needs_review ? '⚠ em revisão' : 'reconcilia'} · origem {det.fatura.origem_captura || '—'}
                 <button className="adm-reproc" onClick={reprocessar} disabled={reprocessando} title="re-lê a nota do ficheiro com a extração atual">
                   {reprocessando ? 'a reprocessar…' : '🔄 Reprocessar'}
+                </button>
+                <button className="adm-apagar" onClick={apagar} disabled={reprocessando} title="apagar a nota (para re-digitalizar)">
+                  🗑 Apagar
                 </button>
               </div>
               {det.diagnostico && (

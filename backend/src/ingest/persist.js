@@ -90,12 +90,13 @@ export async function persistirFatura(
     for (const it of dados.itens) {
       await conn.query(
         `INSERT INTO item
-           (fatura_id, sku_id, descricao_original, quantidade, preco_unitario, preco_liquido,
+           (fatura_id, sku_id, descricao_original, linha_peso, quantidade, preco_unitario, preco_liquido,
             preco_por_base, is_clearance, desconto_direto, is_non_product)
-         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           faturaId,
           String(it.descricao_original || '').slice(0, 200),
+          it.linha_peso ? String(it.linha_peso).slice(0, 80) : null,
           num(it.quantidade) || 1,
           num(it.preco_unitario),
           num(it.preco_liquido),

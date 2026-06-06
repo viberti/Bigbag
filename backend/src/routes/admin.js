@@ -5,12 +5,14 @@
 //  3) Fundir SKUs (ex.: "Burrata" + "Burrata de Búfala").
 // Operações de escrita usam transação onde tocam em várias tabelas.
 import { Router } from 'express';
+import { unlink } from 'node:fs/promises';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { similaridade } from '../normaliza/similaridade.js';
 import { mergeNomesIdenticos } from '../normaliza/matcher.js';
 import { pistaCirurgica, validarLinhas } from '../ingest/reconcile.js';
 import { reprocessarFatura } from '../ingest/reprocess.js';
+import { recomputarPpbSku } from '../normaliza/ppb.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -81,17 +83,63 @@ adminRouter.patch('/skus/:id', async (req, res) => {
     const marca = req.body?.marca === undefined ? undefined : str(req.body.marca, 80);
     const categoria = req.body?.categoria === undefined ? undefined : str(req.body.categoria, 60);
     const simplificado = req.body?.nome_simplificado === undefined ? undefined : str(req.body.nome_simplificado, 120);
+    const unidade = ['un', 'kg', 'L'].includes(req.body?.unidade_base) ? req.body.unidade_base : undefined;
     const sets = ['nome_canonico = ?'];
     const args = [nome];
     if (marca !== undefined) { sets.push('marca = ?'); args.push(marca || null); }
     if (categoria !== undefined) { sets.push('categoria = ?'); args.push(categoria || null); }
     if (simplificado !== undefined) { sets.push('nome_simplificado = ?'); args.push(simplificado || null); }
+    if (unidade !== undefined) { sets.push('unidade_base = ?'); args.push(unidade); }
     args.push(id);
     await getPool().query(`UPDATE sku_normalizado SET ${sets.join(', ')} WHERE id = ?`, args);
-    res.json({ ok: true });
+    // Se a unidade mudou, recomputa o preco_por_base dos itens do SKU (a unidade
+    // é autoritativa: café→kg passa todos a €/kg).
+    let recomputados = 0;
+    if (unidade !== undefined) recomputados = await recomputarPpbSku(getPool(), id).catch(() => 0);
+    res.json({ ok: true, recomputados });
   } catch (e) {
     console.error('[admin/skus PATCH] erro:', e.message);
     res.status(500).json({ erro: 'Falha a atualizar SKU' });
+  }
+});
+
+// Criar um produto canónico novo (do zero). O operador associa-lhe depois as
+// descrições das lojas (POST /skus/:id/associar).
+adminRouter.post('/skus', async (req, res) => {
+  try {
+    const nome = str(req.body?.nome_canonico, 120);
+    if (!nome) return res.status(400).json({ erro: 'nome_canonico obrigatório' });
+    const marca = str(req.body?.marca, 80) || null;
+    const categoria = str(req.body?.categoria, 60) || null;
+    const unidade = ['un', 'kg', 'L'].includes(req.body?.unidade_base) ? req.body.unidade_base : 'un';
+    const [r] = await getPool().query(
+      'INSERT INTO sku_normalizado (nome_canonico, marca, categoria, unidade_base) VALUES (?, ?, ?, ?)',
+      [nome, marca, categoria, unidade],
+    );
+    res.json({ ok: true, id: r.insertId });
+  } catch (e) {
+    console.error('[admin/skus POST] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a criar produto' });
+  }
+});
+
+// Descrições de loja ainda SEM SKU (ou de outros SKUs) — para o operador
+// descobrir o que pode associar a um produto. ?q filtra.
+adminRouter.get('/descricoes-livres', async (req, res) => {
+  try {
+    const q = str(req.query.q, 60);
+    const like = q ? `%${q}%` : '%';
+    const [rows] = await getPool().query(
+      `SELECT i.descricao_original AS descricao, COUNT(*) AS n, s.nome_canonico AS atual
+         FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+        WHERE i.is_non_product = 0 AND i.descricao_original LIKE ?
+        GROUP BY i.descricao_original ORDER BY n DESC LIMIT 50`,
+      [like],
+    );
+    res.json({ descricoes: rows });
+  } catch (e) {
+    console.error('[admin/descricoes-livres] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar descrições' });
   }
 });
 
@@ -333,6 +381,71 @@ adminRouter.get('/qualidade', async (req, res) => {
   }
 });
 
+// Qualidade de PREÇO: para cada SKU com ≥2 observações, marca os itens cujo
+// preco_por_base se afasta muito da mediana (>fator× ou <1/fator×). Apanha
+// inconsistências de unidade/quantidade/formato — ovos per-caixa vs per-ovo,
+// café per-pacote vs per-kg, leituras garbled — que distorcem a comparação.
+// 2.ª camada de validação ao NÍVEL DO PRODUTO (a validarLinhas é dentro da nota).
+adminRouter.get('/qualidade-preco', async (req, res) => {
+  try {
+    const fator = Math.min(Math.max(Number(req.query.fator) || 3, 1.5), 20);
+    const [rows] = await getPool().query(
+      `SELECT s.id sku_id, s.nome_canonico, s.unidade_base, i.id item_id, i.descricao_original,
+              i.quantidade, i.preco_liquido, i.preco_por_base, i.fatura_id, l.cadeia,
+              DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data
+         FROM item i
+         JOIN sku_normalizado s ON s.id = i.sku_id
+         JOIN fatura f ON f.id = i.fatura_id
+         JOIN loja l ON l.id = f.loja_id
+        WHERE i.preco_por_base > 0 AND i.is_non_product = 0 AND i.is_clearance = 0`,
+    );
+    const porSku = new Map();
+    for (const r of rows) {
+      if (!porSku.has(r.sku_id)) porSku.set(r.sku_id, []);
+      porSku.get(r.sku_id).push(r);
+    }
+    const mediana = (arr) => {
+      const v = arr.map((x) => Number(x.preco_por_base)).sort((a, b) => a - b);
+      const m = v.length >> 1;
+      return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+    };
+    const grupos = [];
+    for (const itens of porSku.values()) {
+      if (itens.length < 2) continue;
+      const med = mediana(itens);
+      if (!(med > 0)) continue;
+      const outliers = itens
+        .filter((x) => Number(x.preco_por_base) > med * fator || Number(x.preco_por_base) < med / fator)
+        .map((o) => ({
+          item_id: o.item_id,
+          fatura_id: o.fatura_id,
+          descricao: o.descricao_original,
+          quantidade: o.quantidade,
+          preco_liquido: o.preco_liquido,
+          preco_por_base: o.preco_por_base,
+          cadeia: o.cadeia,
+          data: o.data,
+          desvio: Math.round((Number(o.preco_por_base) / med) * 10) / 10,
+        }))
+        .sort((a, b) => b.desvio - a.desvio);
+      if (outliers.length)
+        grupos.push({
+          sku_id: itens[0].sku_id,
+          nome: itens[0].nome_canonico,
+          unidade_base: itens[0].unidade_base,
+          mediana: Math.round(med * 10000) / 10000,
+          n: itens.length,
+          outliers,
+        });
+    }
+    grupos.sort((a, b) => (b.outliers[0]?.desvio || 0) - (a.outliers[0]?.desvio || 0));
+    res.json({ fator, grupos });
+  } catch (e) {
+    console.error('[admin/qualidade-preco] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a calcular qualidade de preço' });
+  }
+});
+
 // Editar a quantidade/peso de um item (na base do SKU: un/kg/L) e recalcular o
 // preco_por_base = preco_liquido / quantidade. É o que mantém a comparação de
 // preços correta quando a extração leu mal o peso.
@@ -363,6 +476,43 @@ adminRouter.post('/faturas/:id/reprocessar', async (req, res) => {
     console.error('[admin/reprocessar] erro:', e.message);
     res.status(500).json({ erro: 'Falha ao reprocessar', detalhe: e.message });
   }
+});
+
+// Apagar uma nota (itens + revisões + ficheiro + SKUs órfãos). Para notas com
+// captura má — apaga e o utilizador re-digitaliza. Irreversível.
+adminRouter.delete('/faturas/:id', async (req, res) => {
+  const pool = getPool();
+  const conn = await pool.getConnection();
+  let ficheiro = null;
+  try {
+    const id = Number(req.params.id);
+    await conn.beginTransaction();
+    const [[f]] = await conn.query('SELECT ficheiro_original FROM fatura WHERE id = ?', [id]);
+    if (!f) {
+      await conn.rollback();
+      return res.status(404).json({ erro: 'Nota não encontrada' });
+    }
+    ficheiro = f.ficheiro_original;
+    await conn.query('DELETE FROM revisao WHERE fatura_id = ?', [id]);
+    await conn.query('DELETE FROM item WHERE fatura_id = ?', [id]);
+    await conn.query('DELETE FROM fatura WHERE id = ?', [id]);
+    // SKUs que ficaram sem nenhum item → remover (+ os seus aliases)
+    const [orf] = await conn.query('SELECT s.id FROM sku_normalizado s LEFT JOIN item i ON i.sku_id = s.id WHERE i.id IS NULL');
+    const ids = orf.map((o) => o.id);
+    if (ids.length) {
+      await conn.query('DELETE FROM sku_alias WHERE sku_id IN (?)', [ids]);
+      await conn.query('DELETE FROM sku_normalizado WHERE id IN (?)', [ids]);
+    }
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    console.error('[admin/faturas DELETE] erro:', e.message);
+    return res.status(500).json({ erro: 'Falha a apagar a nota' });
+  } finally {
+    conn.release();
+  }
+  if (ficheiro) await unlink(ficheiro).catch(() => {}); // ficheiro fora da transação
+  res.json({ ok: true });
 });
 
 // Guardar o veredicto do operador sobre a leitura.
