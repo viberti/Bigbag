@@ -807,12 +807,29 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     setErro('');
     (async () => {
       try {
+        // Pedir alta resolução: sem isto o browser entrega ~640×480 e a foto
+        // sai borrada depois do warp/recorte. `ideal` deixa o browser escolher
+        // o máximo suportado pela câmara traseira.
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+          },
           audio: false,
         });
         if (cancelado) return stream.getTracks().forEach((tr) => tr.stop());
         streamRef.current = stream;
+        // Tentar autofoco contínuo (suporte variável; falha em silêncio).
+        try {
+          const track = stream.getVideoTracks()[0];
+          const caps = track.getCapabilities?.() || {};
+          if (caps.focusMode?.includes('continuous')) {
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+          }
+        } catch {
+          /* noop */
+        }
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => {});
@@ -853,7 +870,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
       info = d;
     });
     setProcessando(false);
-    setPreview({ url: URL.createObjectURL(file), file, info });
+    setPreview({ url: URL.createObjectURL(file), file, info, res: `${v.videoWidth}×${v.videoHeight}` });
   }
 
   function enviar() {
@@ -900,6 +917,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
                       'não-imagem': 'não é imagem',
                     }[preview.info?.motivo] || preview.info?.motivo || 'desconhecido',
                 })}
+            {preview.res ? <span className="cam-res"> · captura {preview.res}</span> : null}
           </p>
           <div className="cam-acoes cam-acoes-prev">
             <button className="cam-file" onClick={repetir}>
