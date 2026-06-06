@@ -215,6 +215,14 @@ Decisões-chave:
   "raspar" cêntimos dos itens para a soma bater com o total, calcula-se
   `Σbase − desconto_global − total` e regista-se. Se ≠ 0, a extração perdeu,
   inventou ou leu mal um item/desconto → `needs_review`, fora das análises.
+- **Loop de auto-correção (limitado), com pista cirúrgica.** Quando não bate, a
+  discrepância é realimentada ao modelo. `pistaCirurgica()` (determinística)
+  aponta a LINHA que explica a diferença — por *casamento* com o valor de um item
+  (duplicado/em falta) ou com um desconto de linha; sem casamento, dá só a direção
+  (acima/abaixo + dica de quantidade/pack). NUNCA por "valor outlier" (daria
+  falsos ponteiros em cash-and-carry como o Makro). Fica-se com a melhor
+  tentativa; pára ao bater, ao não melhorar, ou no limite de iterações
+  (`maxCorrecoes` — cada retry é outra chamada cara, por isso é limitado).
 
 ## 8. Normalização de produto (3 camadas)
 
@@ -225,20 +233,40 @@ Transformar `"BOL DIGESTIVE AVEIA CNT 425GR"` no SKU canónico
    peso/volume/contagem ("425GR", "2K", "6×200ml", "meia dúzia") para calcular
    `preco_por_base`. Sem este passo a comparação entre formatos é impossível.
 2. **Canonicalização por LLM** (`canonical.js`): devolve nome canónico (sem
-   marca nem formato) + marca + categoria + unidade + confiança. **Corrige erros
-   óbvios de OCR** ("OLO GIRASSOL"→"Óleo de Girassol") com conhecimento de
-   produto, mas com guarda-corpos: **nunca altera números**, **nunca inventa**
-   (se ilegível, baixa a confiança e o item fica para revisão), e a descrição
-   crua fica sempre para auditoria.
-3. **Resolução/Match** (`matcher.js`): `resolverSku` segue
-   **alias-cache** (instantâneo) → **canonicalização** → **match por
-   similaridade** sobre candidatos da mesma marca/unidade/formato. Acima de um
-   limiar faz match automático; na zona cinzenta um juiz LLM confirma; abaixo
-   cria SKU novo. Nomes canónicos idênticos reutilizam sempre o mesmo SKU
-   (evita duplicados). Cada resolução grava um alias para a próxima vez.
+   marca nem formato) + marca + categoria + unidade + confiança. Recebe o
+   **contexto da cadeia** (o modelo desambigua melhor sabendo que é Lidl vs
+   Continente). **Corrige erros óbvios de OCR** ("OLO GIRASSOL"→"Óleo de
+   Girassol") com conhecimento de produto, mas com guarda-corpos: **nunca altera
+   números**, **nunca inventa** (se ilegível, baixa a confiança e o item fica
+   para revisão), e a descrição crua fica sempre para auditoria. *Nota: a
+   expansão de abreviaturas vive no PROMPT (com contexto), não num regex
+   determinístico — substituição cega corromperia ambíguos (NAT=Natural/Natas,
+   M/L=tamanho do ovo, MG=Meio-Gordo/mg) e envenenaria o input do LLM.*
+3. **Resolução/Match** (`matcher.js` + `similaridade.js`): `resolverSku` é uma
+   cascata determinística com um só passo LLM opcional:
+   1. **alias-cache** `descricao_original → sku_id` (instantâneo; as descrições
+      repetem-se muito).
+   2. **canonicalização** (LLM, com contexto da cadeia).
+   3. **candidatos** = SKUs com a MESMA marca (filtro DURO, não peso) + unidade +
+      formato compatível.
+   4. **similaridade** = **Dice sobre tokens normalizados** (acentos/minúsculas
+      fora, stopwords removidas — ordena igual ao Jaccard) + reforço quando um
+      nome é subconjunto do outro (cabeça partilhada).
+   5. **limiares**: ≥0,85 → match automático; 0,6–0,85 → **juiz LLM** confirma;
+      <0,6 → cria SKU novo. **Nome canónico idêntico** (normalizado) reutiliza
+      sempre o mesmo SKU.
+   6. grava o **alias** para a próxima vez.
+   Pós-ingestão, `mergeNomesIdenticos` funde SKUs de nome idêntico (apanha
+   duplicados por variância de marca). No `/admin`, **associar** uma descrição
+   grava o alias com `origem='manual'` (confiança máxima) — a correção humana
+   alimenta a cache de imediato.
 
 A correspondência **produto em linguagem natural → SKU** é também do backend
 (não do prompt de consulta): isola a parte difícil numa camada testável.
+No **tempo de consulta** (`queries.js`), a resolução é `LIKE` (apanha
+fragmentos: "café"→"Café Moído Delta") + **fallback fuzzy ao nível do caractere**
+(Levenshtein, sem deps) que só dispara quando o LIKE não acha SKU — cobre
+plural/typo/truncagem ("manteigas", "iorgute").
 
 ## 9. Consulta (tool-use)
 
@@ -370,6 +398,48 @@ Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
 - **Transcrição de voz**: fixar STT-separado vs áudio-direto após experimentação.
 - **OAuth** a finalizar (substituir o portão temporário).
 - **i18n do backend** a tornar *locale-driven* quando houver 2.º idioma.
+
+## 16. Maturidade por área — onde estão (e não estão) os problemas reais
+
+> Esta secção existe para orientar melhorias **com base em dados medidos**, e
+> evitar re-sugerir o que já está feito. Atualizada à medida que medimos.
+
+### Já robusto (NÃO é o gargalo — não re-otimizar sem evidência nova)
+- **Canonicalização de SKU** — 0 nomes truncados/inventados em 203 SKUs; ~1,7%
+  de itens sem SKU. Prompt com guarda-corpos + contexto de cadeia + cache de
+  aliases + auto-merge + revisão do operador mantêm-no limpo.
+- **Match produto→SKU** — cascata completa (alias → exato → marca/unidade/formato
+  → Dice+subconjunto → juiz LLM na zona cinzenta) + aliases manuais de alta
+  confiança na correção do operador + fallback char-level na consulta.
+- **Talões longos** — reconciliam 100% (o VLM atual aguenta a resolução).
+- **Captura** — guia de enquadramento + máscara escura já existem; não é fonte de
+  falha na amostra atual.
+
+### O gargalo REAL (onde investir)
+- **Leitura semântica de descontos, quantidades e multipacks.** ~100% das falhas
+  de reconciliação medidas vêm daqui — não de imagem, não de canonicalização.
+  Ex.: Makro a granel (quantidade a menos), multipack "N×preço", poupança vs
+  desconto de cartão. Já endurecido (regra de multipack, `desconto_global` só
+  "Desconto Cartão", pista cirúrgica) — mas é o que continua a render.
+
+### Levers de ESCALA / custo (forward-looking, no backlog — não agora)
+- **Custo:** a extração de imagem (VLM) é **~87% do gasto** ($0,0032/chamada).
+  Levers: flash-lite na extração (≈4× mais barato) + **cascata roteada pela
+  `discrepancia`** (caminho barato primeiro, VLM só quando não bate); OCR local
+  só a alto volume.
+- **Captura assistida ao vivo** (deteção de contorno + auto-captura) e
+  **fatiamento de talões longos** — só importam com fotos descuidadas / volume.
+- **Binarização/OCR de imagem** — pertencem a um futuro degrau OCR, NÃO ao VLM
+  (binarização dura prejudica o VLM).
+
+### ⚠️ CALIBRAÇÃO — ler antes de tirar conclusões
+Todas as conclusões empíricas acima vêm de uma amostra **pequena e benigna**:
+poucas centenas de itens, **fotos tiradas com cuidado** por um único utilizador,
+**quase só Continente** e **sobretudo PDFs** (digitais, fáceis). Num app
+**público** — volume alto, fotos tremidas/à sombra/amassadas, **muitas cadeias**,
+mais fotos que PDFs — vários "não-problemas" acima passam a importar.
+**Regra: re-medir com dados reais de público antes de fechar qualquer destes
+temas.** Não tratar a amostra atual como representativa.
 
 ---
 *Última actualização: 2026-06-06.*
