@@ -193,7 +193,19 @@ function Chat({ onSair, nome }) {
     add({ lado: 'user', tipo: 'ficheiro', nome: etiqueta || t('nota.enviada') });
     add({ lado: 'bot', tipo: 'pensar', texto: prefixo + (dewarp && ehImagem ? t('nota.scanning') : t('nota.reading')) });
     try {
-      const enviar = dewarp && ehImagem ? await digitalizar(file) : file; // dewarp só no caminho 'scan'
+      // dewarp só no caminho 'scan'; onInfo mostra o diagnóstico (temporário, p/ afinar o jscanify)
+      const enviar =
+        dewarp && ehImagem
+          ? await digitalizar(file, (d) =>
+              add({
+                lado: 'bot',
+                tipo: 'texto',
+                texto: d.dewarped
+                  ? `📐 digitalizado: ${d.original} → ${d.w}×${d.h} (cobertura ${d.cobertura}%, ${d.ms}ms)`
+                  : `📐 sem digitalização (${d.motivo}) — enviada a original`,
+              }),
+            )
+          : file;
       if (dewarp && ehImagem)
         setMsgs((xs) => xs.map((m) => (m.tipo === 'pensar' ? { ...m, texto: prefixo + t('nota.reading') } : m)));
       const out = await enviarFatura(enviar, origem);
