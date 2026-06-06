@@ -11,7 +11,7 @@ import { preProcessarImagem } from './imagem.js';
 import { distribuirDesconto, validarLinhas, pistaCirurgica } from './reconcile.js';
 import { config } from '../config.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
-import { normalizarItensFatura, mergeNomesIdenticos } from '../normaliza/matcher.js';
+import { normalizarItensFatura, mergeNomesIdenticos, limparSkusOrfaos } from '../normaliza/matcher.js';
 import { recomputarPpbFatura } from '../normaliza/ppb.js';
 import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 
@@ -148,6 +148,9 @@ export async function reprocessarFatura(pool, faturaId) {
   await recomputarPpbFatura(pool, faturaId).catch(() => {});
   // Auto-correção de outliers (pack não capturado) — mesma passada da ingestão.
   await autoCorrigirOutliers(pool, { aplicar: true }).catch(() => {});
+  // Limpa SKUs órfãos que o re-canonicalizar possa ter deixado (0 itens, sem
+  // alias manual). Mantém a lista de produtos limpa sem tocar em curadoria.
+  await limparSkusOrfaos(pool).catch(() => {});
 
   return { fatura_id: faturaId, n_itens: itens.length, needs_review: needsReview, discrepancia: rec.discrepancia };
 }

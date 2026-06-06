@@ -146,3 +146,21 @@ export async function mergeNomesIdenticos(db, soNomesRaw) {
   }
   return { grupos: nGrupos, removidos };
 }
+
+// Apaga SKUs SEM itens e SEM alias manual — órfãos do "drift" de descrição no
+// reprocesso (a re-extração muda ligeiramente o texto → re-canonicaliza para
+// outro SKU e deixa o antigo vazio). NUNCA apaga SKUs com alias `manual`
+// (curadoria do operador), mesmo que estejam a zero. Devolve { removidos }.
+export async function limparSkusOrfaos(db) {
+  const [orf] = await db.query(
+    `SELECT s.id FROM sku_normalizado s
+      WHERE NOT EXISTS (SELECT 1 FROM item i WHERE i.sku_id = s.id)
+        AND NOT EXISTS (SELECT 1 FROM sku_alias a WHERE a.sku_id = s.id AND a.origem = 'manual')`,
+  );
+  if (!orf.length) return { removidos: 0 };
+  const ids = orf.map((r) => r.id);
+  const ph = ids.map(() => '?').join(',');
+  await db.query(`DELETE FROM sku_alias WHERE sku_id IN (${ph})`, ids);
+  await db.query(`DELETE FROM sku_normalizado WHERE id IN (${ph})`, ids);
+  return { removidos: ids.length };
+}
