@@ -37,6 +37,20 @@ test('item a peso com símbolo € e sem "x" (Mercadona): "2,426 kg 1,20 €/kg"
   assert.equal(precoPorBase({ preco_liquido: 2.91, quantidade: 1 }, f), 1.2);
 });
 
+test('€/kg impresso mas mal-formado (Lidl): "BANANA B kg x1,056 1,19 EUR/kgEUR"', () => {
+  const f = extrairFormato('BANANA B kg x1,056 1,19 EUR/kgEUR');
+  assert.equal(f.unidade_base, 'kg');
+  assert.equal(f.precoKg, 1.19);
+  // alvo kg (unidade autoritativa do SKU) → usa o €/kg impresso
+  assert.equal(precoPorBase({ preco_liquido: 1.26, quantidade: 1 }, f, 'kg'), 1.19);
+});
+
+test('€/L impresso: "SUMO LARANJA 1,29 €/L"', () => {
+  const f = extrairFormato('SUMO LARANJA 1,29 €/L');
+  assert.equal(f.unidade_base, 'L');
+  assert.equal(precoPorBase({ preco_liquido: 2.58, quantidade: 1 }, f, 'L'), 1.29);
+});
+
 test('"2K" no arroz = 2 kg → €/kg', () => {
   const f = extrairFormato('ARO ARROZ LONGO COMUM 2K');
   assert.equal(f.unidade_base, 'kg');

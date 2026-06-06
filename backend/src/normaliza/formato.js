@@ -36,6 +36,16 @@ export function extrairFormato(descricao) {
     return { unidade_base: 'kg', formato_valor: quantidadeKg, quantidadeKg, precoKg: num(m[2]) };
   }
 
+  // 1c) €/kg ou €/L IMPRESSO explicitamente, em QUALQUER ordem (a fonte mais
+  // fiável: o preço unitário vem impresso). Apanha leituras mal formadas onde o
+  // peso ficou desordenado e os padrões 1/1b falham — ex.: Lidl mal-lido
+  // "BANANA B kg x1,056 1,19 EUR/kgEUR".
+  m = s.match(/(\d+[.,]\d+)\s*(?:eur|€)\s*\/\s*(kgs?|lt?)/i);
+  if (m) {
+    if (/^l/i.test(m[2])) return { unidade_base: 'L', formato_valor: null, precoL: num(m[1]) };
+    return { unidade_base: 'kg', formato_valor: null, precoKg: num(m[1]) };
+  }
+
   // 2) Multipack: "4X115G", "2 x 1L"
   m = s.match(/(\d+)\s*[x×X]\s*(\d+(?:[.,]\d+)?)\s*(kgs|kg|k|grs|gr|g|ml|cl|lt|l)\b/i);
   if (m) {
@@ -83,8 +93,9 @@ export function precoPorBase({ preco_liquido, quantidade = 1 }, formato, unidade
   const alvo = unidadeAlvo || formato.unidade_base;
 
   if (alvo === 'kg' || alvo === 'L') {
-    // Peso com €/kg impresso → usa o valor da fatura (mais fiável).
+    // Preço por base IMPRESSO (€/kg ou €/L) → usa o valor da fatura (mais fiável).
     if (formato.precoKg != null && alvo === 'kg') return round4(formato.precoKg);
+    if (formato.precoL != null && alvo === 'L') return round4(formato.precoL);
     // Peso/volume NO FORMATO (ex.: "250G", "900G"): €/base. `quantidade` é o nº de
     // EMBALAGENS — mas extrações antigas gravaram o peso lá (q=0,25 p/ 250g); um q
     // fracionário não é nº de embalagens, por isso conta como 1 (evita dupla contagem).
