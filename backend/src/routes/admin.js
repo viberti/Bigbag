@@ -163,9 +163,12 @@ adminRouter.get('/descricoes-livres', async (req, res) => {
   try {
     const q = str(req.query.q, 60);
     const like = q ? `%${q}%` : '%';
+    // MAX() nas colunas do SKU: descricao_original NÃO é chave de `item`, logo
+    // sob ONLY_FULL_GROUP_BY não são funcionalmente dependentes do GROUP BY. Há
+    // um só SKU por descrição (pós-normalização), por isso MAX devolve o valor certo.
     const [rows] = await getPool().query(
       `SELECT i.descricao_original AS descricao, COUNT(*) AS n,
-              s.id AS atual_id, s.nome_canonico AS atual, s.unidade_base AS atual_unidade,
+              MAX(s.id) AS atual_id, MAX(s.nome_canonico) AS atual, MAX(s.unidade_base) AS atual_unidade,
               MAX(l.cadeia) AS cadeia
          FROM item i
          LEFT JOIN sku_normalizado s ON s.id = i.sku_id
