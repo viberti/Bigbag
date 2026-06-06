@@ -55,6 +55,7 @@ CREATE TABLE fatura (
   needs_review        BOOLEAN DEFAULT FALSE,     -- TRUE se não bate; EXCLUÍDA das análises de preço (migração 003)
   extracao_json       JSON,                      -- snapshot do que o VLM extraiu, p/ debug (migração 003)
   desconto_global     DECIMAL(10,2) DEFAULT 0,   -- ex. Desconto Cartão Continente; desconto DA NOTA, NÃO espalhado pelos itens
+  precos_com_iva      TINYINT(1) DEFAULT 1,      -- 1=preços das linhas JÁ com IVA (supermercado); 0=sem IVA (grossista/Makro) — migração 015
   ficheiro_original   VARCHAR(255),              -- caminho em /var/lib/<PROJ>/comprovantes
   metodo_extracao     ENUM('vlm','ocr_llm') ,    -- qual abordagem gerou estes dados (para a comparação)
   origem_captura      VARCHAR(16),               -- 'scan'|'foto'|'galeria'|'arquivo' — caminho de captura (migração 010)
@@ -76,7 +77,9 @@ CREATE TABLE item (
   quantidade           DECIMAL(10,3) NOT NULL DEFAULT 1,  -- 3 (un) ou 0.418 (kg)
   preco_unitario       DECIMAL(10,4),             -- preço por unidade tal como na fatura
   preco_liquido        DECIMAL(10,2) NOT NULL,    -- preço IMPRESSO na linha (líquido do desconto da própria linha); o desconto de cartão NÃO entra aqui
-  preco_por_base       DECIMAL(10,4),             -- preço normalizado p/ unidade_base do SKU (€/kg, €/L, €/un)
+  preco_por_base       DECIMAL(10,4),             -- preço normalizado p/ unidade_base do SKU (€/kg, €/L, €/un); SEMPRE com IVA (grossista convertido × (1+taxa))
+  ppb_inferido         TINYINT(1) DEFAULT 0,      -- preco_por_base auto-corrigido por inferência (outlier de pack); recompute não o sobrescreve — migração 014
+  taxa_iva             DECIMAL(4,3),              -- taxa de IVA do produto (0.060/0.130/0.230), resolvida na extração pelo código+legenda — migração 015
   is_clearance         BOOLEAN DEFAULT FALSE,     -- fim de validade: isolar da série histórica
   desconto_direto      DECIMAL(10,2) DEFAULT 0,   -- 'Poupança' na linha
   is_non_product       BOOLEAN DEFAULT FALSE,     -- saco, taxa: fora do histórico de preços

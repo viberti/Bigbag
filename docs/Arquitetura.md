@@ -469,10 +469,14 @@ poupança é de **fração de cêntimo por nota**. O valor do recorte é **quali
 - **Transcrição de voz**: fixar STT-separado vs áudio-direto após experimentação.
 - **OAuth** a finalizar (substituir o portão temporário).
 - **i18n do backend** a tornar *locale-driven* quando houver 2.º idioma.
-- **Preço com vs sem IVA**: a reconciliação de grossista (Makro) já está certa,
-  mas o `preco_liquido` desses itens fica **sem IVA**, enquanto os supermercados
-  são **com IVA** — comparar os dois é enganador. Falta normalizar o IVA por item
-  (o talão dá o IVA por escalão, não por linha) para a comparação cruzada ser justa.
+- ~~**Preço com vs sem IVA**~~ **RESOLVIDO (2026-06-06):** a extração resolve a
+  **taxa de IVA por produto** (`item.taxa_iva`) a partir do código no fim da linha
+  + a legenda no corpo do talão (Continente "(A)"/"(C)", Mercadona letra, Aldi
+  "1"/"3", Makro "2"/"4" → 0.06/0.13/0.23). `fatura.precos_com_iva` distingue
+  supermercado (preço já com IVA) de grossista (Makro, preço sem IVA). Quando os
+  preços são sem IVA, o `preco_por_base` é convertido para o **preço final**
+  (× (1+taxa)) — assim Makro e supermercados comparam na mesma base. A taxa fica
+  como **campo da semântica do produto**, útil para lá da comparação.
 - **Cascata de custo** (forward, alto valor): a extração de imagem (VLM) é ~87% do
   gasto. Tentar primeiro um modelo leve (flash-lite) e **escalar ao VLM só quando
   a `discrepancia` não bate** — corta ~75% do maior custo. Mede-se com um harness

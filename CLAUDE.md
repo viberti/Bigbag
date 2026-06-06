@@ -41,7 +41,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - Quando fechares uma "decisão em aberto" (transcrição, leitura de fatura, autenticação), regista a escolha e o porquê no documento de conceito.
 
 ## Estado atual (atualizar periodicamente — 2026-06-06)
-- **Infra:** FECHADA. `https://bigbag.hal9klabs.com` público (Apache vhost + Let's Encrypt + redirect), `bigbag-backend.service` (systemd, enabled, auto-restart, porta 4200). BD `app_bigbag`, migrações aplicadas até **014** (013 `item.linha_peso`; 014 `item.ppb_inferido` — flag de preço por base auto-corrigido/inferido).
+- **Infra:** FECHADA. `https://bigbag.hal9klabs.com` público (Apache vhost + Let's Encrypt + redirect), `bigbag-backend.service` (systemd, enabled, auto-restart, porta 4200). BD `app_bigbag`, migrações aplicadas até **015** (013 `item.linha_peso`; 014 `item.ppb_inferido` — preço por base auto-corrigido; 015 `item.taxa_iva` + `fatura.precos_com_iva` — IVA por produto, com normalização do grossista para preço final).
 - **Três superfícies** (routing por path em `frontend/src/main.jsx`):
   - **App de chat (`/`)** — PWA do utilizador: envia notas (📷 → menu: digitalizar documento / foto / galeria em lote / arquivo-PDF multi-seleção), faz perguntas, e tem **carrinho de compras** (🔁 habituais → 🛒, agrupado por secção do mercado, swipe→ apaga, persistido em localStorage).
   - **Operador (`/admin`)** — desktop: gerir SKUs canónicos (renomear, associar/dissociar descrições, fundir, auto-merge de nomes idênticos), rever notas (imagem + itens, certo/errado + comentário), editar quantidade, ver qualidade por cadeia/origem, e preencher `nome_simplificado`.
