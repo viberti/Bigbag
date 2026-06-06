@@ -139,7 +139,6 @@ function Chat({ onSair, nome }) {
   const fimRef = useRef(null);
   const fileRef = useRef(null);
   const fotoRef = useRef(null); // foto crua (escape: "Foto normal")
-  const fotoScanRef = useRef(null); // foto nativa + jscanify (botão 📷)
   const galeriaRef = useRef(null);
   const mrRef = useRef(null);
   const chunksRef = useRef([]);
@@ -378,7 +377,7 @@ function Chat({ onSair, nome }) {
           perguntar();
         }}
       >
-        <button type="button" className="round" onClick={() => fotoScanRef.current?.click()} disabled={ocupado} aria-label="foto da nota">
+        <button type="button" className="round" onClick={() => setCamAberta(true)} disabled={ocupado} aria-label="digitalizar nota">
           <Ico name="camera" size={21} />
         </button>
         <button type="button" className="round" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="mais opções">
@@ -394,18 +393,6 @@ function Chat({ onSair, nome }) {
             const arr = e.target.files ? Array.from(e.target.files) : [];
             e.target.value = '';
             faturaLote(arr, 'arquivo');
-          }}
-        />
-        <input
-          ref={fotoScanRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            e.target.value = '';
-            fatura(f, { dewarp: true, origem: 'foto' }); // câmara nativa (alta res) + jscanify
           }}
         />
         <input
@@ -463,7 +450,6 @@ function Chat({ onSair, nome }) {
           <div className="cap-menu">
             <button onClick={() => { setMenuAberto(false); fotoRef.current?.click(); }}>{t('cap.photo')}</button>
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}>{t('cap.gallery')}</button>
-            <button onClick={() => { setMenuAberto(false); setCamAberta(true); }}>{t('cap.scan')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}>{t('cap.file')}</button>
           </div>
         </>
