@@ -113,3 +113,14 @@ test('precoPorBase sem alvo = comportamento antigo (usa a unidade do formato)', 
   const f = extrairFormato('BOL DIGESTIVE AVEIA CNT 425GR');
   assert.equal(precoPorBase({ preco_liquido: 1.39 }, f), precoPorBase({ preco_liquido: 1.39 }, f, 'kg'));
 });
+
+test('precoPorBase: pacote com peso na descrição E quantidade fracionária (peso) → não duplica', () => {
+  const f = extrairFormato('MARMELADA CONTINENTE 500G'); // kg, 0.5
+  // q=0,5 é o peso mal gravado, não 0,5 embalagens → conta 1 embalagem
+  assert.equal(precoPorBase({ preco_liquido: 2.37, quantidade: 0.5 }, f, 'kg'), 4.74); // 2,37 / 0,5
+});
+
+test('precoPorBase: produce a balcão com peso na quantidade (sem peso na descrição) → €/kg', () => {
+  const f = extrairFormato('ALPERCE'); // sem peso → un
+  assert.equal(precoPorBase({ preco_liquido: 2.05, quantidade: 0.514 }, f, 'kg'), 3.9883); // 2,05 / 0,514
+});

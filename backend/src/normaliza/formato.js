@@ -85,8 +85,16 @@ export function precoPorBase({ preco_liquido, quantidade = 1 }, formato, unidade
   if (alvo === 'kg' || alvo === 'L') {
     // Peso com €/kg impresso → usa o valor da fatura (mais fiável).
     if (formato.precoKg != null && alvo === 'kg') return round4(formato.precoKg);
-    // Só dá para normalizar a peso/volume se a descrição os trouxer.
-    if (formato.unidade_base === alvo && formato.formato_valor > 0) return round4(liq / (formato.formato_valor * q));
+    // Peso/volume NO FORMATO (ex.: "250G", "900G"): €/base. `quantidade` é o nº de
+    // EMBALAGENS — mas extrações antigas gravaram o peso lá (q=0,25 p/ 250g); um q
+    // fracionário não é nº de embalagens, por isso conta como 1 (evita dupla contagem).
+    if (formato.unidade_base === alvo && formato.formato_valor > 0) {
+      const embalagens = q >= 1 ? q : 1;
+      return round4(liq / (formato.formato_valor * embalagens));
+    }
+    // Sem peso no formato mas `quantidade` fracionária = PESO de balcão na própria
+    // quantidade (ex.: "ALPERCE" 0,514 kg) → €/base = preço / peso.
+    if (q > 0 && q < 1) return round4(liq / q);
     return null;
   }
   // alvo 'un': se o formato traz contagem do pacote (ex. 16UN), €/unidade
