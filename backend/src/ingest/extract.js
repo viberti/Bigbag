@@ -45,7 +45,11 @@ Regras:
 - Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.
 - IGNORA o rodapé de fidelização/cartão: "ACUMULOU NO SEU CARTAO", "DESCONTO CUPAO", "SALDO NO CARTAO", "Saldo de selos", "Selos ganhos", "Já ganhou com o cartão", cupões lidos/emitidos, pontos. NÃO são itens nem descontos desta compra — não os contes em desconto_global nem em desconto_direto.`;
 
-function parseJsonLoose(txt) {
+// Reexportado para o harness de comparação (head-to-head) usar EXATAMENTE o
+// mesmo prompt/parser que a ingestão real — comparação justa.
+export const PROMPT_EXTRACAO = PROMPT;
+
+export function parseJsonLoose(txt) {
   let s = String(txt).trim();
   // remove cercas de código se vierem
   const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
