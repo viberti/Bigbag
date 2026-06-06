@@ -88,7 +88,7 @@ backend/
     historico.js         Histórico da conversa
     perfil.js            Memória de longo prazo (factos sobre o utilizador)
     custo.js             Agregação de custos e de qualidade de extração
-  migrations/            SQL versionado (001 … 012)
+  migrations/            SQL versionado (001 … 013)
   test/                  Testes (node:test); lógica pura local, BD/LLM no servidor
 frontend/
   src/
@@ -98,7 +98,9 @@ frontend/
     Explorar.jsx         Explorador de preços (desktop)
     api.js · adminApi.js · explorarApi.js   Clientes HTTP
     i18n.js              Localização (base PT-BR; tradução = novo dicionário)
-    scanner.js · vendor/jscanify.js   Digitalização/dewarp de documento
+    scanner.js           Digitalização no cliente (jscanify + OpenCV.js)
+    vendor/jscanify.js   jscanify vendorizado (ESM)
+  public/vendor/opencv.js  OpenCV.js alojado localmente (mesma origem, ~9 MB)
 docs/                    Conceito, Schema, Runbook, este documento
 ```
 
@@ -357,6 +359,47 @@ Três aplicações no mesmo bundle, escolhidas por *path* em `main.jsx`:
 `t(chave, vars)` (interpolação, plural simples, detecção do idioma do browser).
 Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
 
+### 11.1 Captura e digitalização no cliente (jscanify + OpenCV.js)
+
+A foto é digitalizada **no browser** antes do upload (`scanner.js`): deteção das
+bordas do talão + correção de perspetiva/recorte. Decisões e trade-offs:
+
+- **OpenCV.js alojado por nós** (`/vendor/opencv.js`, mesma origem), não por CDN.
+  O CDN público de documentação do OpenCV é instável — remove versões, e um URL
+  fixo passou a **404**, matando *silenciosamente* a digitalização (caía sempre
+  para a foto original). Servir da própria origem elimina a dependência de
+  terceiros, evita CORS/CSP e funciona offline (PWA). Fica **fora do precache** do
+  service worker (≈9 MB) e entra em *cache-first* só após o 1.º uso; o CDN fica só
+  como *fallback*, com uma versão que existe. **Lição:** uma página de documentação
+  não é um CDN de produção — verificar HEAD/contrato de qualquer dependência externa.
+- **Escada de fallback — nunca quebra o upload.** Sobre o frame: (1) se os 4
+  cantos forem **de confiança** → correção de perspetiva (*warp*); (2) senão →
+  recorte pela *bounding box* (nunca distorce, só corta o fundo); (3) senão → foto
+  original. Qualquer exceção → original. O VLM lê bem a foto **não-tratada**, por
+  isso o dewarp é um bónus, não um requisito.
+- **Validação do quadrilátero antes de distorcer.** O detetor do jscanify
+  (Canny+Otsu) é **pouco fiável para talões**: papel térmico brilhante sobre fundo
+  confuso leva-o a agarrar a **moldura/fundo** (cantos colados às bordas) ou a
+  devolver um quadrilátero em **cunha** — o *warp* produz então um "funil" inútil.
+  A salvaguarda é recusar o *warp* nesses casos (cantos na moldura / ocupa a
+  imagem toda / lado >2,5× o oposto) e enviar a foto normal.
+- **Segurança de memória.** Fotos nativas (12+ MP ≈ 50 MB de Mat) são **reduzidas**
+  (lado maior ≤ ~2800 px) antes do OpenCV, para não esgotar memória no telemóvel
+  (sobretudo iOS/Safari, onde um *abort* do WASM pode partir a página).
+- **Pré-visualização como rede de segurança.** A digitalização ao vivo mostra o
+  resultado (**Repetir/Enviar**) **antes** de enviar — o humano apanha um recorte
+  mau. É a defesa principal enquanto a deteção não for fiável.
+- **Sem flash/lanterna.** Testado e **revertido**: a luz cria reflexo no papel
+  térmico (brilhante), lava o contraste e **piora** deteção e leitura — anti-padrão
+  conhecido na digitalização de documentos.
+
+**Nota de custo (liga à §13):** o tamanho do ficheiro do cliente **não** afeta o
+custo do VLM — o backend redimensiona toda a imagem para ~1400 px de largura antes
+da chamada (o VLM cobra por **resolução**, em *tiles*, não por bytes). O recorte só
+poupa tokens na medida em que deixa o talão **mais estreito que 1400 px**, e a
+poupança é de **fração de cêntimo por nota**. O valor do recorte é **qualidade**
+(sem fundo/ruído), não custo.
+
 ## 12. Segurança e autorização
 
 - Todas as rotas `/api/*` de aplicação exigem **sessão válida** (`requireAuth`).
@@ -441,8 +484,10 @@ Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
   → Dice+subconjunto → juiz LLM na zona cinzenta) + aliases manuais de alta
   confiança na correção do operador + fallback char-level na consulta.
 - **Talões longos** — reconciliam 100% (o VLM atual aguenta a resolução).
-- **Captura** — guia de enquadramento + máscara escura já existem; não é fonte de
-  falha na amostra atual.
+- **Robustez do upload** — a escada de fallback do `scanner.js` garante que a
+  digitalização **nunca quebra** o envio; em pior caso vai a foto original, que o
+  VLM lê na mesma. O OpenCV.js passou a ser alojado localmente (o CDN tinha
+  partido a deteção por completo).
 
 ### O gargalo REAL (onde investir)
 - **Leitura semântica do TALÃO** (descontos, quantidades, multipacks, IVA de
@@ -462,8 +507,12 @@ Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
   Levers: flash-lite na extração (≈4× mais barato) + **cascata roteada pela
   `discrepancia`** (caminho barato primeiro, VLM só quando não bate); OCR local
   só a alto volume.
-- **Captura assistida ao vivo** (deteção de contorno + auto-captura) e
-  **fatiamento de talões longos** — só importam com fotos descuidadas / volume.
+- **Digitalização fiável no cliente** — a deteção do jscanify (Canny+Otsu) falha em
+  talões térmicos sobre fundo confuso (produz "funil"); hoje mitigado pela
+  pré-visualização humana + recusa de *warp* duvidoso, não resolvido. Próximos
+  passos se a foto passar a ser o caminho **principal**: detetor próprio
+  (cinza→Canny→dilatar→`approxPolyDP`), **contorno ao vivo** sobre o feed (guia o
+  enquadramento até "apanhar" o talão), e **fatiamento** de talões muito longos.
 - **Binarização/OCR de imagem** — pertencem a um futuro degrau OCR, NÃO ao VLM
   (binarização dura prejudica o VLM).
 
