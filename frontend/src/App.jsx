@@ -934,7 +934,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     const id = setInterval(async () => {
       const v = videoRef.current;
       const ov = overlayRef.current;
-      setDbg(`tick vw:${v?.videoWidth || 0} occ:${ocupado ? 'Y' : 'N'} cv:${window.cv?.Mat ? 'Y' : 'N'}`);
+      setDbg(`v${APP_VERSION} vw:${v?.videoWidth || 0} occ:${ocupado ? 'Y' : 'N'} cv:${window.cv?.Mat ? 'Y' : 'N'}`);
       if (!v || !v.videoWidth || ocupado || parar) return;
       ocupado = true;
       try {
@@ -951,11 +951,11 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
         const ms = Math.round(performance.now() - tdet);
         if (parar) return;
         if (c === 'TIMEOUT') {
-          setDbg(`timeout ${ms}ms cv:${window.cv?.Mat ? 'Y' : 'N'}`);
+          setDbg(`v${APP_VERSION} TIMEOUT ${ms}ms cv:${window.cv?.Mat ? 'Y' : 'N'}`);
           return;
         }
         let novo = 'searching';
-        let diag = `cv:${window.cv?.Mat ? 'Y' : 'N'} det:${c ? 'Y' : 'N'} ${ms}ms`;
+        let diag = `v${APP_VERSION} det:${c ? 'Y' : 'N'} ${ms}ms`;
         if (c) {
           const pts = [c.topLeftCorner, c.topRightCorner, c.bottomRightCorner, c.bottomLeftCorner];
           const xs = pts.map((p) => p.x);
