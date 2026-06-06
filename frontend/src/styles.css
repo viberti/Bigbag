@@ -286,6 +286,7 @@ body {
 .ex-tabela td { font-variant-numeric: tabular-nums; }
 .ex-melhor { background: #14321f55; }
 .adm-aviso { color: var(--muted); font-size: 12px; margin: 8px 0 0; max-width: 640px; }
+.adm-aviso-fraco { font-size: 11px; font-style: italic; opacity: 0.85; margin: 4px 0 10px; }
 .adm-ok { color: var(--verde); margin-top: 12px; font-size: 14px; }
 
 .adm-nota-grid { display: grid; grid-template-columns: minmax(340px, 48%) 1fr; gap: 22px; align-items: start; }
