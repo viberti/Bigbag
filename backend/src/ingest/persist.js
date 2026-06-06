@@ -67,8 +67,8 @@ export async function persistirFatura(
     const [rf] = await conn.query(
       `INSERT INTO fatura
          (loja_id, data_compra, numero_fatura, total_impresso, total_reconciliado, discrepancia, needs_review,
-          desconto_global, ficheiro_original, metodo_extracao, origem_captura, modelo, extracao_json)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          desconto_global, precos_com_iva, ficheiro_original, metodo_extracao, origem_captura, modelo, extracao_json)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         lojaId,
         data,
@@ -78,6 +78,7 @@ export async function persistirFatura(
         discrepancia != null ? num(discrepancia) : null,
         needsReview ? 1 : 0,
         num(dados.desconto_global) || 0,
+        num(dados.iva) > 0 ? 0 : 1, // preços SEM IVA (grossista) → 0; supermercado → 1
         ficheiroOriginal,
         metodo,
         origemCaptura,
@@ -91,8 +92,8 @@ export async function persistirFatura(
       await conn.query(
         `INSERT INTO item
            (fatura_id, sku_id, descricao_original, linha_peso, quantidade, preco_unitario, preco_liquido,
-            preco_por_base, is_clearance, desconto_direto, is_non_product)
-         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            preco_por_base, taxa_iva, is_clearance, desconto_direto, is_non_product)
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           faturaId,
           String(it.descricao_original || '').slice(0, 200),
@@ -101,6 +102,7 @@ export async function persistirFatura(
           num(it.preco_unitario),
           num(it.preco_liquido),
           it.preco_por_base != null ? num(it.preco_por_base) : null,
+          it.taxa_iva != null ? num(it.taxa_iva) : null,
           it.is_clearance ? 1 : 0,
           num(it.desconto_direto) || 0,
           it.is_non_product ? 1 : 0,

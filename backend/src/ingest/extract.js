@@ -25,7 +25,7 @@ Esquema exato:
       "quantidade": number,         // unidades faturadas nesta linha: "24 OVOS"→24, "6 IOGURTES"→6; 1 se não indicado. Item a peso → 1 (o peso vem do formato).
       "preco_unitario": number|null,// preço POR UNIDADE quando a linha o mostra explicitamente: "2 X 0,59"→0,59; coluna "Preço U.V." do grossista. null se não houver multiplicador (compra de 1). NUNCA pôr aqui o total da linha.
       "valor": number,              // TOTAL impresso nessa linha (a coluna à direita). Em "2 X 0,59 … 1,18" o valor é 1,18, NÃO 0,59.
-      "iva": string|null,           // letra do escalão IVA se visível (A/B/C), senão null
+      "taxa_iva": number|null,      // TAXA de IVA deste produto em DECIMAL (0.06, 0.13, 0.23). Resolve-a pelo código no fim da linha + a legenda no corpo da fatura (ver regra). null se não der.
       "desconto_direto": number,    // "Poupança" impressa SOB este item; 0 se não houver
       "is_clearance": boolean,      // true se a linha "Aprox. fim prazo validade" estiver associada a este item
       "is_non_product": boolean     // true para saco, taxa, depósito — não é produto
@@ -45,6 +45,7 @@ Regras:
 - CONTEÚDO DO PACK no NOME ("6*", "4*200", "PACK 18", "1LT*6", "2KG") ≠ quantidade comprada. É o que vem DENTRO da embalagem. Se compraste UMA embalagem, quantidade=1 e preco_unitario=null. Só uma linha de MULTIPLICADOR EXPLÍCITO ("N X preço") ou a coluna "Quant" do grossista significa N embalagens compradas. Ex.: "SUMO … 6* … 2,49" → quantidade=1, valor=2,49 (NÃO quantidade=6).
 - COLUNA DE QUANTIDADE (grossistas como o Makro têm uma coluna "Quant"/"Quantidade"): LÊ-A SEMPRE. O "valor" é o TOTAL da linha ("Valor total") e a "quantidade" é o que está na coluna Quant. Ex.: "PASSATA … Preço U.V. 2,59 … Quant 3 … Valor total 7,77" → quantidade=3, valor=7,77. NUNCA deixes "quantidade" a null — se não houver coluna nem indicação, é 1.
 - IVA EM GROSSISTAS (cash-and-carry, ex. Makro): nesses talões os preços das linhas são SEM IVA; aparece um "Total s/IVA" (= soma das linhas) e o IVA é somado a seguir até ao "Valor Total". Põe o IVA somado no campo "iva" (ex.: 7,77) e o "Valor Total" em total_impresso. Em talões NORMAIS de supermercado o preço JÁ inclui IVA → iva = 0 (a tabela de IVA no rodapé é só informativa, não a somes). Verificação: Σ valores das linhas − desconto_global + iva = total_impresso.
+- TAXA DE IVA POR PRODUTO ("taxa_iva"): cada linha de produto traz, no FIM, um código/letra do escalão de IVA — ex.: Continente "(A)"/"(C)", Mercadona uma letra "A"/"B"/"C", Aldi um número "1"/"2"/"3", Lidl "A"/"B", Makro "2"/"4". No CORPO/rodapé da fatura há uma LEGENDA/tabela de IVA que diz a que TAXA corresponde cada código (6%, 13% ou 23%). Para CADA item, devolve "taxa_iva" = essa taxa em DECIMAL (6%→0.06, 13%→0.13, 23%→0.23), mapeando o código da linha pela legenda. Em Portugal: alimentos básicos (leite, pão, fruta, legumes, ovos) costumam ser 6%; alguns intermédios 13%; não-alimentar 23%. Se não conseguires mapear o código com segurança, usa null (NÃO inventes a taxa).
 - Extrai TODOS os produtos — NÃO saltes nenhuma linha de produto, mesmo que a imagem esteja pouco nítida.
 - Não inventes itens nem valores. Se um valor não for legível, usa null no campo numérico desse item e mantém a descrição.
 - Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.

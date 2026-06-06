@@ -92,8 +92,8 @@ export async function reprocessarFatura(pool, faturaId) {
     for (const it of itens) {
       await conn.query(
         `INSERT INTO item (fatura_id, sku_id, descricao_original, linha_peso, quantidade, preco_unitario, preco_liquido,
-           preco_por_base, is_clearance, desconto_direto, is_non_product)
-         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           preco_por_base, taxa_iva, is_clearance, desconto_direto, is_non_product)
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           faturaId,
           String(it.descricao_original || '').slice(0, 200),
@@ -102,6 +102,7 @@ export async function reprocessarFatura(pool, faturaId) {
           num(it.preco_unitario),
           num(it.preco_liquido),
           it.preco_por_base != null ? num(it.preco_por_base) : null,
+          it.taxa_iva != null ? num(it.taxa_iva) : null,
           it.is_clearance ? 1 : 0,
           num(it.desconto_direto) || 0,
           it.is_non_product ? 1 : 0,
@@ -110,13 +111,14 @@ export async function reprocessarFatura(pool, faturaId) {
     }
     await conn.query(
       `UPDATE fatura SET total_impresso = ?, total_reconciliado = ?, discrepancia = ?, needs_review = ?,
-         desconto_global = ?, extracao_json = ? WHERE id = ?`,
+         desconto_global = ?, precos_com_iva = ?, extracao_json = ? WHERE id = ?`,
       [
         num(dados.total_impresso),
         num(rec.totalReconciliado),
         num(rec.discrepancia),
         needsReview ? 1 : 0,
         num(dados.desconto_global) || 0,
+        num(dados.iva) > 0 ? 0 : 1,
         JSON.stringify(extracaoJson),
         faturaId,
       ],
