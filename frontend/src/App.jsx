@@ -792,6 +792,8 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
   const [erro, setErro] = useState('');
   const [processando, setProcessando] = useState(false);
   const [preview, setPreview] = useState(null); // { url, file, info } — resultado já digitalizado, à espera de confirmação
+  const [lanterna, setLanterna] = useState(false);
+  const [temLanterna, setTemLanterna] = useState(false); // o aparelho suporta torch? (Android sim; iOS não)
 
   useEffect(() => {
     if (!aberto) {
@@ -800,6 +802,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
         return null;
       });
       setProcessando(false);
+      setLanterna(false); // a lanterna apaga quando o stream para
       return;
     }
     let cancelado = false;
@@ -819,13 +822,15 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
         });
         if (cancelado) return stream.getTracks().forEach((tr) => tr.stop());
         streamRef.current = stream;
-        // Tentar autofoco contínuo (suporte variável; falha em silêncio).
+        // Tentar autofoco contínuo (suporte variável; falha em silêncio) e
+        // detetar suporte de lanterna (torch) — Android sim, iOS/Safari não.
         try {
           const track = stream.getVideoTracks()[0];
           const caps = track.getCapabilities?.() || {};
           if (caps.focusMode?.includes('continuous')) {
             await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
           }
+          if (!cancelado) setTemLanterna(!!caps.torch);
         } catch {
           /* noop */
         }
@@ -883,10 +888,30 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     if (preview?.url) URL.revokeObjectURL(preview.url);
     setPreview(null);
   }
+  async function alternarLanterna() {
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (!track) return;
+    try {
+      const novo = !lanterna;
+      await track.applyConstraints({ advanced: [{ torch: novo }] });
+      setLanterna(novo);
+    } catch {
+      /* noop */
+    }
+  }
 
   return (
     <div className="cam-overlay">
       <div className="cam-topo">
+        {temLanterna && !preview && !erro ? (
+          <button
+            className={`cam-luz ${lanterna ? 'on' : ''}`}
+            onClick={alternarLanterna}
+            aria-label={t('cam.luz')}
+          >
+            🔦
+          </button>
+        ) : null}
         <button className="cam-x" onClick={onFechar} aria-label="fechar">
           ✕
         </button>

@@ -21,6 +21,7 @@ const STRINGS = {
     'cap.lote': 'enviando {i}/{n}…',
     'cam.hint': 'Enquadre a nota preenchendo a moldura. Boa luz, sem dobras.',
     'cam.capture': 'Capturar',
+    'cam.luz': 'lanterna',
     'cam.file': 'Galeria / PDF',
     'cam.error': 'Sem acesso à câmera. Use um arquivo.',
     'cam.processando': 'ajeitando a nota…',

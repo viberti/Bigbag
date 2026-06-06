@@ -143,6 +143,12 @@ body {
 .cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cam-topo { position: relative; z-index: 3; display: flex; justify-content: flex-end; padding: 12px; }
 .cam-x { background: #0008; color: #fff; border: none; width: 38px; height: 38px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+.cam-luz {
+  margin-right: auto; background: #0008; color: #fff; border: none;
+  width: 38px; height: 38px; border-radius: 50%; font-size: 18px; cursor: pointer;
+  filter: grayscale(1) brightness(1.4); transition: filter .15s, background .15s;
+}
+.cam-luz.on { background: #f4c20d; filter: none; }
 .cam-moldura {
   position: absolute; z-index: 1; top: 11%; bottom: 20%; left: 7%; right: 7%;
   border: 2px solid #ffffffcc; border-radius: 12px; box-shadow: 0 0 0 100vmax #00000059;
