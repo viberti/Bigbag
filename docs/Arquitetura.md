@@ -222,8 +222,14 @@ Decisões-chave:
   "raspar" cêntimos dos itens para a soma bater com o total, calcula-se
   `Σbase − desconto_global − total` e regista-se. Se ≠ 0, a extração perdeu,
   inventou ou leu mal um item/desconto → `needs_review`, fora das análises.
-- **Loop de auto-correção (limitado), com pista cirúrgica.** Quando não bate, a
-  discrepância é realimentada ao modelo. `pistaCirurgica()` (determinística)
+- **Validação POR LINHA (2.ª camada, independente do total).** `validarLinhas()`
+  confirma `quantidade × preco_unitario ≈ valor` em linhas com multiplicador
+  explícito. Apanha o erro clássico do multipack (valor lido como o unitário, ou
+  o conteúdo do pack "6*" lido como quantidade) **mesmo quando a nota inteira por
+  acaso fecha** — sinal de erro que o total esconde. Alimenta `needs_review` e o
+  loop. Só dispara com multiplicador explícito → sem falsos positivos.
+- **Loop de auto-correção (limitado), com pista cirúrgica.** Quando não bate (no
+  total OU por linha), a discrepância é realimentada ao modelo. `pistaCirurgica()` (determinística)
   aponta a LINHA que explica a diferença — por *casamento* com o valor de um item
   (duplicado/em falta) ou com um desconto de linha; sem casamento, dá só a direção
   (acima/abaixo + dica de quantidade/pack). NUNCA por "valor outlier" (daria
