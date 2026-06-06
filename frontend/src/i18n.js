@@ -27,6 +27,7 @@ const STRINGS = {
     'cam.repetir': '↺ Repetir',
     'cam.enviar': '✓ Enviar',
     'cam.ajeitado': '📐 ajeitada (cobertura {c}%)',
+    'cam.recortado': '✂️ recortada (sem ajuste de perspetiva · {c}%)',
     'cam.original': 'foto original — {motivo}',
     'nota.enviada': 'Nota',
     'nota.enviadaN': 'Nota {i}/{n}',

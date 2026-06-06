@@ -888,10 +888,13 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
           <p className="cam-hint">
             {preview.info?.dewarped
               ? t('cam.ajeitado', { c: preview.info.cobertura })
+              : preview.info?.recortado
+              ? t('cam.recortado', { c: preview.info.cobertura })
               : t('cam.original', {
                   motivo:
                     {
                       'sem contorno': 'não detetei as bordas do talão',
+                      'contorno ocupa a imagem toda': 'o talão preenche o ecrã todo',
                       'contorno implausível': 'bordas detetadas pequenas demais',
                       'sem cantos': 'cantos não detetados',
                       'não-imagem': 'não é imagem',
