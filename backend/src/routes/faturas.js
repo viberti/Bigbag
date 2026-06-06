@@ -16,6 +16,7 @@ import { distribuirDesconto, pistaCirurgica, validarLinhas } from '../ingest/rec
 import { persistirFatura } from '../ingest/persist.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
 import { normalizarItensFatura, mergeNomesIdenticos } from '../normaliza/matcher.js';
+import { recomputarPpbFatura } from '../normaliza/ppb.js';
 import { guardarMensagem } from '../historico.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
@@ -146,6 +147,11 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     await normalizarItensFatura(getPool(), fatura_id, { cadeia: dados.loja?.cadeia }).catch((e) =>
       console.error('[faturas] canonicalização:', e.message),
     );
+
+    // 4c) Recomputa o preco_por_base respeitando o unidade_base AUTORITATIVO do
+    // SKU (agora resolvido) — garante que todos os itens do mesmo produto
+    // comparam na mesma base (café sempre €/kg, ovos €/ovo). Best-effort.
+    await recomputarPpbFatura(getPool(), fatura_id).catch((e) => console.error('[faturas] recomputar ppb:', e.message));
 
     // Funde automaticamente SKUs com nome idêntico criados por esta nota (evita
     // que duplicados de nome se acumulem). Só os nomes desta fatura. Best-effort.

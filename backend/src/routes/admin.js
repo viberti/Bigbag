@@ -11,6 +11,7 @@ import { similaridade } from '../normaliza/similaridade.js';
 import { mergeNomesIdenticos } from '../normaliza/matcher.js';
 import { pistaCirurgica, validarLinhas } from '../ingest/reconcile.js';
 import { reprocessarFatura } from '../ingest/reprocess.js';
+import { recomputarPpbSku } from '../normaliza/ppb.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -81,14 +82,20 @@ adminRouter.patch('/skus/:id', async (req, res) => {
     const marca = req.body?.marca === undefined ? undefined : str(req.body.marca, 80);
     const categoria = req.body?.categoria === undefined ? undefined : str(req.body.categoria, 60);
     const simplificado = req.body?.nome_simplificado === undefined ? undefined : str(req.body.nome_simplificado, 120);
+    const unidade = ['un', 'kg', 'L'].includes(req.body?.unidade_base) ? req.body.unidade_base : undefined;
     const sets = ['nome_canonico = ?'];
     const args = [nome];
     if (marca !== undefined) { sets.push('marca = ?'); args.push(marca || null); }
     if (categoria !== undefined) { sets.push('categoria = ?'); args.push(categoria || null); }
     if (simplificado !== undefined) { sets.push('nome_simplificado = ?'); args.push(simplificado || null); }
+    if (unidade !== undefined) { sets.push('unidade_base = ?'); args.push(unidade); }
     args.push(id);
     await getPool().query(`UPDATE sku_normalizado SET ${sets.join(', ')} WHERE id = ?`, args);
-    res.json({ ok: true });
+    // Se a unidade mudou, recomputa o preco_por_base dos itens do SKU (a unidade
+    // é autoritativa: café→kg passa todos a €/kg).
+    let recomputados = 0;
+    if (unidade !== undefined) recomputados = await recomputarPpbSku(getPool(), id).catch(() => 0);
+    res.json({ ok: true, recomputados });
   } catch (e) {
     console.error('[admin/skus PATCH] erro:', e.message);
     res.status(500).json({ erro: 'Falha a atualizar SKU' });

@@ -151,6 +151,12 @@ function TabProdutos() {
     setMsg('✓ nome simplificado salvo');
     recarregarLista();
   }
+  async function salvarUnidade(u) {
+    if (!det || u === det.sku.unidade_base) return;
+    const r = await adm.renomearSku(sel, { nome_canonico: det.sku.nome_canonico, unidade_base: u });
+    setMsg(`✓ unidade → ${u} · ${r?.recomputados || 0} preços recalculados`);
+    await recarregarDet();
+  }
   async function dissociar(desc) {
     await adm.dissociar(sel, desc);
     await recarregarDet();
@@ -211,8 +217,17 @@ function TabProdutos() {
             </div>
             <div className="adm-meta">
               {det.sku.marca ? `marca: ${det.sku.marca} · ` : ''}
-              {det.sku.categoria || '—'} · {det.sku.unidade_base} ·{' '}
-              {det.descricoes.reduce((a, d) => a + d.n, 0)} compra(s)
+              {det.sku.categoria || '—'} · {det.descricoes.reduce((a, d) => a + d.n, 0)} compra(s)
+            </div>
+
+            <h3>Unidade de comparação</h3>
+            <div className="adm-linha">
+              <select value={det.sku.unidade_base} onChange={(e) => salvarUnidade(e.target.value)}>
+                <option value="un">un — contado (ovos, latas, iogurtes)</option>
+                <option value="kg">kg — peso (café, queijo, fruta, carne)</option>
+                <option value="L">L — líquido (leite, sumo, azeite)</option>
+              </select>
+              <span className="adm-vazio2">recalcula o €/base de todas as compras deste produto</span>
             </div>
 
             <h3>Nome simplificado (lista de compras)</h3>

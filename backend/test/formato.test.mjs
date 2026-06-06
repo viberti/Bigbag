@@ -92,3 +92,24 @@ test('expandir abreviaturas e separar cadeia', () => {
   assert.equal(sep.cadeiaToken, 'CONTINENTE');
   assert.ok(!/CONTINENTE/.test(sep.semCadeia));
 });
+
+test('precoPorBase com alvo do SKU: café 250g + alvo kg → €/kg', () => {
+  const f = extrairFormato('CAFE LOTE CAFET M GROS CNT 250G');
+  assert.equal(f.unidade_base, 'kg');
+  assert.equal(precoPorBase({ preco_liquido: 2.91 }, f, 'kg'), 11.64); // 2,91 / 0,25
+});
+
+test('precoPorBase com alvo kg mas SEM peso na descrição → null (honesto)', () => {
+  const f = extrairFormato('CAFE NOIDO ENCORPADO'); // sem peso
+  assert.equal(precoPorBase({ preco_liquido: 2.95 }, f, 'kg'), null);
+});
+
+test('precoPorBase com alvo un + contagem do pacote (18UN) → €/unidade', () => {
+  const f = extrairFormato('OVOS SOLO CLASSE M/L CNT 18UN');
+  assert.equal(precoPorBase({ preco_liquido: 4.79, quantidade: 1 }, f, 'un'), 0.2661); // 4,79 / 18
+});
+
+test('precoPorBase sem alvo = comportamento antigo (usa a unidade do formato)', () => {
+  const f = extrairFormato('BOL DIGESTIVE AVEIA CNT 425GR');
+  assert.equal(precoPorBase({ preco_liquido: 1.39 }, f), precoPorBase({ preco_liquido: 1.39 }, f, 'kg'));
+});

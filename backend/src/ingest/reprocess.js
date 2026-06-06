@@ -11,6 +11,7 @@ import { preProcessarImagem } from './imagem.js';
 import { distribuirDesconto, validarLinhas } from './reconcile.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
 import { normalizarItensFatura } from '../normaliza/matcher.js';
+import { recomputarPpbFatura } from '../normaliza/ppb.js';
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
 
@@ -62,12 +63,13 @@ export async function reprocessarFatura(pool, faturaId) {
     await conn.query('DELETE FROM item WHERE fatura_id = ?', [faturaId]);
     for (const it of itens) {
       await conn.query(
-        `INSERT INTO item (fatura_id, sku_id, descricao_original, quantidade, preco_unitario, preco_liquido,
+        `INSERT INTO item (fatura_id, sku_id, descricao_original, linha_peso, quantidade, preco_unitario, preco_liquido,
            preco_por_base, is_clearance, desconto_direto, is_non_product)
-         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           faturaId,
           String(it.descricao_original || '').slice(0, 200),
+          it.linha_peso ? String(it.linha_peso).slice(0, 80) : null,
           num(it.quantidade) || 1,
           num(it.preco_unitario),
           num(it.preco_liquido),
@@ -99,8 +101,10 @@ export async function reprocessarFatura(pool, faturaId) {
     conn.release();
   }
 
-  // Re-resolve os SKUs (com contexto da cadeia). Best-effort.
+  // Re-resolve os SKUs (com contexto da cadeia) e recomputa o preco_por_base
+  // respeitando o unidade_base do SKU. Best-effort.
   await normalizarItensFatura(pool, faturaId, { cadeia: f.cadeia }).catch(() => {});
+  await recomputarPpbFatura(pool, faturaId).catch(() => {});
 
   return { fatura_id: faturaId, n_itens: itens.length, needs_review: needsReview, discrepancia: rec.discrepancia };
 }
