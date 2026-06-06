@@ -118,7 +118,7 @@ export async function reprocessarFatura(pool, faturaId) {
         num(rec.discrepancia),
         needsReview ? 1 : 0,
         num(dados.desconto_global) || 0,
-        num(dados.iva) > 0 ? 0 : 1,
+        num(rec.iva) > 0 ? 0 : 1, // IVA somado EFETIVO (0 se espúrio) → precos_com_iva
         JSON.stringify(extracaoJson),
         faturaId,
       ],

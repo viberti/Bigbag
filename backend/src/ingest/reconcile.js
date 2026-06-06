@@ -15,16 +15,27 @@
 export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso, iva = 0 }) {
   const valor = (it) => Number(it.valor || 0);
   const descLinha = (it) => Math.abs(Number(it.desconto_direto || 0));
-  const ivaAdd = Number(iva) || 0; // IVA somado a seguir (grossista/cash-and-carry); 0 nos talões normais
 
   const subtotalBruto = itens.reduce((s, it) => s + valor(it), 0);
   const somaDescLinha = itens.reduce((s, it) => s + descLinha(it), 0);
+  const candA = subtotalBruto - descontoGlobal;
+  const candB = subtotalBruto - somaDescLinha - descontoGlobal;
+
+  // IVA SOMADO (grossista/cash-and-carry, ex. Makro): só é REAL se as linhas não
+  // fecharem sozinhas com o total. Num supermercado normal os preços já incluem
+  // IVA e Σlinhas − desconto = total; a tabela "Resumo IVA" no rodapé é apenas
+  // informativa. Se veio um `iva` mas as linhas JÁ batem com o total, é espúrio
+  // (a legenda lida como IVA-somado) → ignora-o, senão o total não fecharia e o
+  // preço seria inflado. Guarda aritmético, robusto a erros do LLM.
+  let ivaAdd = Number(iva) || 0;
+  if (ivaAdd > 0 && totalImpresso != null) {
+    const t = Number(totalImpresso);
+    if (Math.abs(candA - t) < 0.05 || Math.abs(candB - t) < 0.05) ivaAdd = 0;
+  }
 
   // Árbitro = TOTAL SEM o IVA somado (as linhas são sem IVA nos grossistas).
   // Escolhe a convenção cujo candidato lhe fica mais perto.
   const alvo = totalImpresso != null ? Number(totalImpresso) - ivaAdd : subtotalBruto - somaDescLinha - descontoGlobal;
-  const candA = subtotalBruto - descontoGlobal;
-  const candB = subtotalBruto - somaDescLinha - descontoGlobal;
   const convencao = Math.abs(candB - alvo) < Math.abs(candA - alvo) ? 'B' : 'A';
 
   // Base líquida por item (antes do desconto global).
@@ -57,6 +68,7 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso, i
     itens: out,
     subtotal: subtotalBruto,
     convencao,
+    iva: ivaAdd, // IVA somado EFETIVO (0 se espúrio) — para precos_com_iva
     totalReconciliado,
     discrepancia,
     extracaoBate: Math.abs(discrepancia) < 0.015,

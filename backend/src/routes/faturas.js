@@ -99,6 +99,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       itens: dados.itens,
     };
     dados.itens = rec.itens; // reconciliados
+    dados.iva = rec.iva; // IVA somado EFETIVO (0 se a legenda foi lida como espúria) → precos_com_iva
 
     // 2b) Camada 1 da normalização: formato → preco_por_base (€/kg, €/L, €/un)
     for (const it of dados.itens) {
