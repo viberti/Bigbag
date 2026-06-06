@@ -124,7 +124,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     // na ingestão, para o produto aparecer com nome canónico (e corrigido) nas
     // consultas. Best-effort: se falhar, o item fica sem SKU e o script de lote
     // (normalizar_skus) apanha-o depois. Não bloqueia o upload em caso de erro.
-    await normalizarItensFatura(getPool(), fatura_id).catch((e) =>
+    await normalizarItensFatura(getPool(), fatura_id, { cadeia: dados.loja?.cadeia }).catch((e) =>
       console.error('[faturas] canonicalização:', e.message),
     );
 

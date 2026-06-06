@@ -7,13 +7,16 @@ import { resolverSku } from '../src/normaliza/matcher.js';
 
 const pool = getPool();
 const [rows] = await pool.query(
-  'SELECT DISTINCT descricao_original FROM item WHERE sku_id IS NULL AND is_non_product = FALSE ORDER BY descricao_original',
+  `SELECT i.descricao_original, MAX(l.cadeia) AS cadeia
+     FROM item i JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
+    WHERE i.sku_id IS NULL AND i.is_non_product = FALSE
+    GROUP BY i.descricao_original ORDER BY i.descricao_original`,
 );
 
 const cont = { novo: 0, match: 0, alias: 0, revisao: 0, erro: 0 };
-for (const { descricao_original } of rows) {
+for (const { descricao_original, cadeia } of rows) {
   try {
-    const r = await resolverSku(pool, descricao_original);
+    const r = await resolverSku(pool, descricao_original, { cadeia });
     if (r.sku_id) {
       await pool.query('UPDATE item SET sku_id = ? WHERE descricao_original = ? AND sku_id IS NULL', [
         r.sku_id,

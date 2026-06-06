@@ -18,7 +18,12 @@ leitura/OCR), devolve SÓ um objeto JSON:
   "confianca": number        // 0..1 — baixa se a descrição for ambígua/ilegível
 }
 Regras:
-- Expande abreviaturas (BOL=Bolacha, QJ=Queijo, IOG=Iogurte, C/=com, S/=sem, SAB=Sabonete, DET=Detergente, CHAMP=Champô).
+- Expande abreviaturas comuns: BOL=Bolacha, QJ=Queijo, IOG=Iogurte, C/=com, S/=sem,
+  SAB=Sabonete, DET=Detergente, CHAMP=Champô, DIG=Digestive, INT/INTEG=Integral,
+  NAT=Natural, M/G ou MG (em laticínios)=Meio-Gordo, MAGRO/MG (light)=Magro,
+  EMB=Embalado, CONG=Congelado, FRESC=Fresco. (Ambiguidades resolve-as pelo contexto.)
+- Os marcadores de CADEIA no nome (CNT/CONT=Continente, PD=Pingo Doce, MIN/M.PRECO=Minipreço,
+  AUCH=Auchan) NÃO entram no nome_canonico — se forem a insígnia do produto, vão para a "marca".
 - NÃO transformes produtos de HIGIENE/BELEZA/LIMPEZA em alimentos: "SAB." é Sabonete (não "Arroz"); palavras como sabonete, champô, gel, creme, serum, detergente, lixívia, amaciador indicam que NÃO é comida — mantém a categoria certa.
 - Ignora quantidade/código no início ("1 ", "2 ", "Uni ", "I ") — não faz parte do nome.
 - CORRIGE erros óbvios de leitura para o produto real que de facto existe, usando
@@ -67,10 +72,13 @@ export async function confirmarMesmoProduto(nomeA, nomeB, { model, timeoutMs } =
   }
 }
 
-export async function canonicalizar(descricao, { model, timeoutMs } = {}) {
+export async function canonicalizar(descricao, { model, timeoutMs, cadeia } = {}) {
+  // Contexto da loja: o modelo desambigua muito melhor abreviaturas/marcas quando
+  // sabe que cadeia gerou o talão (ex.: insígnias e estilos próprios do Lidl vs Continente).
+  const ctx = cadeia ? `\nContexto: este item vem de um talão do(a) ${cadeia} — usa as abreviaturas e marcas próprias dessa cadeia para desambiguar.` : '';
   const pedir = () =>
     chatCompletion({
-      messages: [{ role: 'user', content: `${PROMPT}\n\nDescrição: ${descricao}` }],
+      messages: [{ role: 'user', content: `${PROMPT}${ctx}\n\nDescrição: ${descricao}` }],
       model,
       timeoutMs,
       responseFormat: { type: 'json_object' },
