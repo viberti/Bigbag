@@ -184,6 +184,29 @@ Formato compatível com OpenRouter / OpenAI tools. O LLM recebe a consulta (tran
         "required": ["alvo", "periodo_inicio"]
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "tendencia_precos",
+      "description": "Produtos que ficaram MAIS CAROS ou MAIS BARATOS ao longo do tempo: variação % entre a 1ª e a última observação de cada produto (preço por unidade-base). Usar para 'que produtos subiram/desceram de preço', 'o que ficou mais caro/barato ultimamente', 'tendência de preços'.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "desde": { "type": "string", "description": "Opcional ISO 'YYYY-MM-DD'. Para 'ultimamente/recentemente', ~90 dias atrás. Omitido = todo o histórico." },
+          "loja": { "type": "string", "description": "Opcional: cadeia/loja." }
+        },
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "comparar_lojas",
+      "description": "Que CADEIA/supermercado tende a ser mais barato para os produtos do usuário. Compara o preço por unidade-base dos produtos vistos em ≥2 lojas e ordena as lojas por 'vitorias_pct' (% de vezes que é a mais barata). Usar para 'onde costumo comprar mais barato', 'qual o supermercado mais barato para mim'. Sem parâmetros.",
+      "parameters": { "type": "object", "properties": {}, "required": [] }
+    }
   }
 ]
 ```
@@ -206,3 +229,8 @@ Implementação inicial das 4 funções em `backend/src/queries.js`, com teste d
 - **`total_gasto`** exclui `is_non_product` e **inclui** `is_clearance` (gasto real). `'tudo'` = total de gasto **em produtos** (sacos/taxas fora), não a fatura bruta — reversível se preferires o total absoluto. `alvo` casa categoria **ou** produto.
 - **Datas de saída** via `DATE_FORMAT(...,'%Y-%m-%d')` → strings ISO no JSON (não objetos `Date`).
 - **Sem rota HTTP de consulta ainda.** As funções são uma biblioteca testável; a exposição por endpoint fica **atrás de auth** (requisito de segurança), a implementar com o OAuth.
+
+### Adições (2026-06-06) — `tendencia_precos` e `comparar_lojas`
+- **`tendencia_precos`** — para cada produto com ≥2 observações de `preco_por_base` em datas diferentes, compara a 1ª e a última (via `FIRST_VALUE` em janelas asc/desc) e devolve a variação %, ordenado pelo maior movimento. Exclui clearance/não-produto/revisão. *"Ultimamente"* → o LLM passa `desde` ≈ 90 dias atrás. (Nota: alguns movimentos extremos refletem ruído de formato a montante, não preço real — é o sinal honesto da `preco_por_base`.)
+- **`comparar_lojas`** — para os produtos vistos em **≥2 cadeias**, compara o `preco_por_base` mais recente por cadeia ao mínimo; ordena as cadeias por **`vitorias_pct`** (% de produtos em que é a mais barata). O `premio_medio_pct` é **limitado a 100%/produto** para um outlier não dominar a média. Devolve `produtos_comparados` para o LLM assinalar amostras pequenas. Vazio se não houver produtos comparáveis (honesto).
+- **Modelo de consulta = `gemini-2.5-flash` (full)**, não o "lite": o lite era inconsistente a chamar ferramentas (ora chamava, ora devolvia bolha vazia). A consulta é fração mínima do custo. Defensivas no loop: normalização do nome da ferramenta (modelos que prefixam `namespace.funcao`, ex. `default_api.detalhes_fatura`) e guarda anti-resposta-vazia.

@@ -308,9 +308,16 @@ sequenceDiagram
   B-->>U: resposta + rasto das chamadas
 ```
 
-- **9 ferramentas:** `buscar_ultima_compra`, `comparar_precos_por_loja`,
+- **11 ferramentas:** `buscar_ultima_compra`, `comparar_precos_por_loja`,
   `produtos_habituais`, `detalhes_fatura`, `produto_mais_barato`,
-  `historico_preco`, `listar_compras`, `total_gasto`, `lembrar`.
+  `historico_preco`, `listar_compras`, `total_gasto`, `tendencia_precos`
+  (produtos que subiram/desceram de preço), `comparar_lojas` (que cadeia tende a
+  ser mais barata para o usuário), `lembrar`.
+- **Modelo de tool-use:** a consulta corre num modelo *forte* (não o "lite" da
+  canonicalização) — o lite era inconsistente a chamar ferramentas (ora chamava,
+  ora devolvia vazio). A consulta é fração mínima do custo, por isso a fiabilidade
+  ganha. Defensivas: normalização do nome da ferramenta (modelos que prefixam
+  `namespace.funcao`) e guarda anti-resposta-vazia.
 - **Memória da conversa** é injectada (perguntas elípticas — "e no Lidl?" —
   reutilizam os filtros anteriores). **Memória de longo prazo**: a ferramenta
   `lembrar` grava factos duráveis do utilizador no perfil, reinjectados no
