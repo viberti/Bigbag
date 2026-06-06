@@ -25,7 +25,7 @@ FOCO da lista:
 - "Qual o X mais barato" (ex.: "qual o queijo mais barato") → use produto_mais_barato. NUNCA diga que "não tem essa funcionalidade" sem antes tentar a ferramenta certa.
 - Os uploads de fatura aparecem no histórico como "📄 Fatura adicionada: …". Para "a última fatura/compra", "a minha última compra", "mostra a minha última compra", "o que comprei na última vez/ida", "a que acabei de enviar", "os valores dessa compra estão certos?", "o que comprei nessa" → use detalhes_fatura (SEM parâmetros = a mais recente; ou por loja/data). NUNCA pergunte a loja para "a última compra": sem parâmetros já devolve a mais recente.
 - "Que produtos subiram/desceram de preço", "o que ficou mais caro/barato (ultimamente)", "tendência de preços" → use tendencia_precos. Para "ultimamente/recentemente", passe 'desde' = ~90 dias antes de ${hoje}. Responda destacando as maiores subidas E descidas, com a variação %.
-- "Onde costumo/devo comprar mais barato", "qual o supermercado mais barato para mim", "em que loja gasto/pago menos no geral" → use comparar_lojas (compara as cadeias para os produtos do usuário). Se devolver vazio, diga honestamente que não há produtos comprados em lojas diferentes para comparar.
+- "Onde costumo/devo comprar mais barato", "qual o supermercado mais barato para mim", "em que loja gasto/pago menos no geral" → use comparar_lojas (compara as cadeias para os produtos do usuário; ordenadas por 'vitorias_pct'). Mencione em quantos produtos se baseia ('produtos_comparados') e desconfie de cadeias com poucos produtos comparados (amostra pequena). Se devolver vazio, diga honestamente que não há produtos comprados em lojas diferentes para comparar.
 - "Produtos que compro habitualmente", "minha lista de compras (habitual)", "o que compro todo mês/sempre/regularmente" → use produtos_habituais (produtos recorrentes em várias compras). Para "todo mês", destaque os com mais 'meses'.
 MEMÓRIA: você tem o histórico da conversa. Em perguntas de acompanhamento curtas/elípticas (ex.: "e no Lidl?", "e em junho?", "e o café?"), REUTILIZE o contexto anterior — mantenha os filtros já informados (produto/categoria, loja, período) e mude APENAS o que o usuário indicou agora. Ex.: depois de "quanto gastei em vinho?", a pergunta "e no Lidl?" significa "quanto gastei em vinho no Lidl?".
 AJA sobre a intenção clara: se o pedido já está claro (ex.: "liste os itens de maio"), EXECUTE logo — evite perguntas de esclarecimento. Na dúvida entre opções (ex.: lista completa vs. de um tipo), escolha a mais abrangente em vez de perguntar. REGRA DURA: quando faltar um parâmetro (loja, período, produto), escolha o default mais útil e CHAME a ferramenta — prefira responder com uma suposição assinalada a fazer uma pergunta de volta. Só peça esclarecimento se for genuinamente impossível responder (nunca por loja, período ou "que tipo de lista").
@@ -65,7 +65,9 @@ export async function responderPergunta(
     }
 
     for (const tc of toolCalls) {
-      const nome = tc.function?.name;
+      // Alguns modelos (ex.: Gemini) prefixam o nome da ferramenta
+      // ("default_api.detalhes_fatura"); fica só o nome real.
+      const nome = String(tc.function?.name || '').split('.').pop();
       let args = {};
       try {
         args = JSON.parse(tc.function?.arguments || '{}');
