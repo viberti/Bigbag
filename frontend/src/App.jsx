@@ -886,7 +886,17 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
         <>
           <img className="cam-preview" src={preview.url} alt="pré-visualização da nota" />
           <p className="cam-hint">
-            {preview.info?.dewarped ? t('cam.ajeitado', { c: preview.info.cobertura }) : t('cam.original')}
+            {preview.info?.dewarped
+              ? t('cam.ajeitado', { c: preview.info.cobertura })
+              : t('cam.original', {
+                  motivo:
+                    {
+                      'sem contorno': 'não detetei as bordas do talão',
+                      'contorno implausível': 'bordas detetadas pequenas demais',
+                      'sem cantos': 'cantos não detetados',
+                      'não-imagem': 'não é imagem',
+                    }[preview.info?.motivo] || preview.info?.motivo || 'desconhecido',
+                })}
           </p>
           <div className="cam-acoes cam-acoes-prev">
             <button className="cam-file" onClick={repetir}>
