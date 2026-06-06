@@ -366,6 +366,24 @@ export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim, loja 
   };
 }
 
+// Histórico de COMPRAS de um produto (para o ícone 🧾 na Lista): cada compra
+// com data, loja e preço pago. Inclui clearance (é compra real); exclui
+// não-produto e notas em revisão. Mais recente primeiro.
+export async function historico_produto(db, { produto }) {
+  const m = await matchProduto(db, produto);
+  const [rows] = await db.query(
+    `SELECT DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
+            l.cadeia, l.nome AS loja,
+            i.preco_liquido AS preco, i.is_clearance
+     ${BASE_JOINS}
+     WHERE ${m.sql} AND i.is_non_product = FALSE AND f.needs_review = FALSE
+     ORDER BY f.data_compra DESC, i.id DESC
+     LIMIT 30`,
+    m.params,
+  );
+  return rows;
+}
+
 // 9) Tendência: produtos que ficaram MAIS CAROS ou MAIS BARATOS. Para cada
 //    produto com ≥2 observações de preco_por_base (em datas diferentes), compara
 //    a 1ª e a última e calcula a variação %. Devolve os maiores movimentos.

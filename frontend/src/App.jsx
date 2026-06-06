@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -669,7 +669,21 @@ function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCar
 // Linha do carrinho: arrasta para a DIREITA para apagar (revela 🗑).
 function ItemCarrinho({ it, onRemover }) {
   const [dx, setDx] = useState(0);
+  const [hist, setHist] = useState(null); // null = fechado; array = aberto
+  const [carregando, setCarregando] = useState(false);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
+  async function alternarHist(e) {
+    e.stopPropagation();
+    if (hist) return setHist(null); // fechar
+    setCarregando(true);
+    try {
+      setHist(await historicoProduto(it.nome));
+    } catch {
+      setHist([]);
+    } finally {
+      setCarregando(false);
+    }
+  }
   function start(e) {
     const tt = e.touches[0];
     g.current = { x0: tt.clientX, y0: tt.clientY, horiz: false, mov: true, dx: 0 };
@@ -705,8 +719,36 @@ function ItemCarrinho({ it, onRemover }) {
         onTouchEnd={end}
       >
         <span className="cn">{it.nome}</span>
+        <button
+          type="button"
+          className={`cp-hist ${hist ? 'on' : ''}`}
+          onClick={alternarHist}
+          aria-label={t('cart.hist')}
+        >
+          <Ico name="receipt" size={15} />
+        </button>
         {it.preco != null && <span className="cp">{eur(it.preco)}</span>}
       </div>
+      {hist && (
+        <div className="crow-hist">
+          {carregando ? (
+            <div className="ch-vazio">{t('cart.histLoad')}</div>
+          ) : hist.length === 0 ? (
+            <div className="ch-vazio">{t('cart.histEmpty')}</div>
+          ) : (
+            hist.map((h, i) => (
+              <div key={i} className="ch-row">
+                <span className="ch-data">{h.data}</span>
+                <span className="ch-loja">{h.cadeia || h.loja}</span>
+                <span className="ch-preco">
+                  {eur(h.preco)}
+                  {h.is_clearance ? <span className="ch-promo"> ⚡</span> : null}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

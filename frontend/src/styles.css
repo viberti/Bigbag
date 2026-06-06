@@ -545,8 +545,21 @@ body { background: #0c1814; }
 .bb .crow-bg { position: absolute; inset: 0; display: flex; align-items: center; padding-left: 22px; color: #fff; background: #7a2e2e; }
 .bb .crow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 18px;
   border-bottom: 1px solid rgba(255,255,255,.045); background: #18261f; position: relative; touch-action: pan-y; }
-.bb .crow .cn { font-weight: 600; font-size: 16.5px; color: var(--txt); }
+.bb .crow .cn { font-weight: 600; font-size: 16.5px; color: var(--txt); flex: 1; min-width: 0; }
 .bb .crow .cp { font-weight: 700; font-size: 15px; color: var(--txt); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+/* ícone 🧾 de histórico antes do preço */
+.bb .cp-hist { background: none; border: none; color: var(--muted-bb); cursor: pointer; padding: 4px;
+  display: grid; place-items: center; flex: 0 0 auto; border-radius: 8px; transition: .15s; }
+.bb .cp-hist:hover { color: var(--txt); }
+.bb .cp-hist.on { color: var(--accent); }
+/* histórico expandido de um item da Lista (data · loja · preço) */
+.bb .crow-hist { background: #14201b; padding: 4px 18px 10px; border-bottom: 1px solid rgba(255,255,255,.045); }
+.bb .ch-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13.5px; }
+.bb .ch-data { color: var(--muted-bb); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.bb .ch-loja { flex: 1; color: #bce8d2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bb .ch-preco { font-weight: 700; color: var(--txt); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.bb .ch-promo { color: var(--accent); }
+.bb .ch-vazio { color: var(--muted-bb); font-size: 13px; padding: 6px 0; }
 .bb .cart-empty { padding: 54px 24px; text-align: center; color: var(--muted-bb); font-size: 16px; line-height: 1.7; }
 .bb .cart-foot { padding: 15px 18px 18px; border-top: 1px solid var(--line); flex: 0 0 auto; }
 .bb .cart-total { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 13px; font-size: 15px; color: var(--muted-bb); font-weight: 600; }

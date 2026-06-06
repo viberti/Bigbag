@@ -40,6 +40,13 @@ export async function carregarHabituais() {
   return produtos || [];
 }
 
+export async function historicoProduto(nome) {
+  const r = await call(`/api/produto/historico?nome=${encodeURIComponent(nome)}`);
+  if (!r.ok) throw new Error(`historico ${r.status}`);
+  const { historico } = await r.json();
+  return historico || [];
+}
+
 export async function consultar(pergunta) {
   const r = await call('/api/consulta', {
     method: 'POST',

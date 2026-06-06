@@ -75,6 +75,21 @@ app.get('/api/habituais', requireAuth, async (req, res) => {
   }
 });
 
+// Histórico de compras de um produto (data, loja, preço) — para o ícone 🧾 que
+// se expande em cada item da Lista de compras na PWA.
+app.get('/api/produto/historico', requireAuth, async (req, res) => {
+  try {
+    const nome = String(req.query.nome || '').trim();
+    if (!nome) return res.json({ historico: [] });
+    const { historico_produto } = await import('./queries.js');
+    const { getPool } = await import('./db.js');
+    res.json({ historico: await historico_produto(getPool(), { produto: nome }) });
+  } catch (e) {
+    console.error('[historico_produto] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar histórico do produto' });
+  }
+});
+
 // Perfil do usuário (memória de longo prazo) — o que o assistente sabe.
 app.get('/api/perfil', requireAuth, async (req, res) => {
   try {
