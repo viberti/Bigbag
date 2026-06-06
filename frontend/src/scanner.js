@@ -186,8 +186,13 @@ export async function digitalizar(file, onInfo) {
 // vivo do contorno sobre o feed da câmara (chamado a poucos fps). Converte para
 // cinzento antes do Canny (o findPaperContour corre Canny direto na imagem) — é
 // o que torna a deteção fiável, sobretudo em frames pequenos. Nunca lança.
-export let detStage = '-'; // marcador de etapa (diagnóstico do hang ao vivo)
+export let detStage = '-'; // marcador de etapa (diagnóstico)
+// Deteta o talão num frame. Em vez do Canny-maior-contorno do jscanify (que
+// agarra a moldura/textura do fundo), isola a região CLARA (o papel) por
+// threshold de Otsu e pega no maior contorno claro — robusto para talão sobre
+// mesa escura. Devolve os 4 cantos (via getCornerPoints) ou null.
 export async function detectarPapel(fonte) {
+  let src, gray, bin, contours, hier, best;
   try {
     detStage = 'cv';
     if (!window.cv?.Mat) await carregarOpenCV();
@@ -195,25 +200,52 @@ export async function detectarPapel(fonte) {
     const { default: Jscanify } = await import('./vendor/jscanify.js');
     const scanner = new Jscanify();
     const cv = window.cv;
-    detStage = 'imread';
-    const mat = cv.imread(fonte); // RGBA direto, como o digitalizar (que funciona)
-    try {
-      detStage = 'contour';
-      const contour = scanner.findPaperContour(mat);
-      if (!contour) {
-        detStage = 'noContour';
-        return null;
-      }
-      detStage = 'corners';
-      const c = scanner.getCornerPoints(contour);
-      detStage = 'done';
-      if (c?.topLeftCorner && c?.topRightCorner && c?.bottomLeftCorner && c?.bottomRightCorner) return c;
-      return null;
-    } finally {
-      mat.delete();
+    detStage = 'prep';
+    src = cv.imread(fonte);
+    gray = new cv.Mat();
+    bin = new cv.Mat();
+    contours = new cv.MatVector();
+    hier = new cv.Mat();
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+    detStage = 'thresh';
+    cv.threshold(gray, bin, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU); // papel claro → branco
+    detStage = 'contours';
+    cv.findContours(bin, contours, hier, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+    const total = fonte.width * fonte.height;
+    let bestArea = 0;
+    for (let i = 0; i < contours.size(); i++) {
+      const ct = contours.get(i);
+      const a = cv.contourArea(ct);
+      if (a > bestArea) {
+        bestArea = a;
+        if (best) best.delete();
+        best = ct;
+      } else ct.delete();
     }
+    detStage = 'eval';
+    // rejeita: nada, pequeno demais (<8%), ou quase o ecrã todo (>92% = fundo/moldura)
+    if (!best || bestArea < total * 0.08 || bestArea > total * 0.92) {
+      detStage = 'rej';
+      return null;
+    }
+    const c = scanner.getCornerPoints(best);
+    detStage = 'done';
+    if (c?.topLeftCorner && c?.topRightCorner && c?.bottomLeftCorner && c?.bottomRightCorner) return c;
+    return null;
   } catch (e) {
     detStage = 'err:' + String(e?.message || e).slice(0, 24);
     return null;
+  } finally {
+    try {
+      src?.delete();
+      gray?.delete();
+      bin?.delete();
+      contours?.delete();
+      hier?.delete();
+      best?.delete();
+    } catch {
+      /* noop */
+    }
   }
 }

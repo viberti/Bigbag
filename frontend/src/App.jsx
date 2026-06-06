@@ -971,8 +971,8 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
           const skew = Math.max(top / bot, bot / top, lft / rgt, rgt / lft);
           const m = 0.03;
           const naBorda = (p) => (p.x < small.width * m || p.x > small.width * (1 - m)) && (p.y < small.height * m || p.y > small.height * (1 - m));
-          const moldura = pts.filter(naBorda).length >= 3 || cov > 0.93;
-          novo = cov >= 0.28 && cov <= 0.9 && skew <= 1.8 && !moldura ? 'locked' : 'near';
+          const moldura = pts.filter(naBorda).length >= 3 || cov > 0.85;
+          novo = cov >= 0.25 && cov <= 0.82 && skew <= 1.9 && !moldura ? 'locked' : 'near';
           diag += ` cov:${cov.toFixed(2)} sk:${skew.toFixed(1)} mol:${moldura ? 'Y' : 'N'}`;
         }
         detNRef.current++;
