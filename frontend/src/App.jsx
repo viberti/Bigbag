@@ -929,7 +929,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     let ocupado = false;
     const small = document.createElement('canvas');
     const sctx = small.getContext('2d');
-    const LARG = 480;
+    const LARG = 720;
     const id = setInterval(async () => {
       const v = videoRef.current;
       const ov = overlayRef.current;

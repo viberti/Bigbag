@@ -180,3 +180,32 @@ export async function digitalizar(file, onInfo) {
     }
   }
 }
+
+// Deteta o quadrilátero do papel num frame (canvas/imagem já desenhado) e
+// devolve os 4 cantos em coordenadas da fonte, ou null. Leve, para o realce ao
+// vivo do contorno sobre o feed da câmara (chamado a poucos fps). Converte para
+// cinzento antes do Canny (o findPaperContour corre Canny direto na imagem) — é
+// o que torna a deteção fiável, sobretudo em frames pequenos. Nunca lança.
+export async function detectarPapel(fonte) {
+  try {
+    if (!window.cv?.Mat) await carregarOpenCV();
+    const { default: Jscanify } = await import('./vendor/jscanify.js');
+    const scanner = new Jscanify();
+    const cv = window.cv;
+    const mat = cv.imread(fonte);
+    const gray = new cv.Mat();
+    try {
+      cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY); // Canny precisa de 1 canal
+      const contour = scanner.findPaperContour(gray);
+      if (!contour) return null;
+      const c = scanner.getCornerPoints(contour);
+      if (c?.topLeftCorner && c?.topRightCorner && c?.bottomLeftCorner && c?.bottomRightCorner) return c;
+      return null;
+    } finally {
+      mat.delete();
+      gray.delete();
+    }
+  } catch {
+    return null;
+  }
+}
