@@ -870,6 +870,8 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
   const [preview, setPreview] = useState(null); // { url, file, info, importado }
   const [lock, setLock] = useState('searching'); // searching | near | locked
   const [dbg, setDbg] = useState(''); // diagnóstico temporário da deteção
+  const detNRef = useRef(0); // nº de deteções CONCLUÍDAS
+  const lastResRef = useRef('-'); // último resultado da deteção
 
   // Câmara
   useEffect(() => {
@@ -934,7 +936,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     const id = setInterval(async () => {
       const v = videoRef.current;
       const ov = overlayRef.current;
-      setDbg(`v${APP_VERSION} vw:${v?.videoWidth || 0} occ:${ocupado ? 'Y' : 'N'} cv:${window.cv?.Mat ? 'Y' : 'N'}`);
+      setDbg(`v${APP_VERSION} #${detNRef.current} ${lastResRef.current} | occ:${ocupado ? 'Y' : 'N'} cv:${window.cv?.Mat ? 'Y' : 'N'} vw:${v?.videoWidth || 0}`);
       if (!v || !v.videoWidth || ocupado || parar) return;
       ocupado = true;
       try {
@@ -951,11 +953,12 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
         const ms = Math.round(performance.now() - tdet);
         if (parar) return;
         if (c === 'TIMEOUT') {
-          setDbg(`v${APP_VERSION} TIMEOUT ${ms}ms cv:${window.cv?.Mat ? 'Y' : 'N'}`);
+          detNRef.current++;
+          lastResRef.current = `TIMEOUT ${ms}ms`;
           return;
         }
         let novo = 'searching';
-        let diag = `v${APP_VERSION} det:${c ? 'Y' : 'N'} ${ms}ms`;
+        let diag = `det:${c ? 'Y' : 'N'} ${ms}ms`;
         if (c) {
           const pts = [c.topLeftCorner, c.topRightCorner, c.bottomRightCorner, c.bottomLeftCorner];
           const xs = pts.map((p) => p.x);
@@ -972,7 +975,8 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
           novo = cov >= 0.28 && cov <= 0.9 && skew <= 1.8 && !moldura ? 'locked' : 'near';
           diag += ` cov:${cov.toFixed(2)} sk:${skew.toFixed(1)} mol:${moldura ? 'Y' : 'N'}`;
         }
-        setDbg(diag + ' → ' + novo);
+        detNRef.current++;
+        lastResRef.current = `${diag} → ${novo}`;
         setLock(novo);
         if (ov.width !== v.videoWidth || ov.height !== v.videoHeight) {
           ov.width = v.videoWidth;
