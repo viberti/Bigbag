@@ -568,6 +568,21 @@ function TabNotas() {
                 total {eur(det.fatura.total_impresso)} · {det.itens.length} itens ·{' '}
                 {det.fatura.needs_review ? '⚠ em revisão' : 'reconcilia'} · origem {det.fatura.origem_captura || '—'}
               </div>
+              {det.diagnostico && (
+                <div className="adm-diag">
+                  <div className="adm-diag-h">
+                    ⚠ Diagnóstico
+                    {det.diagnostico.discrepancia ? ` · diferença no total ${eur(det.diagnostico.discrepancia)}` : ''}
+                  </div>
+                  {det.diagnostico.pista && <div className="adm-diag-l">{det.diagnostico.pista}</div>}
+                  {det.diagnostico.linhas_inconsistentes?.map((l, i) => (
+                    <div className="adm-diag-l" key={i}>
+                      Linha <b>{l.descricao}</b>: {l.quantidade} × {eur(l.preco_unitario)} = {eur(l.esperado)}, mas o valor
+                      lido foi {eur(l.valor)}.
+                    </div>
+                  ))}
+                </div>
+              )}
               <ul className="adm-itens">
                 {det.itens.map((it) => (
                   <li key={it.id}>

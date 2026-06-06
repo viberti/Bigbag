@@ -9,6 +9,7 @@ import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { similaridade } from '../normaliza/similaridade.js';
 import { mergeNomesIdenticos } from '../normaliza/matcher.js';
+import { pistaCirurgica, validarLinhas } from '../ingest/reconcile.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -278,7 +279,24 @@ adminRouter.get('/faturas/:id', async (req, res) => {
     );
     const ext = String(f.ficheiro_original || '').split('.').pop().toLowerCase();
     const tipo_ficheiro = ext === 'pdf' ? 'pdf' : 'imagem';
-    res.json({ fatura: f, itens, revisao: rev || null, imagem_url: `/api/faturas/${id}/imagem`, tipo_ficheiro });
+    // Diagnóstico de reconciliação (computado do snapshot, sem coluna nova): a
+    // pista cirúrgica + as linhas inconsistentes ajudam o operador a ver O QUE
+    // está provavelmente errado, em vez de só "em revisão".
+    let diagnostico = null;
+    try {
+      const ej = typeof f.extracao_json === 'string' ? JSON.parse(f.extracao_json) : f.extracao_json;
+      if (ej?.itens) {
+        const disc = Number(f.discrepancia) || 0;
+        const pista = pistaCirurgica(ej.itens, disc).trim();
+        const linhas = validarLinhas(ej.itens);
+        if (f.needs_review || pista || linhas.length) {
+          diagnostico = { discrepancia: disc, iva: ej.iva ?? null, pista: pista || null, linhas_inconsistentes: linhas };
+        }
+      }
+    } catch {
+      /* snapshot ausente/inválido → sem diagnóstico */
+    }
+    res.json({ fatura: f, itens, revisao: rev || null, diagnostico, imagem_url: `/api/faturas/${id}/imagem`, tipo_ficheiro });
   } catch (e) {
     console.error('[admin/faturas/:id] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar nota' });
