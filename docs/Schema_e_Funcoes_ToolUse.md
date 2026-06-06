@@ -33,13 +33,29 @@ CREATE TABLE sku_normalizado (
   nome_canonico VARCHAR(160) NOT NULL,           -- 'Bolacha Digestive de Aveia'
   marca         VARCHAR(80),                     -- 'Continente', 'Mimosa', null se desconhecida
   categoria     VARCHAR(80),                     -- 'Mercearia Doce', 'Laticínios'...
-  -- unidade-base para comparação de preço (ver nota de design sobre quantidades):
+  -- unidade-base para comparação de preço (ver nota de design sobre quantidades).
+  -- DECIDIDA determinística-primeiro: se a descrição traz peso/volume EXPLÍCITO
+  -- (g/kg/ml/cl/L, incl. multipack "4X125G"=500g), o formato GANHA ao LLM
+  -- (corrige fruta/legumes/queijo a peso que o LLM punha como 'un'); exceção:
+  -- categorias contadas (ovos, sabonete) ficam 'un'. Ver decidirUnidadeBase().
   unidade_base  ENUM('un','kg','L') NOT NULL DEFAULT 'un',
   formato_valor DECIMAL(10,3),                   -- 0.425 (kg), 1.000 (L), 1 (un)
   criado_em     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   KEY idx_sku_nome (nome_canonico),
   KEY idx_sku_categoria (categoria)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- SKU_ALIAS: cache descrição-de-talão → SKU. A 1ª vez que uma descrição
+-- aparece é resolvida (LLM/match); a partir daí o alias evita nova chamada.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE sku_alias (
+  descricao_original VARCHAR(200) PRIMARY KEY,      -- chave única → determina o resto
+  sku_id             BIGINT UNSIGNED NOT NULL,
+  origem             ENUM('llm','manual') NOT NULL, -- manual = associação/fusão do operador
+  confianca          TINYINT NULL                   -- 0–100 do mapeamento, por via (migração 016):
+  --   100 manual/fusão · 90 match · 75 match-llm (juiz) · 60 SKU novo · NULL legado
+);
 
 -- ─────────────────────────────────────────────────────────────
 -- FATURA: uma compra. Guarda total impresso E reconciliado para
@@ -98,7 +114,7 @@ CREATE TABLE item (
 - **`is_clearance` / `is_non_product`** são as flags das regras de negócio; as funções de consulta filtram-nas para não poluir o histórico.
 - **`descricao_original`** nunca se perde — é o que permite depurar a normalização e treinar/ajustar.
 - **Normalização de SKU corre na ingestão (Camadas 1-3).** Logo após gravar a fatura, cada item é resolvido para um `sku_normalizado` (alias-cache → canonicalização por LLM → match por similaridade); o script de lote `normalizar_skus` é a rede de segurança para o que ficar sem SKU. A canonicalização **corrige erros óbvios de leitura/OCR** ("OLO GIRASSOL"→"Óleo de Girassol", "RUPA TOMATE"→"Polpa de Tomate") usando conhecimento de produto — mas com guarda-corpos: **nunca altera números** (quantidade/preço vêm intactos da extração, não passam por esta camada), **nunca inventa** (se ilegível/ambíguo, baixa a confiança e o item fica para revisão com `sku_id` null), e o `descricao_original` cru fica sempre para auditoria. As consultas mostram `COALESCE(nome_canonico, descricao_original)`, por isso o nome corrigido aparece automaticamente.
-- **Interface de operador (`/admin`) + tabela `revisao` (migração 011).** Tela desktop para gerir SKUs canónicos (renomear, associar/dissociar descrições, fundir dois produtos) e rever a leitura de cada nota (imagem + itens, marcar certa/errada com comentário). API em `/api/admin/*` (protegida); a imagem da nota vem de `GET /api/faturas/:id/imagem`. A tabela `revisao` (fatura_id, veredicto ok/erro, comentário, operador) guarda o feedback humano — o sinal para priorizar melhorias por mercado/produto.
+- **Interface de operador (`/admin`) + tabela `revisao` (migração 011).** Tela desktop para gerir SKUs canónicos (renomear, associar/dissociar descrições, fundir dois produtos) e rever a leitura de cada nota (imagem + itens, marcar certa/errada com comentário). API em `/api/admin/*` (protegida); a imagem da nota vem de `GET /api/faturas/:id/imagem`. A tabela `revisao` (fatura_id, veredicto ok/erro, comentário, operador) guarda o feedback humano — o sinal para priorizar melhorias por mercado/produto. A **aba Revisão** (`GET /api/admin/baixa-confianca`) é uma worklist ordenada por confiança: itens sem SKU (não resolvidos) + mapeamentos de baixa confiança (`sku_alias.confianca` < limiar), do pior para o melhor; os legados sem pontuação (NULL) contam à parte e pontuam-se ao reprocessar.
 
 ---
 

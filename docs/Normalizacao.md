@@ -119,10 +119,15 @@ agrupam-se em três famílias:
 - **Pré-embalados sem peso**: `QUEIJO GOUDA 3,85` (Lidl) — queijo a peso vendido por
   embalagem, sem peso impresso → €/kg desconhecido.
 
-### 4.2 Unidade autoritativa errada (Camada 2)
-- A canonicalização **adivinha mal a unidade**: classificou `DIOSPIRO MOLE 350 G`
+### 4.2 Unidade autoritativa errada (Camada 2) — **resolvido**
+- A canonicalização **adivinhava mal a unidade**: classificou `DIOSPIRO MOLE 350 G`
   como `un` (fruta = "contado") apesar do peso explícito → €/un em vez de €/kg.
-  A regra "peso → kg" perde para o palpite "fruta = unidade".
+  A regra "peso → kg" perdia para o palpite "fruta = unidade" do LLM.
+- **Correção (determinística-primeiro):** quando o formato traz **peso/volume
+  explícito** (g/kg/ml/cl/L, incl. multipack `4X125G` = 500 g), o formato **ganha**
+  ao LLM (`decidirUnidadeBase`). Volume → sempre L. Exceção: **categorias contadas**
+  (ovos — onde `53-63G` é o calibre, não o pacote; sabonete) ficam `un`. Testado em
+  `test/unidade.test.mjs`. Sem peso/volume no formato, mantém-se a unidade do LLM.
 
 ### 4.3 Identidade / duplicados (Camadas 2-3 + fusão)
 - **Fragmentação por marca**: o `matcher` filtra candidatos por **mesma marca**
@@ -156,6 +161,14 @@ agrupam-se em três famílias:
   deterministicamente; o LLM só corre para descrições novas.
 - **Unidade autoritativa por SKU** + **recompute**: garante base comum; o operador
   corrige a unidade no `/admin` e recalcula todas as compras do produto.
+- **Unidade determinística-primeiro** (`decidirUnidadeBase`): o peso/volume explícito
+  do formato ganha ao palpite do LLM (com exceção de categorias contadas) — ver 4.2.
+- **Confiança do mapeamento por via** (`sku_alias.confianca`, 0–100: manual/fusão 100,
+  match 90, juiz 75, SKU novo 60): guardada **no alias** (durável, sobrevive a
+  reprocessos). Alimenta a **aba Revisão** do `/admin` — worklist do pior para o melhor
+  (itens sem SKU + mapeamentos de baixa confiança), tornando a curadoria dirigida por
+  dados em vez de caça aleatória. Limpeza de SKUs órfãos (0 itens, sem alias manual)
+  corre no fim de cada reprocesso.
 - **Sinais honestos, não números forçados**: `preco_por_base = null` quando o peso
   é desconhecido (em vez de assumir 1 kg); `(desconhecido)` quando a descrição não
   tem produto; `needs_review` quando a reconciliação não bate.
@@ -173,10 +186,11 @@ agrupam-se em três famílias:
 
 ## 6. Problemas em aberto
 
-1. **Unidade adivinhada errada** (fruta/charcutaria a peso → `un`). Mitigação atual:
-   o operador corrige a unidade. Melhoria possível: na canonicalização, deixar o
-   peso explícito na descrição **forçar** kg/L — mas é ambíguo (iogurte 4×125 g,
-   ovos) e arrisca regressões; não há regra segura óbvia.
+1. ~~**Unidade adivinhada errada**~~ **resolvido** (ver 4.2): peso/volume explícito
+   no formato força kg/L (`decidirUnidadeBase`), com exceção das categorias contadas.
+   O iogurte `4×125 g` **não** era ambíguo — é 500 g → €/kg (o parser já multiplica).
+   Resíduo: a lista de "categorias contadas" é uma heurística curta de palavras-chave
+   (ovos, sabonete); itens contados raros com peso impresso podem precisar de a estender.
 2. **Fragmentação por marca** vs `nome_canonico` brand-agnostic: a tensão entre o
    filtro-duro-de-marca (Camada 3) e a fusão-por-nome obriga à auto-fusão como
    muleta. Repensar se a marca deve ser filtro duro (talvez só para embalados, não
