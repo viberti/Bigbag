@@ -11,7 +11,7 @@ import { preProcessarImagem } from './imagem.js';
 import { distribuirDesconto, validarLinhas, pistaCirurgica } from './reconcile.js';
 import { config } from '../config.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
-import { normalizarItensFatura } from '../normaliza/matcher.js';
+import { normalizarItensFatura, mergeNomesIdenticos } from '../normaliza/matcher.js';
 import { recomputarPpbFatura } from '../normaliza/ppb.js';
 import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 
@@ -134,6 +134,17 @@ export async function reprocessarFatura(pool, faturaId) {
   // Re-resolve os SKUs (com contexto da cadeia) e recomputa o preco_por_base
   // respeitando o unidade_base do SKU. Best-effort.
   await normalizarItensFatura(pool, faturaId, { cadeia: f.cadeia }).catch(() => {});
+  // Funde SKUs de nome idêntico (como a ingestão) — senão re-canonicalizar pode
+  // recriar duplicados (ex.: "Maçã Gala" com marca diferente).
+  try {
+    const [skuRows] = await pool.query(
+      'SELECT DISTINCT s.nome_canonico FROM item i JOIN sku_normalizado s ON s.id = i.sku_id WHERE i.fatura_id = ?',
+      [faturaId],
+    );
+    await mergeNomesIdenticos(pool, new Set(skuRows.map((r) => r.nome_canonico)));
+  } catch {
+    /* noop */
+  }
   await recomputarPpbFatura(pool, faturaId).catch(() => {});
   // Auto-correção de outliers (pack não capturado) — mesma passada da ingestão.
   await autoCorrigirOutliers(pool, { aplicar: true }).catch(() => {});
