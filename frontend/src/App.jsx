@@ -840,13 +840,37 @@ function agruparPorSecao(itens) {
 }
 
 // Captura guiada ao vivo: câmara traseira + moldura de alinhamento.
+const dist2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const SVG_GAL = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="8.5" cy="9.5" r="1.6" /><path d="M5 17l4.5-4.5a2 2 0 0 1 2.8 0L19 19" />
+  </svg>
+);
+const SVG_FILE = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 16V7" /><path d="M8.5 10.5L12 7l3.5 3.5" /><path d="M5 16v1.5A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5V16" />
+  </svg>
+);
+const SVG_SEARCH = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+  </svg>
+);
+const PILL_IC = { searching: SVG_SEARCH, near: <Ico name="chart" size={16} />, locked: <Ico name="check" size={16} /> };
+
+// Digitalização guiada (handoff "Captura"): feed + deteção ao vivo (jscanify) →
+// cantos branco→amarelo→verde + contorno real; captura → pré-visualização.
 function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const [erro, setErro] = useState('');
+  const overlayRef = useRef(null); // canvas do contorno verde ao vivo
+  const flashRef = useRef(null);
+  const [erro, setErro] = useState(false);
   const [processando, setProcessando] = useState(false);
-  const [preview, setPreview] = useState(null); // { url, file, info } — resultado já digitalizado, à espera de confirmação
+  const [preview, setPreview] = useState(null); // { url, file, info, importado }
+  const [lock, setLock] = useState('searching'); // searching | near | locked
 
+  // Câmara
   useEffect(() => {
     if (!aberto) {
       setPreview((p) => {
@@ -854,32 +878,23 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
         return null;
       });
       setProcessando(false);
+      setLock('searching');
       return;
     }
     let cancelado = false;
-    setErro('');
+    setErro(false);
     (async () => {
       try {
-        // Pedir alta resolução: sem isto o browser entrega ~640×480 e a foto
-        // sai borrada depois do warp/recorte. `ideal` deixa o browser escolher
-        // o máximo suportado pela câmara traseira.
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 3840 },
-            height: { ideal: 2160 },
-          },
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } },
           audio: false,
         });
         if (cancelado) return stream.getTracks().forEach((tr) => tr.stop());
         streamRef.current = stream;
-        // Tentar autofoco contínuo (suporte variável; falha em silêncio).
         try {
           const track = stream.getVideoTracks()[0];
           const caps = track.getCapabilities?.() || {};
-          if (caps.focusMode?.includes('continuous')) {
-            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-          }
+          if (caps.focusMode?.includes('continuous')) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
         } catch {
           /* noop */
         }
@@ -888,7 +903,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
           await videoRef.current.play().catch(() => {});
         }
       } catch {
-        if (!cancelado) setErro(t('cam.error'));
+        if (!cancelado) setErro(true);
       }
     })();
     return () => {
@@ -898,19 +913,98 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     };
   }, [aberto]);
 
-  // Ao voltar da pré-visualização para o vídeo, re-liga o stream.
+  // Re-liga o stream ao voltar da pré-visualização.
   useEffect(() => {
-    if (!preview && videoRef.current && streamRef.current) {
+    if (aberto && !preview && !erro && videoRef.current && streamRef.current) {
       videoRef.current.srcObject = streamRef.current;
       videoRef.current.play().catch(() => {});
     }
-  }, [preview]);
+  }, [preview, aberto, erro]);
+
+  // Deteção ao vivo: corre o jscanify a ~3 fps sobre um frame reduzido, define o
+  // estado (searching/near/locked) e desenha o contorno real sobre o feed.
+  useEffect(() => {
+    if (!aberto || preview || erro) return;
+    let parar = false;
+    let ocupado = false;
+    const small = document.createElement('canvas');
+    const sctx = small.getContext('2d');
+    const LARG = 480;
+    const id = setInterval(async () => {
+      const v = videoRef.current;
+      const ov = overlayRef.current;
+      if (!v || !v.videoWidth || ocupado || parar) return;
+      ocupado = true;
+      try {
+        const esc = LARG / v.videoWidth;
+        small.width = LARG;
+        small.height = Math.round(v.videoHeight * esc);
+        sctx.drawImage(v, 0, 0, small.width, small.height);
+        const c = await detectarPapel(small);
+        if (parar) return;
+        let novo = 'searching';
+        if (c) {
+          const pts = [c.topLeftCorner, c.topRightCorner, c.bottomRightCorner, c.bottomLeftCorner];
+          const xs = pts.map((p) => p.x);
+          const ys = pts.map((p) => p.y);
+          const cov = ((Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys))) / (small.width * small.height);
+          const top = dist2(c.topLeftCorner, c.topRightCorner);
+          const bot = dist2(c.bottomLeftCorner, c.bottomRightCorner);
+          const lft = dist2(c.topLeftCorner, c.bottomLeftCorner);
+          const rgt = dist2(c.topRightCorner, c.bottomRightCorner);
+          const skew = Math.max(top / bot, bot / top, lft / rgt, rgt / lft);
+          const m = 0.03;
+          const naBorda = (p) => (p.x < small.width * m || p.x > small.width * (1 - m)) && (p.y < small.height * m || p.y > small.height * (1 - m));
+          const moldura = pts.filter(naBorda).length >= 3 || cov > 0.93;
+          novo = cov >= 0.28 && cov <= 0.9 && skew <= 1.8 && !moldura ? 'locked' : 'near';
+        }
+        setLock(novo);
+        if (ov.width !== v.videoWidth || ov.height !== v.videoHeight) {
+          ov.width = v.videoWidth;
+          ov.height = v.videoHeight;
+        }
+        const ctx = ov.getContext('2d');
+        ctx.clearRect(0, 0, ov.width, ov.height);
+        if (c && novo !== 'searching') {
+          const f = v.videoWidth / small.width;
+          const pts = [c.topLeftCorner, c.topRightCorner, c.bottomRightCorner, c.bottomLeftCorner];
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x * f, pts[0].y * f);
+          for (let i = 1; i < 4; i++) ctx.lineTo(pts[i].x * f, pts[i].y * f);
+          ctx.closePath();
+          ctx.lineWidth = Math.max(3, v.videoWidth / 150);
+          ctx.strokeStyle = novo === 'locked' ? '#46d488' : '#f0b53c';
+          ctx.shadowColor = novo === 'locked' ? 'rgba(70,212,136,.6)' : 'rgba(240,181,60,.45)';
+          ctx.shadowBlur = 16;
+          ctx.stroke();
+          if (novo === 'locked') {
+            ctx.fillStyle = 'rgba(70,212,136,.12)';
+            ctx.fill();
+          }
+        }
+      } catch {
+        /* noop */
+      } finally {
+        ocupado = false;
+      }
+    }, 350);
+    return () => {
+      parar = true;
+      clearInterval(id);
+    };
+  }, [aberto, preview, erro]);
 
   if (!aberto) return null;
 
   async function capturar() {
     const v = videoRef.current;
     if (!v || !v.videoWidth || processando) return;
+    const fl = flashRef.current;
+    if (fl) {
+      fl.classList.remove('go');
+      void fl.offsetWidth;
+      fl.classList.add('go');
+    }
     const canvas = document.createElement('canvas');
     canvas.width = v.videoWidth;
     canvas.height = v.videoHeight;
@@ -923,7 +1017,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
       info = d;
     });
     setProcessando(false);
-    setPreview({ url: URL.createObjectURL(file), file, info, res: `${v.videoWidth}×${v.videoHeight}` });
+    setPreview({ url: URL.createObjectURL(file), file, info, importado: false });
   }
 
   function enviar() {
@@ -931,69 +1025,108 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     const f = preview.file;
     URL.revokeObjectURL(preview.url);
     setPreview(null);
-    onCapturar(f); // já digitalizada → App envia sem re-processar
+    onCapturar(f);
   }
   function repetir() {
     if (preview?.url) URL.revokeObjectURL(preview.url);
     setPreview(null);
   }
 
+  const estado = preview ? 'preview' : erro ? 'error' : 'live';
+  const chip = preview?.importado
+    ? t('preview.imported')
+    : preview?.info?.dewarped || preview?.info?.recortado
+    ? t('preview.ok')
+    : t('preview.foto');
+
   return (
-    <div className="cam-overlay">
-      <div className="cam-topo">
-        <button className="cam-x" onClick={onFechar} aria-label="fechar">
-          ✕
+    <div className={`cap st-${estado} lock-${lock}`}>
+      {/* ── LIVE ── */}
+      <video ref={videoRef} className="cap-feed" playsInline muted autoPlay />
+      <canvas ref={overlayRef} className="cap-overlay" />
+      <div className="cap-stage">
+        <div className="cap-hole" />
+        <div className="cap-frame">
+          <div className="cap-scan" />
+          <span className="cnr tl" /><span className="cnr tr" /><span className="cnr bl" /><span className="cnr br" />
+        </div>
+      </div>
+      <div className="cap-top">
+        <div className="cap-ttl">
+          <b>{t('scan.title')}</b>
+          <span>{t('scan.subtitle')}</span>
+        </div>
+        <button className="cap-x" onClick={onFechar} aria-label="fechar">
+          <Ico name="close" size={22} />
         </button>
       </div>
-      {erro ? (
-        <div className="cam-erro">
-          <p>{erro}</p>
-          <button className="cam-file" onClick={onFicheiro}>
-            {t('cam.file')}
+      <div className="cap-guide">
+        <div className="cap-pill">
+          <span className="dot" />
+          <span className="pic">{PILL_IC[lock]}</span>
+          <span>{t(`scan.status.${lock}`)}</span>
+        </div>
+        <p className="cap-helper">
+          {processando ? t('cam.processando') : t('scan.hint')}
+          {!processando && <span className="sub">{t('scan.hintSub')}</span>}
+        </p>
+      </div>
+      <div className="cap-bottom">
+        <button className="cap-gal" onClick={onFicheiro}>
+          <span className="box">{SVG_GAL}</span>
+          <span>{t('scan.gallery')}</span>
+        </button>
+        <button className="cap-shutter" onClick={capturar} disabled={processando} aria-label={t('cam.capture')}>
+          <span className="ring" />
+          <span className="core" />
+        </button>
+        <span className="cap-tips" aria-hidden="true">
+          <Ico name="spark" size={21} />
+        </span>
+      </div>
+      <div ref={flashRef} className="cap-flash" />
+
+      {/* ── PREVIEW ── */}
+      {preview && (
+        <div className="cap-pv">
+          <div className="cap-pv-top">
+            <span className="cap-pv-chip">
+              <Ico name="check" size={16} /> {chip}
+            </span>
+            <button className="cap-pv-x" onClick={onFechar} aria-label="fechar">
+              <Ico name="close" size={20} />
+            </button>
+          </div>
+          <div className="cap-pv-stage">
+            <div className="cap-pv-card">
+              <img src={preview.url} alt="pré-visualização da nota" />
+              <span className="corner c1" /><span className="corner c2" /><span className="corner c3" /><span className="corner c4" />
+            </div>
+          </div>
+          <p className="cap-pv-meta">{t('preview.meta')}</p>
+          <div className="cap-pv-actions">
+            <button className="cap-pv-btn retry" onClick={repetir}>
+              <Ico name="sync" size={20} /> {t('cam.repetir')}
+            </button>
+            <button className="cap-pv-btn send" onClick={enviar}>
+              <Ico name="check" size={20} /> {t('cam.enviar')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── ERROR ── */}
+      {erro && (
+        <div className="cap-err">
+          <div className="cap-err-ic">
+            <Ico name="camera" size={38} />
+          </div>
+          <h2>{t('error.title')}</h2>
+          <p>{t('error.body')}</p>
+          <button className="cap-err-btn" onClick={onFicheiro}>
+            {SVG_FILE} {t('error.choose')}
           </button>
         </div>
-      ) : preview ? (
-        <>
-          <img className="cam-preview" src={preview.url} alt="pré-visualização da nota" />
-          <p className="cam-hint">
-            {preview.info?.dewarped
-              ? t('cam.ajeitado', { c: preview.info.cobertura })
-              : preview.info?.recortado
-              ? t('cam.recortado', { c: preview.info.cobertura })
-              : t('cam.original', {
-                  motivo:
-                    {
-                      'sem contorno': 'não detetei as bordas do talão',
-                      'contorno ocupa a imagem toda': 'o talão preenche o ecrã todo',
-                      'contorno implausível': 'bordas detetadas pequenas demais',
-                      'sem cantos': 'cantos não detetados',
-                      'não-imagem': 'não é imagem',
-                    }[preview.info?.motivo] || preview.info?.motivo || 'desconhecido',
-                })}
-            {preview.res ? <span className="cam-res"> · captura {preview.res}</span> : null}
-          </p>
-          <div className="cam-acoes cam-acoes-prev">
-            <button className="cam-file" onClick={repetir}>
-              {t('cam.repetir')}
-            </button>
-            <button className="cam-enviar" onClick={enviar}>
-              {t('cam.enviar')}
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <video ref={videoRef} className="cam-video" playsInline muted autoPlay />
-          <div className="cam-moldura" />
-          <p className="cam-hint">{processando ? t('cam.processando') : t('cam.hint')}</p>
-          <div className="cam-acoes">
-            <button className="cam-file" onClick={onFicheiro}>
-              {t('cam.file')}
-            </button>
-            <button className="cam-cap" onClick={capturar} disabled={processando} aria-label={t('cam.capture')} />
-            <span className="cam-spacer" />
-          </div>
-        </>
       )}
     </div>
   );
