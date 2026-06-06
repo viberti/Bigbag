@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
-import { digitalizar, detectarPapel, detStage } from './scanner.js';
+import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
 import { t, detetarLocale } from './i18n.js';
 
@@ -869,9 +869,6 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
   const [processando, setProcessando] = useState(false);
   const [preview, setPreview] = useState(null); // { url, file, info, importado }
   const [lock, setLock] = useState('searching'); // searching | near | locked
-  const [dbg, setDbg] = useState(''); // diagnóstico temporário da deteção
-  const detNRef = useRef(0); // nº de deteções CONCLUÍDAS
-  const lastResRef = useRef('-'); // último resultado da deteção
 
   // Câmara
   useEffect(() => {
@@ -936,7 +933,6 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     const id = setInterval(async () => {
       const v = videoRef.current;
       const ov = overlayRef.current;
-      setDbg(`v${APP_VERSION} #${detNRef.current} ${lastResRef.current} | st:${detStage} occ:${ocupado ? 'Y' : 'N'} cv:${window.cv?.Mat ? 'Y' : 'N'}`);
       if (!v || !v.videoWidth || ocupado || parar) return;
       ocupado = true;
       try {
@@ -944,21 +940,14 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
         small.width = LARG;
         small.height = Math.round(v.videoHeight * esc);
         sctx.drawImage(v, 0, 0, small.width, small.height);
-        const tdet = performance.now();
         // race com timeout: se a deteção pendurar, não bloqueia o loop (ocupado liberta no finally)
         const c = await Promise.race([
           detectarPapel(small),
           new Promise((r) => setTimeout(() => r('TIMEOUT'), 1800)),
         ]);
-        const ms = Math.round(performance.now() - tdet);
         if (parar) return;
-        if (c === 'TIMEOUT') {
-          detNRef.current++;
-          lastResRef.current = `TIMEOUT ${ms}ms`;
-          return;
-        }
+        if (c === 'TIMEOUT') return;
         let novo = 'searching';
-        let diag = `det:${c ? 'Y' : 'N'} ${ms}ms`;
         if (c) {
           const pts = [c.topLeftCorner, c.topRightCorner, c.bottomRightCorner, c.bottomLeftCorner];
           const xs = pts.map((p) => p.x);
@@ -973,10 +962,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
           const naBorda = (p) => (p.x < small.width * m || p.x > small.width * (1 - m)) && (p.y < small.height * m || p.y > small.height * (1 - m));
           const moldura = pts.filter(naBorda).length >= 3 || cov > 0.85;
           novo = cov >= 0.25 && cov <= 0.82 && skew <= 1.9 && !moldura ? 'locked' : 'near';
-          diag += ` cov:${cov.toFixed(2)} sk:${skew.toFixed(1)} mol:${moldura ? 'Y' : 'N'}`;
         }
-        detNRef.current++;
-        lastResRef.current = `${diag} → ${novo}`;
         setLock(novo);
         if (ov.width !== v.videoWidth || ov.height !== v.videoHeight) {
           ov.width = v.videoWidth;
@@ -1079,7 +1065,6 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
           <Ico name="close" size={22} />
         </button>
       </div>
-      {dbg && estado === 'live' && <div className="cap-dbg">{dbg}</div>}
       <div className="cap-guide">
         <div className="cap-pill">
           <span className="dot" />
