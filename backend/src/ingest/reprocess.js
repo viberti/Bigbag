@@ -8,7 +8,8 @@ import { readFile } from 'node:fs/promises';
 import { extrairFatura, extrairFaturaDeTexto } from './extract.js';
 import { extrairTextoPdf } from './pdf.js';
 import { preProcessarImagem } from './imagem.js';
-import { distribuirDesconto, validarLinhas } from './reconcile.js';
+import { distribuirDesconto, validarLinhas, pistaCirurgica } from './reconcile.js';
+import { config } from '../config.js';
 import { extrairFormato, precoPorBase } from '../normaliza/formato.js';
 import { normalizarItensFatura } from '../normaliza/matcher.js';
 import { recomputarPpbFatura } from '../normaliza/ppb.js';
@@ -24,19 +25,45 @@ export async function reprocessarFatura(pool, faturaId) {
   const buf = await readFile(f.ficheiro_original);
   const ehPdf = f.metodo_extracao === 'ocr_llm' || /\.pdf$/i.test(f.ficheiro_original);
 
-  let dados;
-  if (ehPdf) dados = await extrairFaturaDeTexto(await extrairTextoPdf(buf));
-  else {
+  // Extração COM loop de auto-correção (igual à ingestão): re-alimenta a
+  // discrepância do total E as inconsistências por linha, fica com o melhor.
+  let reextrair;
+  if (ehPdf) {
+    const texto = await extrairTextoPdf(buf);
+    reextrair = (correcao) => extrairFaturaDeTexto(texto, { correcao });
+  } else {
     const img = await preProcessarImagem(buf);
-    dados = await extrairFatura({ imageBase64: img.buffer.toString('base64'), mime: img.mime });
+    const imageBase64 = img.buffer.toString('base64');
+    reextrair = (correcao) => extrairFatura({ imageBase64, mime: img.mime, correcao });
   }
+  const reconciliar = (d) =>
+    distribuirDesconto(d.itens, { descontoGlobal: num(d.desconto_global) || 0, totalImpresso: d.total_impresso, iva: num(d.iva) || 0 });
+  const hintLinhas = (linhas) => {
+    if (!linhas?.length) return '';
+    const l = linhas[0];
+    return ` ATENÇÃO À LINHA "${l.descricao}": ${l.quantidade} × ${l.preco_unitario} = ${l.esperado}, mas o "valor" lido foi ${l.valor} — corrige para ${l.esperado}.`;
+  };
+  const problemas = (r, linhas) => Math.abs(r.discrepancia) + (linhas?.length || 0);
 
-  const rec = distribuirDesconto(dados.itens, {
-    descontoGlobal: num(dados.desconto_global) || 0,
-    totalImpresso: dados.total_impresso,
-    iva: num(dados.iva) || 0,
-  });
-  const linhasInc = validarLinhas(dados.itens);
+  let dados = await reextrair();
+  let rec = reconciliar(dados);
+  let linhasInc = validarLinhas(dados.itens);
+  for (let i = 0; i < config.openrouter.maxCorrecoes && (!rec.extracaoBate || linhasInc.length) && dados.total_impresso != null; i++) {
+    const hint = `A soma dos itens deu ${rec.subtotal} mas o total impresso é ${dados.total_impresso} (diferença ${rec.discrepancia}). Reverifica: itens a peso, descontos/promoções, e itens em falta ou a mais.${pistaCirurgica(rec.itens, rec.discrepancia)}${hintLinhas(linhasInc)} Devolve o JSON corrigido.`;
+    let d2, r2, li2;
+    try {
+      d2 = await reextrair(hint);
+      r2 = reconciliar(d2);
+      li2 = validarLinhas(d2.itens);
+    } catch {
+      break;
+    }
+    if (problemas(r2, li2) < problemas(rec, linhasInc)) {
+      dados = d2;
+      rec = r2;
+      linhasInc = li2;
+    } else break;
+  }
   const itens = rec.itens;
   for (const it of itens) {
     if (it.is_non_product) {
