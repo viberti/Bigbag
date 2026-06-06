@@ -30,7 +30,13 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso, i
   let ivaAdd = Number(iva) || 0;
   if (ivaAdd > 0 && totalImpresso != null) {
     const t = Number(totalImpresso);
-    if (Math.abs(candA - t) < 0.05 || Math.abs(candB - t) < 0.05) ivaAdd = 0;
+    const matchSemIva = Math.min(Math.abs(candA - t), Math.abs(candB - t));
+    const matchComIva = Math.min(Math.abs(candA - (t - ivaAdd)), Math.abs(candB - (t - ivaAdd)));
+    // O IVA só é REAL (grossista) se somá-lo aproximar mais as linhas do total.
+    // Se as linhas batem melhor SEM o IVA, ele é espúrio (legenda informativa lida
+    // como IVA-somado) → zera. Robusto a pequenos erros de extração (não exige
+    // batida exata, só compara qual cenário fica mais perto).
+    if (matchSemIva <= matchComIva) ivaAdd = 0;
   }
 
   // Árbitro = TOTAL SEM o IVA somado (as linhas são sem IVA nos grossistas).

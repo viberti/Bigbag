@@ -143,3 +143,21 @@ test('pistaCirurgica: sem casamento → só direção (ABAIXO menciona quantidad
   assert.match(p, /ABAIXO/);
   assert.match(p, /QUANTIDADE|pack|FALTA/);
 });
+
+test('iva ESPÚRIO (legenda lida como IVA-somado) é ignorado: supermercado', () => {
+  // 3 itens somam 10,00 = total (preços já com IVA); o LLM mandou iva=0,57
+  // (a tabela informativa). O guarda deve zerá-lo → discrepância 0.
+  const its = [{ valor: 3 }, { valor: 4 }, { valor: 3 }].map((x, i) => ({ ...x, descricao_original: `i${i}` }));
+  const r = distribuirDesconto(its, { descontoGlobal: 0, totalImpresso: 10, iva: 0.57 });
+  assert.equal(r.iva, 0); // espúrio → zerado
+  assert.equal(r.discrepancia, 0);
+});
+
+test('iva REAL de grossista é mantido: linhas sem IVA + IVA somado = total', () => {
+  // linhas somam 10,00 (sem IVA); IVA 0,60 somado → total 10,60. O guarda
+  // deve MANTER o iva (somá-lo aproxima do total).
+  const its = [{ valor: 4 }, { valor: 6 }].map((x, i) => ({ ...x, descricao_original: `i${i}` }));
+  const r = distribuirDesconto(its, { descontoGlobal: 0, totalImpresso: 10.6, iva: 0.6 });
+  assert.equal(r.iva, 0.6); // mantido
+  assert.equal(r.discrepancia, 0);
+});
