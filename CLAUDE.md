@@ -10,7 +10,7 @@ Confirma comigo, mostrando o que vais correr, ANTES de:
 1. Qualquer comando que toque em **serviços partilhados** do host — MySQL global, Apache, systemd, UFW, certbot — de forma que possa afetar `pitacos.ai` ou `1417`.
 2. Qualquer **SQL de DDL/migração destrutiva** (DROP, TRUNCATE, ALTER que perca dados). Mostra o SQL antes. `GRANT` só em `app_<PROJ>.*`, nunca noutras bases.
 3. **Apagar ou sobrescrever ficheiros** fora da árvore do projeto, ou ficheiros de dados/uploads já existentes.
-4. **`git push`** para `main`, ou qualquer histórico reescrito (force-push, rebase de ramos partilhados).
+4. **Reescrever histórico partilhado** (force-push, rebase de ramos partilhados). *(`git push` normal — incluindo para `main` — já NÃO precisa de confirmação.)*
 5. **Revogar o sudo temporário** (`/etc/sudoers.d/90-<PROJ>-nopasswd`) — fá-lo no fim da instalação e confirma que ficou feito.
 Fora desta lista, age sem perguntar.
 
@@ -31,7 +31,7 @@ Uma tarefa só está concluída depois de verificada a funcionar — não basta 
 - Não marques nada como "feito" com um teste a falhar ou por correr.
 
 ## Git
-Decide o fluxo conforme o caso (commits pequenos e focados quando ajuda; agrupar quando faz sentido). Mensagens de commit claras e em português. `push` a `main` é paragem obrigatória (ver acima) — o merge é meu.
+Decide o fluxo conforme o caso (commits pequenos e focados quando ajuda; agrupar quando faz sentido). Mensagens de commit claras e em português. **`git push` é livre — não precisa de confirmação** (decisão do dono, 2026-06-06). Só **reescrever histórico partilhado** (force-push, rebase de ramos partilhados) é que continua a ser paragem obrigatória.
 
 ## Documentação — fontes de verdade
 Mantém estes documentos atualizados **após cada alteração que mude o que neles está descrito** (não a cada commit trivial):
