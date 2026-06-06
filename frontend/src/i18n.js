@@ -34,6 +34,7 @@ const STRINGS = {
     'habituais.title': '🔁 Produtos que compro sempre',
     'habituais.empty': 'Ainda não há produtos recorrentes suficientes.',
     'habituais.times': '{n|compra|compras}',
+    'habituais.offline': '📴 Offline · mostrando a lista salva em {data}',
     'cart.title': '🛒 Carrinho de compras',
     'cart.empty': 'Carrinho vazio. Toque em 🔁 e nos produtos para adicionar.',
     'cart.clear': 'Esvaziar carrinho',

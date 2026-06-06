@@ -32,8 +32,10 @@ export async function carregarConversa() {
 }
 
 export async function carregarHabituais() {
+  // Lança em falha (rede ou HTTP) para o chamador poder cair na cache offline.
+  // Um 200 com lista vazia É uma resposta válida (devolve []), não um erro.
   const r = await call('/api/habituais');
-  if (!r.ok) return [];
+  if (!r.ok) throw new Error(`habituais ${r.status}`);
   const { produtos } = await r.json();
   return produtos || [];
 }

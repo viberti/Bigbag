@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais } from './api.js';
+import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar } from './scanner.js';
 import { t, detetarLocale } from './i18n.js';
 
@@ -11,6 +12,8 @@ const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '
 
 const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
 const hora = () => new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const dataHora = (ts) =>
+  ts ? new Date(ts).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
 const dataCurta = (iso) => {
   const s = String(iso || '').slice(0, 10);
   return s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
@@ -112,7 +115,12 @@ function Chat({ onSair, nome }) {
   });
   const [habituaisAberto, setHabituaisAberto] = useState(false);
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
-  const [habituaisLista, setHabituaisLista] = useState(null);
+  // Habituais com stale-while-revalidate: arranca da cache offline (renderiza
+  // já, mesmo sem rede), e revalida em fundo quando online. Inicializadores
+  // lazy → lêem o localStorage só na 1.ª renderização.
+  const [habituaisLista, setHabituaisLista] = useState(() => lerCacheHabituais()?.produtos ?? null);
+  const [habituaisTs, setHabituaisTs] = useState(() => lerCacheHabituais()?.ts ?? null);
+  const [habituaisOffline, setHabituaisOffline] = useState(false);
   const fimRef = useRef(null);
   const fileRef = useRef(null);
   const fotoRef = useRef(null);
@@ -268,15 +276,37 @@ function Chat({ onSair, nome }) {
   const removerDoCarrinho = (nome) => setCarrinho((c) => c.filter((i) => i.nome !== nome));
   const limparCarrinho = () => setCarrinho([]);
 
-  // Abre as compras habituais (overlay): carrega a lista e mostra para tocar.
-  async function abrirHabituais() {
-    setHabituaisAberto(true);
-    if (habituaisLista) return;
+  // Revalida os habituais: busca à rede e, em sucesso, atualiza estado + cache.
+  // Em falha (offline), MANTÉM a cache — nunca branqueia a lista — e sinaliza.
+  const revalidarHabituais = useCallback(async () => {
     try {
-      setHabituaisLista(await carregarHabituais());
+      const produtos = await carregarHabituais();
+      setHabituaisLista(produtos);
+      setHabituaisTs(gravarCacheHabituais(produtos));
+      setHabituaisOffline(false);
     } catch {
-      setHabituaisLista([]);
+      const cache = lerCacheHabituais();
+      if (cache) {
+        setHabituaisLista((x) => x ?? cache.produtos);
+        setHabituaisTs(cache.ts);
+        setHabituaisOffline(true); // a mostrar a lista salva, sem rede
+      } else {
+        setHabituaisLista((x) => x ?? []); // sem cache e sem rede → lista vazia honesta
+      }
     }
+  }, []);
+
+  // Aquece a cache assim que a app abre online (e o carrinho já tem secção/preço
+  // a partir da lista, mesmo offline).
+  useEffect(() => {
+    revalidarHabituais();
+  }, [revalidarHabituais]);
+
+  // Abre o overlay: a lista cacheada já está em estado (mostra-se de imediato);
+  // revalida em fundo para refrescar quando há rede.
+  function abrirHabituais() {
+    setHabituaisAberto(true);
+    revalidarHabituais();
   }
 
   return (
@@ -294,7 +324,7 @@ function Chat({ onSair, nome }) {
             className="icone-cab cart-btn"
             onClick={() => {
               setCarrinhoAberto(true);
-              if (!habituaisLista) carregarHabituais().then(setHabituaisLista).catch(() => {});
+              revalidarHabituais();
             }}
             aria-label="carrinho"
             title={t('cart.title')}
@@ -429,6 +459,8 @@ function Chat({ onSair, nome }) {
       <HabituaisOverlay
         aberto={habituaisAberto}
         produtos={habituaisLista}
+        offline={habituaisOffline}
+        dataCache={dataHora(habituaisTs)}
         noCarrinho={noCarrinho}
         onAlternar={alternarCarrinho}
         onFechar={() => setHabituaisAberto(false)}
@@ -437,6 +469,8 @@ function Chat({ onSair, nome }) {
         aberto={carrinhoAberto}
         carrinho={carrinho}
         catPorNome={Object.fromEntries((habituaisLista || []).map((p) => [p.produto, p.categoria]))}
+        offline={habituaisOffline}
+        dataCache={dataHora(habituaisTs)}
         onRemover={removerDoCarrinho}
         onLimpar={limparCarrinho}
         onFechar={() => setCarrinhoAberto(false)}
@@ -496,7 +530,7 @@ function agruparPorSecao(itens) {
 
 // Overlay dos produtos habituais: lista PLANA por frequência (mais comprados
 // primeiro, sem mostrar o número). Toca para pôr/tirar do carrinho, com animação.
-function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }) {
+function HabituaisOverlay({ aberto, produtos, offline, dataCache, noCarrinho, onAlternar, onFechar }) {
   const [flash, setFlash] = useState(null);
   if (!aberto) return null;
 
@@ -518,6 +552,7 @@ function HabituaisOverlay({ aberto, produtos, noCarrinho, onAlternar, onFechar }
             ✕
           </button>
         </div>
+        {offline && <p className="lista-offline">{t('habituais.offline', { data: dataCache })}</p>}
         {produtos === null ? (
           <p className="lista-vazio">{t('chat.thinking')}</p>
         ) : produtos.length === 0 ? (
@@ -590,7 +625,7 @@ function ItemCarrinho({ it, onRemover }) {
   );
 }
 
-function CarrinhoOverlay({ aberto, carrinho, catPorNome, onRemover, onLimpar, onFechar }) {
+function CarrinhoOverlay({ aberto, carrinho, catPorNome, offline, dataCache, onRemover, onLimpar, onFechar }) {
   if (!aberto) return null;
   // enriquece a categoria a partir dos habituais (auto-corrige itens antigos)
   const itens = carrinho.map((it) => ({ ...it, categoria: it.categoria || catPorNome?.[it.nome] }));
@@ -604,6 +639,7 @@ function CarrinhoOverlay({ aberto, carrinho, catPorNome, onRemover, onLimpar, on
             ✕
           </button>
         </div>
+        {offline && <p className="lista-offline">{t('habituais.offline', { data: dataCache })}</p>}
         {carrinho.length === 0 ? (
           <p className="lista-vazio">{t('cart.empty')}</p>
         ) : (
