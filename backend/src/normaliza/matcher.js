@@ -19,6 +19,24 @@ const formatoProximo = (a, b) => {
   return Math.abs(Number(a) - Number(b)) <= 0.01;
 };
 
+// Categorias vendidas À UNIDADE que mesmo assim trazem um peso na descrição,
+// que NÃO é a base de comparação: o "53-63G" de um ovo é o calibre, o "90G" de
+// um sabonete é o peso da barra (compara-se por unidade). Lista curta e extensível.
+const PALAVRAS_CONTADAS = /\bovos?\b|\bd[uú]zias?\b|sabonete/i;
+
+// Decide a unidade_base do SKU. REGRA: o formato determinístico GANHA ao LLM
+// quando há peso/volume EXPLÍCITO na descrição (g/kg/ml/cl/L, incl. multipack
+// "4X125G" = 500 g) — o LLM erra a unidade de fruta/legumes/queijo a peso
+// (DIOSPIRO 350G → 'un'). Volume → sempre L (seguro). Exceção: categorias
+// CONTADAS (ovos, sabonete) ficam com o 'un' do LLM. Sem peso/volume no
+// formato, usa a unidade do LLM (como antes). Pura → testável sem BD/LLM.
+export function decidirUnidadeBase(c, fmt) {
+  const temPesoVolume = fmt?.unidade_base === 'kg' || fmt?.unidade_base === 'L';
+  const contado = PALAVRAS_CONTADAS.test(`${c?.nome_canonico || ''} ${c?.categoria || ''}`);
+  if (temPesoVolume && !contado) return fmt.unidade_base;
+  return c?.unidade_base || fmt?.unidade_base || 'un';
+}
+
 export async function resolverSku(
   db,
   descricaoOriginal,
@@ -39,7 +57,7 @@ export async function resolverSku(
   const fmt = extrairFormato(desc);
   // peso variável (€/kg) não tem formato fixo
   const formato_valor = fmt.quantidadeKg != null ? null : fmt.formato_valor ?? null;
-  const unidade_base = c.unidade_base || fmt.unidade_base || 'un';
+  const unidade_base = decidirUnidadeBase(c, fmt);
 
   // 3) candidatos: mesma marca + unidade + formato compatível
   const [cands] = await db.query(
