@@ -377,48 +377,7 @@ function Chat({ onSair, nome }) {
           perguntar();
         }}
       >
-        <button type="button" className="round" onClick={() => setCamAberta(true)} disabled={ocupado} aria-label="digitalizar nota">
-          <Ico name="camera" size={21} />
-        </button>
-        <button type="button" className="round" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="mais opções">
-          <Ico name="more" size={21} />
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*,application/pdf"
-          multiple
-          hidden
-          onChange={(e) => {
-            const arr = e.target.files ? Array.from(e.target.files) : [];
-            e.target.value = '';
-            faturaLote(arr, 'arquivo');
-          }}
-        />
-        <input
-          ref={fotoRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            e.target.value = '';
-            fatura(f, { dewarp: false, origem: 'foto' }); // foto crua, sem processar
-          }}
-        />
-        <input
-          ref={galeriaRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            const arr = e.target.files ? Array.from(e.target.files) : [];
-            e.target.value = '';
-            faturaLote(arr, 'galeria');
-          }}
-        />
+        {/* Linha 1: campo de escrita a largura toda */}
         <div className="field">
           <input
             placeholder={t('chat.placeholder')}
@@ -427,21 +386,70 @@ function Chat({ onSair, nome }) {
             disabled={ocupado}
           />
         </div>
-        {texto.trim() ? (
-          <button type="submit" className="send" disabled={ocupado} aria-label="enviar">
-            <Ico name="send" size={20} />
+        {/* Linha 2: ações (câmara/mais à esquerda; voz+enviar à direita) */}
+        <div className="input-actions">
+          <button type="button" className="round" onClick={() => setCamAberta(true)} disabled={ocupado} aria-label="digitalizar nota">
+            <Ico name="camera" size={21} />
           </button>
-        ) : (
+          <button type="button" className="round" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="mais opções">
+            <Ico name="more" size={21} />
+          </button>
+          <span className="ia-sp" />
           <button
             type="button"
-            className={`send ${aGravar ? 'rec' : ''}`}
+            className={`voice ${aGravar ? 'rec' : ''}`}
             onClick={aGravar ? pararVoz : iniciarVoz}
             disabled={ocupado}
             aria-label="gravar"
           >
-            <Ico name={aGravar ? 'stop' : 'mic'} size={20} />
+            <Ico name={aGravar ? 'stop' : 'mic'} size={22} />
           </button>
-        )}
+          <button
+            type="submit"
+            className={`send ${texto.trim() ? '' : 'hidden'}`}
+            disabled={ocupado || !texto.trim()}
+            aria-label="enviar"
+          >
+            <Ico name="send" size={22} />
+          </button>
+          {/* inputs de ficheiro ocultos */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,application/pdf"
+            multiple
+            hidden
+            onChange={(e) => {
+              const arr = e.target.files ? Array.from(e.target.files) : [];
+              e.target.value = '';
+              faturaLote(arr, 'arquivo');
+            }}
+          />
+          <input
+            ref={fotoRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              fatura(f, { dewarp: false, origem: 'foto' }); // foto crua, sem processar
+            }}
+          />
+          <input
+            ref={galeriaRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const arr = e.target.files ? Array.from(e.target.files) : [];
+              e.target.value = '';
+              faturaLote(arr, 'galeria');
+            }}
+          />
+        </div>
       </form>
 
       {menuAberto && (
