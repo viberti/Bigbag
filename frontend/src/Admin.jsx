@@ -484,6 +484,11 @@ function TabRevisao() {
         ))}
         <span className="adm-sug-dica">do pior para o melhor — corrige na aba Produtos (renomear/associar/fundir)</span>
       </div>
+      {dados?.semPontuacao > 0 && (
+        <p className="adm-sug-dica">
+          {dados.semPontuacao} mapeamento(s) legado(s) ainda sem pontuação — serão pontuados ao reprocessar a nota.
+        </p>
+      )}
 
       {dados === null ? (
         <p className="adm-vazio">a calcular…</p>

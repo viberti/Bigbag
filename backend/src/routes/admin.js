@@ -332,14 +332,19 @@ adminRouter.get('/baixa-confianca', async (req, res) => {
          LEFT JOIN item i ON i.descricao_original = a.descricao_original AND i.is_non_product = 0
          LEFT JOIN fatura f ON f.id = i.fatura_id
          LEFT JOIN loja l ON l.id = f.loja_id
-        WHERE a.confianca IS NULL OR a.confianca < ?
+        WHERE a.confianca < ?
         GROUP BY a.descricao_original
         HAVING n_itens > 0
-        ORDER BY (a.confianca IS NULL) DESC, a.confianca ASC, n_itens DESC
+        ORDER BY a.confianca ASC, n_itens DESC
         LIMIT 200`,
       [limiar],
     );
-    res.json({ limiar, naoResolvidos, baixaConfianca });
+    // Aliases ainda sem pontuação (legado, antes da migração 016): NULL ≠ baixo.
+    // Não os inflacionamos na lista; serão pontuados ao reprocessar a nota.
+    const [[{ sem_pontuacao }]] = await pool.query(
+      'SELECT COUNT(*) AS sem_pontuacao FROM sku_alias WHERE confianca IS NULL',
+    );
+    res.json({ limiar, naoResolvidos, baixaConfianca, semPontuacao: sem_pontuacao });
   } catch (e) {
     console.error('[admin/baixa-confianca] erro:', e.message);
     res.status(500).json({ erro: 'Falha a listar baixa confiança' });
