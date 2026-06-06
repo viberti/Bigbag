@@ -31,13 +31,26 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         cleanupOutdatedCaches: true,
-        // HTML (navegação) sempre da rede quando online; cai para cache só
-        // offline. Garante que um deploy novo aparece no próximo carregamento.
+        // OpenCV.js (~9MB) não entra no precache (não pesa no arranque); é
+        // carregado sob demanda e fica em cache só depois do 1.º uso.
+        globIgnores: ['**/vendor/opencv.js'],
         runtimeCaching: [
           {
+            // HTML (navegação) sempre da rede quando online; cai para cache só
+            // offline. Garante que um deploy novo aparece no próximo carregamento.
             urlPattern: ({ request }) => request.mode === 'navigate',
             handler: 'NetworkFirst',
             options: { cacheName: 'html', networkTimeoutSeconds: 3, expiration: { maxEntries: 10 } },
+          },
+          {
+            // OpenCV.js: cache-first após o 1.º download (offline a partir daí).
+            urlPattern: ({ url }) => url.pathname === '/vendor/opencv.js',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'opencv',
+              expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 * 24 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
           },
         ],
       },

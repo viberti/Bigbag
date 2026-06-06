@@ -8,24 +8,46 @@
 //   2) sem cantos para o warp → RECORTE pela bounding box do contorno.
 //   3) sem contorno de todo → foto original.
 
-let cvPronto = null;
-function carregarOpenCV() {
-  if (cvPronto) return cvPronto;
-  cvPronto = new Promise((resolve, reject) => {
-    if (window.cv && window.cv.Mat) return resolve();
+// OpenCV.js é alojado por nós (mesma origem, em /vendor/opencv.js) — assim não
+// depende do CDN do OpenCV (que removeu versões e nos partiu o URL antes) e
+// funciona offline (PWA). O CDN fica só como fallback, com uma versão que existe.
+const OPENCV_FONTES = ['/vendor/opencv.js', 'https://docs.opencv.org/4.9.0/opencv.js'];
+
+function carregarScript(src) {
+  return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://docs.opencv.org/4.10.0/opencv.js';
+    s.src = src;
     s.async = true;
     s.onload = () => {
       const cv = window.cv;
       if (cv && cv.Mat) return resolve();
+      // OpenCV.js pode inicializar o runtime de forma assíncrona.
       if (cv && typeof cv.then === 'function') return cv.then(() => resolve()).catch(reject);
       if (cv) cv.onRuntimeInitialized = () => resolve();
-      else reject(new Error('OpenCV ausente'));
+      else reject(new Error('OpenCV ausente após carregar ' + src));
     };
-    s.onerror = () => reject(new Error('falha a carregar OpenCV'));
+    s.onerror = () => reject(new Error('falha a carregar ' + src));
     document.head.appendChild(s);
   });
+}
+
+let cvPronto = null;
+function carregarOpenCV() {
+  if (cvPronto) return cvPronto;
+  cvPronto = (async () => {
+    if (window.cv && window.cv.Mat) return;
+    let ultimoErro;
+    for (const src of OPENCV_FONTES) {
+      try {
+        await carregarScript(src);
+        return;
+      } catch (e) {
+        ultimoErro = e;
+      }
+    }
+    cvPronto = null; // permite nova tentativa numa próxima digitalização
+    throw ultimoErro || new Error('falha a carregar OpenCV');
+  })();
   return cvPronto;
 }
 
