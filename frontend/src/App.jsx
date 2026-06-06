@@ -193,19 +193,7 @@ function Chat({ onSair, nome }) {
     add({ lado: 'user', tipo: 'ficheiro', nome: etiqueta || t('nota.enviada') });
     add({ lado: 'bot', tipo: 'pensar', texto: prefixo + (dewarp && ehImagem ? t('nota.scanning') : t('nota.reading')) });
     try {
-      // dewarp só no caminho 'scan'; onInfo mostra o diagnóstico (temporário, p/ afinar o jscanify)
-      const enviar =
-        dewarp && ehImagem
-          ? await digitalizar(file, (d) =>
-              add({
-                lado: 'bot',
-                tipo: 'texto',
-                texto: d.dewarped
-                  ? `📐 digitalizado: ${d.original} → ${d.w}×${d.h} (cobertura ${d.cobertura}%, ${d.ms}ms)`
-                  : `📐 sem digitalização (${d.motivo}) — enviada a original`,
-              }),
-            )
-          : file;
+      const enviar = dewarp && ehImagem ? await digitalizar(file) : file; // dewarp já é feito na Camera (scan)
       if (dewarp && ehImagem)
         setMsgs((xs) => xs.map((m) => (m.tipo === 'pensar' ? { ...m, texto: prefixo + t('nota.reading') } : m)));
       const out = await enviarFatura(enviar, origem);
@@ -477,7 +465,7 @@ function Chat({ onSair, nome }) {
         }}
         onCapturar={(f) => {
           setCamAberta(false);
-          fatura(f, { dewarp: true, origem: 'scan' });
+          fatura(f, { dewarp: false, origem: 'scan' }); // a Camera já digitalizou + pré-visualizou
         }}
       />
 
@@ -803,9 +791,18 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [erro, setErro] = useState('');
+  const [processando, setProcessando] = useState(false);
+  const [preview, setPreview] = useState(null); // { url, file, info } — resultado já digitalizado, à espera de confirmação
 
   useEffect(() => {
-    if (!aberto) return;
+    if (!aberto) {
+      setPreview((p) => {
+        if (p?.url) URL.revokeObjectURL(p.url);
+        return null;
+      });
+      setProcessando(false);
+      return;
+    }
     let cancelado = false;
     setErro('');
     (async () => {
@@ -831,16 +828,44 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     };
   }, [aberto]);
 
+  // Ao voltar da pré-visualização para o vídeo, re-liga o stream.
+  useEffect(() => {
+    if (!preview && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [preview]);
+
   if (!aberto) return null;
 
-  function capturar() {
+  async function capturar() {
     const v = videoRef.current;
-    if (!v || !v.videoWidth) return;
+    if (!v || !v.videoWidth || processando) return;
     const canvas = document.createElement('canvas');
     canvas.width = v.videoWidth;
     canvas.height = v.videoHeight;
     canvas.getContext('2d').drawImage(v, 0, 0);
-    canvas.toBlob((blob) => blob && onCapturar(new File([blob], 'nota.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.95);
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.95));
+    if (!blob) return;
+    setProcessando(true);
+    let info = null;
+    const file = await digitalizar(new File([blob], 'nota.jpg', { type: 'image/jpeg' }), (d) => {
+      info = d;
+    });
+    setProcessando(false);
+    setPreview({ url: URL.createObjectURL(file), file, info });
+  }
+
+  function enviar() {
+    if (!preview) return;
+    const f = preview.file;
+    URL.revokeObjectURL(preview.url);
+    setPreview(null);
+    onCapturar(f); // já digitalizada → App envia sem re-processar
+  }
+  function repetir() {
+    if (preview?.url) URL.revokeObjectURL(preview.url);
+    setPreview(null);
   }
 
   return (
@@ -857,16 +882,31 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
             {t('cam.file')}
           </button>
         </div>
+      ) : preview ? (
+        <>
+          <img className="cam-preview" src={preview.url} alt="pré-visualização da nota" />
+          <p className="cam-hint">
+            {preview.info?.dewarped ? t('cam.ajeitado', { c: preview.info.cobertura }) : t('cam.original')}
+          </p>
+          <div className="cam-acoes cam-acoes-prev">
+            <button className="cam-file" onClick={repetir}>
+              {t('cam.repetir')}
+            </button>
+            <button className="cam-enviar" onClick={enviar}>
+              {t('cam.enviar')}
+            </button>
+          </div>
+        </>
       ) : (
         <>
           <video ref={videoRef} className="cam-video" playsInline muted autoPlay />
           <div className="cam-moldura" />
-          <p className="cam-hint">{t('cam.hint')}</p>
+          <p className="cam-hint">{processando ? t('cam.processando') : t('cam.hint')}</p>
           <div className="cam-acoes">
             <button className="cam-file" onClick={onFicheiro}>
               {t('cam.file')}
             </button>
-            <button className="cam-cap" onClick={capturar} aria-label={t('cam.capture')} />
+            <button className="cam-cap" onClick={capturar} disabled={processando} aria-label={t('cam.capture')} />
             <span className="cam-spacer" />
           </div>
         </>

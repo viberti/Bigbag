@@ -158,6 +158,10 @@ body {
 .cam-cap { width: 70px; height: 70px; border-radius: 50%; background: #fff; border: 4px solid #ffffff80; cursor: pointer; }
 .cam-cap:active { background: #ddd; }
 .cam-file { background: #0008; color: #fff; border: none; padding: 10px 14px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.cam-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 0; }
+.cam-acoes-prev { justify-content: center; gap: 18px; }
+.cam-enviar { background: linear-gradient(140deg, #2ec46e, #1f7a4d); color: #06231a; border: none; padding: 13px 28px; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(46, 196, 110, 0.45); }
+.cam-cap:disabled { opacity: 0.5; }
 .cam-spacer { width: 64px; }
 .cam-erro { position: absolute; inset: 0; z-index: 2; margin: auto; height: fit-content; text-align: center; color: #fff; display: flex; flex-direction: column; gap: 14px; padding: 0 32px; }
 .mais { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px 0 0; font-size: 13px; }
