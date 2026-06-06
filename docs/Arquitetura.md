@@ -241,6 +241,9 @@ Decisões-chave:
 
 ## 8. Normalização de produto (3 camadas)
 
+> Análise aprofundada (problema, dificuldades, soluções e problemas em aberto) em
+> **`docs/Normalizacao.md`**.
+
 Transformar `"BOL DIGESTIVE AVEIA CNT 425GR"` no SKU canónico
 `"Bolacha Digestive de Aveia"` é a parte difícil, isolada em `normaliza/`:
 
