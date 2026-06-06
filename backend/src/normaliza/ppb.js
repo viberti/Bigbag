@@ -3,10 +3,11 @@
 // balcão). Itens sem SKU caem para a unidade do formato (retrocompatível).
 import { extrairFormato, precoPorBase } from './formato.js';
 
-const COLS = `i.id, i.descricao_original, i.linha_peso, i.preco_liquido, i.quantidade, i.is_non_product, s.unidade_base`;
+const COLS = `i.id, i.descricao_original, i.linha_peso, i.preco_liquido, i.quantidade, i.is_non_product, i.ppb_inferido, s.unidade_base`;
 
 async function recomp(db, rows) {
   for (const r of rows) {
+    if (r.ppb_inferido) continue; // valor inferido pela auto-correção — não sobrescrever
     if (r.is_non_product) {
       await db.query('UPDATE item SET preco_por_base = NULL WHERE id = ?', [r.id]);
       continue;

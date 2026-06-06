@@ -13,8 +13,42 @@ import { mergeNomesIdenticos } from '../normaliza/matcher.js';
 import { pistaCirurgica, validarLinhas } from '../ingest/reconcile.js';
 import { reprocessarFatura } from '../ingest/reprocess.js';
 import { recomputarPpbSku } from '../normaliza/ppb.js';
+import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 
 export const adminRouter = Router();
+
+// Auto-correção de outliers de preco_por_base: corre uma "nova passada" que
+// deteta ppb muito fora da mediana do SKU e tenta corrigir (pack não capturado).
+// GET = pré-visualização (dry-run); POST = aplica. Devolve corrigidos + suspeitos.
+adminRouter.get('/precos/outliers', async (req, res) => {
+  try {
+    res.json(await autoCorrigirOutliers(getPool(), { aplicar: false }));
+  } catch (e) {
+    console.error('[admin/precos/outliers] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a analisar outliers' });
+  }
+});
+adminRouter.post('/precos/auto-corrigir', async (req, res) => {
+  try {
+    res.json(await autoCorrigirOutliers(getPool(), { aplicar: true }));
+  } catch (e) {
+    console.error('[admin/precos/auto-corrigir] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a auto-corrigir' });
+  }
+});
+// Reverter uma correção inferida de um item (limpa a flag e recomputa o SKU).
+adminRouter.post('/precos/reverter/:itemId', async (req, res) => {
+  try {
+    const id = Number(req.params.itemId);
+    const [[it]] = await getPool().query('SELECT sku_id FROM item WHERE id = ?', [id]);
+    await getPool().query('UPDATE item SET ppb_inferido = 0 WHERE id = ?', [id]);
+    if (it?.sku_id) await recomputarPpbSku(getPool(), it.sku_id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/precos/reverter] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a reverter' });
+  }
+});
 adminRouter.use(requireAuth);
 
 const str = (v, max = 200) => (v == null ? null : String(v).trim().slice(0, max));
