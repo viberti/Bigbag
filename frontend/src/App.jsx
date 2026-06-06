@@ -741,7 +741,17 @@ function ItemCarrinho({ it, onRemover }) {
                 <span className="ch-data">{h.data}</span>
                 <span className="ch-loja">{h.cadeia || h.loja}</span>
                 <span className="ch-preco">
-                  {eur(h.preco)}
+                  {h.preco_por_base != null ? (
+                    <>
+                      {eur(h.preco_por_base)}
+                      <span className="ch-un">/{h.unidade_base || 'un'}</span>
+                      {Math.abs(Number(h.preco_por_base) - Number(h.preco)) > 0.01 && (
+                        <span className="ch-pago"> · {eur(h.preco)}</span>
+                      )}
+                    </>
+                  ) : (
+                    eur(h.preco)
+                  )}
                   {h.is_clearance ? <span className="ch-promo"> ⚡</span> : null}
                 </span>
               </div>

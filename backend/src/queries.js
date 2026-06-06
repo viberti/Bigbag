@@ -374,7 +374,7 @@ export async function historico_produto(db, { produto }) {
   const [rows] = await db.query(
     `SELECT DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
             l.cadeia, l.nome AS loja,
-            i.preco_liquido AS preco, i.is_clearance
+            i.preco_liquido AS preco, i.preco_por_base, s.unidade_base, i.is_clearance
      ${BASE_JOINS}
      WHERE ${m.sql} AND i.is_non_product = FALSE AND f.needs_review = FALSE
      ORDER BY f.data_compra DESC, i.id DESC
