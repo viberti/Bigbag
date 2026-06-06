@@ -46,8 +46,8 @@ export function extrairFormato(descricao) {
     return { unidade_base: 'kg', formato_valor: null, precoKg: num(m[1]) };
   }
 
-  // 2) Multipack: "4X115G", "2 x 1L"
-  m = s.match(/(\d+)\s*[x×X]\s*(\d+(?:[.,]\d+)?)\s*(kgs|kg|k|grs|gr|g|ml|cl|lt|l)\b/i);
+  // 2) Multipack: "4X115G", "2 x 1L", "6*1L" e "3*200ML" (Continente usa "*").
+  m = s.match(/(\d+)\s*[x×X*]\s*(\d+(?:[.,]\d+)?)\s*(kgs|kg|k|grs|gr|g|ml|cl|lt|l)\b/i);
   if (m) {
     const n = num(m[1]);
     const base = paraBase(num(m[2]), m[3]);

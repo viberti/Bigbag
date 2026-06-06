@@ -45,6 +45,20 @@ test('€/kg impresso mas mal-formado (Lidl): "BANANA B kg x1,056 1,19 EUR/kgEUR
   assert.equal(precoPorBase({ preco_liquido: 1.26, quantidade: 1 }, f, 'kg'), 1.19);
 });
 
+test('multipack com "*" (Continente): "LEITE M/GORDO CNT 6*1L"', () => {
+  const f = extrairFormato('(A) LEITE M/GORDO CNT 6*1L');
+  assert.equal(f.unidade_base, 'L');
+  assert.equal(f.formato_valor, 6); // 6 × 1L
+  assert.equal(precoPorBase({ preco_liquido: 5.16, quantidade: 1 }, f, 'L'), 0.86);
+});
+
+test('multipack "*" em ml: "LEITE UHT 3*200ML"', () => {
+  const f = extrairFormato('LEITE UHT M/GORDO CNT 3*200ML');
+  assert.equal(f.unidade_base, 'L');
+  assert.equal(f.formato_valor, 0.6); // 3 × 200ml = 0,6L
+  assert.equal(precoPorBase({ preco_liquido: 0.94, quantidade: 1 }, f, 'L'), 1.5667);
+});
+
 test('€/L impresso: "SUMO LARANJA 1,29 €/L"', () => {
   const f = extrairFormato('SUMO LARANJA 1,29 €/L');
   assert.equal(f.unidade_base, 'L');
