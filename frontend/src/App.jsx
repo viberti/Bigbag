@@ -934,6 +934,7 @@ function Camera({ aberto, onCapturar, onFicheiro, onFechar }) {
     const id = setInterval(async () => {
       const v = videoRef.current;
       const ov = overlayRef.current;
+      setDbg(`tick vw:${v?.videoWidth || 0} occ:${ocupado ? 'Y' : 'N'} cv:${window.cv?.Mat ? 'Y' : 'N'}`);
       if (!v || !v.videoWidth || ocupado || parar) return;
       ocupado = true;
       try {
