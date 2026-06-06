@@ -93,6 +93,10 @@ function TabProdutos() {
   const [novaDesc, setNovaDesc] = useState('');
   const [alvoMerge, setAlvoMerge] = useState('');
   const [msg, setMsg] = useState('');
+  const [criando, setCriando] = useState(false);
+  const [novoNome, setNovoNome] = useState('');
+  const [novaUnidade, setNovaUnidade] = useState('un');
+  const [descLivres, setDescLivres] = useState([]);
   const [nota, setNota] = useState(null); // { url, pdf } da imagem/PDF da nota
   const notaRef = useRef('');
 
@@ -171,6 +175,17 @@ function TabProdutos() {
     recarregarLista();
     setMsg('✓ associado');
   }
+  async function criar() {
+    const nome2 = novoNome.trim();
+    if (!nome2) return;
+    const r = await adm.criarSku({ nome_canonico: nome2, unidade_base: novaUnidade });
+    setNovoNome('');
+    setCriando(false);
+    await recarregarLista();
+    if (r?.id) await abrir(r.id); // seleciona o novo → operador associa as descrições
+    setMsg('✓ produto criado — associe abaixo as descrições das lojas');
+  }
+  const carregarLivres = () => adm.descricoesLivres(novaDesc).then((r) => setDescLivres(r.descricoes || [])).catch(() => {});
   async function fundir() {
     const para = Number(alvoMerge);
     if (!para || para === sel) return;
@@ -193,6 +208,32 @@ function TabProdutos() {
         >
           <input placeholder="procurar produto…" value={q} onChange={(e) => setQ(e.target.value)} />
         </form>
+        <div className="adm-novo-bar">
+          <button type="button" className="adm-novo-btn" onClick={() => setCriando((c) => !c)}>
+            {criando ? '× cancelar' : '+ Novo produto'}
+          </button>
+        </div>
+        {criando && (
+          <div className="adm-novo-form">
+            <input
+              autoFocus
+              placeholder="nome do produto (ex.: Mamão)"
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && criar()}
+            />
+            <div className="adm-linha">
+              <select value={novaUnidade} onChange={(e) => setNovaUnidade(e.target.value)}>
+                <option value="un">un — contado</option>
+                <option value="kg">kg — peso</option>
+                <option value="L">L — líquido</option>
+              </select>
+              <button onClick={criar} disabled={!novoNome.trim()}>
+                Criar
+              </button>
+            </div>
+          </div>
+        )}
         <ul>
           {skus.map((s) => (
             <li key={s.id} className={s.id === sel ? 'on' : ''} onClick={() => abrir(s.id)}>
@@ -269,14 +310,26 @@ function TabProdutos() {
 
             <div className="adm-linha">
               <input
-                placeholder="associar outra descrição (texto exato do talão)…"
+                list="adm-descs-livres"
+                placeholder="associar descrição de loja (digite ou escolha)…"
                 value={novaDesc}
-                onChange={(e) => setNovaDesc(e.target.value)}
+                onFocus={carregarLivres}
+                onChange={(e) => {
+                  setNovaDesc(e.target.value);
+                  carregarLivres();
+                }}
               />
               <button onClick={associar} disabled={!novaDesc.trim()}>
                 Associar
               </button>
             </div>
+            <datalist id="adm-descs-livres">
+              {descLivres.map((d) => (
+                <option key={d.descricao} value={d.descricao}>
+                  {d.atual ? `→ ${d.atual} · ${d.n}×` : `sem produto · ${d.n}×`}
+                </option>
+              ))}
+            </datalist>
 
             <h3>Fundir com outro produto</h3>
             <div className="adm-linha">

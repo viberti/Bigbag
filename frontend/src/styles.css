@@ -211,6 +211,11 @@ body {
 .adm-lista { border-right: 1px solid #000a; overflow-y: auto; background: #131c21; }
 .adm-busca, .adm-filtro { padding: 10px; position: sticky; top: 0; background: #131c21; border-bottom: 1px solid #0006; }
 .adm-busca input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); }
+.adm-novo-bar { padding: 0 10px 8px; background: #131c21; border-bottom: 1px solid #0006; }
+.adm-novo-btn { width: 100%; background: none; border: 1px dashed #3a4a52; color: var(--muted); padding: 7px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.adm-novo-btn:hover { color: var(--texto); border-color: var(--verde); }
+.adm-novo-form { padding: 4px 10px 10px; display: flex; flex-direction: column; gap: 6px; background: #131c21; border-bottom: 1px solid #0006; }
+.adm-novo-form > input { padding: 8px 10px; border-radius: 8px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); font-size: 14px; }
 .adm-filtro { display: flex; gap: 4px; }
 .adm-filtro button { flex: 1; background: none; border: 1px solid #2a3942; color: var(--muted); padding: 6px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .adm-filtro button.on { background: #2a3942; color: var(--texto); }

@@ -102,6 +102,46 @@ adminRouter.patch('/skus/:id', async (req, res) => {
   }
 });
 
+// Criar um produto canónico novo (do zero). O operador associa-lhe depois as
+// descrições das lojas (POST /skus/:id/associar).
+adminRouter.post('/skus', async (req, res) => {
+  try {
+    const nome = str(req.body?.nome_canonico, 120);
+    if (!nome) return res.status(400).json({ erro: 'nome_canonico obrigatório' });
+    const marca = str(req.body?.marca, 80) || null;
+    const categoria = str(req.body?.categoria, 60) || null;
+    const unidade = ['un', 'kg', 'L'].includes(req.body?.unidade_base) ? req.body.unidade_base : 'un';
+    const [r] = await getPool().query(
+      'INSERT INTO sku_normalizado (nome_canonico, marca, categoria, unidade_base) VALUES (?, ?, ?, ?)',
+      [nome, marca, categoria, unidade],
+    );
+    res.json({ ok: true, id: r.insertId });
+  } catch (e) {
+    console.error('[admin/skus POST] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a criar produto' });
+  }
+});
+
+// Descrições de loja ainda SEM SKU (ou de outros SKUs) — para o operador
+// descobrir o que pode associar a um produto. ?q filtra.
+adminRouter.get('/descricoes-livres', async (req, res) => {
+  try {
+    const q = str(req.query.q, 60);
+    const like = q ? `%${q}%` : '%';
+    const [rows] = await getPool().query(
+      `SELECT i.descricao_original AS descricao, COUNT(*) AS n, s.nome_canonico AS atual
+         FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+        WHERE i.is_non_product = 0 AND i.descricao_original LIKE ?
+        GROUP BY i.descricao_original ORDER BY n DESC LIMIT 50`,
+      [like],
+    );
+    res.json({ descricoes: rows });
+  } catch (e) {
+    console.error('[admin/descricoes-livres] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar descrições' });
+  }
+});
+
 // Associar uma descrição a este SKU (repõe os itens + grava o alias manual).
 adminRouter.post('/skus/:id/associar', async (req, res) => {
   const pool = getPool();

@@ -21,6 +21,8 @@ const jsend = async (p, method, body) =>
 export const listarSkus = (q) => jget(`/api/admin/skus?limit=300${q ? '&q=' + encodeURIComponent(q) : ''}`);
 export const carregarSku = (id) => jget(`/api/admin/skus/${id}`);
 export const renomearSku = (id, dados) => jsend(`/api/admin/skus/${id}`, 'PATCH', dados);
+export const criarSku = (dados) => jsend('/api/admin/skus', 'POST', dados);
+export const descricoesLivres = (q) => jget(`/api/admin/descricoes-livres${q ? '?q=' + encodeURIComponent(q) : ''}`);
 export const associar = (id, descricao) => jsend(`/api/admin/skus/${id}/associar`, 'POST', { descricao });
 export const dissociar = (id, descricao) => jsend(`/api/admin/skus/${id}/dissociar`, 'POST', { descricao });
 export const fundirSkus = (de, para) => jsend('/api/admin/skus/merge', 'POST', { de, para });
