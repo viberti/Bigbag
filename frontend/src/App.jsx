@@ -740,7 +740,7 @@ function ItemCarrinho({ it, onRemover }) {
               <div key={i} className="ch-row">
                 <span className="ch-data">{h.data}</span>
                 <span className="ch-loja">{h.cadeia || h.loja}</span>
-                <span className="ch-preco">
+                <span className={`ch-preco ${h.preco_por_base == null ? 'ch-sopreco' : ''}`}>
                   {h.preco_por_base != null ? (
                     <>
                       {eur(h.preco_por_base)}
@@ -750,7 +750,10 @@ function ItemCarrinho({ it, onRemover }) {
                       )}
                     </>
                   ) : (
-                    eur(h.preco)
+                    <>
+                      {eur(h.preco)}
+                      <span className="ch-un"> {t('cart.histTotal')}</span>
+                    </>
                   )}
                   {h.is_clearance ? <span className="ch-promo"> ⚡</span> : null}
                 </span>

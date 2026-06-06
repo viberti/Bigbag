@@ -54,6 +54,7 @@ const STRINGS = {
     'cart.hist': 'histórico de compras',
     'cart.histLoad': 'carregando…',
     'cart.histEmpty': 'Sem registro de compra deste produto.',
+    'cart.histTotal': 'total',
     'sugg.trend': 'Tendência de preços',
     'sugg.trendQ': 'Que produtos ficaram mais caros ou mais baratos ultimamente?',
     'sugg.cheap': 'Onde está mais barato',
