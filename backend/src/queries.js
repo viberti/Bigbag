@@ -377,6 +377,7 @@ export async function historico_produto(db, { produto }) {
             i.preco_liquido AS preco, i.preco_por_base, s.unidade_base, i.is_clearance
      ${BASE_JOINS}
      WHERE ${m.sql} AND i.is_non_product = FALSE AND f.needs_review = FALSE
+       AND i.preco_por_base IS NOT NULL
      ORDER BY f.data_compra DESC, i.id DESC
      LIMIT 30`,
     m.params,
