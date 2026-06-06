@@ -188,8 +188,8 @@ adminRouter.post('/skus/:id/associar', async (req, res) => {
     await conn.beginTransaction();
     const [up] = await conn.query('UPDATE item SET sku_id = ? WHERE descricao_original = ?', [id, descricao]);
     await conn.query(
-      `INSERT INTO sku_alias (descricao_original, sku_id, origem) VALUES (?, ?, 'manual')
-         ON DUPLICATE KEY UPDATE sku_id = VALUES(sku_id), origem = 'manual'`,
+      `INSERT INTO sku_alias (descricao_original, sku_id, origem, confianca) VALUES (?, ?, 'manual', 100)
+         ON DUPLICATE KEY UPDATE sku_id = VALUES(sku_id), origem = 'manual', confianca = 100`,
       [descricao, id],
     );
     await conn.commit();
@@ -296,7 +296,7 @@ adminRouter.post('/skus/merge', async (req, res) => {
     }
     const [up] = await conn.query('UPDATE item SET sku_id = ? WHERE sku_id = ?', [para, de]);
     // descricao_original é única no alias → repontar não gera conflito de chave
-    await conn.query("UPDATE sku_alias SET sku_id = ?, origem = 'manual' WHERE sku_id = ?", [para, de]);
+    await conn.query("UPDATE sku_alias SET sku_id = ?, origem = 'manual', confianca = 100 WHERE sku_id = ?", [para, de]);
     await conn.query('DELETE FROM sku_normalizado WHERE id = ?', [de]);
     await conn.commit();
     res.json({ ok: true, itens_movidos: up.affectedRows });
@@ -306,6 +306,43 @@ adminRouter.post('/skus/merge', async (req, res) => {
     res.status(500).json({ erro: 'Falha a fundir' });
   } finally {
     conn.release();
+  }
+});
+
+// Worklist de revisão por CONFIANÇA: mostra primeiro o que mais provavelmente
+// está mal — (a) itens sem SKU (não resolvidos) e (b) mapeamentos descrição→SKU
+// de baixa confiança (ver migração 016). Ordenado do pior para o melhor, para o
+// operador corrigir por prioridade (renomear/associar/fundir na aba Produtos).
+adminRouter.get('/baixa-confianca', async (req, res) => {
+  try {
+    const limiar = Math.min(100, Math.max(1, Number(req.query.limiar) || 70));
+    const pool = getPool();
+    const [naoResolvidos] = await pool.query(
+      `SELECT i.descricao_original AS descricao, COUNT(*) AS n_itens, MAX(l.cadeia) AS cadeia
+         FROM item i JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
+        WHERE i.sku_id IS NULL AND i.is_non_product = 0
+        GROUP BY i.descricao_original ORDER BY n_itens DESC LIMIT 200`,
+    );
+    const [baixaConfianca] = await pool.query(
+      `SELECT a.descricao_original AS descricao, a.confianca, a.origem,
+              s.id AS sku_id, s.nome_canonico AS sku, s.unidade_base,
+              COUNT(i.id) AS n_itens, MAX(l.cadeia) AS cadeia
+         FROM sku_alias a
+         JOIN sku_normalizado s ON s.id = a.sku_id
+         LEFT JOIN item i ON i.descricao_original = a.descricao_original AND i.is_non_product = 0
+         LEFT JOIN fatura f ON f.id = i.fatura_id
+         LEFT JOIN loja l ON l.id = f.loja_id
+        WHERE a.confianca IS NULL OR a.confianca < ?
+        GROUP BY a.descricao_original
+        HAVING n_itens > 0
+        ORDER BY (a.confianca IS NULL) DESC, a.confianca ASC, n_itens DESC
+        LIMIT 200`,
+      [limiar],
+    );
+    res.json({ limiar, naoResolvidos, baixaConfianca });
+  } catch (e) {
+    console.error('[admin/baixa-confianca] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar baixa confiança' });
   }
 });
 

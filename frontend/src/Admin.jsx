@@ -30,6 +30,9 @@ export default function Admin() {
           <button className={aba === 'notas' ? 'on' : ''} onClick={() => setAba('notas')}>
             Notas
           </button>
+          <button className={aba === 'revisao' ? 'on' : ''} onClick={() => setAba('revisao')}>
+            Revisão
+          </button>
           <button className={aba === 'qualidade' ? 'on' : ''} onClick={() => setAba('qualidade')}>
             Qualidade
           </button>
@@ -45,6 +48,8 @@ export default function Admin() {
         <TabProdutos />
       ) : aba === 'fusoes' ? (
         <TabFusoes />
+      ) : aba === 'revisao' ? (
+        <TabRevisao />
       ) : aba === 'qualidade' ? (
         <TabQualidade />
       ) : aba === 'precos' ? (
@@ -446,6 +451,109 @@ function TabFusoes() {
         </ul>
       )}
       <p className="adm-aviso">Mantém o nome com mais compras (em negrito); o outro é absorvido.</p>
+    </div>
+  );
+}
+
+// ────────────────────────── Revisão por confiança ──────────────────────────
+// Worklist: o que mais provavelmente está mal, primeiro. Itens sem SKU e
+// mapeamentos de baixa confiança. O operador corrige na aba Produtos.
+function Conf({ v }) {
+  if (v == null) return <span className="adm-conf adm-conf-na">novo</span>;
+  const cls = v < 50 ? 'adm-conf-ruim' : v < 70 ? 'adm-conf-medio' : 'adm-conf-bom';
+  return <span className={`adm-conf ${cls}`}>{v}</span>;
+}
+
+function TabRevisao() {
+  const [limiar, setLimiar] = useState(70);
+  const [dados, setDados] = useState(null);
+  useEffect(() => {
+    adm.baixaConfianca(limiar).then(setDados).catch(() => setDados({ naoResolvidos: [], baixaConfianca: [] }));
+  }, [limiar]);
+
+  const nr = dados?.naoResolvidos || [];
+  const bc = dados?.baixaConfianca || [];
+  return (
+    <div className="adm-revisao">
+      <div className="adm-sug-top">
+        <span>Mostrar até confiança:</span>
+        {[50, 70, 90].map((l) => (
+          <button key={l} className={limiar === l ? 'on' : ''} onClick={() => setLimiar(l)}>
+            &lt;{l}
+          </button>
+        ))}
+        <span className="adm-sug-dica">do pior para o melhor — corrige na aba Produtos (renomear/associar/fundir)</span>
+      </div>
+
+      {dados === null ? (
+        <p className="adm-vazio">a calcular…</p>
+      ) : (
+        <>
+          <div className="adm-qtab">
+            <h3>Sem produto canónico ({nr.length})</h3>
+            {nr.length === 0 ? (
+              <p className="adm-vazio">Nenhum item por resolver. 👍</p>
+            ) : (
+              <table className="adm-tabela">
+                <thead>
+                  <tr>
+                    <th>conf.</th>
+                    <th>descrição na nota</th>
+                    <th>nº</th>
+                    <th>loja</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {nr.map((r, i) => (
+                    <tr key={i}>
+                      <td>
+                        <span className="adm-conf adm-conf-ruim">0</span>
+                      </td>
+                      <td>{r.descricao}</td>
+                      <td>{r.n_itens}</td>
+                      <td>{r.cadeia || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="adm-qtab">
+            <h3>Mapeamentos de baixa confiança ({bc.length})</h3>
+            {bc.length === 0 ? (
+              <p className="adm-vazio">Nada abaixo de {limiar}. 👍</p>
+            ) : (
+              <table className="adm-tabela">
+                <thead>
+                  <tr>
+                    <th>conf.</th>
+                    <th>descrição na nota</th>
+                    <th>→ produto canónico</th>
+                    <th>nº</th>
+                    <th>loja</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bc.map((r, i) => (
+                    <tr key={i}>
+                      <td>
+                        <Conf v={r.confianca} />
+                      </td>
+                      <td>{r.descricao}</td>
+                      <td>
+                        {r.sku} <em className="adm-un">({r.unidade_base})</em>
+                      </td>
+                      <td>{r.n_itens}</td>
+                      <td>{r.cadeia || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -29,6 +29,7 @@ export const fundirSkus = (de, para) => jsend('/api/admin/skus/merge', 'POST', {
 export const sugestoesMerge = (limiar) => jget(`/api/admin/sugestoes-merge?limiar=${limiar}`);
 export const autoMergeIdenticos = () => jsend('/api/admin/skus/auto-merge', 'POST', {});
 export const qualidade = () => jget('/api/admin/qualidade');
+export const baixaConfianca = (limiar) => jget(`/api/admin/baixa-confianca${limiar ? '?limiar=' + limiar : ''}`);
 export const qualidadePreco = (fator) => jget(`/api/admin/qualidade-preco${fator ? '?fator=' + fator : ''}`);
 
 // Notas

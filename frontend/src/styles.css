@@ -455,6 +455,14 @@ body {
 .adm-par-nomes em { color: var(--muted); font-style: normal; font-size: 12px; }
 .adm-par-seta { color: var(--muted); margin: 0 8px; }
 .adm-pares button { background: var(--verde-escuro); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+/* Revisão por confiança */
+.adm-revisao { max-width: 920px; }
+.adm-conf { display: inline-block; min-width: 30px; text-align: center; padding: 2px 7px; border-radius: 10px; font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.adm-conf-bom { background: #1f7a3f30; color: #58d68d; }
+.adm-conf-medio { background: #b8860b30; color: #e6b800; }
+.adm-conf-ruim { background: #a3262630; color: #ff6b6b; }
+.adm-conf-na { background: #ffffff14; color: var(--muted); }
+.adm-un { color: var(--muted); font-style: normal; font-size: 12px; }
 .adm-pares button:disabled { opacity: 0.5; }
 
 .adm-qualidade { padding: 18px 24px; overflow-y: auto; }

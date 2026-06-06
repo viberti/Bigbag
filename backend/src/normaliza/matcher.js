@@ -44,9 +44,9 @@ export async function resolverSku(
 ) {
   const desc = String(descricaoOriginal || '').trim();
 
-  // 1) alias exato (cache)
-  const [al] = await db.query('SELECT sku_id FROM sku_alias WHERE descricao_original = ?', [desc]);
-  if (al.length) return { sku_id: al[0].sku_id, via: 'alias' };
+  // 1) alias exato (cache) — mantém a confiança gravada no alias
+  const [al] = await db.query('SELECT sku_id, confianca FROM sku_alias WHERE descricao_original = ?', [desc]);
+  if (al.length) return { sku_id: al[0].sku_id, via: 'alias', confianca: al[0].confianca };
 
   // 2) canonicalizar (com contexto da cadeia, se conhecido)
   const c = await canonicalizar(desc, { cadeia });
@@ -100,8 +100,15 @@ export async function resolverSku(
     via = 'novo';
   }
 
-  await db.query('INSERT IGNORE INTO sku_alias (descricao_original, sku_id, origem) VALUES (?,?,?)', [desc, sku_id, 'llm']);
-  return { sku_id, via, score: Math.round(score * 100) / 100, canonical: c };
+  // Confiança do mapeamento, por via (ver migração 016). Fica no alias → durável.
+  const conf = via === 'match' ? 90 : via === 'match-llm' ? 75 : 60; // novo → 60
+  await db.query('INSERT IGNORE INTO sku_alias (descricao_original, sku_id, origem, confianca) VALUES (?,?,?,?)', [
+    desc,
+    sku_id,
+    'llm',
+    conf,
+  ]);
+  return { sku_id, via, score: Math.round(score * 100) / 100, confianca: conf, canonical: c };
 }
 
 // Resolve o sku_id de todos os itens (ainda sem SKU) de UMA fatura. Corre FORA
@@ -156,7 +163,7 @@ export async function mergeNomesIdenticos(db, soNomesRaw) {
     for (let i = 1; i < arr.length; i++) {
       const de = arr[i].id;
       await db.query('UPDATE item SET sku_id = ? WHERE sku_id = ?', [para, de]);
-      await db.query("UPDATE sku_alias SET sku_id = ?, origem = 'manual' WHERE sku_id = ?", [para, de]);
+      await db.query("UPDATE sku_alias SET sku_id = ?, origem = 'manual', confianca = 100 WHERE sku_id = ?", [para, de]);
       await db.query('DELETE FROM sku_normalizado WHERE id = ?', [de]);
       removidos++;
     }
