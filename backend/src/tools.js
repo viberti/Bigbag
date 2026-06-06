@@ -160,6 +160,35 @@ export const toolDefs = [
   {
     type: 'function',
     function: {
+      name: 'tendencia_precos',
+      description:
+        "Produtos que ficaram MAIS CAROS ou MAIS BARATOS ao longo do tempo: variação % entre a 1ª e a última observação de cada produto (preço por unidade-base). Usar para 'que produtos subiram/desceram de preço', 'o que ficou mais caro/barato ultimamente', 'tendência de preços'. Devolve os maiores movimentos (subidas e descidas).",
+      parameters: {
+        type: 'object',
+        properties: {
+          desde: {
+            type: 'string',
+            description:
+              "Opcional, ISO 'YYYY-MM-DD'. Para 'ultimamente/recentemente/nos últimos tempos', passe uma data recente (ex.: ~90 dias antes de hoje). Se omitido, todo o histórico. NUNCA peça datas ao usuário.",
+          },
+          loja: { type: 'string', description: 'Opcional: cadeia/loja.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'comparar_lojas',
+      description:
+        "Diz que CADEIA/supermercado tende a ser mais barato para os produtos que o usuário compra. Compara o preço por unidade-base dos produtos vistos em ≥2 lojas e ordena as lojas pelo 'prémio médio' sobre o preço mais baixo (menor = mais barata). Usar para 'onde costumo comprar mais barato', 'qual o supermercado mais barato para mim', 'em que loja gasto menos'. Sem parâmetros.",
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'total_gasto',
       description:
         "Soma quanto foi gasto, num período. Pode filtrar por produto/categoria (alvo) e/ou por loja (loja). Ex.: 'quanto gastei em vinho este mês', 'quanto gastei no Lidl', 'quanto gastei em bebida alcoólica'.",
@@ -197,6 +226,8 @@ const dispatch = {
   produto_mais_barato: queries.produto_mais_barato,
   detalhes_fatura: queries.detalhes_fatura,
   produtos_habituais: queries.produtos_habituais,
+  tendencia_precos: queries.tendencia_precos,
+  comparar_lojas: queries.comparar_lojas,
 };
 
 // Executa uma tool call do LLM. `args` é o objeto de argumentos já parseado.

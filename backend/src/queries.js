@@ -365,3 +365,77 @@ export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim, loja 
     n_itens: rows[0].n_itens,
   };
 }
+
+// 9) Tendência: produtos que ficaram MAIS CAROS ou MAIS BARATOS. Para cada
+//    produto com ≥2 observações de preco_por_base (em datas diferentes), compara
+//    a 1ª e a última e calcula a variação %. Devolve os maiores movimentos.
+//    Para "ultimamente", o LLM passa `desde` (ex.: 90 dias atrás).
+export async function tendencia_precos(db, { desde, loja } = {}) {
+  const ml = matchLoja(loja);
+  const params = [];
+  let filtroData = '';
+  if (desde) {
+    filtroData = 'AND DATE(f.data_compra) >= ?';
+    params.push(desde);
+  }
+  params.push(...ml.params);
+  const [rows] = await db.query(
+    `SELECT produto, unidade_base, preco_antigo, data_antiga, preco_novo, data_nova,
+            ROUND(100 * (preco_novo - preco_antigo) / preco_antigo, 1) AS variacao_pct
+     FROM (
+       SELECT COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+              s.unidade_base,
+              FIRST_VALUE(i.preco_por_base) OVER w_asc AS preco_antigo,
+              FIRST_VALUE(DATE_FORMAT(f.data_compra, '%Y-%m-%d')) OVER w_asc AS data_antiga,
+              FIRST_VALUE(i.preco_por_base) OVER w_desc AS preco_novo,
+              FIRST_VALUE(DATE_FORMAT(f.data_compra, '%Y-%m-%d')) OVER w_desc AS data_nova,
+              COUNT(*) OVER (PARTITION BY COALESCE(s.nome_canonico, i.descricao_original)) AS n,
+              ROW_NUMBER() OVER w_asc AS rn
+       ${BASE_JOINS}
+       WHERE i.is_clearance = FALSE AND i.is_non_product = FALSE AND f.needs_review = FALSE
+         AND i.preco_por_base IS NOT NULL
+         ${filtroData} ${ml.sql}
+       WINDOW
+         w_asc  AS (PARTITION BY COALESCE(s.nome_canonico, i.descricao_original) ORDER BY f.data_compra ASC,  i.id ASC),
+         w_desc AS (PARTITION BY COALESCE(s.nome_canonico, i.descricao_original) ORDER BY f.data_compra DESC, i.id DESC)
+     ) t
+     WHERE rn = 1 AND n >= 2 AND preco_antigo > 0 AND data_nova > data_antiga
+     ORDER BY ABS((preco_novo - preco_antigo) / preco_antigo) DESC
+     LIMIT 15`,
+    params,
+  );
+  return rows;
+}
+
+// 10) Que CADEIA tende a ser mais barata para os produtos do usuário. Para cada
+//     produto presente em ≥2 cadeias, compara o preco_por_base (mais recente por
+//     cadeia) ao mínimo; ordena as cadeias pelo "prémio médio" sobre o mais
+//     barato (menor = tende a ser mais barata). Honesto: só conta produtos
+//     comparáveis (vistos em ≥2 cadeias). Se não houver, devolve vazio.
+export async function comparar_lojas(db, {} = {}) {
+  const [rows] = await db.query(
+    `WITH recente AS (
+       SELECT COALESCE(s.nome_canonico, i.descricao_original) AS produto, l.cadeia, i.preco_por_base,
+              ROW_NUMBER() OVER (PARTITION BY COALESCE(s.nome_canonico, i.descricao_original), l.cadeia
+                                 ORDER BY f.data_compra DESC, i.id DESC) AS rn
+       ${BASE_JOINS}
+       WHERE i.is_clearance = FALSE AND i.is_non_product = FALSE AND f.needs_review = FALSE
+         AND i.preco_por_base IS NOT NULL
+     ),
+     comp AS (
+       SELECT produto, cadeia, preco_por_base,
+              MIN(preco_por_base) OVER (PARTITION BY produto) AS min_preco,
+              COUNT(*) OVER (PARTITION BY produto) AS n_cadeias
+       FROM recente WHERE rn = 1
+     )
+     SELECT cadeia,
+            COUNT(*) AS produtos_comparados,
+            SUM(preco_por_base = min_preco) AS vezes_mais_barata,
+            ROUND(AVG(100 * (preco_por_base - min_preco) / min_preco), 1) AS premio_medio_pct
+     FROM comp
+     WHERE n_cadeias >= 2
+     GROUP BY cadeia
+     ORDER BY premio_medio_pct ASC, vezes_mais_barata DESC`,
+  );
+  return rows;
+}
