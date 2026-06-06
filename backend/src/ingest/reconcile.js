@@ -12,15 +12,17 @@
 // Saída:  { itens (com preco_unitario e preco_liquido), subtotal, convencao,
 //           totalReconciliado, discrepancia, extracaoBate }
 
-export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso }) {
+export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso, iva = 0 }) {
   const valor = (it) => Number(it.valor || 0);
   const descLinha = (it) => Math.abs(Number(it.desconto_direto || 0));
+  const ivaAdd = Number(iva) || 0; // IVA somado a seguir (grossista/cash-and-carry); 0 nos talões normais
 
   const subtotalBruto = itens.reduce((s, it) => s + valor(it), 0);
   const somaDescLinha = itens.reduce((s, it) => s + descLinha(it), 0);
 
-  // Árbitro = TOTAL A PAGAR. Escolhe a convenção cujo candidato lhe fica mais perto.
-  const alvo = totalImpresso != null ? Number(totalImpresso) : subtotalBruto - somaDescLinha - descontoGlobal;
+  // Árbitro = TOTAL SEM o IVA somado (as linhas são sem IVA nos grossistas).
+  // Escolhe a convenção cujo candidato lhe fica mais perto.
+  const alvo = totalImpresso != null ? Number(totalImpresso) - ivaAdd : subtotalBruto - somaDescLinha - descontoGlobal;
   const candA = subtotalBruto - descontoGlobal;
   const candB = subtotalBruto - somaDescLinha - descontoGlobal;
   const convencao = Math.abs(candB - alvo) < Math.abs(candA - alvo) ? 'B' : 'A';
@@ -41,13 +43,15 @@ export function distribuirDesconto(itens, { descontoGlobal = 0, totalImpresso })
     preco_liquido: Math.round(base[i] * 100) / 100,
   }));
 
-  const totalReconciliado = Math.round((baseSubtotal - descontoGlobal) * 100) / 100;
+  const totalReconciliado = Math.round((baseSubtotal - descontoGlobal + ivaAdd) * 100) / 100;
 
-  // Sinal de qualidade HONESTO: a base líquida (já na convenção escolhida) menos
-  // o desconto global devia bater com o TOTAL A PAGAR. Se não bater, a extração
-  // perdeu/inventou/leu mal um item ou um desconto.
+  // Sinal de qualidade HONESTO: base líquida − desconto_global + IVA somado devia
+  // bater com o TOTAL A PAGAR. Se não bater, a extração perdeu/inventou/leu mal um
+  // item, um desconto ou o IVA. (Nos talões normais ivaAdd=0 → fórmula original.)
   const discrepancia =
-    totalImpresso != null ? Math.round((baseSubtotal - descontoGlobal - Number(totalImpresso)) * 100) / 100 : 0;
+    totalImpresso != null
+      ? Math.round((baseSubtotal - descontoGlobal + ivaAdd - Number(totalImpresso)) * 100) / 100
+      : 0;
 
   return {
     itens: out,

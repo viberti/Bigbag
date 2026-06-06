@@ -78,6 +78,22 @@ test('sem desconto global, líquido = impresso', () => {
   assert.equal(r.extracaoBate, true);
 });
 
+test('IVA de grossista (Makro): linhas sem IVA + IVA somado no fim → bate', () => {
+  // Makro #140: Σ linhas (s/IVA) = 49,12; IVA somado = 7,77; Valor Total = 56,89.
+  const itens = [{ valor: 30 }, { valor: 19.12 }];
+  const r = distribuirDesconto(itens, { descontoGlobal: 0, totalImpresso: 56.89, iva: 7.77 });
+  assert.equal(r.extracaoBate, true);
+  assert.equal(r.discrepancia, 0);
+  assert.equal(Math.round(r.totalReconciliado * 100), 5689); // 56,89
+  assert.equal(r.itens[0].preco_liquido, 30); // preço da linha (s/IVA), não inflado pelo IVA
+});
+
+test('sem iva (talão normal): fórmula inalterada', () => {
+  const r = distribuirDesconto([{ valor: 2.5 }, { valor: 1.5 }], { descontoGlobal: 0, totalImpresso: 4.0 });
+  assert.equal(r.extracaoBate, true);
+  assert.equal(r.discrepancia, 0);
+});
+
 test('pistaCirurgica: bate → sem pista', () => {
   assert.equal(pistaCirurgica([{ valor: 2.5, descricao_original: 'X' }], 0), '');
 });

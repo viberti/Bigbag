@@ -43,7 +43,11 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       reextrair = (correcao) => extrairFatura({ imageBase64, mime: img.mime, correcao });
     }
     const reconciliar = (d) =>
-      distribuirDesconto(d.itens, { descontoGlobal: Number(d.desconto_global) || 0, totalImpresso: d.total_impresso });
+      distribuirDesconto(d.itens, {
+        descontoGlobal: Number(d.desconto_global) || 0,
+        totalImpresso: d.total_impresso,
+        iva: Number(d.iva) || 0,
+      });
 
     let dados = await reextrair();
     let rec = reconciliar(dados);
@@ -74,6 +78,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       data_compra: dados.data_compra,
       subtotal: dados.subtotal,
       desconto_global: dados.desconto_global,
+      iva: dados.iva,
       total_impresso: dados.total_impresso,
       itens: dados.itens,
     };

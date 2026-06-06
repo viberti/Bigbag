@@ -17,7 +17,8 @@ Esquema exato:
   "data_compra": string,            // ISO 8601, ex. "2026-05-22T18:02:00"
   "subtotal": number|null,          // SUBTOTAL antes do desconto global
   "desconto_global": number,        // ex. "Desconto Cartão Utilizado"; 0 se não houver
-  "total_impresso": number,         // "TOTAL A PAGAR"
+  "iva": number,                    // IVA ADICIONADO no fim: 0 nos talões normais (o preço já inclui IVA); >0 SÓ em cash-and-carry/grossista (ex. Makro), onde os preços das linhas são SEM IVA e o IVA é somado até ao total
+  "total_impresso": number,         // "TOTAL A PAGAR" / "Valor Total" (o valor final pago)
   "itens": [
     {
       "descricao_original": string, // verbatim, como impresso (ex. "BOL DIGESTIVE AVEIA CNT 425GR")
@@ -40,6 +41,8 @@ Regras:
 - Itens a peso aparecem como "0,505 kg x 6,19 EUR/kg" → o "valor" é o PREÇO IMPRESSO na linha do produto (a coluna de preço, à direita do nome), e NÃO o resultado de kg × €/kg, que pode diferir por arredondamento. Ex.: se a linha do produto diz 2,29 € e por baixo "0,618 kg x 3,59 €/kg", o valor é 2,29 (não 2,22).
 - ITEM A PESO EM DUAS LINHAS (comum na Mercadona): o NOME do produto está numa linha e "X,XXX kg  Y,YY EUR/kg" na linha SEGUINTE — são o MESMO item, não dois. Junta-os: a "descricao_original" deve conter o NOME seguido do peso (ex. "BANANA 2,426 kg 1,20 EUR/kg") e o "valor" é o total impresso à direita (na linha do peso). NUNCA emitas um item cuja descrição seja só "X kg … EUR/kg" sem nome de produto.
 - MULTIPACK "N X preço": quando a linha mostra "2 X 0,59" (N unidades ao preço unitário, comum no Continente), o "valor" do item é o TOTAL da linha (a coluna à direita, ex.: 1,18 = 2×0,59) e a "quantidade" é N. NUNCA uses o preço unitário (0,59) sozinho como valor.
+- COLUNA DE QUANTIDADE (grossistas como o Makro têm uma coluna "Quant"/"Quantidade"): LÊ-A SEMPRE. O "valor" é o TOTAL da linha ("Valor total") e a "quantidade" é o que está na coluna Quant. Ex.: "PASSATA … Preço U.V. 2,59 … Quant 3 … Valor total 7,77" → quantidade=3, valor=7,77. NUNCA deixes "quantidade" a null — se não houver coluna nem indicação, é 1.
+- IVA EM GROSSISTAS (cash-and-carry, ex. Makro): nesses talões os preços das linhas são SEM IVA; aparece um "Total s/IVA" (= soma das linhas) e o IVA é somado a seguir até ao "Valor Total". Põe o IVA somado no campo "iva" (ex.: 7,77) e o "Valor Total" em total_impresso. Em talões NORMAIS de supermercado o preço JÁ inclui IVA → iva = 0 (a tabela de IVA no rodapé é só informativa, não a somes). Verificação: Σ valores das linhas − desconto_global + iva = total_impresso.
 - Extrai TODOS os produtos — NÃO saltes nenhuma linha de produto, mesmo que a imagem esteja pouco nítida.
 - Não inventes itens nem valores. Se um valor não for legível, usa null no campo numérico desse item e mantém a descrição.
 - Ignora a numeração de cabeçalho/rodapé; extrai só as linhas de produto e os totais.
