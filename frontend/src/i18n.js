@@ -32,7 +32,7 @@ const STRINGS = {
     'nota.summary': '{n|item|itens} · {loja} · {data} · total {total}',
     'nota.more': '+ {n|item|itens}',
     'nota.less': 'menos',
-    'habituais.title': 'Produtos que compro sempre',
+    'habituais.title': 'Produtos habituais',
     'habituais.empty': 'Ainda não há produtos recorrentes suficientes.',
     'habituais.times': '{n|compra|compras}',
     'habituais.offline': '📴 Offline · mostrando a lista salva em {data}',

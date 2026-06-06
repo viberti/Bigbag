@@ -381,7 +381,7 @@ body { background: #0c1814; }
 .bb .brand-txt { display: flex; flex-direction: column; gap: 2px; }
 .bb .wm { font-weight: 800; font-size: 21px; letter-spacing: -.02em; line-height: 1; white-space: nowrap; }
 .bb .wm .b2 { color: var(--accent); }
-.bb .ver { font-size: 11px; color: var(--faint); font-weight: 600; line-height: 1; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.bb .ver { font-size: 11px; color: var(--faint); font-weight: 600; line-height: 1; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; margin-top: 5px; }
 .bb .sp { flex: 1; }
 .bb .ibtn { position: relative; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
   color: var(--muted-bb); cursor: pointer; border: 1px solid transparent; background: transparent; transition: .15s; }
