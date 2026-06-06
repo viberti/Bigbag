@@ -1,24 +1,25 @@
-import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// Versão injetada no build: hash curto do git + data. Mostrada junto ao logo
-// para se perceber, num relance, se o PWA está em cache antigo.
-function versaoBuild() {
-  let hash = 'dev';
+// Versão da app (semver MAJOR.MINOR, ex.: "0.23"), fonte de verdade no
+// package.json. Mostrada junto ao logo. Para subir, edita "version" no
+// package.json (estamos na major 0 até estabilizar). O PWA (autoUpdate) trata
+// da cache; a versão é só informativa para o utilizador.
+function versaoApp() {
   try {
-    hash = execSync('git rev-parse --short HEAD').toString().trim();
+    const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url)));
+    const [maj = '0', min = '0'] = String(pkg.version || '0.0').split('.');
+    return `${maj}.${min}`;
   } catch {
-    /* sem git (ex.: tarball) → 'dev' */
+    return '0';
   }
-  const data = new Date().toISOString().slice(0, 10); // YYYY-MM-DD do build
-  return `${data}·${hash}`;
 }
 
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(versaoBuild()),
+    __APP_VERSION__: JSON.stringify(versaoApp()),
   },
   plugins: [
     react(),
