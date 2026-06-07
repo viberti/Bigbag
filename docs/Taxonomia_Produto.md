@@ -57,11 +57,13 @@ A identidade de um produto **não é uma string de nome** — é um **vetor face
 | Nível | Facetas que o definem | Exemplo | Para quê |
 |---|---|---|---|
 | **Categoria** | classe (+ base) | *Iogurte Grego (láctea)* | "quanto gastei em grego?" |
-| **Produto Mestre** *(= "equivalente")* | categoria + estilo + sabor + teor + açúcar + proteína + bio + lactose + forma | *Iogurte Grego Natural Magro* | comparar **marcas** @ €/base |
+| **Produto Mestre** *(= "equivalente")* | **identidade = só facetas A**: categoria + estilo + sabor + teor(quando parse) + forma | *Iogurte Grego Natural Magro* | comparar **marcas** @ €/base |
 | **Específico** | Produto Mestre **+ marca** | *…Magro Milsani* | **rastrear o preço** do que compro |
 | **SKU físico** | específico **+ formato** | *…1 kg* / *…4×115 g* | a linha de prateleira |
 
 A "categoria" não é um campo — é uma **consulta sobre facetas**. Subir/descer de nível = remover/adicionar facetas.
+
+> **A identidade do Mestre são SÓ facetas A [rev].** As facetas B (açúcar, proteína, bio, lactose, e `teor` quando só vem do EAN) são **descritivas** do Mestre — **nunca chave**. Senão, ligar o EAN mais tarde **re-particiona o histórico em silêncio** (um item com `açúcar` preenchido partir-se-ia dos gémeos com `açúcar=null`). Define-se o Mestre pelo que é **estável a partir do parse**; pendura-se o resto. *(O `teor` é o caso misto: entra na chave quando vem do parse; quando só viria do EAN, cai na política "ausente" do Spec.)*
 
 ### 4.1 — Produto Mestre: agrupar, NÃO fundir [rev]
 
@@ -77,7 +79,9 @@ Iogurte Grego Natural Magro   ← Produto Mestre (agrupa p/ comparar)
 
 - **Nunca se perde a marca** (cada específico mantém-na); compara-se subindo ao Mestre.
 - **Marca desconhecida** → fica como específico próprio, **não** se funde com os outros (evita o sobre/sub-merge).
-- O Mestre pode ser **projeção (view)** ou **entidade materializada** — é escolha de *performance* (materializar acelera rankings), não de modelo.
+- **O Mestre é ENTIDADE materializada, não view [rev]** — não só por performance: a aba **"Ligar nomes"** do operador precisa de onde guardar **overrides humanos** que contrariam a chave automática ("estes dois são o mesmo Mestre apesar das facetas não baterem"). Uma view não tem onde os guardar. **Chave automática = default; override do operador vence.**
+
+> ⚠️ **O problema não desaparece — muda de sítio [rev].** O Mestre troca "a marca é fiável no merge?" por "**este específico liga ao Mestre certo?**" — a mesma classificação fuzzy. O perigo é o **sub-agrupamento** (o mesmo Mestre partido em dois sempre que um talão diz "MG", outro "MAGRO", um terceiro omite o teor), que destrói exatamente o que se quer comparar. Por isso a **chave do Mestre precisa de normalização de VALORES** (não só de presença) e de **política ausente-vs-diferente** — é o **Spec do Produto Mestre** (§11), o próximo artefacto.
 
 ### 4.2 — A unidade vive na CATEGORIA, não no formato [rev]
 
@@ -88,21 +92,25 @@ Cada **balde fixa a sua unidade-base por defeito** (líquido → €/L; sólido 
 
 ## 5. Princípio de **coorte** (comparação justa)
 
-`preço_por_base` (€/kg, €/L) é **necessário mas não suficiente**. A comparação justa faz-se **dentro de uma coorte**:
+`preço_por_base` (€/kg, €/L) é **necessário mas não suficiente**. A comparação justa faz-se **dentro de uma coorte**. **Correção [rev]:** a versão antiga (`sabor × marca/gama × dose`) **contradiz-se** — punha `gama` como portão ("não misturar gamas") mas o Mestre existe para **comparar marcas**, e as marcas **atravessam gamas** (Aldi económico vs Oikos premium). Não dá para ter as duas.
 
-> **coorte = (sabor × marca/gama × tipo-dose)**
+**Resolução — portões vs dimensões:**
+> **coorte = identidade do Mestre = (categoria × sabor × teor × forma)** — as facetas que tornam o produto **insubstituível**.
+> **marca · gama · dose** = **dimensões**: ordenam-se, mostram-se e (opcional) filtram-se — **nunca são portões**.
 
-Spreads reais observados que justificam isto: **marca/gama ~4×** · **formato/dose ~2×** · o **sabor** muda o produto. "Iogurte grego mais barato" sem coorte mistura económico-familiar com premium-individual.
+Ou seja, **a coorte É o Produto Mestre** (§4). "O grego natural magro mais barato" devolve honestamente o do **Aldi**, e a UI **assinala o tier e a dose** (= a "sinalização ao utilizador" do §5.1). Spreads que justificam mostrar as dimensões: marca/gama ~4× · dose ~2×.
+
+> **Bónus [rev]:** isto **dissolve a circularidade do gama**. O gama deixa de ser portão → calcula-se sobre uma coorte **gama-free** → some o laço `gama ∈ coorte ∧ gama ← f(preços da coorte)`. Um só corte arruma a contradição **e** a circularidade.
 
 ### 5.1 — Defaults de coorte: item de DESIGN, não pergunta em aberto [rev]
 
-A fórmula é a parte fácil; o difícil são as **regras por categoria** e o que fazer quando a consulta é vaga (a voz quase nunca diz sabor/dose/gama). **É política de produto na camada de consulta** — e é provavelmente o que mais decide se a feature de voz "soa bem". Tem de definir, **por categoria**:
-- **facetas obrigatórias** da coorte (ex.: queijo → *forma* obrigatória; leite → *teor*; iogurte → *sabor*) e **opcionais**;
-- **defaults** quando o utilizador não especifica (ex.: assumir *Natural* + *familiar* + qualquer marca);
-- **sinalização ao utilizador** da coorte escolhida ("o grego **natural**, **tamanho familiar**, mais barato é…") — sem isto, a resposta engana sem o admitir;
-- **hierarquia de fallback** (se uma faceta obrigatória é desconhecida no item, relaxa a coorte **e di-lo**, em vez de comparar à toa).
+Os **portões** (identidade do Mestre) já estão definidos; o difícil é o que fazer quando a consulta é **vaga** (a voz quase nunca diz tudo). **É política de produto na camada de consulta** — provavelmente o que mais decide se a voz "soa bem". Por categoria:
+- **quais portões assumir** quando o utilizador não os dá (ex.: iogurte → assumir *Natural*; leite → assumir *meio-gordo*? ou perguntar?);
+- **default das dimensões** (ex.: ordenar por €/base, **mostrar** o tier e a dose do vencedor) — nunca filtrar em silêncio;
+- **sinalização** da coorte escolhida ("o grego **natural magro** mais barato é o do Aldi, **tier económico**, balde 1 kg") — sem isto, engana sem o admitir;
+- **fallback** quando um **portão** é desconhecido no item (relaxa **e di-lo**, em vez de comparar à toa).
 
-Isto vive no **meta-schema dos baldes** (próximo artefacto a criar).
+Isto vive no **Spec do Produto Mestre (§11)** — o próximo artefacto.
 
 ---
 
@@ -320,6 +328,52 @@ O modelo de hoje (`Normalizacao.md`) **achata** este desenho: um `nome_canonico`
 **Eixos de futuro a prever (não construir agora) [rev]:**
 - **Taxonomias ORTOGONAIS**, além da natureza-do-produto: uma **de consumo/ocasião** ("pequeno-almoço", "snack") e uma **nutricional** ("proteína") — para "quanto gasto em X?". O OFF **já as traz** (`food_groups`, `pnns_groups`) → não reinventar.
 - **Multi-país:** guardar desde já `country · retailer · language · currency` em cada compra (campos baratos; a *lógica* multi-país fica para quando houver 2.º país). O modelo (OFF) é internacional.
+
+---
+
+## 11. Spec do Produto Mestre (o próximo artefacto)
+
+Toda a dívida de desenho que resta aterra aqui (5ª revisão, Pontos 1–4). Um **Produto Mestre** é a entidade materializada que agrupa específicos comparáveis. Esta é a sua especificação.
+
+### 11.1 — Chave de identidade
+- **Só facetas A + categoria** (estáveis a partir do parse): `categoria · estilo · sabor · teor(quando A) · forma`.
+- **B é descritivo, nunca chave** (açúcar, proteína, bio, lactose, teor-de-EAN) → pendura-se no Mestre, não o particiona. *(Garante que ligar o EAN mais tarde nunca re-particiona o histórico.)*
+- Chave canónica = **tuplo normalizado** dessas facetas (11.2).
+
+### 11.2 — Normalização de VALORES (não só de presença)
+Cada faceta tem **vocabulário controlado** + **dicionário de sinónimos/abreviaturas** que mapeia o texto do talão ao valor canónico, **por contexto de categoria**. Ex. (teor):
+| Canónico | Sinónimos no talão |
+|---|---|
+| meio-gordo | `M/G` · `MG`(ctx. leite) · `meio gordo` · `semi` |
+| magro | `MAGRO` · `MAG` · `0%` · `desnatado` |
+| gordo | `GORDO` · `INTEIRO` · `G` |
+
+⚠️ O caso **`MG` vs `M/G`** prova que a normalização é **dependente da categoria** (o mesmo token difere). Fonte: OFF labels/synonyms **+** a nossa cache de abreviaturas. *(É a "camada de sinónimos" do §6.2 — mas aplicada à **chave inteira**, não só a variedades.)*
+
+### 11.3 — Política ausente-vs-diferente (o cerne)
+Quando uma faceta-**portão** falta no item:
+- **NÃO** assumir um valor (não fundir às cegas no `magro`).
+- **NÃO** tratar `null` como wildcard (casaria com tudo → ambíguo).
+- O item liga a um **Mestre provisório "faceta-desconhecida"** (ex.: *Iogurte Grego Natural · teor=?*), candidato a **promoção** quando uma fonte resolver a faceta (re-leitura · EAN · operador).
+- **Regra de ouro: enriquecer nunca PARTE um Mestre** (a chave é A-estável); só pode **promover** um provisório a concreto.
+
+### 11.4 — Regra de atribuição (específico → Mestre)
+1. Constrói a **chave normalizada** (11.2) das facetas A.
+2. **Match exato de chave** → liga.
+3. **Sem match** → candidatos (categoria igual + chave próxima); `≥ limiar` → liga (com confiança); `< limiar` → **novo Mestre**.
+4. **Override do operador vence sempre** (entidade materializada; aba "Ligar nomes").
+5. Portão ausente → 11.3.
+
+### 11.5 — Coorte = o Mestre (derivada)
+A coorte de uma consulta de preço **é o conjunto de específicos sob um Mestre**. `marca · gama · dose` são **dimensões** (ordenar/mostrar/filtrar), nunca portões (§5).
+
+### 11.6 — Materialização (esboço de schema)
+- `produto_mestre` (id · chave_normalizada · categoria · facetas-A · + facetas-B **descritivas nuláveis** · provisorio bool).
+- O **específico** (≈ o `sku_normalizado` de hoje) ganha `mestre_id` + mantém a marca.
+- `sku_alias` + aba "Ligar nomes" alimentam **overrides**.
+
+### 11.7 — O que isto fecha
+Os Pontos 1–4 da 5ª revisão (sub-agrupamento · coorte×Mestre · B-fora-da-chave · corrigibilidade). **Substitui** o "meta-schema da coorte" — porque a **coorte é o Mestre**.
 
 ---
 
