@@ -4,6 +4,10 @@
 > **dificuldades** reais encontradas, a **solução** adotada e os **problemas em
 > aberto**. Sem segredos, credenciais nem dados de utilizador.
 > Última atualização: 2026-06-06.
+>
+> **Ver também:** [`Taxonomia_Produto.md`](Taxonomia_Produto.md) — o **modelo-alvo**
+> facetado (standards OFF/GS1/IFPS, níveis e coortes), com o iogurte grego como
+> template. Este documento é o **estado atual**; esse é **para onde deve ir**.
 
 ## 1. O problema
 
