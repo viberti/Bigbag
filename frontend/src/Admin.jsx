@@ -254,6 +254,7 @@ function TabProdutos() {
   const [q, setQ] = useState('');
   const [ordem, setOrdem] = useState('nome'); // nome · desc (nº descrições das notas) · itens
   const [skus, setSkus] = useState([]);
+  const [total, setTotal] = useState(0); // total de produtos com nome canónico (respeita a busca)
   const [sel, setSel] = useState(null);
   const [det, setDet] = useState(null);
   const [nome, setNome] = useState('');
@@ -269,7 +270,13 @@ function TabProdutos() {
   const notaRef = useRef('');
 
   const recarregarLista = (busca = q, ord = ordem) =>
-    adm.listarSkus(busca, ord).then((r) => setSkus(r.skus)).catch(() => {});
+    adm
+      .listarSkus(busca, ord)
+      .then((r) => {
+        setSkus(r.skus);
+        setTotal(r.total ?? r.skus.length);
+      })
+      .catch(() => {});
   useEffect(() => {
     recarregarLista('');
   }, []);
@@ -419,6 +426,9 @@ function TabProdutos() {
             </div>
           </div>
         )}
+        <div className="adm-total">
+          {total} {total === 1 ? 'produto' : 'produtos'} com nome canónico{q ? ' (filtro)' : ''}
+        </div>
         <ul>
           {skus.map((s) => (
             <li key={s.id} className={s.id === sel ? 'on' : ''} onClick={() => abrir(s.id)}>

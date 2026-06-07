@@ -207,7 +207,12 @@ adminRouter.get('/skus', async (req, res) => {
          LIMIT ${limit}`,
       args,
     );
-    res.json({ skus: rows });
+    // Total de produtos canónicos (respeita o filtro de busca, ignora o limite).
+    const [[{ total }]] = await getPool().query(
+      `SELECT COUNT(*) AS total FROM sku_normalizado s ${where}`,
+      args,
+    );
+    res.json({ skus: rows, total });
   } catch (e) {
     console.error('[admin/skus] erro:', e.message);
     res.status(500).json({ erro: 'Falha a listar SKUs' });
