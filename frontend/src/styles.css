@@ -500,6 +500,18 @@ body {
 .adm-merc-bar { height: 12px; background: var(--verde-escuro); border-radius: 6px; min-width: 4px; }
 .adm-merc li em { color: var(--muted); font-style: normal; font-variant-numeric: tabular-nums; }
 
+/* Mestres */
+.adm-mestres { padding: 18px 24px; overflow-y: auto; max-width: 900px; }
+.adm-mestre { border: 1px solid #ffffff12; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.adm-mestre.susp { border-color: #ff6b6b55; background: #a3262610; }
+.adm-mestre-h { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.adm-mestre-k { font-size: 11px; color: var(--muted); background: #ffffff0c; padding: 2px 6px; border-radius: 6px; }
+.adm-mestre-skus { list-style: none; margin: 0; padding: 0; }
+.adm-mestre-skus li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid #ffffff0c; }
+.adm-mestre-skus li.susp { color: #ffb3b3; }
+.adm-mestre-motivo { color: #ff6b6b; font-style: normal; font-size: 12px; }
+.adm-mestre-skus .adm-x { background: none; border: 1px solid #ff6b6b55; color: #ff6b6b; padding: 4px 9px; border-radius: 8px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+
 .adm-qualidade { padding: 18px 24px; overflow-y: auto; }
 .adm-qtab { margin-bottom: 26px; max-width: 760px; }
 .adm-qtab h3 { font-size: 14px; color: var(--muted); margin: 0 0 8px; }

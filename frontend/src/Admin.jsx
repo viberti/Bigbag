@@ -27,6 +27,9 @@ export default function Admin() {
           <button className={aba === 'produtos' ? 'on' : ''} onClick={() => setAba('produtos')}>
             Produtos
           </button>
+          <button className={aba === 'mestres' ? 'on' : ''} onClick={() => setAba('mestres')}>
+            Mestres
+          </button>
           <button className={aba === 'ligar' ? 'on' : ''} onClick={() => setAba('ligar')}>
             Ligar nomes
           </button>
@@ -52,6 +55,8 @@ export default function Admin() {
       </header>
       {aba === 'painel' ? (
         <TabPainel />
+      ) : aba === 'mestres' ? (
+        <TabMestres />
       ) : aba === 'produtos' ? (
         <TabProdutos />
       ) : aba === 'ligar' ? (
@@ -188,6 +193,60 @@ function TabPainel() {
 function barW(n, arr) {
   const max = Math.max(...arr.map((x) => x.n), 1);
   return Math.round((n / max) * 100) + '%';
+}
+
+// ───────────────────────────── Mestres ─────────────────────────────
+function TabMestres() {
+  const [dados, setDados] = useState(null);
+  const [msg, setMsg] = useState('');
+  const recarregar = () => adm.mestres().then(setDados).catch(() => setDados({ mestres: [], n_singletons: 0 }));
+  useEffect(() => {
+    recarregar();
+  }, []);
+
+  async function desligar(skuId, nome) {
+    await adm.desligarMestre(skuId);
+    setMsg(`✓ "${nome}" separado do Mestre`);
+    await recarregar();
+  }
+
+  const ms = dados?.mestres || [];
+  const nSusp = ms.filter((m) => m.suspeito).length;
+  return (
+    <div className="adm-mestres">
+      <p className="adm-sug-dica">
+        Produtos Mestre que <b>reúnem ≥2 SKUs</b> ({ms.length}) — {nSusp} com <b>suspeitos</b> dos validadores ·{' '}
+        {dados?.n_singletons ?? '—'} Mestres com 1 só SKU (não mostrados). Os suspeitos vêm primeiro.
+      </p>
+      {msg && <p className="adm-ok">{msg}</p>}
+      {dados === null ? (
+        <p className="adm-vazio">a calcular…</p>
+      ) : (
+        ms.map((m) => (
+          <div key={m.id} className={'adm-mestre' + (m.suspeito ? ' susp' : '')}>
+            <div className="adm-mestre-h">
+              <b>{m.categoria || m.nome || '(sem categoria)'}</b>
+              <code className="adm-mestre-k">{m.chave}</code>
+              {m.suspeito && <span className="adm-conf adm-conf-ruim">suspeito</span>}
+            </div>
+            <ul className="adm-mestre-skus">
+              {m.skus.map((s) => (
+                <li key={s.id} className={s.suspeito ? 'susp' : ''}>
+                  <span className="adm-lig-desc">
+                    {s.nome} <em className="adm-lig-marca">· {s.marca || '—'} · {s.un}</em>
+                    {s.suspeito && <em className="adm-mestre-motivo"> ⚠ {s.motivos.join('; ')}</em>}
+                  </span>
+                  <button className="adm-x" title="separar deste Mestre" onClick={() => desligar(s.id, s.nome)}>
+                    ✕ separar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
+    </div>
+  );
 }
 
 // ───────────────────────────── Produtos ─────────────────────────────

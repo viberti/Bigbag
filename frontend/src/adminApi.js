@@ -30,6 +30,8 @@ export const sugestoesMerge = (limiar) => jget(`/api/admin/sugestoes-merge?limia
 export const autoMergeIdenticos = () => jsend('/api/admin/skus/auto-merge', 'POST', {});
 export const painel = () => jget('/api/admin/painel');
 export const capturas = (q) => jget(`/api/admin/capturas${q ? '?q=' + encodeURIComponent(q) : ''}`);
+export const mestres = () => jget('/api/admin/mestres');
+export const desligarMestre = (skuId) => jsend('/api/admin/mestres/desligar', 'POST', { skuId });
 export const qualidade = () => jget('/api/admin/qualidade');
 export const baixaConfianca = (limiar) => jget(`/api/admin/baixa-confianca${limiar ? '?limiar=' + limiar : ''}`);
 export const qualidadePreco = (fator) => jget(`/api/admin/qualidade-preco${fator ? '?fator=' + fator : ''}`);

@@ -14,6 +14,8 @@ import { pistaCirurgica, validarLinhas } from '../ingest/reconcile.js';
 import { reprocessarFatura } from '../ingest/reprocess.js';
 import { recomputarPpbSku } from '../normaliza/ppb.js';
 import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
+import { marcaCompativel, precoPlausivel } from '../normaliza/validadores.js';
+import { ln } from '../normaliza/mestre.js';
 
 export const adminRouter = Router();
 
@@ -111,6 +113,65 @@ adminRouter.get('/capturas', async (req, res) => {
   } catch (e) {
     console.error('[admin/capturas] erro:', e.message);
     res.status(500).json({ erro: 'Falha a listar capturas' });
+  }
+});
+
+// Produtos Mestre que AGRUPAM ≥2 SKUs (a de-fragmentação), com os SKUs reunidos
+// e a marca de SUSPEITO dos validadores (unidade/€-base/marca-afinidade) — para
+// o operador rever e separar o que estiver mal (override §11.4).
+adminRouter.get('/mestres', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT s.id, s.nome_canonico AS nome, s.marca, s.unidade_base AS un, s.mestre_id,
+              m.chave, m.categoria, m.nome AS mestre_nome,
+              (SELECT AVG(i.preco_por_base) FROM item i WHERE i.sku_id = s.id AND i.preco_por_base IS NOT NULL) AS ppb
+         FROM sku_normalizado s JOIN produto_mestre m ON m.id = s.mestre_id`,
+    );
+    const afin = new Map(); // marca→{categoria:contagem}
+    for (const r of rows) {
+      const mk = ln(r.marca);
+      if (!mk || !r.categoria) continue;
+      const a = afin.get(mk) || afin.set(mk, {}).get(mk);
+      a[r.categoria] = (a[r.categoria] || 0) + 1;
+    }
+    const porMestre = new Map();
+    for (const r of rows) (porMestre.get(r.mestre_id) || porMestre.set(r.mestre_id, []).get(r.mestre_id)).push(r);
+    const mestres = [];
+    for (const [mid, membros] of porMestre) {
+      if (membros.length < 2) continue; // só os que agrupam
+      const cat = membros[0].categoria;
+      const unidades = new Set(membros.map((m) => m.un).filter(Boolean));
+      const ppbs = membros.map((m) => Number(m.ppb)).filter((x) => Number.isFinite(x) && x > 0);
+      const skus = membros.map((m) => {
+        const motivos = [];
+        if (unidades.size > 1) motivos.push('unidade ' + (m.un || '?'));
+        if (!precoPlausivel(Number(m.ppb), ppbs)) motivos.push('€/base anómalo');
+        if (!marcaCompativel(cat, afin.get(ln(m.marca)))) motivos.push('marca não faz "' + cat + '"');
+        return { id: m.id, nome: m.nome, marca: m.marca, un: m.un, suspeito: motivos.length > 0, motivos };
+      });
+      mestres.push({ id: mid, chave: membros[0].chave, categoria: cat, nome: membros[0].mestre_nome, suspeito: skus.some((s) => s.suspeito), skus });
+    }
+    mestres.sort((a, b) => Number(b.suspeito) - Number(a.suspeito) || b.skus.length - a.skus.length);
+    const [[sing]] = await pool.query('SELECT COUNT(*) n FROM (SELECT mestre_id FROM sku_normalizado WHERE mestre_id IS NOT NULL GROUP BY mestre_id HAVING COUNT(*) = 1) x');
+    res.json({ mestres, n_singletons: sing.n });
+  } catch (e) {
+    console.error('[admin/mestres] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar Mestres' });
+  }
+});
+
+// Override: separa um SKU do seu Mestre (mestre_id NULL) — o operador diz "isto
+// não pertence aqui". Não-destrutivo (o SKU fica por reclassificar).
+adminRouter.post('/mestres/desligar', async (req, res) => {
+  try {
+    const skuId = Number(req.body?.skuId);
+    if (!skuId) return res.status(400).json({ erro: 'skuId obrigatório' });
+    await getPool().query('UPDATE sku_normalizado SET mestre_id = NULL WHERE id = ?', [skuId]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/mestres/desligar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a desligar' });
   }
 });
 
