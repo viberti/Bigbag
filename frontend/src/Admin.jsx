@@ -10,7 +10,7 @@ const dataCurta = (iso) => String(iso || '').slice(0, 10);
 
 export default function Admin() {
   const [sessao, setSessao] = useState(undefined);
-  const [aba, setAba] = useState('produtos');
+  const [aba, setAba] = useState('painel');
   useEffect(() => {
     verificarSessao().then(setSessao).catch(() => setSessao(null));
   }, []);
@@ -21,6 +21,9 @@ export default function Admin() {
       <header className="adm-top">
         <strong>🛠️ Bigbag · Operador</strong>
         <nav className="adm-tabs">
+          <button className={aba === 'painel' ? 'on' : ''} onClick={() => setAba('painel')}>
+            Painel
+          </button>
           <button className={aba === 'produtos' ? 'on' : ''} onClick={() => setAba('produtos')}>
             Produtos
           </button>
@@ -47,7 +50,9 @@ export default function Admin() {
           ← app
         </a>
       </header>
-      {aba === 'produtos' ? (
+      {aba === 'painel' ? (
+        <TabPainel />
+      ) : aba === 'produtos' ? (
         <TabProdutos />
       ) : aba === 'ligar' ? (
         <TabLigar />
@@ -90,6 +95,99 @@ function AdminLogin({ onEntrar }) {
       <button>Entrar</button>
     </form>
   );
+}
+
+// ───────────────────────────── Painel ─────────────────────────────
+function TabPainel() {
+  const [p, setP] = useState(null);
+  const [q, setQ] = useState('');
+  const [caps, setCaps] = useState([]);
+  useEffect(() => {
+    adm.painel().then(setP).catch(() => setP(null));
+  }, []);
+  useEffect(() => {
+    adm.capturas(q).then((r) => setCaps(r.capturas || [])).catch(() => setCaps([]));
+  }, [q]);
+
+  return (
+    <div className="adm-painel">
+      <div className="adm-cards">
+        <div className="adm-card">
+          <span className="adm-card-n">{p?.n_notas ?? '—'}</span>
+          <span className="adm-card-l">notas digitalizadas</span>
+        </div>
+        <div className="adm-card">
+          <span className="adm-card-n">{p?.n_produtos_crus ?? '—'}</span>
+          <span className="adm-card-l">produtos capturados (crus)</span>
+        </div>
+        <div className="adm-card">
+          <span className="adm-card-n">{p?.n_skus ?? '—'}</span>
+          <span className="adm-card-l">produtos canónicos (SKU)</span>
+        </div>
+        <div className="adm-card">
+          <span className="adm-card-n">{p?.n_mestres ?? '—'}</span>
+          <span className="adm-card-l">Produtos Mestre</span>
+        </div>
+        <div className="adm-card">
+          <span className="adm-card-n">{p?.n_skus_sem_mestre ?? '—'}</span>
+          <span className="adm-card-l">SKUs por classificar</span>
+        </div>
+      </div>
+
+      <div className="adm-card-merc">
+        <h3>Notas por mercado</h3>
+        <ul className="adm-merc">
+          {(p?.por_mercado || []).map((m) => (
+            <li key={m.cadeia}>
+              <span>{m.cadeia || '—'}</span>
+              <span className="adm-merc-bar" style={{ width: barW(m.n, p.por_mercado) }} />
+              <em>{m.n}</em>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="adm-qtab">
+        <h3>Captura crua — o que foi lido das notas (antes da normalização)</h3>
+        <input
+          className="adm-lig-busca"
+          placeholder="procurar na captura crua…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <table className="adm-tabela">
+          <thead>
+            <tr>
+              <th>descrição na nota</th>
+              <th>nº</th>
+              <th>mercado</th>
+              <th>→ produto canónico</th>
+              <th>→ Produto Mestre</th>
+            </tr>
+          </thead>
+          <tbody>
+            {caps.length === 0 ? (
+              <tr><td colSpan={5} className="adm-vazio2">sem resultados</td></tr>
+            ) : (
+              caps.map((c) => (
+                <tr key={c.descricao}>
+                  <td>{c.descricao}</td>
+                  <td>{c.n}</td>
+                  <td>{c.cadeia || '—'}</td>
+                  <td>{c.sku || <span className="adm-conf adm-conf-ruim">sem SKU</span>}</td>
+                  <td>{c.mestre || <span className="adm-conf adm-conf-na">—</span>}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+function barW(n, arr) {
+  const max = Math.max(...arr.map((x) => x.n), 1);
+  return Math.round((n / max) * 100) + '%';
 }
 
 // ───────────────────────────── Produtos ─────────────────────────────

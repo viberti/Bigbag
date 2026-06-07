@@ -486,6 +486,20 @@ body {
 /* Lista de associação na aba Produtos (busca + clicar p/ associar) */
 .adm-assoc-lista { max-height: 320px; max-width: 640px; margin-top: 8px; }
 
+/* Painel (Admin v2) */
+.adm-painel { padding: 18px 24px; overflow-y: auto; }
+.adm-cards { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; }
+.adm-card { flex: 1 1 150px; min-width: 140px; background: #131c21; border: 1px solid #ffffff12; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+.adm-card-n { font-size: 30px; font-weight: 700; color: var(--verde); font-variant-numeric: tabular-nums; }
+.adm-card-l { font-size: 12px; color: var(--muted); }
+.adm-card-merc { max-width: 560px; margin-bottom: 22px; }
+.adm-card-merc h3 { font-size: 15px; margin: 0 0 10px; }
+.adm-merc { list-style: none; margin: 0; padding: 0; }
+.adm-merc li { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 14px; }
+.adm-merc li > span:first-child { flex: 0 0 110px; }
+.adm-merc-bar { height: 12px; background: var(--verde-escuro); border-radius: 6px; min-width: 4px; }
+.adm-merc li em { color: var(--muted); font-style: normal; font-variant-numeric: tabular-nums; }
+
 .adm-qualidade { padding: 18px 24px; overflow-y: auto; }
 .adm-qtab { margin-bottom: 26px; max-width: 760px; }
 .adm-qtab h3 { font-size: 14px; color: var(--muted); margin: 0 0 8px; }
