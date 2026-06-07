@@ -388,7 +388,7 @@ function Chat({ onSair, nome }) {
         </div>
         {/* Linha 2: ações (câmara/mais à esquerda; voz+enviar à direita) */}
         <div className="input-actions">
-          <button type="button" className="round" onClick={() => setCamAberta(true)} disabled={ocupado} aria-label="digitalizar nota">
+          <button type="button" className="round" onClick={() => fotoRef.current?.click()} disabled={ocupado} aria-label="tirar foto">
             <Ico name="camera" size={21} />
           </button>
           <button type="button" className="round" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="mais opções">
@@ -456,7 +456,7 @@ function Chat({ onSair, nome }) {
         <>
           <div className="cap-menu-bd" onClick={() => setMenuAberto(false)} />
           <div className="cap-menu">
-            <button onClick={() => { setMenuAberto(false); fotoRef.current?.click(); }}>{t('cap.photo')}</button>
+            <button onClick={() => { setMenuAberto(false); setCamAberta(true); }}>{t('cap.scan')}</button>
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}>{t('cap.gallery')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}>{t('cap.file')}</button>
           </div>
