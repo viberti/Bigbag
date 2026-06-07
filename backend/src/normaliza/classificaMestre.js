@@ -1,0 +1,46 @@
+// Classifica uma descrição de talão no Produto Mestre: limpeza determinística →
+// extração de facetas (LLM, categoria FINA + portões da categoria) → chave canónica
+// determinística (mestre.js). O LLM só extrai; a chave estável é construída em código.
+import { chatCompletion } from '../openrouter.js';
+import { config } from '../config.js';
+import { parseJsonLoose } from '../ingest/extract.js';
+import { limparDescricao, chaveMestre } from './mestre.js';
+
+const PROMPT = `És um classificador de produtos de supermercado português. Dá a CATEGORIA MAIS FINA (o produto específico) e os PORTÕES que distinguem produtos dentro dela. Devolve SÓ JSON; null quando NÃO se infere (não adivinhes):
+{
+  "categoria": string,         // FINA/específica: "banana","kiwi","queijo gouda","peito de frango","leite","iogurte grego","pasta de dentes". NUNCA classes largas: "fruta","carne","vegetal","laticinio".
+  "apresentacao": string|null, // inteiro · fatiado · ralado · pedaco · cortado
+  "corte": string|null,        // (carne) peito · lombinho · coxa · perna · bife
+  "processamento": string|null,// inteiro · moida · preparado
+  "variedade": string|null,    // (fruta/legume) gala · golden  (ROYAL GALA->gala)
+  "sabor": string|null,        // natural · coco · morango
+  "teor": string|null,         // gordo · meio-gordo · magro  (M/G->meio-gordo; MG(leite)->meio-gordo; MAGRO/0%/LIGEIRO->magro)
+  "estilo": string|null,       // (iogurte) grego · skyr
+  "funcao": string|null,       // (higiene) branqueador · gengivas · multi
+  "fonte": string|null         // (queijo/leite) vaca · cabra · ovelha
+}
+MARCA, FORMATO e QUANTIDADE não entram. Só o JSON.`;
+
+// Modelo: provámos que, com a chave canónica, o modelo quase não importa; usa o
+// flash (bom/barato). Trocável por env se preciso.
+const MODELO = process.env.OPENROUTER_MODEL_MESTRE || 'google/gemini-2.5-flash';
+
+export async function extrairFacetasMestre(descricao, { model, timeoutMs } = {}) {
+  const bruto = await chatCompletion({
+    messages: [{ role: 'user', content: `${PROMPT}\n\nDescrição: ${descricao}` }],
+    model: model || MODELO,
+    timeoutMs,
+    responseFormat: { type: 'json_object' },
+    contexto: 'mestre',
+  });
+  const f = parseJsonLoose(bruto);
+  if (!f || typeof f !== 'object') throw new Error('facetas-mestre inválidas');
+  return f;
+}
+
+// descrição → { limpa, facetas, chave, categoria }
+export async function classificarMestre(descricao, opts = {}) {
+  const limpa = limparDescricao(descricao);
+  const facetas = await extrairFacetasMestre(limpa, opts);
+  return { limpa, facetas, chave: chaveMestre(facetas), categoria: String(facetas?.categoria || '').trim().toLowerCase() };
+}
