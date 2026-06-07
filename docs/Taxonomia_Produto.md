@@ -72,7 +72,9 @@ Spreads reais observados que justificam isto: **marca/gama ~4×** · **formato/d
 
 ---
 
-## 6. Template — 🪣 Ficha de Balde: **Iogurte Grego**
+## 6. Templates — 🪣 Fichas de Balde
+
+### 6.1 — Iogurte Grego (embalado · identidade escondida → EAN)
 
 ### Identificação (verificada nos standards)
 | Eixo | Valor |
@@ -116,6 +118,55 @@ marca *(+ inferida da cadeia)* · formato (peso/volume × contagem) · preço ·
 | açúcar·proteína·bio·lactose | **desconhecido** até EAN→OFF | B |
 
 → **~7 facetas do talão**; ~4 ficam vazias (não inventadas) até haver EAN.
+
+---
+
+### 6.2 — Maçã (fresco, sem EAN · identidade no nome → parse)
+
+O **mesmo template**, mas o perfil de preenchimento **inverte-se** (quase tudo natureza A).
+
+#### Identificação (verificada nos standards)
+| Eixo | Valor |
+|---|---|
+| **Categoria OFF** | `en:apples` · PT *"Maçãs"* · Wikidata `Q89` |
+| **Cadeia OFF** | `en:plant-based-foods-and-beverages › en:plant-based-foods › en:fruits-and-vegetables-based-foods › en:fruits-based-foods › en:fruits › en:apples` |
+| **IFPS PLU** | por variedade (Gala **4133** · Fuji **4129** · …); **bio = prefixo 9** (→ `94133`) |
+| **DAG** | `en:gala-apples` tem **dois pais**: `en:apples` **+** `en:sweet-apples` (faceta *grupo de sabor* como categoria-overlay) |
+
+#### Facetas (fruta fresca)
+| Faceta | Valores | Fonte | Natureza | No talão? |
+|---|---|---|---|---|
+| **Variedade** | Gala · Royal Gala · Golden · Fuji · Granny Smith · Reineta · Bravo de Esmolfe… | OFF children / IFPS PLU | **A** | ✅ **no nome — a faceta-chave** |
+| **Grupo de sabor** | doce · ácida | OFF (sweet/acidic) | C (da variedade) | — |
+| **Uso** | mesa/sobremesa · culinária (cozer: Bramley/Reineta) | OFF/conhecimento | C | — |
+| **Origem** | Portugal · Madeira · import | etiqueta/contexto | A/B | às vezes ("nacional") |
+| **Produção** | convencional · bio | OFF `en:organic` / PLU(9) | A/B | às vezes |
+| **Classe/calibre (UE)** | Extra/I/II · calibre | norma UE/etiqueta | B | raro |
+| **Forma/processamento** | inteiro(fresco) · polpa · calda · cozido | OFF children | A | sim (se processado) |
+| **Universais** | peso · unidade=**kg** · preço · PLU/código interno | — | A/C | ✅ |
+
+#### Worked example — `"MAÇÃ GALA"` (a peso)
+| Faceta | Valor | Como |
+|---|---|---|
+| categoria | Maçãs (`en:apples`) | parse "MAÇÃ" |
+| **variedade** | **Gala** | A ✅ — no nome → PLU 4133 |
+| forma | inteiro/fresco · unidade=**€/kg** | A→C |
+| origem·produção·classe | **desconhecido** até etiqueta | A/B |
+
+→ **A faceta-chave (variedade) vem do talão.** Contraste com o iogurte: aqui **dispensa-se o EAN**.
+
+### 6.3 — O que os dois templates provam (generalização)
+| | Iogurte (embalado) | Maçã (fresco) |
+|---|---|---|
+| Identidade está… | **escondida** (B) | **no nome** (A) |
+| Precisa de EAN? | **sim** | **não** (variedade parseável; PLU é bónus) |
+| Identificador | EAN→OFF | PLU(IFPS) / código interno |
+
+→ **Modelo-alvo idêntico** (categoria + facetas + universais + derivados); muda só o **plugin de preenchimento**. Confirma a tese: *construir o modelo primeiro, encaixar a nota depois.*
+
+**Dois bónus que a maçã expõe:**
+1. A velha dor **"Maçã Gala vs Royal Gala"** é, afinal, **resolução de variedade** (Royal Gala é um *sport*/clone da Gala → ~mesmo equivalente para preço). Precisa de uma **camada de sinónimos**.
+2. **O OFF já traz essa camada** — as taxonomias têm **sinónimos + stopwords** para *matching* ("Royal Gala" → `en:gala-apples`). Mais uma coisa que não inventamos.
 
 ---
 
