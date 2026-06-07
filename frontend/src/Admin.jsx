@@ -53,6 +53,9 @@ export default function Admin() {
           <button className={aba === 'precos' ? 'on' : ''} onClick={() => setAba('precos')}>
             Preços
           </button>
+          <button className={aba === 'saude' ? 'on' : ''} onClick={() => setAba('saude')}>
+            Saúde
+          </button>
         </nav>
         <a className="adm-link" href="/">
           ← app
@@ -74,6 +77,8 @@ export default function Admin() {
         <TabQualidade />
       ) : aba === 'precos' ? (
         <TabPrecos />
+      ) : aba === 'saude' ? (
+        <TabSaude />
       ) : (
         <TabNotas notaAlvo={notaAlvo} onConsumir={() => setNotaAlvo(null)} />
       )}
@@ -1051,6 +1056,81 @@ function TabPrecos() {
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────── Saúde do cesto ───────────────────────────────
+// Painel: grau de processamento (NOVA), Nutri-Score, ultraprocessados e onde a
+// confiança é baixa (scan compensa). Nutrição pendurada na coorte facetada (OFF).
+const NOVA_TXT = { 1: 'não processado', 2: 'ingrediente culinário', 3: 'processado', 4: 'ULTRAprocessado' };
+const NOVA_CLS = { 1: 'q-bom', 2: 'q-bom', 3: 'q-medio', 4: 'q-mau' };
+const NUTRI_CLS = { A: 'ns-a', B: 'ns-b', C: 'ns-c', D: 'ns-d', E: 'ns-e' };
+function Barras({ dist, ordem, total, rotulo, classe }) {
+  const t = total || Object.values(dist).reduce((a, b) => a + b, 0) || 1;
+  return (
+    <div className="adm-barras">
+      {ordem.filter((k) => dist[k]).map((k) => {
+        const p = Math.round((100 * dist[k]) / t);
+        return (
+          <div className="adm-barra-linha" key={k}>
+            <span className={`adm-barra-rot ${classe(k)}`}>{rotulo(k)}</span>
+            <span className="adm-barra-trilho">
+              <span className={`adm-barra-fill ${classe(k)}`} style={{ width: `${p}%` }} />
+            </span>
+            <span className="adm-barra-pct">{p}% <em>({dist[k]})</em></span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+function TabSaude() {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    adm.saude().then(setD).catch(() => setD({ erro: true }));
+  }, []);
+  if (!d) return <p className="adm-vazio">a calcular…</p>;
+  if (d.erro) return <p className="adm-vazio">sem dados de nutrição ainda (povoa a cache categoria_nutricao).</p>;
+  const novaT = Object.values(d.nova || {}).reduce((a, b) => a + b, 0);
+  return (
+    <div className="adm-saude">
+      <p className="adm-aviso">
+        Retrato nutricional do cesto. A nutrição vem do <b>Open Food Facts</b>, pendurada na <b>classe</b> do produto
+        (não no item) — é uma <b>estimativa por categoria</b>, não medição clínica. <b>Factual, não conselho médico.</b>
+      </p>
+      <div className="adm-saude-cab">
+        {d.comNut} de {d.total} compras com nutrição ({Math.round((100 * d.comNut) / (d.total || 1))}%)
+      </div>
+
+      <div className="adm-qtab">
+        <h3>Grau de processamento (NOVA)</h3>
+        <Barras dist={d.nova} ordem={['1', '2', '3', '4']} total={novaT} rotulo={(k) => `NOVA ${k} · ${NOVA_TXT[k]}`} classe={(k) => NOVA_CLS[k]} />
+      </div>
+
+      <div className="adm-qtab">
+        <h3>Nutri-Score</h3>
+        <Barras dist={d.nutri} ordem={['A', 'B', 'C', 'D', 'E']} rotulo={(k) => k} classe={(k) => NUTRI_CLS[k]} />
+      </div>
+
+      <div className="adm-saude-2col">
+        <div className="adm-qtab">
+          <h3>Ultraprocessados (NOVA 4) no cesto</h3>
+          {d.ultra.length === 0 ? <p className="adm-vazio2">nenhum 🎉</p> : (
+            <ul className="adm-chips">
+              {d.ultra.map((x) => <li key={x.rotulo} className="adm-chip q-mau">{x.rotulo} <em>×{x.n}</em></li>)}
+            </ul>
+          )}
+        </div>
+        <div className="adm-qtab">
+          <h3>Baixa confiança — um scan dá precisão</h3>
+          {d.largas.length === 0 ? <p className="adm-vazio2">nenhuma</p> : (
+            <ul className="adm-chips">
+              {d.largas.map((x) => <li key={x.rotulo} className="adm-chip q-medio">{x.rotulo} <em>×{x.n}</em></li>)}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

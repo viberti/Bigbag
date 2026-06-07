@@ -36,6 +36,7 @@ export const desligarMestre = (skuId) => jsend('/api/admin/mestres/desligar', 'P
 export const qualidade = () => jget('/api/admin/qualidade');
 export const baixaConfianca = (limiar) => jget(`/api/admin/baixa-confianca${limiar ? '?limiar=' + limiar : ''}`);
 export const qualidadePreco = (fator) => jget(`/api/admin/qualidade-preco${fator ? '?fator=' + fator : ''}`);
+export const saude = () => jget('/api/admin/saude');
 
 // Notas
 export const listarNotas = (status) => jget(`/api/admin/faturas?status=${status || 'all'}&limit=300`);

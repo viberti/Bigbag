@@ -599,6 +599,43 @@ adminRouter.get('/qualidade', async (req, res) => {
   }
 });
 
+// Painel de SAÚDE do cesto: cruza as compras com a cache categoria_nutricao
+// (nutrição pendurada na classe), preferindo a coorte FINA (categoria+variedade)
+// e caindo para a categoria larga. Devolve NOVA, Nutri-Score, ultraprocessados e
+// onde a confiança é baixa (dispersão larga → vale um scan). Ver
+// docs/Visao_Conselheiro_Saude_Alimentar.md.
+adminRouter.get('/saude', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [cn] = await pool.query('SELECT categoria, variedade, nutriscore, nova_group, dispersao FROM categoria_nutricao');
+    const cache = new Map(cn.map((r) => [`${r.categoria}|${r.variedade || ''}`, r]));
+    const look = (cat, vari) => cache.get(`${cat}|${vari}`) || cache.get(`${cat}|`) || null;
+    const [its] = await pool.query(`
+      SELECT m.categoria cat, SUBSTRING_INDEX(SUBSTRING_INDEX(m.chave,'|',5),'|',-1) AS vari, COUNT(i.id) n
+        FROM produto_mestre m JOIN sku_normalizado s ON s.mestre_id = m.id
+        JOIN item i ON i.sku_id = s.id AND i.is_non_product = 0
+       GROUP BY m.categoria, vari`);
+    const total = its.reduce((a, x) => a + x.n, 0);
+    let comNut = 0, semNut = 0;
+    const nova = {}, nutri = {}, ultra = {}, largas = {};
+    for (const x of its) {
+      const r = look(x.cat, x.vari || '');
+      if (!r || (r.nova_group == null && r.nutriscore == null)) { semNut += x.n; continue; }
+      comNut += x.n;
+      if (r.nova_group != null) nova[r.nova_group] = (nova[r.nova_group] || 0) + x.n;
+      if (r.nutriscore) nutri[r.nutriscore] = (nutri[r.nutriscore] || 0) + x.n;
+      const rot = x.vari ? `${x.cat} ${x.vari}` : x.cat;
+      if (String(r.nova_group) === '4') ultra[rot] = (ultra[rot] || 0) + x.n;
+      if (r.dispersao === 'larga') largas[rot] = (largas[rot] || 0) + x.n;
+    }
+    const lista = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([rotulo, n]) => ({ rotulo, n }));
+    res.json({ total, comNut, semNut, nova, nutri, ultra: lista(ultra), largas: lista(largas) });
+  } catch (e) {
+    console.error('[admin/saude] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a calcular saúde do cesto' });
+  }
+});
+
 // Qualidade de PREÇO: para cada SKU com ≥2 observações, marca os itens cujo
 // preco_por_base se afasta muito da mediana (>fator× ou <1/fator×). Apanha
 // inconsistências de unidade/quantidade/formato — ovos per-caixa vs per-ovo,

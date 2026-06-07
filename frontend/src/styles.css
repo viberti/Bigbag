@@ -323,6 +323,26 @@ body {
 .adm-ordenar select { flex: 1; padding: 5px 8px; border-radius: 6px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); font-size: 12px; }
 .adm-total { padding: 6px 12px; background: #131c21; border-bottom: 1px solid #0006; color: var(--muted); font-size: 12px; }
 .adm-novo-bar { padding: 0 10px 8px; background: #131c21; border-bottom: 1px solid #0006; }
+
+/* Saúde do cesto */
+.adm-saude { padding: 20px 24px; overflow-y: auto; }
+.adm-saude-cab { color: var(--muted); font-size: 13px; margin: 4px 0 14px; }
+.adm-saude-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 800px) { .adm-saude-2col { grid-template-columns: 1fr; } }
+.adm-barras { display: flex; flex-direction: column; gap: 7px; padding: 4px 0; }
+.adm-barra-linha { display: grid; grid-template-columns: 190px 1fr 90px; align-items: center; gap: 10px; font-size: 13px; }
+.adm-barra-rot { color: var(--texto); }
+.adm-barra-trilho { height: 16px; background: #ffffff10; border-radius: 8px; overflow: hidden; }
+.adm-barra-fill { display: block; height: 100%; border-radius: 8px; }
+.adm-barra-pct { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.adm-barra-fill.q-bom { background: #2e9e5b; } .adm-barra-fill.q-medio { background: #d9a441; } .adm-barra-fill.q-mau { background: #d65745; }
+.adm-barra-rot.q-bom { color: #6fd89a; } .adm-barra-rot.q-medio { color: #e6c06a; } .adm-barra-rot.q-mau { color: #ef9a8f; }
+.adm-barra-fill.ns-a { background: #2e9e5b; } .adm-barra-fill.ns-b { background: #8bc34a; } .adm-barra-fill.ns-c { background: #d9a441; } .adm-barra-fill.ns-d { background: #e07b39; } .adm-barra-fill.ns-e { background: #d65745; }
+.adm-barra-rot.ns-a,.adm-barra-rot.ns-b { color: #8fd6a0; } .adm-barra-rot.ns-c { color: #e6c06a; } .adm-barra-rot.ns-d,.adm-barra-rot.ns-e { color: #ef9a8f; }
+.adm-chips { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.adm-chip { padding: 3px 9px; border-radius: 12px; font-size: 12px; background: #ffffff0c; border: 1px solid #ffffff14; }
+.adm-chip em { color: var(--muted); font-style: normal; }
+.adm-chip.q-mau { border-color: #d6574555; } .adm-chip.q-medio { border-color: #d9a44155; }
 .adm-novo-btn { width: 100%; background: none; border: 1px dashed #3a4a52; color: var(--muted); padding: 7px; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .adm-novo-btn:hover { color: var(--texto); border-color: var(--verde); }
 .adm-novo-form { padding: 4px 10px 10px; display: flex; flex-direction: column; gap: 6px; background: #131c21; border-bottom: 1px solid #0006; }
