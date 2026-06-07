@@ -29,6 +29,13 @@ export function limparDescricao(d) {
     s = s.replace(/\s+[\d.,]+\s*EUR\/kg(EUR)?/gi, '');
     s = s.replace(/kgEUR/gi, 'kg'); // duplicação de OCR
     s = s.replace(/\s+\d+,\d{1,3}\s*kg\b/gi, ''); // peso pesado "2,880 kg" (kg decimal; mantém pack "500 G")
+    // Unidade SOLTA no nome ("BATATA VERMELHA KG" → vendida a kg, não é o nome).
+    // Só remove se vier depois de uma LETRA (não de número) — preserva tamanho de
+    // pacote "1 KG"/"500 G" e o calibre de ovo "Classe L". Não toca em "L"/"LT"/"GR"
+    // (calibre de ovo · abreviatura de leite · grande/granel) — ambíguos demais.
+    s = s.replace(/\s+(kgs?|litros?)\b/gi, (m, _u, off, str) =>
+      /[a-z]$/i.test(str.slice(0, off).replace(/\s+$/, '')) ? '' : m,
+    );
     s = s.replace(/^\(\s*[A-Z]\s*\)\s*/, ''); // código IVA no início: "(A) " "(C) "
     s = s.replace(/^\d+\s+/, ''); // prefixo de quantidade: "1 "
     s = s.replace(/^C\s+(?=[A-Z])/, ''); // "C " (código IVA) seguido de palavra

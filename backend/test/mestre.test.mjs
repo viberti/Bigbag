@@ -25,6 +25,14 @@ test('tira peso pesado "N,NNN kg" mas mantém pack "500 G"', () => {
   assert.equal(limparDescricao('1 LARANJA 1,250 kg'), 'LARANJA');
   assert.equal(limparDescricao('MIRTILO 500 G'), 'MIRTILO 500 G'); // pack em gramas fica
 });
+test('tira unidade SOLTA "KG"/"LITRO" (após letra), preserva pack e calibre de ovo', () => {
+  assert.equal(limparDescricao('BATATA VERMELHA CNT KG'), 'BATATA VERMELHA CNT'); // KG sai; CNT é outro passo
+  assert.equal(limparDescricao('LARANJA KG'), 'LARANJA');
+  assert.equal(limparDescricao('SUMO LARANJA LITRO'), 'SUMO LARANJA');
+  assert.equal(limparDescricao('ARROZ 1 KG'), 'ARROZ 1 KG'); // pack (número antes) fica
+  assert.equal(limparDescricao('OVOS DE SOLO CLASSE L'), 'OVOS DE SOLO CLASSE L'); // calibre L fica
+  assert.equal(limparDescricao('LT UHT MG 1LT 6'), 'LT UHT MG 1LT 6'); // LT (=leite) e 1LT ficam
+});
 test('idempotente: prefixos empilhados são todos removidos numa passagem', () => {
   assert.equal(limparDescricao('1 1 BANANA'), 'BANANA');
   assert.equal(limparDescricao('(A) 1 BANANA'), 'BANANA');
