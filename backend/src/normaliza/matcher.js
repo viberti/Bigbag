@@ -25,16 +25,22 @@ const formatoProximo = (a, b) => {
 // um sabonete é o peso da barra (compara-se por unidade). Lista curta e extensível.
 const PALAVRAS_CONTADAS = /\bovos?\b|\bd[uú]zias?\b|sabonete/i;
 
+// Peça CORTADA de fruta grande / a granel: vendida a PESO mesmo sem kg na nota
+// (ex.: "MAMÃO PARTIDO", "MELANCIA PARTIDA", "MELÃO METADE"). Força kg → o €/kg
+// fica incomputável-honesto (null) em vez de um €/peça enganador (peças variam).
+const PESADO_A_GRANEL = /\bpartid[oa]s?\b|\bmetades?\b|\bao\s*kg\b|\bgranel\b/i;
+
 // Decide a unidade_base do SKU. REGRA: o formato determinístico GANHA ao LLM
 // quando há peso/volume EXPLÍCITO na descrição (g/kg/ml/cl/L, incl. multipack
 // "4X125G" = 500 g) — o LLM erra a unidade de fruta/legumes/queijo a peso
 // (DIOSPIRO 350G → 'un'). Volume → sempre L (seguro). Exceção: categorias
 // CONTADAS (ovos, sabonete) ficam com o 'un' do LLM. Sem peso/volume no
 // formato, usa a unidade do LLM (como antes). Pura → testável sem BD/LLM.
-export function decidirUnidadeBase(c, fmt) {
+export function decidirUnidadeBase(c, fmt, descRaw = '') {
   const temPesoVolume = fmt?.unidade_base === 'kg' || fmt?.unidade_base === 'L';
   const contado = PALAVRAS_CONTADAS.test(`${c?.nome_canonico || ''} ${c?.categoria || ''}`);
   if (temPesoVolume && !contado) return fmt.unidade_base;
+  if (PESADO_A_GRANEL.test(descRaw)) return 'kg'; // peça cortada/granel → vendida a peso
   return c?.unidade_base || fmt?.unidade_base || 'un';
 }
 
@@ -63,7 +69,7 @@ export async function resolverSku(
   const fmt = extrairFormato(descRaw);
   // peso variável (€/kg) não tem formato fixo
   const formato_valor = fmt.quantidadeKg != null ? null : fmt.formato_valor ?? null;
-  const unidade_base = decidirUnidadeBase(c, fmt);
+  const unidade_base = decidirUnidadeBase(c, fmt, descRaw);
 
   // 3) candidatos: mesma marca + unidade + formato compatível
   const [cands] = await db.query(

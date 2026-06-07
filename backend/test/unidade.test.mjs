@@ -40,6 +40,17 @@ test('sem peso/volume no formato → usa unidade do LLM', () => {
   assert.equal(decidirUnidadeBase(c, extrairFormato('ESCOVA DENTES MEDIA')), 'un');
 });
 
+test('peça cortada sem peso na nota → kg (MAMÃO PARTIDO), apesar do LLM dizer un', () => {
+  const c = { nome_canonico: 'Mamão', categoria: 'Frutas e Legumes', unidade_base: 'un' };
+  // sem formato de peso, mas "PARTIDO" indica peça a peso → kg (ppb fica null honesto)
+  assert.equal(decidirUnidadeBase(c, extrairFormato('MAMÃO PARTIDO'), 'MAMÃO PARTIDO'), 'kg');
+  assert.equal(decidirUnidadeBase(c, extrairFormato('MELANCIA PARTIDA'), 'MELANCIA PARTIDA'), 'kg');
+});
+test('sem sinal de peça cortada → mantém un do LLM (alface vendida à unidade)', () => {
+  const c = { nome_canonico: 'Alface', categoria: 'Frutas e Legumes', unidade_base: 'un' };
+  assert.equal(decidirUnidadeBase(c, extrairFormato('ALFACE'), 'ALFACE'), 'un');
+});
+
 test('fallback un quando não há formato nem LLM', () => {
   assert.equal(decidirUnidadeBase({}, extrairFormato('PRODUTO QUALQUER')), 'un');
 });

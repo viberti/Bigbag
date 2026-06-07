@@ -9,7 +9,7 @@ async function recomp(db, rows) {
   for (const r of rows) {
     if (r.ppb_inferido) continue; // valor inferido pela auto-correção — não sobrescrever
     if (r.is_non_product) {
-      await db.query('UPDATE item SET preco_por_base = NULL WHERE id = ?', [r.id]);
+      await db.query('UPDATE item SET preco_por_base = NULL, peso_em_falta = 0 WHERE id = ?', [r.id]);
       continue;
     }
     const fmt = extrairFormato([r.descricao_original, r.linha_peso].filter(Boolean).join(' '));
@@ -19,7 +19,11 @@ async function recomp(db, rows) {
     if (ppb != null && !r.precos_com_iva && r.taxa_iva != null) {
       ppb = Math.round(ppb * (1 + Number(r.taxa_iva)) * 10000) / 10000;
     }
-    await db.query('UPDATE item SET preco_por_base = ? WHERE id = ?', [ppb, r.id]);
+    // Produto a peso/volume (kg/L) mas sem peso na nota → ppb incomputável (null):
+    // marca peso_em_falta para excluir do €/kg sem fingir um valor por peça.
+    const alvoKgL = r.unidade_base === 'kg' || r.unidade_base === 'L';
+    const pesoEmFalta = alvoKgL && ppb == null ? 1 : 0;
+    await db.query('UPDATE item SET preco_por_base = ?, peso_em_falta = ? WHERE id = ?', [ppb, pesoEmFalta, r.id]);
   }
   return rows.length;
 }
