@@ -8,7 +8,7 @@
 // Uso:  node --env-file=.env scripts/limpar_descricoes.mjs          (preview, não escreve)
 //       node --env-file=.env scripts/limpar_descricoes.mjs --apply  (aplica)
 import { getPool } from '../src/db.js';
-import { limparDescricao } from '../src/normaliza/mestre.js';
+import { limparDescricao, ln } from '../src/normaliza/mestre.js';
 
 const APPLY = process.argv.includes('--apply');
 const RE_TEM_PESO = /\d+[.,]\d+\s*kg|kg\s*[x×X]\s*\d|eur\s*\/\s*kg|€\s*\/\s*kg/i;
@@ -34,15 +34,21 @@ for (const e of exItem) log(e);
 
 // ───────── 2) SKU_ALIAS: limpa + funde colisões (descricao_original é UNIQUE) ─────────
 const [aliases] = await db.query('SELECT id, descricao_original AS d, sku_id, origem, confianca FROM sku_alias');
-const grupos = new Map(); // chaveLimpa -> [alias...]
+// Agrupa por chave collation-aware (ln: sem acento/caixa) — a UNIQUE do MySQL é
+// utf8mb4_unicode_ci, logo "ÓLEO"/"oleo" colidem; têm de cair no MESMO grupo.
+const grupos = new Map(); // chaveColl -> { display, itens:[alias...] }
 for (const a of aliases) {
-  const k = limparDescricao(a.d || '') || a.d;
-  (grupos.get(k) || grupos.set(k, []).get(k)).push(a);
+  const display = limparDescricao(a.d || '') || a.d;
+  const kColl = ln(display) || display;
+  const g = grupos.get(kColl) || grupos.set(kColl, { display, itens: [] }).get(kColl);
+  g.itens.push(a);
 }
 const peso = { manual: 3, revisao: 2, llm: 1 };
 let nAliasMud = 0, nFundidos = 0, nConflitoSku = 0;
 const exAlias = [];
-for (const [k, grp] of grupos) {
+for (const [, g] of grupos) {
+  const grp = g.itens;
+  const k = g.display; // forma a gravar (limpa)
   const mudou = grp.length > 1 || grp[0].d !== k;
   if (!mudou) continue;
   // vencedor: origem mais forte → maior confiança → menor id
@@ -63,9 +69,11 @@ for (const [k, grp] of grupos) {
       await conn.beginTransaction();
       const ids = grp.map((a) => a.id);
       await conn.query(`DELETE FROM sku_alias WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
-      await conn.query('INSERT INTO sku_alias (descricao_original, sku_id, origem, confianca) VALUES (?,?,?,?)', [
-        k, vencedor.sku_id, vencedor.origem, vencedor.confianca,
-      ]);
+      await conn.query(
+        `INSERT INTO sku_alias (descricao_original, sku_id, origem, confianca) VALUES (?,?,?,?)
+           ON DUPLICATE KEY UPDATE sku_id = VALUES(sku_id), origem = VALUES(origem), confianca = VALUES(confianca)`,
+        [k, vencedor.sku_id, vencedor.origem, vencedor.confianca],
+      );
       await conn.commit();
     } catch (e) {
       await conn.rollback();
