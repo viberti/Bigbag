@@ -38,7 +38,7 @@ async function upsert(cat, vari, tag, prods) {
        ON DUPLICATE KEY UPDATE off_tag=VALUES(off_tag), origem=VALUES(origem), n_amostra=VALUES(n_amostra), nutriscore=VALUES(nutriscore), nova_group=VALUES(nova_group), acucar_med=VALUES(acucar_med), gord_sat_med=VALUES(gord_sat_med), sal_med=VALUES(sal_med), dispersao=VALUES(dispersao)`,
     [cat, vari, tag, 'off', prods.length, ms?.[0] || null, mn ? Number(mn[0]) || null : null, med(prods.map((p) => g(p, 'sugars_100g'))), med(prods.map((p) => g(p, 'saturated-fat_100g'))), med(prods.map((p) => g(p, 'salt_100g'))), disp],
   );
-  console.log(`✓ ${(cat + '|' + var).padEnd(28)} ${tag.padEnd(20)} Nutri ${ms?.[0] || '—'} NOVA ${mn?.[0] || '—'} ${disp} (n=${prods.length})`);
+  console.log(`✓ ${(cat + '|' + vari).padEnd(28)} ${tag.padEnd(20)} Nutri ${ms?.[0] || '—'} NOVA ${mn?.[0] || '—'} ${disp} (n=${prods.length})`);
 }
 
 // 1) queijo: variedades → tag OFF fina (NOVA correto, do OFF)
