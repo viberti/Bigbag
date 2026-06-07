@@ -105,6 +105,8 @@ Comparámos 5 VLMs na **mesma imagem** (20 talões), medindo reconciliação (Σ
 
 **Conclusões:** (1) o **mais barato não compensa** — `qwen`/`flash-lite` (~$0,11/100) leem o total mas erram preços/quantidades (|disc| ~4€); o qwen ainda perde itens. (2) O **custo é um não-fator**: mesmo o melhor custa **<$0,01/nota** → a decisão é por **qualidade**, não preço. (3) A **geração 3.x supera a 2.5** (o `gemini-3-flash-preview` lidera; o `gemini-3.1-flash-lite` iguala o atual e é mais barato, mas perdeu itens em 2/20 — e perder itens é o pior erro). **Decisão: mantido `gemini-2.5-flash`** (estável, 20/20 itens); `gemini-3-flash-preview` é a opção de maior qualidade se aceitar o risco de "preview". *(Medição single-pass; o loop de auto-correção em produção aproxima todos os modelos. Preços do OpenRouter à data — re-medir quando saírem modelos novos.)*
 
+**Alavanca de custo (simulada, NÃO implementada).** Estratégia "barato-primeiro, escala-quando-falha": 1ª passada com `gemini-3.1-flash-lite` e, só quando a reconciliação falha, 2ª passada com `gemini-2.5-flash` (o loop de auto-correção). Simulação sobre os mesmos 20 talões: **$0,45 vs $0,70 por 100 notas (−36%)**, com **5/20 escalações** e **0 itens perdidos sem escalar** — a fraqueza do lite (perder itens) é neutralizada porque, quando perde, também falha a reconciliação e escala. Qualidade equivalente à atual. **Adiada** porque a poupança absoluta é trivial (~$0,15 na vida das 58 notas atuais) e não compensa a complexidade de um loop com dois modelos + dependência extra. **É um padrão para escala** (público, milhares de notas/mês), não para utilizador único. Re-considerar se o volume crescer.
+
 ---
 
 ## 5. Subsistema B — Consulta por nota de voz (o foco)
