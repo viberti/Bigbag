@@ -11,6 +11,11 @@ const dataCurta = (iso) => String(iso || '').slice(0, 10);
 export default function Admin() {
   const [sessao, setSessao] = useState(undefined);
   const [aba, setAba] = useState('painel');
+  const [notaAlvo, setNotaAlvo] = useState(null); // fatura a abrir na aba Notas (vindo de Produtos)
+  const abrirNota = (faturaId) => {
+    setNotaAlvo(faturaId);
+    setAba('notas');
+  };
   useEffect(() => {
     verificarSessao().then(setSessao).catch(() => setSessao(null));
   }, []);
@@ -58,7 +63,7 @@ export default function Admin() {
       ) : aba === 'mestres' ? (
         <TabMestres />
       ) : aba === 'produtos' ? (
-        <TabProdutos />
+        <TabProdutos onAbrirNota={abrirNota} />
       ) : aba === 'ligar' ? (
         <TabLigar />
       ) : aba === 'fusoes' ? (
@@ -70,7 +75,7 @@ export default function Admin() {
       ) : aba === 'precos' ? (
         <TabPrecos />
       ) : (
-        <TabNotas />
+        <TabNotas notaAlvo={notaAlvo} onConsumir={() => setNotaAlvo(null)} />
       )}
     </div>
   );
@@ -250,7 +255,7 @@ function TabMestres() {
 }
 
 // ───────────────────────────── Produtos ─────────────────────────────
-function TabProdutos() {
+function TabProdutos({ onAbrirNota }) {
   const [q, setQ] = useState('');
   const [ordem, setOrdem] = useState('nome'); // nome · desc (nº descrições das notas) · itens
   const [skus, setSkus] = useState([]);
@@ -266,8 +271,6 @@ function TabProdutos() {
   const [novoNome, setNovoNome] = useState('');
   const [novaUnidade, setNovaUnidade] = useState('un');
   const [descLivres, setDescLivres] = useState([]);
-  const [nota, setNota] = useState(null); // { url, pdf } da imagem/PDF da nota
-  const notaRef = useRef('');
 
   const recarregarLista = (busca = q, ord = ordem) =>
     adm
@@ -280,29 +283,6 @@ function TabProdutos() {
   useEffect(() => {
     recarregarLista('');
   }, []);
-  useEffect(
-    () => () => {
-      if (notaRef.current) URL.revokeObjectURL(notaRef.current);
-    },
-    [],
-  );
-
-  async function verNota(faturaId) {
-    if (!faturaId) return;
-    if (notaRef.current) URL.revokeObjectURL(notaRef.current);
-    try {
-      const f = await adm.carregarFicheiro(faturaId);
-      notaRef.current = f.url;
-      setNota(f);
-    } catch {
-      setNota(null);
-    }
-  }
-  function fecharNota() {
-    if (notaRef.current) URL.revokeObjectURL(notaRef.current);
-    notaRef.current = '';
-    setNota(null);
-  }
 
   async function abrir(id) {
     setSel(id);
@@ -495,7 +475,11 @@ function TabProdutos() {
                   <span>
                     {d.descricao} <em>×{d.n}</em>
                   </span>
-                  <button className="adm-vernota" title="ver a nota" onClick={() => verNota(d.fatura_id)}>
+                  <button
+                    className="adm-vernota"
+                    title="abrir esta nota (aba Notas: imagem + interpretação)"
+                    onClick={() => d.fatura_id && onAbrirNota(d.fatura_id)}
+                  >
                     🧾
                   </button>
                   <button className="adm-x" title="dissociar" onClick={() => dissociar(d.descricao)}>
@@ -570,19 +554,6 @@ function TabProdutos() {
           </>
         )}
       </section>
-
-      {nota && (
-        <div className="adm-zoom" onClick={fecharNota}>
-          <button className="adm-zoom-x" onClick={fecharNota} aria-label="fechar">
-            ✕
-          </button>
-          {nota.pdf ? (
-            <iframe className="adm-zoom-pdf" src={nota.url} title="nota (PDF)" onClick={(e) => e.stopPropagation()} />
-          ) : (
-            <img src={nota.url} alt="nota" onClick={(e) => e.stopPropagation()} />
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -1085,7 +1056,7 @@ function TabPrecos() {
 }
 
 // ─────────────────────────────── Notas ───────────────────────────────
-function TabNotas() {
+function TabNotas({ notaAlvo, onConsumir }) {
   const [status, setStatus] = useState('pendente');
   const [notas, setNotas] = useState([]);
   const [sel, setSel] = useState(null);
@@ -1107,6 +1078,15 @@ function TabNotas() {
     },
     [],
   );
+  // Veio um pedido da aba Produtos (clique no 🧾): abre essa nota direto.
+  // Põe o filtro em 'todas' para a nota aparecer também na lista à esquerda.
+  useEffect(() => {
+    if (!notaAlvo) return;
+    setStatus('all');
+    abrir(notaAlvo);
+    onConsumir?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notaAlvo]);
 
   async function abrir(id) {
     setSel(id);
