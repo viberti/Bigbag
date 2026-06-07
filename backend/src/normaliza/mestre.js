@@ -28,6 +28,7 @@ export function limparDescricao(d) {
     s = s.replace(/\s+[A-Z]?\s*kg\s*x[\d.,]+\s+[\d.,]+\s*EUR\/kg(EUR)?/gi, ''); // "B kg x0,534 6,29 EUR/kg"
     s = s.replace(/\s+[\d.,]+\s*EUR\/kg(EUR)?/gi, '');
     s = s.replace(/kgEUR/gi, 'kg'); // duplicação de OCR
+    s = s.replace(/\s+\d+,\d{1,3}\s*kg\b/gi, ''); // peso pesado "2,880 kg" (kg decimal; mantém pack "500 G")
     s = s.replace(/^\(\s*[A-Z]\s*\)\s*/, ''); // código IVA no início: "(A) " "(C) "
     s = s.replace(/^\d+\s+/, ''); // prefixo de quantidade: "1 "
     s = s.replace(/^C\s+(?=[A-Z])/, ''); // "C " (código IVA) seguido de palavra
