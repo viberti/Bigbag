@@ -13,6 +13,7 @@
 import { extrairFormato } from './formato.js';
 import { canonicalizar as canonicalizarLLM, confirmarMesmoProduto } from './canonical.js';
 import { melhorCandidato, normalizarNome } from './similaridade.js';
+import { limparDescricao } from './mestre.js';
 
 const formatoProximo = (a, b) => {
   if (a == null || b == null) return a == null && b == null;
@@ -42,7 +43,11 @@ export async function resolverSku(
   descricaoOriginal,
   { canonicalizar = canonicalizarLLM, confirmar = confirmarMesmoProduto, limiarAuto = 0.85, limiarRevisao = 0.6, cadeia } = {},
 ) {
-  const desc = String(descricaoOriginal || '').trim();
+  const descRaw = String(descricaoOriginal || '').trim();
+  // Chave do alias = descrição LIMPA (sem qtd/peso/preço/IVA). Antes a chave era a
+  // linha crua, com o peso variável por compra (x1,056 vs x1,670) → a MESMA banana
+  // nunca reusava o alias e re-corria fuzzy/LLM. Limpa estabiliza o cache.
+  const desc = limparDescricao(descRaw) || descRaw;
 
   // 1) alias exato (cache) — mantém a confiança gravada no alias
   const [al] = await db.query('SELECT sku_id, confianca FROM sku_alias WHERE descricao_original = ?', [desc]);
@@ -54,7 +59,8 @@ export async function resolverSku(
     return { sku_id: null, via: 'revisao', canonical: c || null };
   }
 
-  const fmt = extrairFormato(desc);
+  // Formato/peso extrai-se da linha CRUA (o peso é o sinal: "kg x1,056" etc.).
+  const fmt = extrairFormato(descRaw);
   // peso variável (€/kg) não tem formato fixo
   const formato_valor = fmt.quantidadeKg != null ? null : fmt.formato_valor ?? null;
   const unidade_base = decidirUnidadeBase(c, fmt);

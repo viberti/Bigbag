@@ -22,7 +22,7 @@ test('não mexe quando não há linhas de desconto', () => {
   assert.equal(out[0].desconto_direto, 0);
 });
 
-test('dobra a linha órfã de peso: nome fica LIMPO, peso vai para linha_peso', () => {
+test('dobra a linha órfã de peso: nome fica LIMPO (sem prefixo de qtd), peso vai para linha_peso', () => {
   const entrada = [
     { descricao_original: '1 BANANA', valor: 1.81 },
     { descricao_original: '2,426 kg 1,20 EUR/kg', valor: 2.91 },
@@ -31,12 +31,33 @@ test('dobra a linha órfã de peso: nome fica LIMPO, peso vai para linha_peso', 
   ];
   const out = normalizarItens(entrada);
   assert.equal(out.length, 2); // as linhas só-de-peso desaparecem
-  assert.equal(out[0].descricao_original, '1 BANANA'); // nome estável, sem peso
+  assert.equal(out[0].descricao_original, 'BANANA'); // prefixo "1 " removido
   assert.equal(out[0].linha_peso, '2,426 kg 1,20 EUR/kg');
   assert.equal(out[0].valor, 2.91); // usa o total da linha de peso (não o 1,81 errado)
-  assert.equal(out[1].descricao_original, '1 BATATA VERMELHA');
+  assert.equal(out[1].descricao_original, 'BATATA VERMELHA');
   assert.equal(out[1].linha_peso, '0,816 kg 1,70 €/kg');
   assert.equal(out[1].valor, 1.39);
+});
+
+// Limpeza final: ruído que o RE_PESO_INLINE não apanha (prefixos, ordem Continente-PDF).
+test('tira prefixo de quantidade e código IVA do nome', () => {
+  const out = normalizarItens([
+    { descricao_original: '1 MANAO PARTIDO', valor: 1.89 },
+    { descricao_original: 'C BANANA IMPORTADA', valor: 1.35 },
+    { descricao_original: '(A) IOG MYTHOS CNT COCO 4X115G', valor: 1.5 },
+  ]);
+  assert.equal(out[0].descricao_original, 'MANAO PARTIDO');
+  assert.equal(out[1].descricao_original, 'BANANA IMPORTADA');
+  assert.equal(out[2].descricao_original, 'IOG MYTHOS CNT COCO 4X115G'); // formato 4X115G fica (é identidade)
+});
+test('ordem Continente-PDF "B kg x1,056 1,19 EUR/kgEUR": nome limpo, peso preservado em linha_peso', () => {
+  const out = normalizarItens([{ descricao_original: 'BANANA B kg x1,056 1,19 EUR/kgEUR', valor: 1.26 }]);
+  assert.equal(out[0].descricao_original, 'BANANA');
+  assert.ok(out[0].linha_peso && /1,056/.test(out[0].linha_peso)); // peso guardado → ppb recuperável num reprocesso
+});
+test('pack "MIRTILO 500 G" NÃO é tocado (tamanho de embalagem é identidade)', () => {
+  const out = normalizarItens([{ descricao_original: 'MIRTILO 500 G', valor: 5.15 }]);
+  assert.equal(out[0].descricao_original, 'MIRTILO 500 G');
 });
 
 test('peso colado ao nome (inline/\\n) é separado para linha_peso', () => {

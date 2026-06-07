@@ -1,4 +1,5 @@
 // Normalização pós-extração, independente do VLM (rede de segurança).
+import { limparDescricao } from '../normaliza/mestre.js';
 // Alguns VLMs emitem a "Poupança"/"Desconto" como uma LINHA à parte em vez de
 // a associarem ao produto. Aqui dobramos essas linhas no desconto_direto do
 // item imediatamente acima e removemo-las da lista — assim a contagem de itens
@@ -18,6 +19,12 @@ const RE_PESO_ORFAO = new RegExp(`^\\s*${PESO}`, 'i');
 // Peso COLADO ao nome (inline ou após \n): "BANANA\n1,800 kg x 1,19 EUR/kg",
 // "BANANA 1,170 X 1,29".
 const RE_PESO_INLINE = new RegExp(`[\\s\\n]+(${PESO}|${PESO_SEMUNID})\\s*$`, 'i');
+
+// Sinais de que a descrição ainda carrega peso/preço (€/kg, "kg x", "N,NNN kg").
+// Se for o caso e ainda não houver linha_peso, preserva-se a linha crua em
+// linha_peso ANTES de limpar o nome — senão um reprocesso perde o €/kg
+// (reprocess.js calcula o ppb de descricao_original+linha_peso juntos).
+const RE_TEM_PESO = /\d+[.,]\d+\s*kg|kg\s*[x×X]\s*\d|eur\s*\/\s*kg|€\s*\/\s*kg/i;
 
 export function normalizarItens(itens) {
   const out = [];
@@ -45,6 +52,14 @@ export function normalizarItens(itens) {
     if (m) {
       novo.linha_peso = m[1];
       desc = desc.slice(0, m.index).trim();
+    }
+    // Passo final: tira ruído que o RE_PESO_INLINE não apanha (prefixo de
+    // quantidade "1 ", código IVA "(A)"/"C ", ordem Continente-PDF "B kg x1,056
+    // 1,19 EUR/kg"). Preserva o peso em linha_peso antes de o remover do nome.
+    const limpa = limparDescricao(desc);
+    if (limpa && limpa !== desc) {
+      if (!novo.linha_peso && RE_TEM_PESO.test(desc)) novo.linha_peso = desc;
+      desc = limpa;
     }
     novo.descricao_original = desc;
     out.push(novo);
