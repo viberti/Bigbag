@@ -3,7 +3,7 @@
 > Documento técnico para análise. Descreve o **problema** da normalização, as
 > **dificuldades** reais encontradas, a **solução** adotada e os **problemas em
 > aberto**. Sem segredos, credenciais nem dados de utilizador.
-> Última atualização: 2026-06-06.
+> Última atualização: 2026-06-07.
 >
 > **Ver também:** [`Taxonomia_Produto.md`](Taxonomia_Produto.md) — o **modelo-alvo**
 > facetado (standards OFF/GS1/IFPS, níveis e coortes), com o iogurte grego como
@@ -43,9 +43,13 @@ item.descricao_original ──(resolução)──► sku_normalizado ◄──(c
     de 425 g); `NULL` para peso variável (€/kg de balcão).
   - `nome_simplificado` — agrupamento grosseiro opcional (operador).
 - **`sku_alias`** — cache `descricao_original → sku_id` (com `origem`: `llm`/`manual`).
-  As descrições repetem-se muito; o alias evita re-canonicalizar.
-- **`item`** — guarda `descricao_original` (verdade crua, nunca se perde),
-  `preco_por_base` (comparável; **sempre com IVA**) e `taxa_iva`.
+  As descrições repetem-se muito; o alias evita re-canonicalizar. **A chave é a
+  descrição LIMPA** (sem qtd/peso/preço/IVA) — senão o peso variável por compra
+  fazia a mesma banana nunca reusar o alias (ver §4.1).
+- **`item`** — guarda `descricao_original` (nome **limpo**; o ruído estrutural vai
+  fora), `linha_peso` (peso de balcão, à parte do nome), `preco_por_base`
+  (comparável; **sempre com IVA**), `taxa_iva`, e **`peso_em_falta`** (produto a
+  peso/volume sem peso na nota → `ppb=NULL` honesto, marcado p/ sair do €/kg).
 
 ## 3. O pipeline (3 camadas + pós-processos)
 
@@ -62,6 +66,19 @@ mais específico ao mais geral:
 `precoPorBase(item, formato, unidadeAlvo)`: usa a **unidade autoritativa do SKU**.
 Se o alvo é peso/volume mas a descrição não traz peso → devolve **`null`**
 (incomputável honesto), em vez de um €/embalagem enganador.
+
+**Peso estruturado na extração (2026-06-07):** o VLM passou a devolver `peso_kg` e
+`preco_base_impresso` (€/kg) em **campos próprios** do JSON, em vez de colar o peso
+no nome. `normalizarItens` reconstrói o `linha_peso` canónico desses campos — o nome
+fica limpo na origem e o €/kg vem direto do talão (sem regex). Os caminhos regex
+mantêm-se como rede de segurança (PDF-texto / retrocompatibilidade).
+
+**Derivação por pacote fixo (`ppb.js`, `pacoteFixoFiavel`):** quando o produto é a
+peso mas a linha não traz peso E o SKU é um **pacote fixo fiável** (`formato_valor`
+real ≠1, **nunca** pesado ao balcão, sem marcador `KG`/`GRANEL` nem multipack na
+descrição), deriva-se `€/base = preço / tamanho do pacote`. Recupera packs de peso
+fixo (ex.: mirtilo 500 g → 10,30 €/kg) **sem** fabricar €/kg para itens pesados ao
+balcão (banana, carne — esses ficam `peso_em_falta`).
 
 ### Camada 2 — Canonicalização por LLM (`canonical.js`)
 Texto-only (barato). Devolve `{ nome_canonico (sem marca/formato), marca,
@@ -119,9 +136,16 @@ agrupam-se em três famílias:
   já está no `quantidade`) → dupla contagem. Não há regra segura genérica.
 - **Peso simplesmente ausente**: o talão **simplificado do Continente NÃO imprime
   o peso** de produtos a granel (`(A) BANANA 2,07`) — só o total. O €/kg é
-  **estruturalmente irrecuperável** dessa fonte.
+  **estruturalmente irrecuperável** dessa fonte → hoje fica `peso_em_falta` (§5).
 - **Pré-embalados sem peso**: `QUEIJO GOUDA 3,85` (Lidl) — queijo a peso vendido por
-  embalagem, sem peso impresso → €/kg desconhecido.
+  embalagem, sem peso impresso → €/kg desconhecido (`peso_em_falta`).
+- **Ruído no nome capturado** (resolvido): a descrição trazia qtd/peso/preço/IVA
+  colados (`1 BANANA 2,880 kg`, `BANANA B kg x1,056 1,19 EUR/kgEUR`, `(A) IOG…`).
+  Além de feio, **quebrava o cache de aliases** — o peso varia a cada compra, logo
+  a mesma banana nunca reusava o alias e re-corria fuzzy/LLM. **Solução:**
+  `limparDescricao` corre como passo final em `normalizarItens` (preserva o peso em
+  `linha_peso` antes de o tirar) e a **chave do alias é a descrição limpa**. A nova
+  extração estruturada já entrega o nome limpo na origem.
 
 ### 4.2 Unidade autoritativa errada (Camada 2) — **resolvido**
 - A canonicalização **adivinhava mal a unidade**: classificou `DIOSPIRO MOLE 350 G`
@@ -149,6 +173,12 @@ agrupam-se em três famílias:
 - **Match na consulta por substring**: `LIKE '%leite%'` apanha "Doce de Leite" e
   "Leite Achocolatado" ao perguntar por "leite". Valores certos por item, mas
   **produtos misturados**.
+- **Faturas duplicadas por nome/data mal lidos** (resolvido): o VLM leu o Mercadona
+  como "Irmadona" e errou a data → a mesma compra entrou **duas vezes** (a dedup
+  antiga era por `loja_id`+data+total). **Solução:** dedup robusta em `persist.js` —
+  `cadeia + total + nº de itens`, confirmada por **sobreposição de preços**
+  (`sobreposicaoPrecos`, tolera ±0,02 de OCR). Forte porque, com itens a peso, dois
+  trajetos reais quase nunca dão o total exatamente igual.
 
 ### 4.4 IVA (transversal ao preço comparável)
 - O **grossista (Makro) imprime preços SEM IVA**, somado no fim; supermercados com
@@ -173,9 +203,20 @@ agrupam-se em três famílias:
   (itens sem SKU + mapeamentos de baixa confiança), tornando a curadoria dirigida por
   dados em vez de caça aleatória. Limpeza de SKUs órfãos (0 itens, sem alias manual)
   corre no fim de cada reprocesso.
-- **Sinais honestos, não números forçados**: `preco_por_base = null` quando o peso
-  é desconhecido (em vez de assumir 1 kg); `(desconhecido)` quando a descrição não
-  tem produto; `needs_review` quando a reconciliação não bate.
+- **Sinais honestos, não números forçados**: `preco_por_base = null` + **`peso_em_falta`**
+  quando o produto é a peso mas a nota não traz peso (em vez de assumir 1 kg ou um
+  €/peça enganador); `(desconhecido)` quando a descrição não tem produto;
+  `needs_review` quando a reconciliação não bate.
+- **Nome limpo na origem + chave de alias limpa**: `limparDescricao` tira qtd/peso/
+  preço/IVA do nome (preservando o peso em `linha_peso`); o alias passa a reusar. A
+  extração estruturada (`peso_kg`) entrega o nome já limpo.
+- **Derivação de €/kg por pacote fixo** (`pacoteFixoFiavel`): para packs de peso fixo
+  sem peso na linha (mirtilo 500 g), deriva do tamanho do pacote — nunca para itens
+  pesados ao balcão (evita €/kg fabricado).
+- **Dedup robusta a leituras erradas**: `cadeia + total + nº de itens` + sobreposição
+  de preços — apanha duplicados mesmo com nome de loja ou data mal lidos.
+- **Peça cortada a peso → kg**: `decidirUnidadeBase` força kg para "partido/partida/
+  metade/granel" (mamão partido), para o €/kg ficar `null` honesto em vez de €/peça.
 - **Auto-fusão por nome normalizado** (acentos fora) na ingestão **e no reprocesso**
   (corrigido), + fusão global no `/admin`.
 - **Auto-correção de outliers** por mediana do SKU (≥3×) com divisão por pack
@@ -206,10 +247,14 @@ agrupam-se em três famílias:
 4. **Match na consulta por substring** (`LIKE '%termo%'`): impreciso (mistura
    produtos). O passo seguinte seria **embeddings** sobre `nome_canonico`, ou casar
    pelo SKU em vez de pelo nome.
-5. **€/kg irrecuperável na origem**: Continente a granel (sem peso no talão) e
-   pré-embalados a peso sem peso impresso — sem o dado, não há €/kg. Hoje fica `null`
-   (e o operador pode escrever o peso à mão). Enriquecer pela web foi avaliado e
-   rejeitado (preço atual ≠ histórico, matching frágil, ToS).
+5. **€/kg irrecuperável na origem** (mitigado): lojas que não imprimem €/kg
+   (Mercadona/Aldi a granel) e pré-embalados a peso sem peso impresso. Investigação
+   (2026-06-07): re-ler as notas recuperou **só 1 item** — o resto é mesmo ausência
+   na fonte (causa 1), não perda de extração. Hoje: itens a peso sem peso → `null` +
+   **`peso_em_falta`** (fora do €/kg, honesto); packs de peso fixo recuperados por
+   `pacoteFixoFiavel`. Resíduo: peças variáveis (mamão partido) ficam sem €/kg — o
+   operador pode escrever o peso à mão. Enriquecer pela web: rejeitado (preço atual ≠
+   histórico, matching frágil, ToS).
 6. **Não-determinismo do LLM na canonicalização**: ainda pode introduzir variantes;
    a auto-fusão e a cache amortecem, mas não eliminam.
 7. **Dependência da qualidade da leitura (a montante)**: a normalização só é tão boa

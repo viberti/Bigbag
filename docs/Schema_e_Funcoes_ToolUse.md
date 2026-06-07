@@ -89,11 +89,13 @@ CREATE TABLE item (
   id                   BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   fatura_id            BIGINT UNSIGNED NOT NULL,
   sku_id               BIGINT UNSIGNED,           -- null até ser normalizado
-  descricao_original   VARCHAR(200) NOT NULL,     -- 'BOL DIGESTIVE AVEIA CNT 425GR'
+  descricao_original   VARCHAR(200) NOT NULL,     -- NOME limpo (qtd/peso/preço/IVA vão fora) — 'BOL DIGESTIVE AVEIA CNT 425GR'
+  linha_peso           VARCHAR(80),               -- peso de balcão à parte do nome ('2,426 kg x 1,20 EUR/kg') — fonte do €/kg; migração 013
   quantidade           DECIMAL(10,3) NOT NULL DEFAULT 1,  -- 3 (un) ou 0.418 (kg)
   preco_unitario       DECIMAL(10,4),             -- preço por unidade tal como na fatura
   preco_liquido        DECIMAL(10,2) NOT NULL,    -- preço IMPRESSO na linha (líquido do desconto da própria linha); o desconto de cartão NÃO entra aqui
   preco_por_base       DECIMAL(10,4),             -- preço normalizado p/ unidade_base do SKU (€/kg, €/L, €/un); SEMPRE com IVA (grossista convertido × (1+taxa))
+  peso_em_falta        TINYINT(1) NOT NULL DEFAULT 0, -- produto a peso (kg/L) sem peso na nota → ppb=NULL honesto, marcado p/ sair do €/kg; migração 018
   ppb_inferido         TINYINT(1) DEFAULT 0,      -- preco_por_base auto-corrigido por inferência (outlier de pack); recompute não o sobrescreve — migração 014
   taxa_iva             DECIMAL(4,3),              -- taxa de IVA do produto (0.060/0.130/0.230), resolvida na extração pelo código+legenda — migração 015
   is_clearance         BOOLEAN DEFAULT FALSE,     -- fim de validade: isolar da série histórica
@@ -112,8 +114,8 @@ CREATE TABLE item (
 - **`total_reconciliado` vs `total_impresso`** é a tua métrica de qualidade da extração embutida no schema: se não baterem (`Σbase − desconto_global ≠ total`), a extração perdeu/inventou/leu mal um item ou um desconto.
 - **`metodo_extracao`** na fatura permite-te, mais tarde, comparar VLM vs OCR+LLM em dados reais (a tua experiência) — sabes que abordagem gerou cada registo.
 - **`is_clearance` / `is_non_product`** são as flags das regras de negócio; as funções de consulta filtram-nas para não poluir o histórico.
-- **`descricao_original`** nunca se perde — é o que permite depurar a normalização e treinar/ajustar.
-- **Normalização de SKU corre na ingestão (Camadas 1-3).** Logo após gravar a fatura, cada item é resolvido para um `sku_normalizado` (alias-cache → canonicalização por LLM → match por similaridade); o script de lote `normalizar_skus` é a rede de segurança para o que ficar sem SKU. A canonicalização **corrige erros óbvios de leitura/OCR** ("OLO GIRASSOL"→"Óleo de Girassol", "RUPA TOMATE"→"Polpa de Tomate") usando conhecimento de produto — mas com guarda-corpos: **nunca altera números** (quantidade/preço vêm intactos da extração, não passam por esta camada), **nunca inventa** (se ilegível/ambíguo, baixa a confiança e o item fica para revisão com `sku_id` null), e o `descricao_original` cru fica sempre para auditoria. As consultas mostram `COALESCE(nome_canonico, descricao_original)`, por isso o nome corrigido aparece automaticamente.
+- **`descricao_original`** é o **nome limpo** do produto (qtd/peso/preço/IVA vão para os campos próprios: `quantidade`, `linha_peso`, `preco_*`, `taxa_iva`). A extração estruturada (`peso_kg`/`preco_base_impresso`) entrega-o limpo na origem; `limparDescricao` é a rede de segurança. **Fonte de auditoria do que foi lido = a imagem da nota** (`ficheiro_original`) + o `extracao_json`.
+- **Normalização de SKU corre na ingestão (Camadas 1-3).** Logo após gravar a fatura, cada item é resolvido para um `sku_normalizado` (alias-cache → canonicalização por LLM → match por similaridade); o script de lote `normalizar_skus` é a rede de segurança para o que ficar sem SKU. A canonicalização **corrige erros óbvios de leitura/OCR** ("OLO GIRASSOL"→"Óleo de Girassol", "RUPA TOMATE"→"Polpa de Tomate") usando conhecimento de produto — mas com guarda-corpos: **nunca altera números** (quantidade/preço vêm intactos da extração, não passam por esta camada), **nunca inventa** (se ilegível/ambíguo, baixa a confiança e o item fica para revisão com `sku_id` null), e a imagem da nota fica sempre para auditoria. As consultas mostram `COALESCE(nome_canonico, descricao_original)`, por isso o nome corrigido aparece automaticamente.
 - **Interface de operador (`/admin`) + tabela `revisao` (migração 011).** Tela desktop para gerir SKUs canónicos (renomear, associar/dissociar descrições, fundir dois produtos) e rever a leitura de cada nota (imagem + itens, marcar certa/errada com comentário). API em `/api/admin/*` (protegida); a imagem da nota vem de `GET /api/faturas/:id/imagem`. A tabela `revisao` (fatura_id, veredicto ok/erro, comentário, operador) guarda o feedback humano — o sinal para priorizar melhorias por mercado/produto. A **aba Revisão** (`GET /api/admin/baixa-confianca`) é uma worklist ordenada por confiança: itens sem SKU (não resolvidos) + mapeamentos de baixa confiança (`sku_alias.confianca` < limiar), do pior para o melhor; os legados sem pontuação (NULL) contam à parte e pontuam-se ao reprocessar.
 
 ---

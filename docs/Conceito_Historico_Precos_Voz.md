@@ -84,7 +84,12 @@ Dois subsistemas independentes que partilham a BD. Toda a IA passa pelo **OpenRo
 | IVA de grossista / cash-and-carry (Makro) | Preços das linhas SEM IVA; o IVA é somado ao total. Captar em `iva`; reconciliação `Σbase − desconto_global + iva = total`. (Nuance em aberto: comparar preço s/IVA do Makro com c/IVA do supermercado é injusto — falta normalizar) |
 
 ### 4.2 Normalização de SKU
-`BOL DIGESTIVE AVEIA CNT 425GR` → `Bolacha Digestive de Aveia · Continente · 425g · Mercearia Doce`. É o pedaço mais subestimado: agrupar o **mesmo** produto escrito de formas diferentes entre lojas/datas é o que faz a consulta "onde está mais barato" funcionar. Candidato a experimentação: LLM puro vs. embeddings + similaridade.
+`BOL DIGESTIVE AVEIA CNT 425GR` → `Bolacha Digestive de Aveia · Continente · 425g · Mercearia Doce`. É o pedaço mais subestimado: agrupar o **mesmo** produto escrito de formas diferentes entre lojas/datas é o que faz a consulta "onde está mais barato" funcionar. Candidato a experimentação: LLM puro vs. embeddings + similaridade. **Detalhe atual e problemas em aberto:** ver [`Normalizacao.md`](Normalizacao.md).
+
+**Decisões de ingestão/normalização fechadas (2026-06-07):**
+- **Extração com peso estruturado** — o VLM devolve `peso_kg` e `preco_base_impresso` em campos próprios; `descricao_original` = só o nome (sem qtd/peso/preço/IVA). Acaba a ginástica de regex e o €/kg vem direto do talão.
+- **`peso_em_falta` (honesto)** — produto a peso sem peso na nota → `preco_por_base=NULL` + flag, fora do €/kg (não inventa um €/peça). Packs de peso fixo recuperam-se pelo tamanho (`pacoteFixoFiavel`).
+- **Deduplicação robusta** — `cadeia + total + nº de itens` + sobreposição de preços; apanha duplicados mesmo com nome de loja/data mal lidos (o VLM lia "Mercadona" como "Irmadona").
 
 ---
 
