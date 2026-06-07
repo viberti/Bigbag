@@ -170,6 +170,65 @@ O **mesmo template**, mas o perfil de preenchimento **inverte-se** (quase tudo n
 
 ---
 
+### 6.4 — Leite (líquido · uma faceta-chave dominante → limpo)
+
+- **OFF:** `en:milks` · PT *"Leites"* · Wikidata `Q8495` · cadeia `laticínios › Milks (liquid and powder) › Leites`
+
+| Faceta | Valores | Natureza | No talão? |
+|---|---|---|---|
+| **Teor** | gordo · meio-gordo · magro/desnatado | A | ✅ **a faceta-chave** ("M/G","MAGRO") |
+| **Tratamento** | UHT · fresco · pasteurizado · microfiltrado | A | ✅ ("UHT") |
+| **Origem do leite** | vaca · cabra · ovelha · búfala | B | raro (vaca assumido) |
+| **Lactose** | com · sem | A/B | às vezes |
+| **Forma** | **sempre líquido → €/L** | C | fixo |
+| **Aromatizado/enriquecido** | natural · chocolate · +cálcio/vitaminas | A | às vezes |
+
+🎯 **Vegetal = classe-irmã** (confirmado): `en:plant-based-milk-alternatives` (PT *"Leites de planta"*) → pais `["en:milk-substitutes","en:plant-based-beverages"]` — **não** está sob `en:milks`.
+
+→ **Caso limpo:** UM balde, faceta-chave (**teor**) **no nome**, **unidade fixa (€/L)**.
+*Worked example* `"LEITE M/G UHT MIMOSA 1L"` → teor=meio-gordo · trat=UHT · marca=Mimosa · 1 L → €/L. **Tudo natureza A.**
+
+---
+
+### 6.5 — Queijo (denominação · multi-axial → o caso difícil)
+
+- **OFF:** `en:cheeses` · PT *"Queijos"* · Wikidata `Q10943` · **81 filhos** · cadeia `laticínios › Produtos lácteos fermentados › Queijos`
+
+**Porque é difícil:** **não há faceta-chave única** — a identidade é uma **combinação**.
+
+| Faceta | Valores | Natureza | No talão? |
+|---|---|---|---|
+| **Tipo/denominação** | Gouda · Mozzarella · Manchego · Parmigiano · Flamengo · Serra da Estrela · Emmental… | A | ✅ (o "nome" do queijo) |
+| **Origem do leite** | vaca · cabra · ovelha · búfala · mista | A/B | às vezes |
+| **Cura/textura** | fresco · curado · semicurado · amanteigado · azul · fundido | A | às vezes |
+| **Forma/apresentação** | inteiro/cunha · **fatiado** · **ralado** · barra · porções | A | ✅ ("FAT","RALADO") |
+| **DOP/IGP** | sim/não (Serra da Estrela DOP, Manchego DOP) | A | ✅ ("DOP") |
+| **Unidade** | **€/kg** (peso) ou por embalagem | C | — |
+
+🎯 A **denominação é um nó OFF próprio** (e DAG): `en:gouda` → pais `["en:cow-cheeses","en:uncooked-pressed-cheeses"]` (*fonte* **+** *textura*). `en:parmigiano-reggiano` → `en:italian-cheeses`. `en:sliced-cheeses` = a **forma** como categoria.
+
+**Duas armadilhas:**
+1. **A forma é coorte** (como a dose no iogurte): *Gouda fatiado* ≠ €/kg de *Gouda em barra* — mesmo queijo. Comparar tem de casar a forma.
+2. **"Tipo" não é marca nem variedade** — é uma **denominação** (às vezes DOP). Ancora-se no nó OFF do queijo nomeado.
+
+→ **Resolução:** âncora = nó OFF da denominação; facetas = source + cura + **forma** + DOP; **coorte = (tipo × forma)**.
+*Worked example* `"QJ GOUDA FAT PD 200G"` → tipo=Gouda · forma=fatiado · fonte=vaca · marca=Pingo Doce · €/kg.
+
+---
+
+### 6.6 — Os quatro arquétipos (o que os templates provam)
+
+| Balde | Arquétipo | Faceta-chave | Identidade vem de | Unidade |
+|---|---|---|---|---|
+| Iogurte grego | **embalado-escondido** | (várias) | EAN→OFF (B) | €/kg |
+| Maçã | **fresco-no-nome** | variedade | parse (A) | €/kg |
+| Leite | **líquido-teor** | teor | parse (A) | €/L (fixo) |
+| Queijo | **denominação-multiaxial** | (combinação) | parse + coorte | €/kg |
+
+O **mesmo modelo** (categoria OFF + facetas + universais + derivados + coorte) cobre os quatro; muda só *quantas* facetas, se há uma dominante, e o *plugin de preenchimento*. O queijo é o argumento mais forte para **facetas estruturadas + coorte** — o nome livre colapsa-o.
+
+---
+
 ## 7. Estratégia de preenchimento por tipo de produto
 
 O **modelo-alvo é uniforme**; só o *como encher as facetas* depende do tipo:
