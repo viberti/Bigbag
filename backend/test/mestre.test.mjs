@@ -20,6 +20,11 @@ test('limpa código de IVA no início e fim', () => {
 test('NÃO confunde unidade " G" (gramas) com código IVA', () => {
   assert.equal(limparDescricao('MIRTILO 500 G'), 'MIRTILO 500 G');
 });
+test('idempotente: prefixos empilhados são todos removidos numa passagem', () => {
+  assert.equal(limparDescricao('1 1 BANANA'), 'BANANA');
+  assert.equal(limparDescricao('(A) 1 BANANA'), 'BANANA');
+  assert.equal(limparDescricao(limparDescricao('1 BANANA')), limparDescricao('1 BANANA')); // estável
+});
 
 // ───────── normalização de valores ─────────
 test('teor: M/G e meio-gordo dão a mesma chave', () => {

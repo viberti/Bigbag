@@ -22,14 +22,20 @@ const ln = (x) => {
 // linha de peso colada, prefixos de quantidade, códigos de IVA, duplicações de OCR.
 export function limparDescricao(d) {
   let s = String(d || '').trim();
-  s = s.replace(/\s+[A-Z]?\s*kg\s*x[\d.,]+\s+[\d.,]+\s*EUR\/kg(EUR)?/gi, ''); // "B kg x0,534 6,29 EUR/kg"
-  s = s.replace(/\s+[\d.,]+\s*EUR\/kg(EUR)?/gi, '');
-  s = s.replace(/kgEUR/gi, 'kg'); // duplicação de OCR
-  s = s.replace(/^\(\s*[A-Z]\s*\)\s*/, ''); // código IVA no início: "(A) " "(C) "
-  s = s.replace(/^\d+\s+/, ''); // prefixo de quantidade: "1 "
-  s = s.replace(/^C\s+(?=[A-Z])/, ''); // "C " (código IVA) seguido de palavra
-  s = s.replace(/\s+[AB]$/, ''); // sufixo de código IVA "A"/"B" (não unidades G/L)
-  return s.replace(/\s+/g, ' ').trim();
+  // Itera até estabilizar: prefixos podem empilhar ("1 1 X", "(A) 1 X").
+  for (let i = 0; i < 4; i++) {
+    const antes = s;
+    s = s.replace(/\s+[A-Z]?\s*kg\s*x[\d.,]+\s+[\d.,]+\s*EUR\/kg(EUR)?/gi, ''); // "B kg x0,534 6,29 EUR/kg"
+    s = s.replace(/\s+[\d.,]+\s*EUR\/kg(EUR)?/gi, '');
+    s = s.replace(/kgEUR/gi, 'kg'); // duplicação de OCR
+    s = s.replace(/^\(\s*[A-Z]\s*\)\s*/, ''); // código IVA no início: "(A) " "(C) "
+    s = s.replace(/^\d+\s+/, ''); // prefixo de quantidade: "1 "
+    s = s.replace(/^C\s+(?=[A-Z])/, ''); // "C " (código IVA) seguido de palavra
+    s = s.replace(/\s+[AB]$/, ''); // sufixo de código IVA "A"/"B" (não unidades G/L)
+    s = s.replace(/\s+/g, ' ').trim();
+    if (s === antes) break;
+  }
+  return s;
 }
 
 // (2) DICIONÁRIOS de normalização de VALORES (por faceta). Rede de segurança caso
