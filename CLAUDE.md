@@ -72,6 +72,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 
 ## Notas técnicas
 - IA toda via **OpenRouter** (compatível OpenAI), uma só chave (`OPENROUTER_API_KEY`), cobre texto/imagem/áudio. Áudio vai em base64 (URLs não suportados para áudio).
+- **Modelo de extração = `gemini-2.5-flash`** (`OPENROUTER_MODEL_EXTRACAO`). Benchmark de 5 VLMs (2026-06-07, `scripts/compara_vlms.mjs`, 20 imagens): o mais barato (`qwen`/`flash-lite`, ~$0,11/100 notas) erra preços/quantidades e perde itens → **falsa economia**; o **custo é não-fator** (<$0,01/nota); a geração 3.x supera a 2.5 (`gemini-3-flash-preview` lidera, mas é *preview*). Mantido o `gemini-2.5-flash` (estável, 20/20 itens). Detalhe no Conceito §4.3.
 - `OPENROUTER_TIMEOUT_MS=20000` herdado — vigiar; pode ser curto para imagem de fatura grande num VLM. Subir se necessário.
 - Correspondência "produto em linguagem natural" → SKU canónico é trabalho do **backend** (fuzzy match / embeddings), não do prompt do LLM.
 - Comparações de preço usam sempre `preco_por_base` (€/kg, €/L, €/un); filtrar `is_clearance` e `is_non_product`.

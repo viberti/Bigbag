@@ -91,6 +91,20 @@ Dois subsistemas independentes que partilham a BD. Toda a IA passa pelo **OpenRo
 - **`peso_em_falta` (honesto)** — produto a peso sem peso na nota → `preco_por_base=NULL` + flag, fora do €/kg (não inventa um €/peça). Packs de peso fixo recuperam-se pelo tamanho (`pacoteFixoFiavel`).
 - **Deduplicação robusta** — `cadeia + total + nº de itens` + sobreposição de preços; apanha duplicados mesmo com nome de loja/data mal lidos (o VLM lia "Mercadona" como "Irmadona").
 
+### 4.3 Benchmark de modelo VLM para extração (2026-06-07)
+
+Comparámos 5 VLMs na **mesma imagem** (20 talões), medindo reconciliação (Σitens−desc≈total), leitura do total e do nº de itens (vs. valor guardado) e **custo real** (`usage.cost`). Harness: `backend/scripts/compara_vlms.mjs`.
+
+| modelo | reconcilia | lê total | lê nº itens | \|disc\| méd | $/100 notas |
+|---|---|---|---|---|---|
+| qwen3.5-flash | 11/20 | 16/20 | 17/20 | 3,94 | $0,11 (1 erro) |
+| gemini-2.5-flash-**lite** | 14/20 | 19/20 | 20/20 | 4,53 | $0,11 |
+| gemini-**3.1**-flash-lite | 16/20 | 20/20 | 18/20 | 0,63 | $0,31 |
+| **gemini-2.5-flash** *(em uso)* | 16/20 | 20/20 | 20/20 | 0,50 | $0,55 |
+| gemini-3-flash-preview | **18/20** | 20/20 | 20/20 | **0,40** | $0,67 |
+
+**Conclusões:** (1) o **mais barato não compensa** — `qwen`/`flash-lite` (~$0,11/100) leem o total mas erram preços/quantidades (|disc| ~4€); o qwen ainda perde itens. (2) O **custo é um não-fator**: mesmo o melhor custa **<$0,01/nota** → a decisão é por **qualidade**, não preço. (3) A **geração 3.x supera a 2.5** (o `gemini-3-flash-preview` lidera; o `gemini-3.1-flash-lite` iguala o atual e é mais barato, mas perdeu itens em 2/20 — e perder itens é o pior erro). **Decisão: mantido `gemini-2.5-flash`** (estável, 20/20 itens); `gemini-3-flash-preview` é a opção de maior qualidade se aceitar o risco de "preview". *(Medição single-pass; o loop de auto-correção em produção aproxima todos os modelos. Preços do OpenRouter à data — re-medir quando saírem modelos novos.)*
+
 ---
 
 ## 5. Subsistema B — Consulta por nota de voz (o foco)
