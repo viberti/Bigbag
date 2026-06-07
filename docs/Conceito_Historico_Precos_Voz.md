@@ -62,6 +62,16 @@ Dois subsistemas independentes que partilham a BD. Toda a IA passa pelo **OpenRo
 
 *Pergunta a responder com dados reais:* em faturas térmicas amassadas/desbotadas, qual ganha em fiabilidade de **preço** e de **descrição**, e a que custo por fatura?
 
+> **Decisão FECHADA (2026-06-07) — por tipo de ficheiro, com dados reais:**
+> **VLM direto para IMAGEM (foto/digitalização); texto-do-PDF + LLM para PDF.** Dois head-to-heads e a análise de custo decidiram:
+>
+> - **Custo é ~neutro entre modalidades.** Medido pelo `usage.cost` real do OpenRouter (tabela `custo_chamada`): com o *mesmo* modelo, ler imagem ≈ ler texto (flash-lite ~$0,00075/fatura; flash ~$0,0035/fatura). O custo é dominado pelo **output** (o JSON dos itens), igual nos dois caminhos; a imagem só acrescenta ~1700 tokens de input, irrelevantes. **A única alavanca de custo é o modelo (flash vs flash-lite), não a modalidade.** Logo a escolha imagem-vs-texto é de **qualidade**, não de custo.
+> - **PDF (camada de texto exata) → texto+LLM ≥ VLM.** 16 PDFs Continente (`scripts/compara_extracao.mjs`): reconciliam **16/16 vs 15/16**, |disc| média **0,000 vs 0,054** (o VLM divide mal itens multilinha). Por isso o PDF usa a sua **camada de texto** (determinística, exata, grátis) + LLM — não OCR.
+> - **FOTO (sem texto a extrair) → VLM-direto ≫ OCR(Tesseract)+LLM.** 10 fotos reais: reconciliam **9/10 vs 3/10**; total lido certo **10/10 vs 6/10**; |disc| média **0,011 € vs 1,919 €**. O Tesseract em foto térmica produz quase-lixo (achata o layout 2D, troca dígitos), e — pior — **o LLM a jusante não falha graciosamente: alucina um talão plausível a partir do ruído** (lixo confiante, que às vezes até reconcilia por acaso e injeta dados falsos). O resultado do PDF **não transfere** para foto porque ali o "texto" é a camada exata do ficheiro, não OCR.
+> - **OCR dedicado no nosso servidor (Tesseract/Paddle/docTR) para fotos: rejeitado.** Pior qualidade, mais arriscado (alucinação silenciosa) e exigiria a correção de perspetiva/deskew (dependência frágil) sem ganho. Um OCR *cloud* (Vision/Textract) leria melhor, mas é pago/externo e a essa qualidade **converge para o que o VLM já faz** num só passo.
+> - **Onde aplicamos regras próprias:** no **output estruturado** (reconciliação, `formato.js`, guarda de IVA, `decidirUnidadeBase`) — sobre números limpos, testável — e no caminho **PDF** (texto exato). Limpar texto *antes* do LLM só é seguro quando o texto é fiável (PDF), não sobre OCR de foto.
+> - `fatura.metodo_extracao` regista qual gerou cada registo (`vlm` | `ocr_llm`); o último é, na verdade, "texto-do-PDF + LLM" (não há OCR real no pipeline).
+
 ### 4.1 Regras de extração (casos reais das cadeias-alvo)
 
 | Cenário | Regra |
@@ -162,14 +172,14 @@ Padrão do 1417, sem quebrar os projetos vizinhos (pitacos.ai, 1417):
 ## 10. Decisões em aberto (a fechar com dados / com o Claude Code)
 
 1. **Transcrição da voz:** STT separado vs. áudio-direto — decidir após experimentar (§5.2).
-2. **Leitura de fatura:** VLM direto vs. OCR+LLM — decidir após comparar (§4).
+2. ~~**Leitura de fatura:** VLM direto vs. OCR+LLM — decidir após comparar (§4).~~ **FECHADA (2026-06-07):** VLM-direto p/ imagem, texto-do-PDF+LLM p/ PDF; OCR dedicado para fotos rejeitado por qualidade/risco. Custo é neutro entre modalidades — só o modelo pesa. Ver §4 (dois head-to-heads + análise de custo).
 3. ~~**Autenticação:** depende de o servidor estar ou não exposto à internet.~~ **FECHADA (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL` (§7).
 
 ---
 
 ## 11. Perguntas técnicas que quero responder
 
-- Um VLM multimodal lê faturas térmicas amassadas melhor que OCR dedicado + LLM?
+- ~~Um VLM multimodal lê faturas térmicas amassadas melhor que OCR dedicado + LLM?~~ **Respondido (2026-06-07): sim, e por larga margem em fotos** (9/10 vs 3/10 a reconciliar; OCR de foto leva o LLM a alucinar). Ver §4.
 - O STT (Whisper/GPT-4o/Voxtral via OpenRouter) aguenta português europeu com marcas e preços ditos em voz alta?
 - Transcrever em passo separado dá-me melhor controlo, ou áudio-direto num só passo é suficiente (e melhor)?
 - Function calling a partir da consulta transcrita é robusto para perguntas compostas, ou parte-se?
