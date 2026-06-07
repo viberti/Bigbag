@@ -5,6 +5,12 @@ import { getPool } from '../src/db.js';
 import { classificarMestre } from '../src/normaliza/classificaMestre.js';
 
 const db = getPool();
+
+// Limpeza/auto-cura: desfaz qualquer Mestre DEGENERADO (categoria vazia → chave a
+// começar por "|"), que agruparia produtos sem nada a ver. Idempotente.
+await db.query("UPDATE sku_normalizado SET mestre_id = NULL WHERE mestre_id IN (SELECT id FROM produto_mestre WHERE chave LIKE '|%')");
+await db.query("DELETE FROM produto_mestre WHERE chave LIKE '|%'");
+
 const [skus] = await db.query(
   `SELECT s.id, s.nome_canonico,
           (SELECT i.descricao_original FROM item i
@@ -15,12 +21,15 @@ const [skus] = await db.query(
 );
 console.log('SKUs a classificar:', skus.length);
 
-let ok = 0, err = 0;
+let ok = 0, err = 0, semCat = 0;
 const porChave = new Map(); // chave -> [{id,nome}]
 for (const s of skus) {
   if (!s.desc_rep) { err++; continue; }
   try {
     const { chave, categoria } = await classificarMestre(s.desc_rep);
+    // Categoria é o portão-MESTRE: sem ela, NÃO agrupa (senão colapsa tudo num
+    // Mestre-lixo). Fica sem mestre_id — não-classificado, candidato a revisão.
+    if (!categoria) { semCat++; continue; }
     const [r] = await db.query(
       'INSERT INTO produto_mestre (chave, categoria, nome) VALUES (?,?,?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)',
       [chave, categoria || null, s.nome_canonico],
@@ -31,7 +40,7 @@ for (const s of skus) {
   } catch (e) {
     err++;
   }
-  if ((ok + err) % 25 === 0) process.stdout.write('.');
+  if ((ok + err + semCat) % 25 === 0) process.stdout.write('.');
 }
 process.stdout.write('\n');
 
@@ -39,7 +48,7 @@ process.stdout.write('\n');
 const defrag = [...porChave.entries()].filter(([, v]) => v.length >= 2);
 const [[tot]] = await db.query('SELECT COUNT(*) n FROM produto_mestre');
 console.log('\n=== BACKFILL ===');
-console.log('classificados:', ok, '| erros:', err, '| Mestres criados:', tot.n);
+console.log('classificados:', ok, '| sem categoria (não ligados):', semCat, '| erros:', err, '| Mestres criados:', tot.n);
 console.log('Mestres que reúnem ≥2 SKUs antigos (de-fragmentação):', defrag.length);
 for (const [chave, v] of defrag.slice(0, 40)) {
   console.log('  ▸ ' + chave);
