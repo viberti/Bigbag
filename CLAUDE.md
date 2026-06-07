@@ -39,6 +39,8 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **`Schema_e_Funcoes_ToolUse.md`** — schema da BD e contrato das funções. Atualizar sempre que o schema ou uma função mude.
 - **`Normalizacao.md`** — normalização **atual** (problema, dificuldades, solução, lacunas). Atualizar quando a normalização mudar.
 - **`Taxonomia_Produto.md`** — modelo-alvo **facetado** (standards OFF/GS1/IFPS, níveis, coorte, Produto Mestre). Atualizar quando uma decisão de desenho fechar; é o norte da migração incremental.
+- **`Visao_Conselheiro_Saude_Alimentar.md`** — **visão** para além do preço: o Bigbag como conselheiro de saúde alimentar do agregado (nutrição herdada da classe facetada via OFF, EAN opcional/incentivado, estimativa com confiança, princípio "factual não clínico", reuso de LanguaL/FoodOn/OFF). Atualizar quando a direção evoluir.
+- **`Paper_Resolucao_Produtos_Talao.md`** — relatório técnico (paper) do método de resolução de entidades de produtos a partir de talões.
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor. Atualizar se o processo de deploy/infra mudar.
 - Quando fechares uma "decisão em aberto" (transcrição, leitura de fatura, autenticação), regista a escolha e o porquê no documento de conceito.
 
