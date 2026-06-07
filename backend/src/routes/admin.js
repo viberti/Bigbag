@@ -53,6 +53,67 @@ adminRouter.use(requireAuth);
 
 const str = (v, max = 200) => (v == null ? null : String(v).trim().slice(0, max));
 
+// ───────────────────────── Painel (Admin v2) ─────────────────────────
+
+// Cards do dashboard: nº de notas, por mercado, nº de produtos crus (antes da
+// normalização), e o estado do modelo (SKUs, Mestres).
+adminRouter.get('/painel', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [[notas]] = await pool.query('SELECT COUNT(*) AS n FROM fatura');
+    const [porMercado] = await pool.query(
+      `SELECT l.cadeia, COUNT(*) AS n FROM fatura f JOIN loja l ON l.id = f.loja_id
+        GROUP BY l.cadeia ORDER BY n DESC`,
+    );
+    const [[crus]] = await pool.query(
+      'SELECT COUNT(DISTINCT descricao_original) AS n FROM item WHERE is_non_product = 0',
+    );
+    const [[skus]] = await pool.query('SELECT COUNT(*) AS n FROM sku_normalizado');
+    const [[mestres]] = await pool.query('SELECT COUNT(*) AS n FROM produto_mestre');
+    const [[semMestre]] = await pool.query('SELECT COUNT(*) AS n FROM sku_normalizado WHERE mestre_id IS NULL');
+    res.json({
+      n_notas: notas.n,
+      por_mercado: porMercado,
+      n_produtos_crus: crus.n,
+      n_skus: skus.n,
+      n_mestres: mestres.n,
+      n_skus_sem_mestre: semMestre.n,
+    });
+  } catch (e) {
+    console.error('[admin/painel] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar o painel' });
+  }
+});
+
+// Captura CRUA: as descrições reais lidas das notas (antes da normalização),
+// com quantas vezes, a loja, e a que produto canónico/Mestre caíram. ?q filtra.
+adminRouter.get('/capturas', async (req, res) => {
+  try {
+    const q = str(req.query.q, 60);
+    const like = q ? `%${q}%` : '%';
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+    const [rows] = await getPool().query(
+      `SELECT i.descricao_original AS descricao, COUNT(*) AS n,
+              MAX(l.cadeia) AS cadeia,
+              MAX(s.nome_canonico) AS sku, MAX(s.mestre_id) AS mestre_id,
+              MAX(m.nome) AS mestre
+         FROM item i
+         JOIN fatura f ON f.id = i.fatura_id
+         JOIN loja l ON l.id = f.loja_id
+         LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+         LEFT JOIN produto_mestre m ON m.id = s.mestre_id
+        WHERE i.is_non_product = 0 AND i.descricao_original LIKE ?
+        GROUP BY i.descricao_original
+        ORDER BY n DESC LIMIT ${limit}`,
+      [like],
+    );
+    res.json({ capturas: rows });
+  } catch (e) {
+    console.error('[admin/capturas] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar capturas' });
+  }
+});
+
 // ───────────────────────── SKUs canónicos ─────────────────────────
 
 // Lista SKUs com contagem de itens e de descrições associadas. ?q filtra por nome.
