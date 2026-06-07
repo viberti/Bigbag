@@ -721,6 +721,8 @@ adminRouter.delete('/faturas/:id', async (req, res) => {
       await conn.query('DELETE FROM sku_alias WHERE sku_id IN (?)', [ids]);
       await conn.query('DELETE FROM sku_normalizado WHERE id IN (?)', [ids]);
     }
+    // Mestres que ficaram sem nenhum SKU a apontar → remover (de-fragmentação limpa).
+    await conn.query('DELETE m FROM produto_mestre m WHERE NOT EXISTS (SELECT 1 FROM sku_normalizado s WHERE s.mestre_id = m.id)');
     await conn.commit();
   } catch (e) {
     await conn.rollback();
