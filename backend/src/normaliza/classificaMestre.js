@@ -10,8 +10,8 @@ const PROMPT = `És um classificador de produtos de supermercado português. Dá
 {
   "categoria": string,         // FINA. Inclui o TIPO que distingue o produto:
                                //   café -> "café" ou "café descafeinado";
-                               //   arroz -> "arroz carolino" / "arroz agulha" / "arroz basmati" / "arroz vaporizado";
                                //   chocolate -> "chocolate negro" / "chocolate de leite" / "chocolate branco".
+                               //   arroz -> só "arroz" (a variedade vai no slot "variedade", ver regras).
                                //   NUNCA classes largas: "fruta","carne","cereais","vegetal","laticinio".
   "apresentacao": string|null, // inteiro · fatiado · ralado · pedaco · cortado
   "corte": string|null,        // (carne) peito · lombinho · coxa · perna · bife
@@ -26,6 +26,7 @@ const PROMPT = `És um classificador de produtos de supermercado português. Dá
 Regras:
 - Fruta/legume DESIDRATADO ou SECO -> processamento="desidratado" (banana fresca != banana desidratada).
 - Queijo/requeijão com leite de OVELHA/CABRA ou DENOMINAÇÃO (Serra da Estrela…) -> preenche "fonte" (e mantém a denominação na categoria).
+- ARROZ: categoria="arroz". A VARIEDADE (agulha · carolino · basmati · thai/jasmim · arbóreo/risotto · selvagem · sushi) vai em "variedade"; a REFINAÇÃO (integral · vaporizado) em "processamento". Se a variedade NÃO for clara, variedade=null (NÃO assumas "agulha"). "Arroz pronto a cozer/comer" e "folha de arroz" NÃO são arroz cru -> usa outra categoria (ex.: "refeição de arroz", "folha de arroz").
 MARCA, FORMATO e QUANTIDADE não entram. Só o JSON.`;
 
 // Modelo: provámos que, com a chave canónica, o modelo quase não importa; usa o
