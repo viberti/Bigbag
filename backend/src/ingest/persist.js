@@ -64,6 +64,31 @@ export async function persistirFatura(
       return { duplicada: true, fatura_id: dup[0].id, loja_id: lojaId };
     }
 
+    // Dedup ROBUSTA (rede 2): apanha duplicados que escapam acima quando o VLM lê
+    // mal o NOME da loja (→ loja_id diferente) ou a DATA (→ data não bate). Chave
+    // estável: cadeia + total + nº de itens, CONFIRMADA por sobreposição de preços
+    // (tolerante a cêntimos de OCR). Foi assim que 3 duplicados do Mercadona —
+    // lido como "Irmadona", com datas erradas — passaram despercebidos.
+    const cadeia = dados.loja?.cadeia ? String(dados.loja.cadeia).trim() : null;
+    const precos = dados.itens.map((i) => num(i.preco_liquido)).filter((x) => x != null);
+    if (cadeia && total != null && precos.length) {
+      const [cands] = await conn.query(
+        `SELECT f.id, (SELECT COUNT(*) FROM item it WHERE it.fatura_id = f.id) AS n
+           FROM fatura f JOIN loja l ON l.id = f.loja_id
+          WHERE l.cadeia = ? AND f.total_impresso = ?
+          HAVING n = ?`,
+        [cadeia, total, dados.itens.length],
+      );
+      for (const c of cands) {
+        const [its] = await conn.query('SELECT preco_liquido FROM item WHERE fatura_id = ?', [c.id]);
+        const overlap = sobreposicaoPrecos(precos, its.map((x) => Number(x.preco_liquido)));
+        if (overlap >= Math.ceil(precos.length * 0.7)) {
+          await conn.rollback();
+          return { duplicada: true, fatura_id: c.id, loja_id: lojaId };
+        }
+      }
+    }
+
     const [rf] = await conn.query(
       `INSERT INTO fatura
          (loja_id, data_compra, numero_fatura, total_impresso, total_reconciliado, discrepancia, needs_review,
@@ -118,6 +143,18 @@ export async function persistirFatura(
   } finally {
     conn.release();
   }
+}
+
+// Tamanho da interseção de dois multiconjuntos de preços, com tolerância de ±0,02
+// (cêntimos de OCR: 2,55 ≈ 2,56). Cada preço de A consome no máximo um de B.
+export function sobreposicaoPrecos(a, b, tol = 0.02) {
+  const restantes = b.map((x) => Number(x)).filter((x) => Number.isFinite(x)).sort((x, y) => x - y);
+  let n = 0;
+  for (const p of a.map(Number).filter(Number.isFinite).sort((x, y) => x - y)) {
+    const i = restantes.findIndex((q) => Math.abs(q - p) <= tol);
+    if (i >= 0) { restantes.splice(i, 1); n++; }
+  }
+  return n;
 }
 
 function num(v) {
