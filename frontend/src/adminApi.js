@@ -18,7 +18,8 @@ const jsend = async (p, method, body) =>
   (await call(p, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
 
 // SKUs
-export const listarSkus = (q) => jget(`/api/admin/skus?limit=300${q ? '&q=' + encodeURIComponent(q) : ''}`);
+export const listarSkus = (q, ordenar) =>
+  jget(`/api/admin/skus?limit=300${q ? '&q=' + encodeURIComponent(q) : ''}${ordenar ? '&ordenar=' + ordenar : ''}`);
 export const carregarSku = (id) => jget(`/api/admin/skus/${id}`);
 export const renomearSku = (id, dados) => jsend(`/api/admin/skus/${id}`, 'PATCH', dados);
 export const criarSku = (dados) => jsend('/api/admin/skus', 'POST', dados);

@@ -252,6 +252,7 @@ function TabMestres() {
 // ───────────────────────────── Produtos ─────────────────────────────
 function TabProdutos() {
   const [q, setQ] = useState('');
+  const [ordem, setOrdem] = useState('nome'); // nome · desc (nº descrições das notas) · itens
   const [skus, setSkus] = useState([]);
   const [sel, setSel] = useState(null);
   const [det, setDet] = useState(null);
@@ -267,7 +268,8 @@ function TabProdutos() {
   const [nota, setNota] = useState(null); // { url, pdf } da imagem/PDF da nota
   const notaRef = useRef('');
 
-  const recarregarLista = (busca = q) => adm.listarSkus(busca).then((r) => setSkus(r.skus)).catch(() => {});
+  const recarregarLista = (busca = q, ord = ordem) =>
+    adm.listarSkus(busca, ord).then((r) => setSkus(r.skus)).catch(() => {});
   useEffect(() => {
     recarregarLista('');
   }, []);
@@ -377,6 +379,20 @@ function TabProdutos() {
         >
           <input placeholder="procurar produto…" value={q} onChange={(e) => setQ(e.target.value)} />
         </form>
+        <div className="adm-ordenar">
+          <label>ordenar:</label>
+          <select
+            value={ordem}
+            onChange={(e) => {
+              setOrdem(e.target.value);
+              recarregarLista(q, e.target.value);
+            }}
+          >
+            <option value="nome">nome (A→Z)</option>
+            <option value="desc">descrições das notas (mais→menos)</option>
+            <option value="itens">compras (mais→menos)</option>
+          </select>
+        </div>
         <div className="adm-novo-bar">
           <button type="button" className="adm-novo-btn" onClick={() => setCriando((c) => !c)}>
             {criando ? '× cancelar' : '+ Novo produto'}
@@ -407,7 +423,9 @@ function TabProdutos() {
           {skus.map((s) => (
             <li key={s.id} className={s.id === sel ? 'on' : ''} onClick={() => abrir(s.id)}>
               <span>{s.nome_canonico}</span>
-              <em title={`${s.n_itens} compra(s)`}>{s.n_itens}×</em>
+              <em title={`${s.n_desc} descrição(ões) das notas · ${s.n_itens} compra(s)`}>
+                {s.n_desc}📝 · {s.n_itens}×
+              </em>
             </li>
           ))}
         </ul>

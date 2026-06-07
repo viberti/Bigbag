@@ -182,6 +182,13 @@ adminRouter.get('/skus', async (req, res) => {
   try {
     const q = str(req.query.q, 80);
     const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+    // Ordenação: 'nome' (default) · 'desc' (nº de descrições vindas das notas) · 'itens' (nº de compras).
+    const ORDENS = {
+      nome: 's.nome_canonico ASC',
+      desc: 'n_desc DESC, n_itens DESC, s.nome_canonico ASC',
+      itens: 'n_itens DESC, n_desc DESC, s.nome_canonico ASC',
+    };
+    const orderBy = ORDENS[req.query.ordenar] || ORDENS.nome;
     const args = [];
     let where = '';
     if (q) {
@@ -196,7 +203,7 @@ adminRouter.get('/skus', async (req, res) => {
          LEFT JOIN item i ON i.sku_id = s.id
          ${where}
          GROUP BY s.id
-         ORDER BY s.nome_canonico
+         ORDER BY ${orderBy}
          LIMIT ${limit}`,
       args,
     );

@@ -318,6 +318,9 @@ body {
 .adm-lista { border-right: 1px solid #000a; overflow-y: auto; background: #131c21; }
 .adm-busca, .adm-filtro { padding: 10px; position: sticky; top: 0; background: #131c21; border-bottom: 1px solid #0006; }
 .adm-busca input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); }
+.adm-ordenar { padding: 0 10px 8px; display: flex; align-items: center; gap: 6px; background: #131c21; border-bottom: 1px solid #0006; }
+.adm-ordenar label { color: var(--muted); font-size: 12px; }
+.adm-ordenar select { flex: 1; padding: 5px 8px; border-radius: 6px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); font-size: 12px; }
 .adm-novo-bar { padding: 0 10px 8px; background: #131c21; border-bottom: 1px solid #0006; }
 .adm-novo-btn { width: 100%; background: none; border: 1px dashed #3a4a52; color: var(--muted); padding: 7px; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .adm-novo-btn:hover { color: var(--texto); border-color: var(--verde); }
