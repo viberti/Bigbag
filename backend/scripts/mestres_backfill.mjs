@@ -44,6 +44,10 @@ for (const s of skus) {
 }
 process.stdout.write('\n');
 
+// auto-limpeza: apaga Mestres órfãos (sem nenhum SKU a apontar) — ex. sobras de
+// re-runs anteriores cuja chave mudou. Mantém a tabela só com Mestres reais.
+await db.query('DELETE FROM produto_mestre WHERE id NOT IN (SELECT mestre_id FROM (SELECT DISTINCT mestre_id FROM sku_normalizado WHERE mestre_id IS NOT NULL) x)');
+
 // de-fragmentação: chaves com ≥2 SKUs antigos
 const defrag = [...porChave.entries()].filter(([, v]) => v.length >= 2);
 const [[tot]] = await db.query('SELECT COUNT(*) n FROM produto_mestre');
