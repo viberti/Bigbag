@@ -48,7 +48,14 @@ export function normalizarItens(itens) {
     }
     // Peso colado ao nome → separa: nome limpo + linha_peso à parte.
     const novo = { ...it };
-    const m = desc.match(RE_PESO_INLINE);
+    // Caminho NOVO: o VLM já devolve peso/€-por-kg em campos próprios → reconstrói
+    // o linha_peso canónico (autoritativo). Sem regex, e o nome fica limpo na origem.
+    if (it.peso_kg != null && Number(it.peso_kg) > 0) {
+      const v = (n) => String(n).replace('.', ',');
+      const base = it.preco_base_impresso != null ? ` x ${v(it.preco_base_impresso)} EUR/kg` : '';
+      novo.linha_peso = `${v(it.peso_kg)} kg${base}`;
+    }
+    const m = !novo.linha_peso && desc.match(RE_PESO_INLINE);
     if (m) {
       novo.linha_peso = m[1];
       desc = desc.slice(0, m.index).trim();

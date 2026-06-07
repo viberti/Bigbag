@@ -60,6 +60,19 @@ test('pack "MIRTILO 500 G" NÃO é tocado (tamanho de embalagem é identidade)',
   assert.equal(out[0].descricao_original, 'MIRTILO 500 G');
 });
 
+// Caminho novo: VLM devolve peso/€-por-kg em campos próprios.
+test('campos peso_kg + preco_base_impresso → reconstrói linha_peso, nome fica limpo', () => {
+  const out = normalizarItens([
+    { descricao_original: 'MAÇÃ ROYAL GALA', peso_kg: 0.618, preco_base_impresso: 3.59, valor: 2.22 },
+  ]);
+  assert.equal(out[0].descricao_original, 'MAÇÃ ROYAL GALA');
+  assert.equal(out[0].linha_peso, '0,618 kg x 3,59 EUR/kg');
+});
+test('peso_kg sem €/kg impresso → linha_peso só com o peso', () => {
+  const out = normalizarItens([{ descricao_original: 'BANANA', peso_kg: 2.88, preco_base_impresso: null, valor: 3.46 }]);
+  assert.equal(out[0].linha_peso, '2,88 kg');
+});
+
 test('peso colado ao nome (inline/\\n) é separado para linha_peso', () => {
   const out = normalizarItens([{ descricao_original: 'BANANA\n1,800 kg x 1,19 EUR/kg', valor: 2.14 }]);
   assert.equal(out.length, 1);
