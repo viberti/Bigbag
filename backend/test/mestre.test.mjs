@@ -63,6 +63,34 @@ test('string "null" do LLM é tratada como vazio (não polui a chave)', () => {
   assert.equal(k, ['', '', '', '', '', 'morango', '', '', '', ''].join('|'));
 });
 
+// ───────── canonicalização de queijo (denominação consistente) ─────────
+test('queijo: "queijo gouda", "gouda" e queijo+variedade=gouda dão a mesma denominação', () => {
+  const a = chaveMestre({ categoria: 'queijo gouda', apresentacao: 'fatiado' });
+  const b = chaveMestre({ categoria: 'gouda', apresentacao: 'fatiado' });
+  const c = chaveMestre({ categoria: 'queijo', variedade: 'gouda', apresentacao: 'fatiado' });
+  assert.equal(a, b);
+  assert.equal(a, c);
+});
+test('queijo: ortografia mozarela ≡ mozzarella', () => {
+  assert.equal(chaveMestre({ categoria: 'queijo mozarela' }), chaveMestre({ categoria: 'mozzarella' }));
+});
+test('queijo: DOP é tirado do nome (serra da estrela)', () => {
+  assert.equal(
+    chaveMestre({ categoria: 'queijo serra da estrela dop', fonte: 'ovelha' }),
+    chaveMestre({ categoria: 'queijo serra da estrela', fonte: 'ovelha' }),
+  );
+});
+test('queijo: apresentação separa (gouda fatiado ≠ gouda bola)', () => {
+  assert.notEqual(
+    chaveMestre({ categoria: 'queijo gouda', apresentacao: 'fatiado' }),
+    chaveMestre({ categoria: 'queijo gouda', apresentacao: 'bola' }),
+  );
+});
+test('queijo: exceções mantêm categoria própria (requeijão ≠ queijo)', () => {
+  const k = chaveMestre({ categoria: 'requeijao', fonte: 'ovelha' });
+  assert.ok(k.startsWith('requeijao|'));
+});
+
 // ───────── agrupamento correto: mesmas descrições → mesma chave ─────────
 test('Iogurte Grego Natural em marcas/formatos diferentes → mesma chave', () => {
   const a = chaveMestre({ categoria: 'iogurte grego', estilo: 'grego', sabor: 'natural' });

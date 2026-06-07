@@ -47,6 +47,36 @@ const DIC_CATEGORIA = new Map([['ovo', 'ovos']]);
 // isso NÃO devem discriminar (vaca↔null não pode partir um Mestre de leite).
 const FONTE_DEFAULT = 'vaca';
 
+// Denominações de QUEIJO (ortografia → canónica). O LLM é inconsistente a colocá-las
+// (ora na categoria "queijo gouda", ora só "gouda", ora perde-as) — esta camada
+// determinística normaliza para categoria="queijo" + variedade=<denominação canónica>.
+const QUEIJO_DENOM = new Map([
+  ['mozzarella', 'mozzarella'], ['mozzarela', 'mozzarella'], ['mozarela', 'mozzarella'],
+  ['gouda', 'gouda'], ['cheddar', 'cheddar'], ['edam', 'edam'], ['flamengo', 'flamengo'],
+  ['emmental', 'emmental'], ['emental', 'emmental'], ['brie', 'brie'], ['camembert', 'camembert'],
+  ['parmesao', 'parmesao'], ['parmigiano', 'parmesao'], ['parmigiano reggiano', 'parmesao'],
+  ['grana padano', 'grana padano'], ['gruyere', 'gruyere'], ['fresco', 'fresco'], ['curado', 'curado'],
+  ['manchego', 'manchego'], ['serra da estrela', 'serra da estrela'], ['ilha', 'ilha'],
+  ['sao jorge', 'sao jorge'], ['gorgonzola', 'gorgonzola'], ['feta', 'feta'], ['halloumi', 'halloumi'],
+]);
+// Queijos com categoria PRÓPRIA (não "queijo X"): mantêm-se como categoria.
+const QUEIJO_EXCECAO = new Set(['requeijao', 'burrata', 'ricotta', 'mascarpone', 'queijo creme']);
+
+// Canonicaliza a denominação do queijo: devolve {cat,variedade} normalizados, ou
+// null se não for queijo (deixa como está). "queijo gouda" / "gouda" / "queijo"+var=gouda
+// → {cat:'queijo', variedade:'gouda'}. Tira " dop"/" igp" do nome. Exceções intactas.
+function canonQueijo(cat, variedade) {
+  if (QUEIJO_EXCECAO.has(cat)) return null;
+  let denom = '';
+  if (cat.startsWith('queijo ')) denom = cat.slice(7);
+  else if (cat === 'queijo') denom = variedade;
+  else if (QUEIJO_DENOM.has(cat)) denom = cat; // "mozzarella" sozinha
+  else return null;
+  denom = denom.replace(/\b(dop|igp)\b/g, '').replace(/\s+/g, ' ').trim();
+  denom = QUEIJO_DENOM.get(denom) || denom;
+  return { cat: 'queijo', variedade: denom };
+}
+
 const viaDic = (dic, v) => {
   const k = ln(v);
   return k ? dic.get(k) || k : '';
@@ -71,6 +101,12 @@ export function chaveMestre(facetas = {}) {
     funcao: ln(f.funcao),
     fonte,
   };
+  // Canonicalização determinística de QUEIJO (denominação consistente).
+  const cq = canonQueijo(v.categoria, v.variedade);
+  if (cq) {
+    v.categoria = cq.cat;
+    v.variedade = cq.variedade;
+  }
   return SLOTS.map((k) => v[k]).join('|');
 }
 
