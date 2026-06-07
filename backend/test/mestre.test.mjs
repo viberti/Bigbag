@@ -58,6 +58,11 @@ test('peito ≠ lombinho (corte é portão)', () => {
   );
 });
 
+test('string "null" do LLM é tratada como vazio (não polui a chave)', () => {
+  const k = chaveMestre({ categoria: 'null', teor: 'NULL', sabor: 'morango' });
+  assert.equal(k, ['', '', '', '', '', 'morango', '', '', '', ''].join('|'));
+});
+
 // ───────── agrupamento correto: mesmas descrições → mesma chave ─────────
 test('Iogurte Grego Natural em marcas/formatos diferentes → mesma chave', () => {
   const a = chaveMestre({ categoria: 'iogurte grego', estilo: 'grego', sabor: 'natural' });

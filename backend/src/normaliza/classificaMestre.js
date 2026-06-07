@@ -4,7 +4,7 @@
 import { chatCompletion } from '../openrouter.js';
 import { config } from '../config.js';
 import { parseJsonLoose } from '../ingest/extract.js';
-import { limparDescricao, chaveMestre } from './mestre.js';
+import { limparDescricao, chaveMestre, ln } from './mestre.js';
 
 const PROMPT = `És um classificador de produtos de supermercado português. Dá a CATEGORIA MAIS FINA (o produto específico) e os PORTÕES que distinguem produtos dentro dela. Devolve SÓ JSON; null quando NÃO se infere (não adivinhes):
 {
@@ -42,5 +42,5 @@ export async function extrairFacetasMestre(descricao, { model, timeoutMs } = {})
 export async function classificarMestre(descricao, opts = {}) {
   const limpa = limparDescricao(descricao);
   const facetas = await extrairFacetasMestre(limpa, opts);
-  return { limpa, facetas, chave: chaveMestre(facetas), categoria: String(facetas?.categoria || '').trim().toLowerCase() };
+  return { limpa, facetas, chave: chaveMestre(facetas), categoria: ln(facetas?.categoria) };
 }

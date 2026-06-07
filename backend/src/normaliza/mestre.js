@@ -6,13 +6,17 @@
 // chave canonicalizada → agrupamento correto.
 
 // Normalização leve: tira acentos, baixa de caixa, colapsa espaços. Mantém / e %.
-const ln = (x) =>
-  String(x ?? '')
+// Trata "null"/"none"/"n/a"/"-"/"?" (o LLM às vezes devolve a STRING "null") como vazio.
+const VAZIOS = new Set(['null', 'none', 'n/a', 'na', '-', '?', 'nan', 'undefined']);
+const ln = (x) => {
+  const s = String(x ?? '')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+  return VAZIOS.has(s) ? '' : s;
+};
 
 // (1) LIMPEZA determinística da descrição (antes do LLM). Remove lixo estrutural:
 // linha de peso colada, prefixos de quantidade, códigos de IVA, duplicações de OCR.
@@ -70,4 +74,4 @@ export function chaveMestre(facetas = {}) {
   return SLOTS.map((k) => v[k]).join('|');
 }
 
-export { ln as _ln };
+export { ln };
