@@ -37,6 +37,8 @@ Decide o fluxo conforme o caso (commits pequenos e focados quando ajuda; agrupar
 Mantém estes documentos atualizados **após cada alteração que mude o que neles está descrito** (não a cada commit trivial):
 - **`Conceito_Historico_Precos_Voz.md`** — conceito, arquitetura, decisões. Atualizar quando uma decisão em aberto fechar ou a arquitetura mudar.
 - **`Schema_e_Funcoes_ToolUse.md`** — schema da BD e contrato das funções. Atualizar sempre que o schema ou uma função mude.
+- **`Normalizacao.md`** — normalização **atual** (problema, dificuldades, solução, lacunas). Atualizar quando a normalização mudar.
+- **`Taxonomia_Produto.md`** — modelo-alvo **facetado** (standards OFF/GS1/IFPS, níveis, coorte, Produto Mestre). Atualizar quando uma decisão de desenho fechar; é o norte da migração incremental.
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor. Atualizar se o processo de deploy/infra mudar.
 - Quando fechares uma "decisão em aberto" (transcrição, leitura de fatura, autenticação), regista a escolha e o porquê no documento de conceito.
 

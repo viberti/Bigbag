@@ -1,7 +1,8 @@
 # Taxonomia e normalização de produto — modelo-alvo
 
-> **Caso de estudo:** iogurte grego. **Estatuto:** desenho/exploração (modelo-alvo), não a implementação atual.
+> **Casos de estudo:** iogurte grego · maçã · leite · queijo. **Estatuto:** desenho/exploração (modelo-alvo), não a implementação atual.
 > Complementa `Normalizacao.md` — esse descreve **o que o código faz hoje**; este descreve **para onde o modelo deve ir** e **porquê**, reusando standards em vez de reinventar.
+> **Consolidado (2026-06-07)** com 4 revisões externas + 2 experiências empíricas (head-to-head de extração e de classificação por 5 modelos). As decisões que daí saíram estão marcadas **[rev]** ao longo do texto.
 
 ## 0. Propósito e princípio
 
@@ -34,6 +35,8 @@ A identidade de um produto **não é uma string de nome** — é um **vetor face
 
 **Decisão de design (verificada nos dados):** o OFF mistura duas estratégias — modela *algumas* facetas como **sub-categorias** (ex. `…-plain`, `…-on-a-bed-of-fruits`, `…-ewe-s-milk`) e outras como atributos. Nós **preferimos o modelo de ATRIBUTOS** (GS1) — mais limpo — e usamos o OFF como **âncora de categoria** + fonte de dados.
 
+> **Exceção nomeada — categorias por denominação [rev].** A regra "atributos, não sub-categorias" **tem uma exceção**: produtos cuja identidade É uma **denominação** (queijos: *Gouda*, *Manchego*; vinhos; massas com nome). Aí o **nó OFF da denominação é a identidade**, e os pais da DAG dão facetas **de graça** (ex. `en:gouda` → pais `[en:cow-cheeses, en:uncooked-pressed-cheeses]` = fonte **+** textura). Nestes casos **ancora-se na denominação** e herda-se a DAG — não se força tudo a atributos. *(Não aplicar a regra do §2 dogmaticamente a estas categorias.)*
+
 ---
 
 ## 3. As três naturezas de atributo (decide a arquitetura de preenchimento)
@@ -44,8 +47,8 @@ A identidade de um produto **não é uma string de nome** — é um **vetor face
 | **B — Escondida** | **EAN → OFF** (ou catálogo) | base · teor · açúcar · proteína · bio · lactose | só com EAN/catálogo |
 | **C — Derivada** | **cálculo** (de A+B ou do nosso histórico) | unidade_base · preço_por_base · tipo-dose · gama · Nutri-Score | grátis |
 
-¹ forma: só quando "LIQ"/"beber" aparece; senão assume-se sólido (risco).
-² marca: impressa **ou inferida da cadeia** (marca-própria: Mercadona→Hacendado, Aldi→Milsani…).
+¹ **forma:** não confiar no parse [rev] — "LIQ" raramente aparece (ex. kefir). A **unidade vem da CATEGORIA** (ver §4.1): o balde fixa o default; o formato só corrige exceções.
+² **marca = faceta própria** [rev], **não** "= cadeia". Ler quando impressa; quando ausente, **inferir num passo separado e com confiança** (marca-própria: Mercadona→Hacendado, Aldi→Milsani…) — nunca acoplar ao campo `cadeia`, que é frágil e não 1:1 (Continente → Continente/Seleção/Mythos…). **Marca desconhecida** é um valor válido (não "igual a tudo") — crítico para o agrupamento (§4).
 
 ---
 
@@ -54,11 +57,32 @@ A identidade de um produto **não é uma string de nome** — é um **vetor face
 | Nível | Facetas que o definem | Exemplo | Para quê |
 |---|---|---|---|
 | **Categoria** | classe (+ base) | *Iogurte Grego (láctea)* | "quanto gastei em grego?" |
-| **Equivalente** | categoria + estilo + sabor + teor + açúcar + proteína + bio + lactose + forma | *Iogurte Grego Natural Magro* | comparar **marcas** @ €/base |
-| **Específico** | equivalente **+ marca** | *…Magro Milsani* | **rastrear o preço** do que compro |
+| **Produto Mestre** *(= "equivalente")* | categoria + estilo + sabor + teor + açúcar + proteína + bio + lactose + forma | *Iogurte Grego Natural Magro* | comparar **marcas** @ €/base |
+| **Específico** | Produto Mestre **+ marca** | *…Magro Milsani* | **rastrear o preço** do que compro |
 | **SKU físico** | específico **+ formato** | *…1 kg* / *…4×115 g* | a linha de prateleira |
 
 A "categoria" não é um campo — é uma **consulta sobre facetas**. Subir/descer de nível = remover/adicionar facetas.
+
+### 4.1 — Produto Mestre: agrupar, NÃO fundir [rev]
+
+A peça-chave que resolve a dívida do "colapso de marca". **Não fundir marcas num SKU** (destrutivo, e depende de a marca ser fiável no momento do merge — o elo mais fraco). Em vez disso, **cada SKU específico (com a sua marca) liga a um Produto Mestre partilhado** (o brand-free equivalente):
+
+```
+Iogurte Grego Natural Magro   ← Produto Mestre (agrupa p/ comparar)
+ ├─ … Pingo Doce      (específico, marca própria)
+ ├─ … Mythos/Continente
+ ├─ … Milsani/Aldi
+ └─ … Oikos/Danone
+```
+
+- **Nunca se perde a marca** (cada específico mantém-na); compara-se subindo ao Mestre.
+- **Marca desconhecida** → fica como específico próprio, **não** se funde com os outros (evita o sobre/sub-merge).
+- O Mestre pode ser **projeção (view)** ou **entidade materializada** — é escolha de *performance* (materializar acelera rankings), não de modelo.
+
+### 4.2 — A unidade vive na CATEGORIA, não no formato [rev]
+
+Cada **balde fixa a sua unidade-base por defeito** (líquido → €/L; sólido a peso → €/kg; contado → €/un). O parse do formato **só corrige exceções**, nunca decide a unidade.
+→ Isto mata o **bug do kefir** (líquido rotulado em "480G" que o parse leria como kg): *Kefir* é categoria líquida → €/L, ponto. Confirmado pela experiência: até modelos fortes erraram a unidade a partir do formato.
 
 ---
 
@@ -69,6 +93,16 @@ A "categoria" não é um campo — é uma **consulta sobre facetas**. Subir/desc
 > **coorte = (sabor × marca/gama × tipo-dose)**
 
 Spreads reais observados que justificam isto: **marca/gama ~4×** · **formato/dose ~2×** · o **sabor** muda o produto. "Iogurte grego mais barato" sem coorte mistura económico-familiar com premium-individual.
+
+### 5.1 — Defaults de coorte: item de DESIGN, não pergunta em aberto [rev]
+
+A fórmula é a parte fácil; o difícil são as **regras por categoria** e o que fazer quando a consulta é vaga (a voz quase nunca diz sabor/dose/gama). **É política de produto na camada de consulta** — e é provavelmente o que mais decide se a feature de voz "soa bem". Tem de definir, **por categoria**:
+- **facetas obrigatórias** da coorte (ex.: queijo → *forma* obrigatória; leite → *teor*; iogurte → *sabor*) e **opcionais**;
+- **defaults** quando o utilizador não especifica (ex.: assumir *Natural* + *familiar* + qualquer marca);
+- **sinalização ao utilizador** da coorte escolhida ("o grego **natural**, **tamanho familiar**, mais barato é…") — sem isto, a resposta engana sem o admitir;
+- **hierarquia de fallback** (se uma faceta obrigatória é desconhecida no item, relaxa a coorte **e di-lo**, em vez de comparar à toa).
+
+Isto vive no **meta-schema dos baldes** (próximo artefacto a criar).
 
 ---
 
@@ -245,37 +279,47 @@ O fresco é **mais "natureza A"**: a faceta-chave (variedade: "MAÇÃ GALA") **v
 
 ## 8. Mapear uma linha de talão para o balde
 
-1. **Parse** → facetas de natureza A (classe, estilo, sabor, forma, marca-ou-cadeia, formato).
+1. **Parse** → facetas de natureza A (classe, estilo, sabor, formato). **Marca** num passo próprio (impressa, ou inferida com confiança).
 2. **(Se houver EAN/PLU)** → catálogo (OFF/IFPS) → facetas de natureza B.
-3. **Derivar** natureza C (unidade, preço_por_base, dose, gama).
-4. **Resolver ao nível específico** (com marca) — **não colapsar a marca**.
-5. Agrupar em equivalente/categoria via **consulta de facetas** (não por fusão destrutiva).
+3. **Unidade da CATEGORIA** (§4.2); depois **derivar** o resto da natureza C (preço_por_base, dose, gama).
+4. **Resolver ao nível específico** (com marca) — **um específico por marca**, marca-desconhecida fica isolada.
+5. **Ligar ao Produto Mestre** (§4.1) — agrupamento **não-destrutivo**; equivalente/categoria são **consultas de facetas**.
 6. Facetas sem fonte ficam **vazias**, nunca inventadas.
 
 ---
 
 ## 9. Relação com a implementação atual (lacunas a fechar)
 
-O modelo de hoje (`Normalizacao.md`) **achata** este desenho: um `nome_canonico` de texto livre (mistura estilo+sabor), `marca` **colapsada** no auto-merge, `categoria` larga demais, sem coorte. Lacunas, por valor/custo:
+O modelo de hoje (`Normalizacao.md`) **achata** este desenho: um `nome_canonico` de texto livre (mistura estilo+sabor), `marca` **colapsada** no auto-merge, `categoria` larga demais, sem coorte. Lacunas, por valor/custo (matriz consolidada das revisões):
 
-1. **Parar o colapso de marca** (auto-merge só dentro da mesma marca) — baixo custo.
-2. **Corrigir a unidade pela forma** (líquido→€/L mesmo rotulado em g; bug do kefir) — baixo.
-3. **Coorte na consulta** (casar sabor; mostrar marca/gama/dose) — médio.
-4. **Facetas como campos** (estilo, sabor) em vez de enterradas no nome — médio.
-5. **EAN (scan) → OFF** para a natureza B — alto (desbloqueia base/teor/proteína/bio).
-6. **gama derivada** do €/base; **Nutri-Score** do OFF — baixo.
+| # | Lacuna | Impacto | Custo | Prioridade |
+|---|---|---|---|---|
+| 1 | **Não fundir marcas — ligar a Produto Mestre** (§4.1); marca-desconhecida isolada | 🔥 alto | 🟢 baixo | **Fase 1** |
+| 2 | **Unidade pela categoria** (§4.2), não pelo formato (bug do kefir) | 🟡 médio | 🟢 baixo | **Fase 1** |
+| 3 | **Coorte + defaults na consulta** (§5.1) | 🔥 alto | 🟡 médio | **Fase 1–2** |
+| 4 | **Facetas como campos** (estilo, sabor, teor, forma) | 🟡 médio | 🟡 médio | Fase 2 |
+| 5 | **gama em batches** (§10) + **Nutri-Score** (OFF) | 🟡 médio | 🟢 baixo | Fase 2 |
+| 6 | **EAN (scan) → OFF** (natureza B) | 🚀 extremo (longo prazo) | 🔴 alto | **só depois da captura de EAN** |
 
-A migração é **incremental**; o `nome_canonico + marca + unidade_base` aguenta o MVP **desde que se pare de colapsar a marca**.
+**A dívida real de desenho** (não "abstrata"): a dependência **marca→merge** (resolvida pelo Produto Mestre, que não funde) e os **defaults de coorte** (§5.1). O resto está bem pensado.
+
+**Leitura sóbria [rev]:** para um utilizador único, **~90% do valor está em Fase 1** (coorte + Produto Mestre + unidade-por-categoria — tudo barato). A **camada B (EAN→OFF) é andaime aspiracional** até existir captura de EAN — **não construir scaffolding B antes** de haver um produto com EAN na BD. *(Nuance: alguns atributos B de produtos famosos — Manchego→ovelha — vêm dos priors do LLM hoje, com confiança baixa.)*
 
 ---
 
-## 10. Perguntas em aberto
+## 10. Decisões e eixos de futuro
 
-- **Vegetal:** classe-irmã (como o OFF) vs. faceta `base`? — os dados do OFF apontam **classe-irmã**.
-- Quanto do esquema facetado vira **campos** vs. fica no nome (trade-off MVP).
-- **Captura do EAN** (scan no momento da compra?) — é o que desbloqueia a natureza B.
-- Metodologia da **gama** derivada (clustering por €/base; risco de circularidade).
-- **Defaults da coorte** na consulta (que faceta assumir quando o utilizador não especifica).
+**Fechado [rev]:**
+- **Vegetal = classe-irmã** (não faceta `base`) — verificado no OFF em 3 produtos (iogurte/leite/queijo: ramo vegetal sempre separado). Legal (UE: "iogurte"/"leite" reservados a lácteo) e de consumo (ecossistemas competitivos diferentes).
+- **gama** = etiqueta derivada do €/base, **calculada em batches de background** [rev] (ex.: recálculo semanal dos percentis da coorte) e **fixada entre recálculos** — evita a circularidade e a oscilação em tempo real.
+
+**Em aberto:**
+- Quanto do esquema facetado vira **colunas** vs. fica num `facetas` JSON (perf vs. flexibilidade) — provável **híbrido**: promover a colunas só as facetas usadas na coorte (estilo, sabor, teor, forma, marca).
+- **Estratégia de captura do EAN** — o maior desbloqueador da natureza B (scan na app quando o produto interessa; sem gamificação, que é para multi-utilizador).
+
+**Eixos de futuro a prever (não construir agora) [rev]:**
+- **Taxonomias ORTOGONAIS**, além da natureza-do-produto: uma **de consumo/ocasião** ("pequeno-almoço", "snack") e uma **nutricional** ("proteína") — para "quanto gasto em X?". O OFF **já as traz** (`food_groups`, `pnns_groups`) → não reinventar.
+- **Multi-país:** guardar desde já `country · retailer · language · currency` em cada compra (campos baratos; a *lógica* multi-país fica para quando houver 2.º país). O modelo (OFF) é internacional.
 
 ---
 
