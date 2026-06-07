@@ -2,7 +2,7 @@
 
 > **Casos de estudo:** iogurte grego · maçã · leite · queijo. **Estatuto:** desenho/exploração (modelo-alvo), não a implementação atual.
 > Complementa `Normalizacao.md` — esse descreve **o que o código faz hoje**; este descreve **para onde o modelo deve ir** e **porquê**, reusando standards em vez de reinventar.
-> **Consolidado (2026-06-07)** com 4 revisões externas + 2 experiências empíricas (head-to-head de extração e de classificação por 5 modelos). As decisões que daí saíram estão marcadas **[rev]** ao longo do texto.
+> **Consolidado (2026-06-07)** com 5 revisões externas + experiências empíricas (head-to-head de extração, classificação, chave do Mestre, e novo-vs-antigo nos dados reais) + decisões de portão do dono. Marcas: **[rev]** = de revisão; **[dono]** = decisão do dono.
 
 ## 0. Propósito e princípio
 
@@ -95,7 +95,7 @@ Cada **balde fixa a sua unidade-base por defeito** (líquido → €/L; sólido 
 `preço_por_base` (€/kg, €/L) é **necessário mas não suficiente**. A comparação justa faz-se **dentro de uma coorte**. **Correção [rev]:** a versão antiga (`sabor × marca/gama × dose`) **contradiz-se** — punha `gama` como portão ("não misturar gamas") mas o Mestre existe para **comparar marcas**, e as marcas **atravessam gamas** (Aldi económico vs Oikos premium). Não dá para ter as duas.
 
 **Resolução — portões vs dimensões:**
-> **coorte = identidade do Mestre = (categoria × sabor × teor × forma)** — as facetas que tornam o produto **insubstituível**.
+> **coorte = identidade do Mestre = (categoria × portões da categoria)** — as facetas que tornam o produto **insubstituível** (ver a tabela de portões em §5.2).
 > **marca · gama · dose** = **dimensões**: ordenam-se, mostram-se e (opcional) filtram-se — **nunca são portões**.
 
 Ou seja, **a coorte É o Produto Mestre** (§4). "O grego natural magro mais barato" devolve honestamente o do **Aldi**, e a UI **assinala o tier e a dose** (= a "sinalização ao utilizador" do §5.1). Spreads que justificam mostrar as dimensões: marca/gama ~4× · dose ~2×.
@@ -112,9 +112,29 @@ Os **portões** (identidade do Mestre) já estão definidos; o difícil é o que
 
 Isto vive no **Spec do Produto Mestre (§11)** — o próximo artefacto.
 
----
+### 5.2 — Critério e tabela de PORTÕES por categoria [dono, 2026-06-07]
 
-## 6. Templates — 🪣 Fichas de Balde
+O **critério** que decide se uma faceta é portão ou dimensão (fixado pelo dono):
+> **Portão** = mantém-se **constante** para comparar (não substituirias um valor pelo outro): comparas *fatiado-com-fatiado*, *peito-com-peito*, *branqueador-com-branqueador*.
+> **Dimensão** = compara-se **entre** valores (é esse o objetivo): que **marca**/**gama**/**dose** é mais barata.
+
+**Dimensões — sempre (nunca portão):** `marca · gama · dose/tamanho`. *(A dose normaliza-se por €/base; a diferença é o desconto de quantidade, informativa.)*
+
+**Portões — específicos da categoria** (semente; as listas grandes vêm do OFF/GS1):
+
+| Categoria | Portões |
+|---|---|
+| **Iogurte** | estilo · sabor · teor |
+| **Leite** | teor · (tratamento) |
+| **Queijo** | denominação · **apresentação** (inteiro/fatiado/ralado) · fonte |
+| **Carne** | animal · **corte** · processamento (inteiro/moída/preparado) |
+| **Higiene** (pasta de dentes) | **função/variante** (branqueador/multi/gengivas…) |
+| **Fruta / legume** | variedade · apresentação (inteiro/cortado) |
+| **Transversal** | **apresentação/processamento** é portão **onde existir** (muda o preço ao mesmo peso) |
+
+⚠️ **`apresentação` ≠ `dose`:** apresentação (fatiado vs pedaço) é **portão** (preço difere ao mesmo peso); dose (200 g vs 1 kg da *mesma* apresentação) é **dimensão** (€/kg normaliza).
+
+**Validado pelos dados:** os três erros do teste novo-vs-antigo — Gouda inteiro **fundido** com fatiado, Peito **fundido** com Lombinhos, Bexident **fundido** com Parodontax — traçam-se **todos** à falta destes portões (`apresentação`, `corte`, `função`) na chave plana. Confirma que **a chave do Mestre precisa dos portões da categoria** (não uma chave universal plana).
 
 ### 6.1 — Iogurte Grego (embalado · identidade escondida → EAN)
 
@@ -336,9 +356,10 @@ O modelo de hoje (`Normalizacao.md`) **achata** este desenho: um `nome_canonico`
 Toda a dívida de desenho que resta aterra aqui (5ª revisão, Pontos 1–4). Um **Produto Mestre** é a entidade materializada que agrupa específicos comparáveis. Esta é a sua especificação.
 
 ### 11.1 — Chave de identidade
-- **Só facetas A + categoria** (estáveis a partir do parse): `categoria · estilo · sabor · teor(quando A) · forma`.
+- **Categoria + os PORTÕES dessa categoria** (§5.2), só facetas A (estáveis a partir do parse). **Não é uma chave plana universal** — os portões mudam por categoria (carne: animal+corte+processamento; queijo: denominação+apresentação+fonte; iogurte: estilo+sabor+teor).
 - **B é descritivo, nunca chave** (açúcar, proteína, bio, lactose, teor-de-EAN) → pendura-se no Mestre, não o particiona. *(Garante que ligar o EAN mais tarde nunca re-particiona o histórico.)*
-- Chave canónica = **tuplo normalizado** dessas facetas (11.2).
+- **Categoria resolvida a um nó OFF FINO** (banana, não "fruta"; cenoura, não "vegetal") — senão sobre-une (erro comprovado no teste novo-vs-antigo).
+- Chave canónica = **tuplo normalizado** (categoria-OFF + portões), via 11.2.
 
 ### 11.2 — Normalização de VALORES (não só de presença)
 Cada faceta tem **vocabulário controlado** + **dicionário de sinónimos/abreviaturas** que mapeia o texto do talão ao valor canónico, **por contexto de categoria**. Ex. (teor):
