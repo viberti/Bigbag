@@ -371,6 +371,8 @@ Cada faceta tem **vocabulário controlado** + **dicionário de sinónimos/abrevi
 
 ⚠️ O caso **`MG` vs `M/G`** prova que a normalização é **dependente da categoria** (o mesmo token difere). Fonte: OFF labels/synonyms **+** a nossa cache de abreviaturas. *(É a "camada de sinónimos" do §6.2 — mas aplicada à **chave inteira**, não só a variedades.)*
 
+**Canonicalização de denominação (caso queijo).** Provámos empiricamente que o LLM é **não-determinístico a COLOCAR a denominação**: para o mesmo queijo devolve ora `categoria="queijo gouda"`, ora `categoria="queijo" + variedade="gouda"`, ora perde-a, ora varia a ortografia (`mozarela`/`mozzarella`). Nenhum ajuste de prompt o estabiliza. Solução: uma camada **determinística** em `chaveMestre` (`canonQueijo`) que, seja qual for a saída do LLM, normaliza para `categoria="queijo" + variedade=<denominação canónica>` — com mapa de ortografia, remoção de `DOP`/`IGP` do nome, e exceções com categoria própria (requeijão · burrata · ricotta · mascarpone · queijo creme). Resultado medido (30 descrições reais): denominação consistente; os splits que sobram são **corretos** (apresentação é portão: gouda bola ≠ gouda fatiado) ou **ruído de OCR** (`PADANG`←`Padano`). É o padrão a replicar quando uma categoria tiver vocabulário fechado de denominações (a generalização futura resolve a denominação a um **nó OFF fino**, §11.1).
+
 ### 11.3 — Política ausente-vs-diferente (o cerne)
 Quando uma faceta-**portão** falta no item:
 - **NÃO** assumir um valor (não fundir às cegas no `magro`).
