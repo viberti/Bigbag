@@ -3,7 +3,22 @@
 // balcão). Itens sem SKU caem para a unidade do formato (retrocompatível).
 import { extrairFormato, precoPorBase } from './formato.js';
 
-const COLS = `i.id, i.descricao_original, i.linha_peso, i.preco_liquido, i.quantidade, i.is_non_product, i.ppb_inferido, i.taxa_iva, f.precos_com_iva, s.unidade_base`;
+const COLS = `i.id, i.descricao_original, i.linha_peso, i.preco_liquido, i.quantidade, i.is_non_product, i.ppb_inferido, i.taxa_iva, f.precos_com_iva, s.unidade_base, s.formato_valor,
+  (SELECT COUNT(*) FROM item it WHERE it.sku_id = i.sku_id AND it.linha_peso IS NOT NULL AND it.linha_peso <> '') AS sku_pesado`;
+
+const round4 = (v) => Math.round(v * 10000) / 10000;
+// Pacote FIXO fiável? SKU com tamanho real (formato_valor ≠ 1, não-default) que
+// NUNCA é pesado ao balcão, e a linha não é venda-a-peso (KG/GRANEL) nem multipack
+// ("6*", "4X200"). Então o tamanho do pacote é uma propriedade do produto e dá para
+// derivar €/base mesmo quando a linha não traz peso. Ex.: "MIRTILO 500" (0,5 kg).
+function pacoteFixoFiavel(r) {
+  const fv = Number(r.formato_valor);
+  const desc = String(r.descricao_original || '');
+  return (
+    Number.isFinite(fv) && fv > 0 && fv !== 1 && !r.sku_pesado &&
+    !/\bKG\b|GRANEL/i.test(desc) && !/\d+\s*[*]|\d+\s*[xX]\s*\d/.test(desc)
+  );
+}
 
 async function recomp(db, rows) {
   for (const r of rows) {
@@ -19,10 +34,20 @@ async function recomp(db, rows) {
     if (ppb != null && !r.precos_com_iva && r.taxa_iva != null) {
       ppb = Math.round(ppb * (1 + Number(r.taxa_iva)) * 10000) / 10000;
     }
-    // Produto a peso/volume (kg/L) mas sem peso na nota → ppb incomputável (null):
-    // marca peso_em_falta para excluir do €/kg sem fingir um valor por peça.
+    // Produto a peso/volume (kg/L) sem peso na nota → ppb incomputável (null).
     const alvoKgL = r.unidade_base === 'kg' || r.unidade_base === 'L';
-    const pesoEmFalta = alvoKgL && ppb == null ? 1 : 0;
+    let pesoEmFalta = 0;
+    if (ppb == null && alvoKgL) {
+      if (pacoteFixoFiavel(r)) {
+        // Pacote fixo conhecido (ex.: mirtilo 500 g) → deriva €/base do tamanho.
+        const emb = Number(r.quantidade) >= 1 ? Number(r.quantidade) : 1;
+        ppb = round4(Number(r.preco_liquido) / (Number(r.formato_valor) * emb));
+        if (!r.precos_com_iva && r.taxa_iva != null) ppb = round4(ppb * (1 + Number(r.taxa_iva)));
+      } else {
+        // Peso variável sem peso na nota → marca para excluir do €/kg (não inventa).
+        pesoEmFalta = 1;
+      }
+    }
     await db.query('UPDATE item SET preco_por_base = ?, peso_em_falta = ? WHERE id = ?', [ppb, pesoEmFalta, r.id]);
   }
   return rows.length;
