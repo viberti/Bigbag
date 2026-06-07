@@ -8,17 +8,24 @@ import { limparDescricao, chaveMestre, ln } from './mestre.js';
 
 const PROMPT = `És um classificador de produtos de supermercado português. Dá a CATEGORIA MAIS FINA (o produto específico) e os PORTÕES que distinguem produtos dentro dela. Devolve SÓ JSON; null quando NÃO se infere (não adivinhes):
 {
-  "categoria": string,         // FINA/específica: "banana","kiwi","queijo gouda","peito de frango","leite","iogurte grego","pasta de dentes". NUNCA classes largas: "fruta","carne","vegetal","laticinio".
+  "categoria": string,         // FINA. Inclui o TIPO que distingue o produto:
+                               //   café -> "café" ou "café descafeinado";
+                               //   arroz -> "arroz carolino" / "arroz agulha" / "arroz basmati" / "arroz vaporizado";
+                               //   chocolate -> "chocolate negro" / "chocolate de leite" / "chocolate branco".
+                               //   NUNCA classes largas: "fruta","carne","cereais","vegetal","laticinio".
   "apresentacao": string|null, // inteiro · fatiado · ralado · pedaco · cortado
   "corte": string|null,        // (carne) peito · lombinho · coxa · perna · bife
-  "processamento": string|null,// inteiro · moida · preparado
-  "variedade": string|null,    // (fruta/legume) gala · golden  (ROYAL GALA->gala)
+  "processamento": string|null,// inteiro · moida · preparado · desidratado/seco
+  "variedade": string|null,    // (fruta/legume/arroz) gala · golden · carolino  (ROYAL GALA->gala)
   "sabor": string|null,        // natural · coco · morango
   "teor": string|null,         // gordo · meio-gordo · magro  (M/G->meio-gordo; MG(leite)->meio-gordo; MAGRO/0%/LIGEIRO->magro)
   "estilo": string|null,       // (iogurte) grego · skyr
   "funcao": string|null,       // (higiene) branqueador · gengivas · multi
-  "fonte": string|null         // (queijo/leite) vaca · cabra · ovelha
+  "fonte": string|null         // (queijo/leite/requeijão) vaca · cabra · ovelha
 }
+Regras:
+- Fruta/legume DESIDRATADO ou SECO -> processamento="desidratado" (banana fresca != banana desidratada).
+- Queijo/requeijão com leite de OVELHA/CABRA ou DENOMINAÇÃO (Serra da Estrela…) -> preenche "fonte" (e mantém a denominação na categoria).
 MARCA, FORMATO e QUANTIDADE não entram. Só o JSON.`;
 
 // Modelo: provámos que, com a chave canónica, o modelo quase não importa; usa o
