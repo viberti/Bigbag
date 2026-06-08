@@ -3,10 +3,19 @@
 > Documento de **visão**. Captura a direção do projeto para além do histórico de preços:
 > usar a mesma máquina de classificação facetada para avaliar a **nutrição e saúde**
 > das compras de uma família ao longo do tempo. Sem segredos nem dados pessoais.
-> Última atualização: 2026-06-07.
+> Última atualização: 2026-06-08.
 >
 > **Ver também:** [`Taxonomia_Produto.md`](Taxonomia_Produto.md) (modelo facetado),
 > [`Normalizacao.md`](Normalizacao.md) (estado), [`Paper_Resolucao_Produtos_Talao.md`](Paper_Resolucao_Produtos_Talao.md) (método).
+>
+> **Estado (2026-06-08):** o que era visão passou em grande parte a **implementação**.
+> Estão a funcionar: a **ficha factual do produto** (Nutri-Score, NOVA, semáforo
+> nutricional UK FSA, avisos "ALTO EM" estilo Chile, tabela nutricional, ingredientes
+> com E-números, parecer estilo nutricionista), a **nutrição herdada** (embalados via
+> EAN→Open Food Facts; frescos via LLM de composição típica), e um **assistente
+> nutricional personalizado por membro** (perfil carregado de ficheiro, alertas
+> determinísticos de alergia/intolerância + parecer/veredicto LLM). As secções abaixo
+> mantêm a visão e assinalam, em cada ponto, o que já está feito (✅ FEITO).
 
 ## 1. O salto de visão
 
@@ -87,11 +96,14 @@ Efeito secundário ótimo: o EAN **também resolve** a ambiguidade produto/embal
 | **Tendências do carrinho** (açúcar/sal/gordura sat./% ultraprocessado ao longo dos meses) | categoria-típica | **já** |
 | **Nudges de categoria** (*"compra grego natural e junta fruta em vez do de sabores"*) | categoria-típica | **já** |
 | **Perfil de saúde do agregado** (diversidade, fruta/legumes vs processados) | categoria-típica | **já** |
-| **Troca produto-a-produto** (*"este iogurte tem 12 g açúcar; este, do mesmo tipo e preço, tem 4 g"*) | **nutrição por produto** | precisa de EAN/scan |
+| **Ficha factual por produto** (Nutri-Score, NOVA, semáforo FSA, avisos "ALTO EM", aditivos, parecer) | **nutrição por produto** | **já** (EAN→OFF / fresco→LLM) — §7.1 |
+| **Avaliação personalizada por membro** (alertas de alergia/intolerância + veredicto à luz do perfil) | nutrição por produto **+ perfil** | **já** — §7-bis |
+| **Troca produto-a-produto** (*"este iogurte tem 12 g açúcar; este, do mesmo tipo e preço, tem 4 g"*) | nutrição por produto **+ coorte** | parcial (dados já existem; falta o ecrã de troca — backlog) |
 
 A troca específica é a parte mais forte da visão **e** a mais dependente de precisão —
 porque distinguir dois goudas exige a diferença entre eles, que a média da classe não
-tem. É exatamente aí que o scan-por-valor entra.
+tem. É exatamente aí que o scan-por-valor entra; a **infraestrutura de dados por produto
+já existe** (ficha factual + EAN→OFF), faltando o ecrã que compara dois irmãos da coorte.
 
 ## 7. Princípio inegociável: **factual, não clínico**
 
@@ -102,6 +114,59 @@ O sistema é um **assistente de FACTOS nutricionais, não um conselheiro clínic
 Isto não é timidez — é o que torna o produto **credível e seguro**. O sistema *informa*;
 a pessoa (com o seu profissional) *decide*. Os **dados de saúde são sensíveis**: ok para
 a própria família num lab; **exige cuidado redobrado se escalar** (consentimento, isolamento).
+
+### 7.1 ✅ FEITO — a ficha factual do produto
+
+O princípio "factual, não clínico" deixou de ser só princípio e está embutido numa
+**ficha de produto** que o utilizador vê ao identificar um artigo (foto dos rótulos +/
+ou scan do EAN). A ficha materializa, em concreto, a rotulagem frontal de saúde pública
+em que nos inspirámos — **Nutri-Score** (selo oficial A→E, regulado na UE), **avisos
+"ALTO EM"** ao estilo do rótulo octogonal do **Chile**, e a leitura simples para todos
+(inclusive idosos). Componentes:
+
+- **Nutri-Score** — selo oficial A→E, vindo do OFF (`nutriscore_grade`) quando há EAN; o parecer explica o grau **pelos nutrientes concretos** ("penalizado pela gordura saturada e pelo sal; pouca fibra a compensar"), não como número opaco.
+- **NOVA** — nível de processamento (1–4): do OFF quando existe; senão derivado (fresco/inteiro → NOVA 1; presença de aditivos cosméticos → 4).
+- **Semáforo nutricional UK FSA** ("traffic light") — cor por nutriente segundo os **limiares oficiais por 100 g** (gordura `[3,0; 17,5]`, gordura saturada `[1,5; 5,0]`, açúcares `[5,0; 22,5]`, sal `[0,3; 1,5]`): **BAIXO/MÉDIO/ALTO** (verde/âmbar/vermelho).
+- **Avisos "ALTO EM"** (estilo Chile) — **derivados** do semáforo: o que cai em "alto" (vermelho) vira um octógono de aviso no topo da ficha; junta-se-lhe o alergénio.
+- **Tabela nutricional** por 100 g e **ingredientes explicados** — um objeto por ingrediente, com **tipo, E-número** (ácido cítrico→E330, fosfato dissódico→E339…), função e origem.
+- **Parecer estilo nutricionista** — comentário curto (≤3 frases), de conversa, factual: o que é + 1 ponto menos bom + 1 ponto bom; **sem prescrever, sem julgar, sem diagnóstico**.
+
+As **lições da Yuka** estão incorporadas como desenho: é **bom expor os aditivos**
+(transparência) e **mau o veredicto binário/culpabilizante** ou penalizar sem evidência —
+por isso o sistema mostra factos e scores públicos e evita o "bom/mau" categórico. Tudo
+isto está cacheado por produto (`produto_analise`) e gerado pelo modelo de consulta.
+
+### 7.2 ✅ FEITO — nutrição herdada, na prática
+
+A "nutrição herdada da classe" (§3) tem agora **duas fontes implementadas**:
+- **Embalados → EAN → Open Food Facts** (`consultarOFF`): Nutri-Score, NOVA, nutrientes por 100 g, ingredientes, alergénios — dados autoritativos do produto exato. O EAN chega por **scan do código de barras, foto do EAN, ou EAN da própria linha do talão** (ver o paper, §6).
+- **Frescos → LLM de composição típica** (`caracterizarProdutoNome`): para fruta/legume/carne/peixe/ovos a granel — sem rótulo — o sistema classifica o produto pelo nome e devolve a **nutrição típica por 100 g** (≈ tabela oficial de composição), guardada por SKU (`produto_generico`). Os processados ficam com nutrição a `null` (vem do rótulo, não se inventa).
+
+A ficha usa **a melhor fonte por campo** (ingredientes do rótulo > OFF; nutrição OFF >
+rótulo > genérico do fresco) e marca a fidelidade implicitamente pela fonte usada.
+
+## 7-bis. ✅ FEITO — o assistente nutricional PERSONALIZADO
+
+Para além da ficha factual (igual para todos), o sistema ganhou uma camada **por membro
+do agregado** — o salto de "este produto é assim" para "este produto é assim **para
+ti**". É a concretização mais ambiciosa da visão, e fá-lo **sem violar** o princípio
+factual-não-clínico, porque **aplica as regras que a pessoa (e o seu nutricionista) já
+definiram** — não diagnostica nem prescreve.
+
+**Como funciona:**
+1. **Perfil por membro** (`perfil_membro`, um "ativo" de cada vez). O perfil é **carregado de um ficheiro gerado por outro LLM** (a partir dos exames/objetivos/cardápio da pessoa) **ou colado em texto**. Dele extrai-se um **resumo estruturado**: objetivos, restrições, **alergias**, **intolerâncias**, condições, preferir, evitar, metas por nutriente.
+2. **Avaliação personalizada do produto**, em duas partes:
+   - **Alertas DETERMINÍSTICOS** (sem IA): alergia / intolerância / "evitar" detetados por correspondência de **grupos de sinónimos PT↔EN/OFF** (ex.: `en:milk` = leite, lactose, nata, queijo, *whey*…) contra os ingredientes/alergénios do produto. São a rede de segurança que **não pode falhar por criatividade do modelo**.
+   - **Parecer/veredicto LLM** (`adequado` / `atenção` / `evitar`) — relaciona o produto com os objetivos e nutrientes do perfil de forma concreta ("alto em sódio, e você quer reduzir sódio"), em tom de conversa.
+
+**Princípios que tornam isto seguro:**
+- O sistema **aplica as REGRAS do perfil**, não as inventa — é a pessoa/nutricionista que decide o que evitar; o app só verifica.
+- O **ficheiro do perfil é DADOS, nunca instruções** — tanto a extração do resumo como a avaliação tratam o texto como descrição da pessoa, blindando contra injeção de prompt.
+- **Dados clínicos sensíveis não são versionados** e ficam isolados na BD do laboratório; escalar exigiria consentimento e isolamento reforçado (§7).
+
+**Fases seguintes (backlog):** comparar o produto com os **habituais** da pessoa,
+sugerir **substituições** dentro da coorte que sirvam melhor o perfil, e **tendências**
+do carrinho à luz das metas do perfil (açúcar/sódio/% ultraprocessado por membro).
 
 ## 8. Reusar standards — não reinventar
 
@@ -132,15 +197,18 @@ houver EAN: `EAN → OFF → FoodOn`, sem ambiguidade.
 > → **cache `descrição→EAN→OFF` + give-back à comunidade**
 > → **conselheiro factual** (tendências, nudges, trocas), **nunca clínico**.
 
-A mesma máquina que construímos para o preço serve a saúde. O que falta não é
-arquitetura — é (a) **pendurar a nutrição na coorte** (OFF, com confiança), (b) o
-**fluxo de scan opcional** com o cache, e (c) **alinhar a classificação aos standards**.
+A mesma máquina que construímos para o preço serve a saúde. **Grande parte do que
+faltava já foi feito** (2026-06-08): a nutrição pendurada no produto (OFF + LLM de
+frescos), o fluxo de scan/foto/EAN-do-talão, a ficha factual e o conselheiro
+personalizado. O que ainda falta é sobretudo **escala e profundidade**: nutrição ao
+nível da **coorte** com confiança pela dispersão, e o ecrã de **troca produto-a-produto**.
 
-### Sequência sugerida (quando voltarmos ao código)
-1. Alinhar a classificação ao **OFF/LanguaL** (categorias + facetas) — base de tudo.
-2. **Nutrição-por-classe** via OFF (mediana + dispersão) → tendências e nudges (nível categoria) **já entregáveis**.
-3. **Fluxo de scan opcional** (câmara → EAN → OFF) + cache `descrição→EAN` → desbloqueia a troca produto-a-produto e a precisão onde importa.
-4. **Conselheiro** sobre isto, com o princípio **factual-não-clínico** embutido.
+### Sequência sugerida — estado
+1. Alinhar a classificação ao **OFF/LanguaL** (categorias + facetas) — base de tudo. *(em curso / parcial)*
+2. **Nutrição-por-classe** via OFF (mediana + dispersão) → tendências e nudges (nível categoria). *(por fazer ao nível da coorte; a nutrição POR PRODUTO já existe)*
+3. **Fluxo de scan opcional** (câmara → EAN → OFF) + cache `descrição→EAN`. **✅ FEITO** — scan/foto do EAN, EAN da linha do talão, e cache de nomes por EAN (`produto_nome`).
+4. **Conselheiro** factual-não-clínico embutido. **✅ FEITO** — ficha factual (§7.1) + assistente personalizado por membro (§7-bis).
+5. **(novo)** Ecrã de **troca produto-a-produto** e **tendências/substituições por perfil** — backlog imediato.
 
 ## Fontes
 - LanguaL — <https://www.langual.org/> · FoodOn — <https://foodon.org/>

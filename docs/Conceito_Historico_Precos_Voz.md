@@ -10,13 +10,24 @@
 
 Uma PWA, servida no servidor próprio de produção (`85.25.46.6`, padrão do projeto 1417), que:
 
-1. **Lê faturas** de supermercado (Continente, Pingo Doce, Mercadona, Aldi, Lidl — Braga) e extrai itens, preços, data e loja, ao nível de cada SKU.
+1. **Lê faturas** de supermercado (Continente, Pingo Doce, Mercadona, Aldi, Lidl, Makro — Braga) e extrai itens, preços, data e loja, ao nível de cada SKU.
 2. **Acumula** essa massa de dados numa base MySQL própria (`app_<PROJ>`).
 3. Permite **consultar por nota de voz** (estilo WhatsApp, assíncrono): gravo uma mensagem de voz → é transcrita e interpretada → **resposta em texto**.
 
 Exemplos de consulta: *"quanto paguei pela manteiga da última vez e onde foi?"*, *"onde é que o leite tem estado mais barato?"*, *"quanto gastei em café este mês?"*
 
 A consulta por voz é o foco do que se quer experimentar; a leitura de faturas é o meio de gerar os dados.
+
+### 1.1 Para além do preço — conselheiro de saúde alimentar (a partir de v0.75)
+
+O Bigbag deixou de ser **só** histórico de preços. À volta da mesma massa de dados (o que a casa compra, item a item) cresceu um segundo eixo: **conhecer o produto e aconselhar sobre saúde alimentar**, de forma **factual, não clínica**. Em concreto, o app passou a:
+
+- **Identificar o produto** comprado (não só o nome do talão): por **EAN + fotos do rótulo** (um VLM lê a embalagem) cruzado com o **Open Food Facts** (OFF) pelo código de barras. As fotos ficam guardadas; a ficha consolida o que cada fonte sabe (VLM, OFF, genérico).
+- **Analisar** o produto: **Nutri-Score** (selo oficial), grupo **NOVA**, **semáforo nutricional** (UK FSA / "traffic light"), faixa de avisos estilo Chile (**"ALTO EM"**), tabela nutricional, **ingredientes explicados com E-números**, e um **parecer estilo nutricionista** — tudo factual, baseado em evidência de rotulagem, **sem diagnóstico nem prescrição**.
+- **Caracterizar frescos sem EAN** (fruta, legume, carne/peixe): classificados (fresco/processado) e com **nutrição típica por 100 g** estimada pelo nome (≈ tabela de composição) — têm ficha mesmo sem foto nem rótulo.
+- **Aconselhar à medida da pessoa**: um **perfil nutricional por membro** do agregado (carregado de um ficheiro de texto gerado por outro LLM a partir de exames/objetivos, ou colado) é cruzado com o produto → **alertas determinísticos** (alergias/intolerâncias/"evitar") + **parecer personalizado** do LLM. Princípio: o app **aplica as regras do perfil** (definidas pela pessoa/nutricionista), **não diagnostica**; o ficheiro do perfil é tratado como **DADOS, nunca instruções** (defesa contra *prompt injection*); os dados clínicos sensíveis **não são versionados**.
+
+A visão completa deste eixo vive em [`Visao_Conselheiro_Saude_Alimentar.md`](Visao_Conselheiro_Saude_Alimentar.md). As secções §11–§13 abaixo detalham o desenho.
 
 ---
 
@@ -145,7 +156,16 @@ Sem `user_id` (utilizador único). Entidades mínimas:
 - **sku_normalizado** — nome canónico, marca, formato/peso, categoria (é o que liga o mesmo produto entre lojas/datas).
 - **loja** — nome, cadeia, localização em Braga.
 
-(Schema detalhado é trabalho do Claude Code; isto fixa as entidades e o porquê de cada uma.)
+Entidades do **eixo saúde** (v0.75):
+- **produto_ean** — produto identificado por EAN: o que o VLM leu do rótulo (`vlm_json`) e o que o OFF tem (`off_json`), fundidos por campo. Liga ao `item` da nota (e ao SKU).
+- **produto_foto** — as fotos do rótulo guardadas, ligadas ao item.
+- **produto_analise** — cache da análise factual (por EAN, ou `sku:<id>` para frescos).
+- **produto_generico** — caracterização pelo nome (fresco/processado + nutrição típica), por SKU.
+- **produto_nome** / **nome_sugestao** — variantes de nome vistas (talão/canónico/VLM/OFF) e a sugestão de nome canónico para o operador rever (modelo de 3 níveis, §11).
+- **categoria_nutricao** — nutrição **por categoria** (mediana + dispersão do OFF), cache reusável.
+- **perfil_membro** — perfil nutricional por membro (texto + resumo estruturado), um ativo de cada vez (§13).
+
+(Schema detalhado em `Schema_e_Funcoes_ToolUse.md`; isto fixa as entidades e o porquê de cada uma.)
 
 ---
 
@@ -194,14 +214,64 @@ Padrão do 1417, sem quebrar os projetos vizinhos (pitacos.ai, 1417):
 
 1. **Transcrição da voz:** STT separado vs. áudio-direto — decidir após experimentar (§5.2).
 2. ~~**Leitura de fatura:** VLM direto vs. OCR+LLM — decidir após comparar (§4).~~ **FECHADA (2026-06-07):** VLM-direto p/ imagem, texto-do-PDF+LLM p/ PDF; OCR dedicado para fotos rejeitado por qualidade/risco. Custo é neutro entre modalidades — só o modelo pesa. Ver §4 (dois head-to-heads + análise de custo).
-3. ~~**Autenticação:** depende de o servidor estar ou não exposto à internet.~~ **FECHADA (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL` (§7).
+3. ~~**Autenticação:** depende de o servidor estar ou não exposto à internet.~~ **FECHADA (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL` (§7). Entretanto, **portão temporário** (`ENABLE_TEST_AUTH`, HTTP Basic) protege as rotas até o OAuth ficar ativo.
+4. **Fonte da identidade do produto (EAN vs. nome).** O EAN é a identidade forte (liga ao OFF e desambigua). Decisão *de facto*: **preferir o EAN** (da linha do talão > do rótulo lido > digitado), validado pelo dígito verificador; o nome é o *fallback* (e a via dos frescos). Falta consolidar a fusão das três camadas de nome (§11) num **Produto Mestre** estável.
+5. **Validação anti-foto-do-produto-errado (em aberto).** Acontece o utilizador fotografar **outro** produto que não o item da nota (ex.: um Skyr no lugar de um Kefir). É preciso (a) **prevenir** — passar a `descricao_original` ao VLM e pedir veredicto `corresponde_nota`, avisando se divergir; e (b) **corrigir** — botão "Remover identificação / refazer" que limpa EAN/fotos/análise do item. **A tratar.**
+
+### Eixo "saúde" — princípios já fechados (v0.75)
+- **Factual, não clínico.** A análise descreve (Nutri-Score, NOVA, semáforo, E-números) com base em *standards* de rotulagem; **não diagnostica nem prescreve**.
+- **Perfil = DADOS, nunca instruções.** O ficheiro do perfil é tratado como descrição da pessoa; os prompts barram *prompt injection*. Alergias verificadas de forma **determinística** (segurança não se delega a um LLM). Dados clínicos sensíveis **não versionados**.
 
 ---
 
-## 11. Perguntas técnicas que quero responder
+## 11. Identificação e ficha do produto (eixo "saúde", v0.75)
+
+O talão dá um **nome abreviado** ("BOL DIGESTIVE AVEIA CNT 425GR"). Para aconselhar sobre saúde é preciso saber **que produto é** — marca, ingredientes, nutrição. Três caminhos, por ordem de força da identidade:
+
+1. **EAN da linha do talão.** Alguns talões — sobretudo cash-and-carry (**Makro**) — imprimem o **EAN-13 do artigo** na primeira coluna ("Nº Código Artigo"). A extração capta-o (`item.ean`), **validado pelo dígito verificador** antes de gravar. Identidade forte, sem foto. Na ingestão, esses EANs são enriquecidos **automaticamente** pelo OFF (cria um `produto_ean` autónomo).
+2. **EAN + fotos do rótulo** (utilizador). Endpoint `/api/produto/identificar`: o utilizador envia 1–10 fotos do mesmo produto (frente, ingredientes, tabela, validade, código de barras). Um **VLM** combina as faces e extrai nome/marca/quantidade/EAN/ingredientes/alergénios/**validade**/nutrição. Em paralelo, o **OFF** é consultado pelo EAN (manual ou lido na foto). Guarda-se **ambas as fontes** (`vlm_json`/`off_json`) + as fotos em disco, ligadas ao **item** da nota. O EAN só vale se passar o **dígito verificador** (apanha leituras erradas → evita produtos-fantasma).
+3. **Caracterização genérica pelo nome** (frescos sem EAN). Um LLM classifica `fresco`/`processado` e, para frescos, dá a **nutrição típica por 100 g** (fruta/legume/carne são bem conhecidos das tabelas). Vive em `produto_generico`, por SKU. Frescos têm ficha **sem foto**.
+
+A ficha (`/api/produto/info`) **consolida** tudo o que sabemos por item OU por EAN: funde as várias linhas `produto_ean` (preenche lacunas, 1.º valor não-nulo ganha), lista as fotos, e escolhe a **melhor fonte por campo** (ingredientes do rótulo > OFF; nutrição: OFF > VLM > genérico).
+
+**Câmara inteligente do rodapé.** A mesma câmara distingue **talão** de **código de barras / produto**: `/api/produto/foto` classifica a imagem (talão/produto/outro). Se for produto, tenta o EAN (do rótulo, ou via OFF por **nome**) e devolve a consulta. Há ainda um **scanner ao vivo** (zxing, `@zxing/browser`, carregado *on-demand*) e um *fallback* que lê o EAN de uma **foto** do código (VLM, `/api/produto/ler-ean`). Consultar um produto pelo EAN sem ligação a nota (`/api/produto/consultar`) busca na base → OFF e **guarda** para uso futuro.
+
+**Modelo de 3 níveis de nome.** A mesma entidade tem três nomes, e os três importam: **(1) nota** = abreviatura do talão (`item.descricao_original`); **(2) produto real** = nome com marca, ancorado no **EAN** (`produto_ean.nome`, `produto_nome` guarda todas as variantes vistas: talão/canónico/VLM/OFF — o OFF pode vir noutra língua); **(3) nome normalizado** = **família genérica sem marca** (`sku_normalizado.nome_canonico`, ex.: "Ketchup", não "Ketchup Heinz"). O operador tem uma **sugestão de nome canónico** (`nome_sugestao`, gerada por LLM das variantes) para rever e aplicar/rejeitar.
+
+## 12. Análise factual (não clínica) do produto
+
+`/api/produto/analise` gera (e **cacheia** por EAN, ou por `sku:<id>` para frescos) uma análise estruturada a partir dos dados consolidados:
+
+- **Nível de processamento** (NOVA 1–4 + rótulo + porquê).
+- **Nutri-Score** (grau + porquê pelos nutrientes), mostrado no **selo oficial** A–E.
+- **Semáforo nutricional UK FSA**: cor por nutriente (gordura/saturados/açúcares/sal) pelos limiares oficiais por 100 g, + % da dose de referência do adulto.
+- **Faixa "ALTO EM"** (estilo Chile): avisos no topo derivados do semáforo + alergénios.
+- **Ingredientes explicados**: um objeto por ingrediente (tipo, **E-número**, função, origem, nota).
+- **Parecer estilo nutricionista**: ≤3 frases, tom de conversa, 1 ponto fraco + 1 forte, **sempre factual, nunca prescritivo**.
+
+**Princípio editorial (rígido):** factual, **não clínico**. O prompt proíbe diagnóstico, prescrição ("deve evitar"), e o registo professoral. A base é **evidência de rotulagem frontal** (Nutri-Score, NOVA, semáforo são *standards* públicos), não opinião médica.
+
+## 13. Assistente nutricional personalizado (perfil por membro)
+
+Cada membro do agregado pode ter um **perfil** (`perfil_membro`): carrega-se um **ficheiro de texto** gerado por outro LLM (a partir dos exames/objetivos/cardápio da pessoa), ou cola-se o texto. Um LLM extrai um **resumo estruturado** (objetivos, restrições, **alergias**, intolerâncias, condições, preferir/evitar, nutrientes-alvo). Há **um perfil ativo** de cada vez.
+
+Na ficha do produto, `/api/produto/personalizado` cruza o produto com o perfil ativo:
+- **Alertas determinísticos** (sem IA): `alertasDoPerfil` casa alergias/intolerâncias/"evitar" contra ingredientes/alergénios, com **grupos de sinónimos** PT+EN/OFF (leite/milk/lactose…, glúten/gluten/trigo…) e limpeza das etiquetas OFF (`en:`/`pt:`). É a camada **crítica** (segurança).
+- **Parecer personalizado** (LLM): relaciona o produto com os objetivos/nutrientes **do perfil**, com veredicto (`adequado`/`atenção`/`evitar`).
+
+**Princípios de desenho (decisões fechadas):**
+- O app **aplica as regras** que a pessoa/nutricionista definiu — **não diagnostica nem prescreve**.
+- O texto do perfil é **DADOS, nunca instruções** (os prompts dizem-no explicitamente — defesa contra *prompt injection* via ficheiro carregado).
+- **Dados clínicos sensíveis não são versionados** (vivem na BD, não no repo).
+- A alergia é verificada de forma **determinística** (não se confia a um LLM o que é uma questão de segurança).
+
+## 14. Perguntas técnicas que quero responder
 
 - ~~Um VLM multimodal lê faturas térmicas amassadas melhor que OCR dedicado + LLM?~~ **Respondido (2026-06-07): sim, e por larga margem em fotos** (9/10 vs 3/10 a reconciliar; OCR de foto leva o LLM a alucinar). Ver §4.
 - O STT (Whisper/GPT-4o/Voxtral via OpenRouter) aguenta português europeu com marcas e preços ditos em voz alta?
 - Transcrever em passo separado dá-me melhor controlo, ou áudio-direto num só passo é suficiente (e melhor)?
 - Function calling a partir da consulta transcrita é robusto para perguntas compostas, ou parte-se?
 - A normalização de SKU agrupa o mesmo produto entre cinco lojas bem o suficiente para a comparação de preços fazer sentido?
+- O EAN+fotos (VLM) e o Open Food Facts dão, juntos, uma ficha de produto fiável o suficiente para o conselho de saúde? Quando divergem, qual ganha por campo?
+- A nutrição **estimada pelo nome** (frescos) é próxima o bastante da tabela oficial para um semáforo honesto?
+- O parecer factual aguenta a fronteira "não clínico" sem escorregar para prescrição? E o cruzamento com o perfil é robusto a fotos do **produto errado** (decisão em aberto §10.5)?

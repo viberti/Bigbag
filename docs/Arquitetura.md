@@ -7,12 +7,20 @@
 ## 1. O que é
 
 Bigbag é uma aplicação pessoal (utilizador único) de **histórico de preços de
-compras de supermercado**. O utilizador fotografa ou carrega o talão/fatura; o
-sistema extrai os itens e preços, normaliza cada produto para um identificador
-canónico, valida a leitura por reconciliação aritmética, e guarda tudo numa base
-relacional. Depois responde a perguntas em linguagem natural (texto ou voz) do
-tipo *"onde está mais barato o azeite?"*, *"quanto gastei em laticínios em
-maio?"*, *"quanto paguei pela última manteiga?"*.
+compras de supermercado** que cresceu também para **conselheiro de saúde
+alimentar**. O utilizador fotografa ou carrega o talão/fatura; o sistema extrai
+os itens e preços, normaliza cada produto para um identificador canónico, valida
+a leitura por reconciliação aritmética, e guarda tudo numa base relacional.
+Depois responde a perguntas em linguagem natural (texto ou voz) do tipo *"onde
+está mais barato o azeite?"*, *"quanto gastei em laticínios em maio?"*, *"quanto
+paguei pela última manteiga?"*.
+
+A partir de v0.75, à volta dessa massa de dados há um segundo eixo: **identificar
+o produto** (por EAN + fotos do rótulo, cruzado com o Open Food Facts) e produzir
+**análise de saúde alimentar factual** (Nutri-Score, NOVA, semáforo nutricional,
+ingredientes com E-números) — opcionalmente **personalizada** por um perfil
+nutricional de cada membro do agregado. Sempre **factual, não clínico** (ver §11
+e `docs/Visao_Conselheiro_Saude_Alimentar.md`).
 
 Por ser laboratório de utilizador único, **não há multi-tenancy**: o modelo de
 dados não tem `user_id` nas tabelas de domínio e a autorização é binária
@@ -22,10 +30,10 @@ dados não tem `user_id` nas tabelas de domínio e a autorização é binária
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend | React 18 + Vite, PWA (service worker via `vite-plugin-pwa`). Sem framework de routing — *routing por path* em `main.jsx`. Sem libs de estado/UI (estado local + `localStorage`). |
-| Backend | Node.js (≥20), Express 4. ES Modules. Dependências mínimas: `mysql2`, `multer` (uploads), `sharp` (pré-processamento de imagem), `unpdf` (extração de texto de PDF), `dotenv`. |
-| Base de dados | MySQL 8 (InnoDB, `utf8mb4`). Acesso por SQL direto via `mysql2/pool` — sem ORM. |
-| IA | Todos os modelos via **OpenRouter** (API compatível com OpenAI), uma única chave. Cobre texto, visão (VLM) e áudio. Modelos configuráveis por variável de ambiente. |
+| Frontend | React 18 + Vite, PWA (service worker via `vite-plugin-pwa`). Sem framework de routing — *routing por path* em `main.jsx`. Sem libs de estado/UI (estado local + `localStorage`). Única dependência de runtime nova: **`@zxing/browser`** (+ `@zxing/library`), carregada *on-demand* para o scanner de código de barras. |
+| Backend | Node.js (≥20), Express 4. ES Modules. Dependências mínimas: `mysql2`, `multer` (uploads), `sharp` (pré-processamento de imagem), `unpdf` (extração de texto de PDF), `dotenv`. Identificação de produto cruza com o **Open Food Facts** (API pública, sem chave). |
+| Base de dados | MySQL 8 (InnoDB, `utf8mb4`). Acesso por SQL direto via `mysql2/pool` — sem ORM. Migrações versionadas **001 … 027**. |
+| IA | Todos os modelos via **OpenRouter** (API compatível com OpenAI), uma única chave. Cobre texto, visão (VLM) e áudio. Modelos configuráveis por variável de ambiente (`gemini-2.5-flash` para extração e para consulta/análise). |
 | Deployment | Serviço Node atrás de um *reverse proxy* (TLS terminado no proxy), gerido por `systemd` (auto-restart). Escuta apenas em `localhost` numa porta dedicada. |
 
 **Princípio transversal:** dependências mínimas e deliberadas. A lógica difícil
@@ -42,9 +50,9 @@ vez de delegada a bibliotecas ou empurrada para o prompt do LLM.
         │  HTTP localhost:<porta>
         ▼
    Node/Express  ──────►  OpenRouter (LLM/VLM/áudio)
-        │
+        │         └──────►  Open Food Facts (ficha de produto por EAN/nome)
         ├──►  MySQL (app_bigbag)
-        └──►  Filesystem (/var/lib/<app>/comprovantes, notas de voz)
+        └──►  Filesystem (/var/lib/<app>/comprovantes, notas de voz, produtos)
 ```
 
 - O backend serve **apenas a API** (`/api/*`) e o `/health`. Os ficheiros
@@ -63,19 +71,26 @@ backend/
     auth.js              Middleware requireAuth (sessão)
     openrouter.js        Cliente único do LLM (texto/visão/áudio), com custos
     routes/
-      faturas.js         POST ingestão + GET imagem da nota
+      faturas.js         POST ingestão + GET imagem da nota + GET gastos
       consulta.js        Consulta por texto
       voz.js             Consulta por voz (áudio → transcrição → consulta)
-      admin.js           API do operador (gestão de SKUs, revisão de notas)
+      admin.js           API do operador (gestão de SKUs, revisão, sugestões de nome)
       explorar.js        API do explorador de preços
+      produto.js         Identificar/consultar produto (EAN+fotos), ficha, análise,
+                         avaliação personalizada, despensa, por-identificar
+      perfil.js          Perfis nutricionais por membro (carregar/ativar)
     ingest/              PIPELINE DE INGESTÃO
       imagem.js          Pré-processamento de imagem (resize/contraste, sharp)
       pdf.js             Extração de texto de PDF (unpdf)
-      extract.js         Extração estruturada via LLM (VLM ou texto+LLM)
+      extract.js         Extração estruturada via LLM (VLM ou texto+LLM); capta EAN da linha
       reconcile.js       Reconciliação determinística (convenção A/B, sinal honesto)
       normalize.js       Dobra linhas de desconto/peso na descrição
       classify.js        Classificação da loja (supermercado/farmácia/outro)
-      persist.js         Gravação + deduplicação
+      persist.js         Gravação + deduplicação (grava item.ean validado)
+      reprocess.js       Re-extração sobre o ficheiro guardado (fixes retroativos)
+      produto.js         VLM de rótulos, OFF por EAN/nome, análise factual,
+                         caracterização de frescos, leitura de EAN, validação GTIN
+      perfil.js          Extrai resumo do perfil, alertas determinísticos, avaliação
     normaliza/           NORMALIZAÇÃO DE PRODUTO (3 camadas)
       formato.js         Parsing de formato/peso → preço por unidade-base
       canonical.js       Canonicalização por LLM (nome + correção de OCR)
@@ -88,12 +103,14 @@ backend/
     historico.js         Histórico da conversa
     perfil.js            Memória de longo prazo (factos sobre o utilizador)
     custo.js             Agregação de custos e de qualidade de extração
-  migrations/            SQL versionado (001 … 013)
+  migrations/            SQL versionado (001 … 027)
+  scripts/               Lotes/benchmarks (enriquecer_genericos, nutricao_categoria, …)
   test/                  Testes (node:test); lógica pura local, BD/LLM no servidor
 frontend/
   src/
     main.jsx             Routing por path: / (app) · /admin · /explorar
-    App.jsx              PWA do utilizador (chat, captura, carrinho)
+    App.jsx              PWA do utilizador (chat, captura, carrinho, despensa,
+                         gastos, scanner, perfil, ficha+análise de produto)
     Admin.jsx            Interface de operador (desktop)
     Explorar.jsx         Explorador de preços (desktop)
     api.js · adminApi.js · explorarApi.js   Clientes HTTP
@@ -135,12 +152,35 @@ perde — permite auditar a normalização) e a ligação ao SKU (`sku_id`, nulo
 ser resolvido). Preços: `preco_liquido` (preço impresso na linha) e
 `preco_por_base` (€/kg, €/L ou €/un — o campo que torna a comparação
 correcta). Flags de regra de negócio: `is_clearance` (fim de validade),
-`is_non_product` (saco, taxa).
+`is_non_product` (saco, taxa), `peso_em_falta`. Quando o talão imprime o
+**EAN-13 do artigo** na linha (cash-and-carry como o Makro), guarda-o em
+`item.ean` (validado pelo dígito verificador) — identidade forte do produto sem
+foto.
 
-**Auxiliares:** `sku_alias` (cache `descricao_original → sku_id`),
-`mensagem` (histórico da conversa), `perfil`/factos (memória de longo prazo),
-`revisao` (veredicto humano do operador sobre cada nota), `custo_chamada`
-(telemetria de custo/qualidade por chamada ao modelo).
+**Auxiliares (preço/qualidade):** `sku_alias` (cache `descricao_original →
+sku_id`, com `confianca`), `mensagem` (histórico da conversa), `perfil`/factos
+(memória de longo prazo do assistente), `revisao` (veredicto humano do operador
+sobre cada nota), `custo_chamada` (telemetria de custo/qualidade por chamada ao
+modelo), `produto_mestre` + `sku_normalizado.mestre_id` (modelo facetado).
+
+**Auxiliares (eixo saúde, migrações 019–027):**
+- **`produto_ean`** — produto identificado por EAN: une o que o VLM leu do rótulo
+  (`vlm_json`) e o que o **Open Food Facts** devolveu (`off_json`), com os campos
+  fundidos (nome, marca, quantidade, categoria, ingredientes, alergénios,
+  validade, `nutricao`). Liga ao `item` e ao SKU. `UNIQUE(ean)` (vários NULL
+  permitidos).
+- **`produto_foto`** — as fotos do rótulo guardadas no FS, ligadas ao item/EAN.
+- **`produto_analise`** — cache da análise factual (chave: EAN, ou `sku:<id>`
+  para frescos).
+- **`produto_generico`** — caracterização pelo nome (fresco/processado +
+  nutrição típica por 100 g para frescos), por SKU.
+- **`produto_nome`** / **`nome_sugestao`** — todas as variantes de nome vistas
+  por EAN (talão/canónico/VLM/OFF) e a sugestão de nome canónico para o operador
+  rever/aplicar (modelo de 3 níveis de nome).
+- **`categoria_nutricao`** — nutrição por **categoria** (mediana + dispersão do
+  OFF), cache reusável ("a nutrição pendura-se na classe").
+- **`perfil_membro`** — perfil nutricional por membro (texto bruto + `resumo`
+  JSON estruturado), um `ativo` de cada vez.
 
 ### Decisões de modelo notáveis
 
@@ -339,20 +379,97 @@ camada trocável: a v1 usa áudio-direto ao modelo de chat (`input_audio` em
 base64; URLs não são suportados para áudio). A nota de voz é guardada e a
 transcrição visível é devolvida (útil para depurar PT europeu).
 
-## 11. Superfícies de frontend
+## 11. Identificação de produto e conselheiro de saúde
+
+Eixo adicionado em v0.75: para além do **preço**, o sistema **identifica** o
+produto e produz uma análise de **saúde alimentar** factual. Visão completa em
+`docs/Visao_Conselheiro_Saude_Alimentar.md`; aqui fica a arquitetura.
+
+**Identificação (`routes/produto.js` + `ingest/produto.js`).** Três vias, por
+ordem de força da identidade:
+
+1. **EAN da linha do talão** — captado na extração (`item.ean`), validado pelo
+   dígito verificador GTIN (`eanValido`, sem internet). Na ingestão
+   (`faturas.js`), esses EANs são enriquecidos pelo **OFF** (cria um
+   `produto_ean` autónomo, `item_id` NULL).
+2. **EAN + fotos do rótulo** (`POST /identificar`, multipart, ≤10 fotos) — um
+   **VLM** combina as faces do produto e extrai nome/marca/quantidade/EAN/
+   ingredientes/alergénios/**validade**/nutrição; em paralelo consulta o **OFF**
+   pelo EAN. Guarda **ambas as fontes** (`vlm_json`/`off_json`) + as fotos
+   (`produto_foto`), ligadas ao item. O EAN só vale se passar o dígito
+   verificador → evita produtos-fantasma.
+3. **Caracterização pelo nome** (frescos sem EAN) — LLM classifica
+   `fresco`/`processado` e, para frescos, dá a nutrição típica por 100 g
+   (`produto_generico`). Corrida em lote (`scripts/enriquecer_genericos.mjs`).
+
+A ficha (`GET /info`) **consolida** por item OU por EAN: funde as várias linhas
+`produto_ean` (preenche lacunas, 1.º não-nulo ganha), lista fotos, e escolhe a
+**melhor fonte por campo** (ingredientes do rótulo > OFF; nutrição OFF > VLM >
+genérico). O EAN do **talão** é autoritativo sobre o lido à mão.
+
+**Câmara inteligente.** `POST /foto` classifica a imagem (talão / produto /
+outro). Se produto, tenta o EAN (rótulo, ou OFF por **nome**) e devolve a
+consulta. `POST /ler-ean` lê o EAN de uma **foto** do código (VLM, *fallback* do
+scanner ao vivo). `GET /consultar?ean=` consulta base → OFF e **guarda** para o
+futuro. No cliente, o scanner ao vivo usa **`@zxing/browser`** (carregado
+*on-demand*).
+
+**Modelo de 3 níveis de nome.** (1) nota = `item.descricao_original`; (2)
+produto real = nome com marca por EAN (`produto_ean.nome`; `produto_nome` regista
+todas as variantes); (3) nome normalizado = família genérica sem marca
+(`sku_normalizado.nome_canonico`). O operador revê a sugestão (`nome_sugestao`).
+
+**Análise factual (`GET /analise`, cacheada por EAN/`sku:<id>`).** Um LLM produz
+JSON estruturado: NOVA, **Nutri-Score** com porquê pelos nutrientes,
+ingredientes explicados com **E-números**, destaques, e um **parecer** ≤3 frases.
+**Princípio: factual, não clínico** — o prompt proíbe diagnóstico/prescrição. O
+frontend desenha o selo Nutri-Score oficial, o **semáforo UK FSA** (limiares por
+100 g + % da dose de referência) e a faixa **"ALTO EM"** (estilo Chile).
+
+**Conselheiro personalizado (`routes/perfil.js` + `ingest/perfil.js`).** Um
+**perfil por membro** (`perfil_membro`) é carregado de um ficheiro de texto
+(gerado por outro LLM) ou colado; um LLM extrai um **resumo estruturado**
+(objetivos, restrições, **alergias**, intolerâncias, nutrientes-alvo). Há um
+perfil **ativo**. Na ficha, `GET /personalizado` cruza o produto com o perfil:
+- **alertas determinísticos** (`alertasDoPerfil`, **sem IA**) casam
+  alergias/intolerâncias/"evitar" contra ingredientes/alergénios, com **grupos
+  de sinónimos** PT+EN/OFF e limpeza das etiquetas OFF — é a camada de
+  **segurança**, não delegada a um LLM;
+- **parecer personalizado** (LLM) com veredicto `adequado`/`atenção`/`evitar`.
+
+**Decisões de desenho:** o app **aplica** as regras do perfil, **não
+diagnostica**; o ficheiro do perfil é tratado como **DADOS, nunca instruções**
+(defesa contra *prompt injection*); **dados clínicos sensíveis não são
+versionados**.
+
+## 12. Superfícies de frontend
 
 Três aplicações no mesmo bundle, escolhidas por *path* em `main.jsx`:
 
-- **App do utilizador (`/`)** — PWA mobile-first: captura de nota (digitalizar
-  documento com dewarp / foto / galeria em lote / arquivo-PDF multi-selecção),
-  chat de perguntas, e **carrinho de compras** (toca nos produtos habituais →
-  carrinho agrupado por secção de mercado, swipe para apagar, persistido em
-  `localStorage`). Os **habituais têm cache offline** (stale-while-revalidate) —
-  a app abre e o carrinho funciona **dentro do supermercado sem rede**.
+- **App do utilizador (`/`)** — PWA mobile-first. Inclui:
+  - **captura de nota** (digitalizar documento com dewarp / foto / galeria em
+    lote / arquivo-PDF multi-selecção) e **chat** de perguntas (texto/voz);
+  - **carrinho de compras** (toca nos produtos habituais → carrinho agrupado por
+    secção de mercado, swipe para apagar, persistido em `localStorage`); os
+    **habituais têm cache offline** (stale-while-revalidate) — funciona **dentro
+    do supermercado sem rede**;
+  - **As minhas compras** (redesenhado) — cartões por loja com **cor + monograma**
+    (`lojaTema`, paleta fixa para as cadeias conhecidas + *hash* para as outras),
+    agrupados por mês, com **detalhe deslizante** (produtos + total);
+  - **A minha despensa** — os produtos que conhecemos (com EAN), por compra
+    decrescente; tocar abre a **ficha do produto** (`ProdutoInfoSheet`: análise +
+    semáforo + fotos + dados em bruto VLM/OFF, e a **avaliação personalizada** do
+    perfil ativo no topo);
+  - **Os meus gastos** — análise de despesa (mês atual vs anterior, variação %,
+    média, série dos últimos 12 meses, por loja);
+  - **Scanner de código de barras** (`@zxing/browser`, ao vivo) e câmara
+    "inteligente" no rodapé que **distingue talão de código de barras**;
+  - **Perfil nutricional** — carregar/colar o perfil de um membro e ativá-lo.
 - **Operador (`/admin`)** — desktop: gerir SKUs canónicos (renomear,
   associar/dissociar descrições — gravando alias `manual` —, fundir produtos,
-  auto-merge de nomes idênticos), e **rever a leitura de cada nota** (imagem +
-  itens lado a lado) com:
+  auto-merge de nomes idênticos), **rever a leitura de cada nota** (imagem +
+  itens lado a lado), e **rever sugestões de nome canónico** (`nome_sugestao`,
+  geradas das variantes por LLM), com:
   - **diagnóstico de reconciliação** — a pista cirúrgica e as linhas
     inconsistentes (`qtd×unitário≠total`) apontam o provável erro, em vez de só
     "em revisão";
@@ -360,7 +477,8 @@ Três aplicações no mesmo bundle, escolhidas por *path* em `main.jsx`:
   - **reprocessar** a nota — re-extrai sobre o ficheiro guardado, aplicando
     melhorias de extração/reconciliação **retroativamente, sem re-upload**
     (aliases manuais preservados);
-  - **qualidade** por cadeia / origem de captura / **método** (VLM vs OCR+LLM).
+  - **qualidade** por cadeia / origem de captura / **método** (VLM vs OCR+LLM) e
+    um **painel de saúde** do cesto (cruza compras com `categoria_nutricao`).
 - **Comprador (`/explorar`)** — desktop: explorar produtos, preço pago vs por
   unidade, variação ao longo do tempo (gráfico desenhado em canvas, sem libs),
   comparação por mercado, com selector de mês/ano.
@@ -369,7 +487,7 @@ Três aplicações no mesmo bundle, escolhidas por *path* em `main.jsx`:
 `t(chave, vars)` (interpolação, plural simples, detecção do idioma do browser).
 Traduzir = acrescentar um dicionário; os componentes não mudam. Base PT-BR.
 
-### 11.1 Captura e digitalização no cliente (jscanify + OpenCV.js)
+### 12.1 Captura e digitalização no cliente (jscanify + OpenCV.js)
 
 A foto é digitalizada **no browser** antes do upload (`scanner.js`): deteção das
 bordas do talão + correção de perspetiva/recorte. Decisões e trade-offs:
@@ -403,14 +521,14 @@ bordas do talão + correção de perspetiva/recorte. Decisões e trade-offs:
   térmico (brilhante), lava o contraste e **piora** deteção e leitura — anti-padrão
   conhecido na digitalização de documentos.
 
-**Nota de custo (liga à §13):** o tamanho do ficheiro do cliente **não** afeta o
+**Nota de custo (liga à §14):** o tamanho do ficheiro do cliente **não** afeta o
 custo do VLM — o backend redimensiona toda a imagem para ~1400 px de largura antes
 da chamada (o VLM cobra por **resolução**, em *tiles*, não por bytes). O recorte só
 poupa tokens na medida em que deixa o talão **mais estreito que 1400 px**, e a
 poupança é de **fração de cêntimo por nota**. O valor do recorte é **qualidade**
 (sem fundo/ruído), não custo.
 
-## 12. Segurança e autorização
+## 13. Segurança e autorização
 
 - Todas as rotas `/api/*` de aplicação exigem **sessão válida** (`requireAuth`).
   `/health` é deliberadamente público (não toca em BD nem na chave) para
@@ -423,7 +541,7 @@ poupança é de **fração de cêntimo por nota**. O valor do recorte é **quali
   pelo backend.
 - Uploads limitados em tamanho (multer) e gravados com permissões restritas.
 
-## 13. Observabilidade
+## 14. Observabilidade
 
 - **Custo por chamada** ao modelo é registado por contexto (extração,
   canonicalização, consulta…) e por modelo (`custo_chamada`), agregável em
@@ -434,7 +552,7 @@ poupança é de **fração de cêntimo por nota**. O valor do recorte é **quali
 - **Feedback humano** do operador (`revisao`) fecha o ciclo: prioriza melhorias
   por mercado/produto.
 
-## 14. Decisões de arquitetura e trade-offs
+## 15. Decisões de arquitetura e trade-offs
 
 - **Lógica difícil em código, não no prompt.** Reconciliação, formato e match de
   SKU são determinísticos e testáveis. O LLM faz o que só ele faz bem
@@ -455,7 +573,7 @@ poupança é de **fração de cêntimo por nota**. O valor do recorte é **quali
   confirmação.** (O servidor é partilhado com outros projectos — alterações a
   serviços globais são sempre confirmadas.)
 
-## 15. Pontos em aberto / evolução
+## 16. Pontos em aberto / evolução
 
 - **Match produto→SKU (consulta)**: `LIKE` (primário, apanha fragmentos) +
   **fallback fuzzy ao nível do caractere** (Levenshtein, sem deps) que dispara só
@@ -484,8 +602,17 @@ poupança é de **fração de cêntimo por nota**. O valor do recorte é **quali
   gasto. Tentar primeiro um modelo leve (flash-lite) e **escalar ao VLM só quando
   a `discrepancia` não bate** — corta ~75% do maior custo. Mede-se com um harness
   flash vs flash-lite antes de fixar.
+- **Foto do produto ERRADO** (eixo saúde, a tratar): o utilizador pode fotografar
+  outro produto que não o item da nota (caso real: um Skyr no lugar de um Kefir).
+  Falta (a) **prevenir** — passar a `descricao_original` ao VLM e pedir veredicto
+  `corresponde_nota`, avisando se divergir; e (b) **corrigir** — botão "Remover
+  identificação / refazer" no `ProdutoInfoSheet` que limpa EAN/fotos/análise do
+  item e volta ao ícone da câmara.
+- **Produto Mestre** — consolidar as três camadas de nome (talão / produto real
+  por EAN / nome normalizado) num mestre estável; hoje há `produto_mestre` +
+  `nome_sugestao` mas a fusão é incremental.
 
-## 16. Maturidade por área — onde estão (e não estão) os problemas reais
+## 17. Maturidade por área — onde estão (e não estão) os problemas reais
 
 > Esta secção existe para orientar melhorias **com base em dados medidos**, e
 > evitar re-sugerir o que já está feito. Atualizada à medida que medimos.
@@ -540,4 +667,4 @@ mais fotos que PDFs — vários "não-problemas" acima passam a importar.
 temas.** Não tratar a amostra atual como representativa.
 
 ---
-*Última actualização: 2026-06-06.*
+*Última actualização: 2026-06-08 (v0.75.0).*

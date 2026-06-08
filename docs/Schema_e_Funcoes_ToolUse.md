@@ -90,6 +90,7 @@ CREATE TABLE item (
   fatura_id            BIGINT UNSIGNED NOT NULL,
   sku_id               BIGINT UNSIGNED,           -- null até ser normalizado
   descricao_original   VARCHAR(200) NOT NULL,     -- NOME limpo (qtd/peso/preço/IVA vão fora) — 'BOL DIGESTIVE AVEIA CNT 425GR'
+  ean                  VARCHAR(20),               -- EAN-13 impresso NA LINHA do talão (cash-and-carry/Makro: "Nº Código Artigo"); validado pelo dígito verificador antes de gravar → autoritativo sobre o lido à mão; migração 027
   linha_peso           VARCHAR(80),               -- peso de balcão à parte do nome ('2,426 kg x 1,20 EUR/kg') — fonte do €/kg; migração 013
   quantidade           DECIMAL(10,3) NOT NULL DEFAULT 1,  -- 3 (un) ou 0.418 (kg)
   preco_unitario       DECIMAL(10,4),             -- preço por unidade tal como na fatura
@@ -107,6 +108,156 @@ CREATE TABLE item (
   KEY idx_item_fatura (fatura_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
+
+### 1b. Conselheiro de saúde alimentar — identificação de produto + nutrição (migrações 019–026)
+
+Bloco para o Bigbag conhecer o **produto** (não só o preço): identificar por EAN/fotos, herdar nutrição (Open Food Facts ou tabela de composição para frescos), analisar de forma factual e avaliar à luz do perfil de cada membro. Ver `docs/Visao_Conselheiro_Saude_Alimentar.md`.
+
+```sql
+-- ─────────────────────────────────────────────────────────────
+-- CATEGORIA_NUTRICAO (migração 019): cache de nutrição POR CATEGORIA — a
+-- nutrição pendura-se na CLASSE, não no item. Busca-uma-vez ao OFF (mediana +
+-- dispersão da categoria) e reusa. A dispersão é o sinal de CONFIANÇA:
+-- estreita → estimativa fiável; larga → vale um scan (EAN).
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE categoria_nutricao (
+  categoria      VARCHAR(120) PRIMARY KEY,        -- categoria do Mestre (ex.: 'queijo')
+  off_tag        VARCHAR(80),                     -- tag OFF (ex.: 'cheeses'); NULL p/ whole/meat
+  origem         VARCHAR(12) NOT NULL,            -- 'off' | 'whole' | 'meat' | 'manual'
+  n_amostra      INT,                             -- nº de produtos OFF na amostra
+  nutriscore     CHAR(1),                         -- modal A..E (ou NULL)
+  nova_group     TINYINT,                         -- modal 1..4 (ou NULL)
+  acucar_med     DECIMAL(6,2),                    -- mediana açúcar/100g
+  gord_sat_med   DECIMAL(6,2),                    -- mediana gordura saturada/100g
+  sal_med        DECIMAL(6,3),                    -- mediana sal/100g
+  dispersao      VARCHAR(10),                     -- 'estreita' | 'larga' (confiança)
+  atualizado_em  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- PRODUTO_EAN (migração 020, +item_id na 021): produto identificado por EAN.
+-- Guarda o que o VLM extraiu dos rótulos (vlm_json) E o que o Open Food Facts
+-- tem para esse EAN (off_json), para alimentar o conselheiro e comparar fontes.
+-- item_id NULL = produto consultado/autónomo (scan no mercado ou EAN da linha do
+-- talão), SEM ligação a uma compra; item_id preenchido = veio de um item de nota.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE produto_ean (
+  id            BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  ean           VARCHAR(20),                 -- código de barras (NULL se não obtido)
+  sku_id        BIGINT UNSIGNED,             -- liga ao produto canónico
+  item_id       BIGINT UNSIGNED,             -- item da nota de onde veio; NULL = autónomo (migração 021)
+  nome          VARCHAR(200),
+  marca         VARCHAR(120),
+  quantidade    VARCHAR(60),                 -- peso/volume líquido (ex.: "500 g")
+  categoria     VARCHAR(120),
+  ingredientes  TEXT,
+  alergenios    TEXT,
+  validade      VARCHAR(30),                 -- data impressa (texto, como lida do rótulo)
+  nutricao      JSON,                        -- por 100 g/ml (melhor fonte disponível)
+  fonte         VARCHAR(10),                 -- 'vlm' | 'off' | 'ambos'
+  vlm_json      JSON,                        -- bruto do VLM (debug)
+  off_json      JSON,                        -- bruto do OFF (debug)
+  criado_em     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_ean (ean)                    -- MySQL permite vários NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- PRODUTO_FOTO (migração 021): fotos do rótulo (frente, ingredientes, validade)
+-- GUARDADAS em disco (/var/lib/bigbag/produtos/, chmod 600), ligadas ao ITEM da
+-- nota e/ou ao EAN. Servidas (com auth) por GET /api/produto/foto/:id.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE produto_foto (
+  id         BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  item_id    BIGINT UNSIGNED,           -- item da nota a que a foto pertence
+  ean        VARCHAR(20),               -- EAN associado (se houver)
+  ficheiro   VARCHAR(255) NOT NULL,     -- caminho do ficheiro guardado (fora do static root)
+  mime       VARCHAR(40),
+  ordem      TINYINT DEFAULT 0,
+  criado_em  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_pf_item (item_id),
+  KEY idx_pf_ean (ean)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- PRODUTO_ANALISE (migração 022): cache da análise factual (LLM) de um produto.
+-- Chave = EAN (embalados) OU 'sku:<id>' (frescos genéricos) — a análise depende
+-- do PRODUTO, não do item da nota. Re-gera-se apagando a linha (ou ?forcar=1).
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE produto_analise (
+  ean        VARCHAR(20) PRIMARY KEY,    -- EAN ou 'sku:<id>'
+  analise    JSON NOT NULL,
+  modelo     VARCHAR(80),
+  criado_em  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- PRODUTO_GENERICO (migração 023): caracterização de um produto pelo NOME (sem
+-- EAN). Fresco vs. embalado; para frescos (fruta, legume, carne/peixe), nutrição
+-- típica por 100 g de tabela de composição. Chave = SKU canónico (partilhada).
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE produto_generico (
+  sku_id     BIGINT UNSIGNED PRIMARY KEY,
+  tipo       VARCHAR(20),          -- 'fresco' | 'processado'
+  alimento   VARCHAR(120),         -- alimento genérico identificado
+  categoria  VARCHAR(160),
+  nutricao   JSON,                 -- por 100 g (só para 'fresco'); NULL para 'processado'
+  modelo     VARCHAR(80),
+  criado_em  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- PRODUTO_NOME (migração 024): todos os NOMES vistos para um produto (por EAN) —
+-- do talão, o canónico, o lido pelo VLM, o do OFF (pode vir noutra língua). Servem
+-- para matching de descrições e para construir/afinar o nome canónico. Dedup (ean,nome).
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE produto_nome (
+  id        BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  ean       VARCHAR(20) NOT NULL,
+  sku_id    BIGINT UNSIGNED,
+  nome      VARCHAR(200) NOT NULL,
+  origem    VARCHAR(20),          -- 'talao' | 'canonico' | 'vlm' | 'off'
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_ean_nome (ean, nome),
+  KEY idx_pn_sku (sku_id),
+  KEY idx_pn_ean (ean)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- NOME_SUGESTAO (migração 025): sugestão de nome canónico (LLM, das variantes em
+-- produto_nome) para o operador rever na aba "Nomes" do /admin. Uma por SKU.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE nome_sugestao (
+  sku_id      BIGINT UNSIGNED PRIMARY KEY,
+  atual       VARCHAR(200),
+  sugerido    VARCHAR(200) NOT NULL,
+  variantes   TEXT,                                    -- variantes separadas por '||'
+  estado      VARCHAR(12) NOT NULL DEFAULT 'pendente', -- pendente | aplicado | rejeitado
+  criado_em   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  decidido_em TIMESTAMP NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- PERFIL_MEMBRO (migração 026): perfil nutricional por membro do agregado
+-- (carregado de um texto gerado por LLM dos exames/objetivos/cardápio). Guarda o
+-- texto bruto (nuance) + um resumo estruturado (alertas determinísticos). UM perfil
+-- ATIVO de cada vez (é o usado nas avaliações personalizadas).
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE perfil_membro (
+  id            BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  nome          VARCHAR(80) NOT NULL,
+  texto         MEDIUMTEXT,        -- perfil em texto (bruto)
+  resumo        JSON,              -- { objetivos, restricoes, alergias, intolerancias, condicoes, preferir, evitar, nutrientes, notas }
+  ativo         TINYINT DEFAULT 0, -- 1 = perfil usado nas avaliações personalizadas
+  criado_em     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### Notas de design — identificação de produto
+- **EAN é a identidade forte do produto.** Sempre que entra um EAN (manual, lido na foto, ou impresso na linha do talão), é **validado pelo dígito verificador** (`eanValido`, check-digit GTIN-8/12/13) ANTES de gravar. Um código que falha o dígito verificador é descartado (`ean_rejeitado`) para não criar produtos-fantasma. O `item.ean` (da linha do talão) é **autoritativo** sobre o lido à mão e dispensa foto.
+- **Duas vias de nutrição, por confiança:** EAN/rótulo (preciso, por produto) vs. genérico por categoria/nome (estimado). Frescos (fruta/legume/carne) herdam nutrição de tabela de composição via `produto_generico`; embalados ficam com `nutricao NULL` no genérico (a nutrição vem do rótulo, não se inventa).
+- **Cache em todo o lado:** `consultarOFF` por EAN, análise factual em `produto_analise` (chave EAN ou `sku:<id>`), nutrição de categoria em `categoria_nutricao`. Re-geração explícita (`?forcar=1` / apagar a linha).
+- **Fotos guardadas em disco** (não na BD), ligadas ao item; o caminho fica em `produto_foto.ficheiro` e é servido com auth (nunca via static root).
 
 ### Notas de design
 - **`preco_por_base` é o que faz a comparação funcionar.** Para itens por peso (fruta a granel), `preco_liquido` sozinho não é comparável; `preco_por_base` (€/kg) é. Para itens por unidade, é o preço por unidade. As funções de comparação consultam sempre `preco_por_base`.
@@ -237,6 +388,56 @@ Formato compatível com OpenRouter / OpenAI tools. O LLM recebe a consulta (tran
 - **Datas sempre ISO** no contrato; o LLM converte "este mês" → intervalo antes de chamar (ou o backend interpreta — decidir na implementação, mas ISO no contrato evita ambiguidade).
 - **Filtros implícitos:** as comparações e históricos excluem `is_clearance` e `is_non_product` por omissão. A poupança de fim-de-validade pode ser uma função futura à parte.
 - **Resposta do backend → LLM:** JSON simples e achatado (ex. `{"produto":"manteiga Mimosa","preco":2.19,"loja":"Pingo Doce","data":"2026-05-28"}`), para o LLM formular naturalmente.
+
+---
+
+## 2b. Rotas HTTP (contrato da API) — todas atrás de `requireAuth`
+
+Resumo das rotas montadas em `backend/src/routes/`. Todas exigem sessão (portão temporário `ENABLE_TEST_AUTH` até o OAuth ficar ativo).
+
+### Faturas — `/api/faturas` (`faturas.js`)
+- **`POST /`** — ingestão (multipart, campo `fatura` = imagem **ou** PDF; campo opcional `origem` = `scan|foto|galeria|arquivo`). PDF → texto+LLM; imagem → VLM. Auto-correção em loop (realimenta discrepância do total + linhas inconsistentes), normalização (formato → `preco_por_base`), persistência com **deduplicação endurecida**, canonicalização inline (resolve `sku_id`), recompute de ppb, auto-correção de outliers, merge de nomes idênticos, e **enriquecimento OFF dos EANs vindos na linha do talão** (Makro → `produto_ean` autónomo). Devolve resumo + sinal de qualidade (`extracao_bate`, `needs_review`, `discrepancia`, itens). Se duplicada: `{ duplicada:true, fatura_id }` e apaga a imagem órfã.
+- **`GET /`** — lista de notas (data, loja, nº de itens, total), data desc.
+- **`GET /gastos`** — resumo de gastos doméstico: `{ atual, anterior, media, total_geral, variacao, serie }` (série mensal, últimos 12 meses) + `por_loja` do mês corrente. (Declarada ANTES de `/:id` para não colidir.)
+- **`GET /:id`** — itens de uma nota. Por item devolve agora também **`ean`** (`COALESCE(item.ean, EAN da identificação por foto)`), **`marca`** (do OFF/VLM), **`tipo_alimento`** (`produto_generico.tipo`) e `tem_generico` — para a app mostrar identificação/nutrição.
+- **`GET /:id/imagem`** — serve a imagem original (revisão do operador).
+
+### Produto / conselheiro de saúde — `/api/produto` (`produto.js`)
+- **`POST /identificar`** (multipart `fotos[]` ≤10, + `ean`/`sku_id`/`item_id` opcionais) — corre o **VLM** sobre as fotos do rótulo E consulta o **OFF** pelo EAN; valida o EAN pelo dígito verificador (`ean_rejeitado` se falhar); guarda as fotos em disco (ligadas ao item) e faz upsert em `produto_ean` + `produto_nome`. Devolve `{ ean, vlm, off, fonte, custo, n_fotos, fotos_guardadas, ean_rejeitado }`.
+- **`GET /info`** (`item_id` **ou** `ean`) — consolida TUDO o que sabemos do produto: funde as várias linhas de `produto_ean` (vlm/off), inclui o genérico (frescos) e lista as fotos. EAN do talão é autoritativo.
+- **`GET /analise`** (`item_id` ou `ean`, `?forcar=1`) — análise **factual e não clínica** (ingredientes, NOVA, Nutri-Score, destaques), cacheada em `produto_analise` (chave EAN ou `sku:<id>`).
+- **`GET /personalizado`** (`item_id` ou `ean`) — avaliação à luz do **perfil ativo**: alertas determinísticos (`alertasDoPerfil`) + parecer do LLM (`avaliarParaPerfil`). `{ perfil:null }` se não houver perfil ativo.
+- **`POST /ler-ean`** (multipart `foto`) — VLM lê os dígitos do código de barras de uma foto (fallback do scanner ao vivo); valida o dígito verificador.
+- **`GET /consultar`** (`?ean=`) — consulta por EAN SEM ligação a nota (scan no mercado): nossa base → OFF; guarda (`item_id` NULL) para uso futuro. `{ ean, encontrado, fonte, nome }`.
+- **`POST /foto`** (multipart `foto`) — câmara "inteligente": classifica a foto (`talao`/`produto`/`outro`); se produto, tenta o EAN (rótulo ou OFF-por-nome) e devolve a consulta.
+- **`GET /despensa`** — produtos conhecidos (com EAN, de compras), por data desc, dedup por EAN.
+- **`GET /por-identificar`** — worklist de itens embalados (não-frescos) sem EAN identificado, por compra desc.
+- **`GET /foto/:id`** — serve uma foto de produto (caminho da BD, com auth).
+
+### Perfil nutricional — `/api/perfil` (`perfil.js`)
+- **`GET /`** — lista perfis (com resumo), o ativo primeiro.
+- **`POST /`** (`{ nome, texto }`) — carrega/atualiza um perfil: extrai o `resumo` estruturado (LLM) e fica **ativo** (upsert por nome; ativa só este).
+- **`POST /:id/ativar`** — torna esse perfil o ativo (`ativo = IF(id=?,1,0)`).
+
+### Operador — `/api/admin` (`admin.js`), aba "Nomes"
+- **`GET /nomes`** — sugestões de nome canónico pendentes (`nome_sugestao` + variantes).
+- **`POST /nomes/gerar`** — gera/atualiza sugestões (LLM, das variantes em `produto_nome`) para os SKUs ainda sem decisão (ignora os já rejeitados).
+- **`POST /nomes/:skuId/aplicar`** — renomeia o SKU para o sugerido (guarda anti-colisão de nome → 409).
+- **`POST /nomes/:skuId/rejeitar`** — marca a sugestão como rejeitada (não reaparece).
+
+### Funções de apoio (ingestão)
+- **`ingest/produto.js`:** `extrairProdutoFotos` (VLM sobre N fotos), `consultarOFF` (Open Food Facts por EAN), `analisarProduto` (análise factual), `caracterizarProdutoNome` (fresco vs. processado + nutrição típica), `sugerirNomeCanonico` (melhor nome PT genérico das variantes), `eanValido` (check-digit GTIN-8/12/13), `lerEanDeFoto`, `analisarFotoProduto` (classifica talão/produto/outro), `buscarOffPorNome`.
+- **`ingest/perfil.js`:** `extrairPerfil` (texto → resumo estruturado), `alertasDoPerfil` (determinístico; grupos de sinónimos de alergénios PT↔EN/OFF, limpa prefixos `en:`/`pt:`), `avaliarParaPerfil` (parecer do LLM, factual não clínico).
+- **Modelos:** VLM de extração de fotos = `gemini-2.5-flash` (`OPENROUTER_MODEL_EXTRACAO`); análise / consulta / caracterização / perfil = `modelConsulta` (`gemini-2.5-flash`).
+
+#### Deduplicação de faturas (endurecida — `ingest/persist.js`)
+Quatro redes, em cascata, para sobreviver a erros de leitura do VLM (nome de loja, data):
+1. **Número do documento por CADEIA** (`l.cadeia = ? AND numero_fatura = ?`) — o critério mais fiável; sobrevive a `loja_id` diferente por nome mal lido.
+2. **Por loja:** `numero_fatura` OU `DATE(data_compra) = DATE(?) AND total_impresso` (apanha as antigas sem número).
+3. **Assinatura forte:** cadeia + `DATE()` igual + total + nº de itens (praticamente impossível colidir entre compras distintas).
+4. **Sobreposição de preços:** cadeia + total + nº de itens, confirmada por interseção dos `preco_liquido` (`sobreposicaoPrecos`, tolerância ±0,02 de OCR; exige ≥70% de sobreposição). Apanha duplicados com data/preços lidos de forma diferente entre leituras.
+
+`item.ean` (EAN da linha do talão) é gravado só se passar `eanValido`.
 
 ---
 

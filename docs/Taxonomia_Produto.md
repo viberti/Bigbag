@@ -3,6 +3,7 @@
 > **Casos de estudo:** iogurte grego · maçã · leite · queijo. **Estatuto:** desenho/exploração (modelo-alvo), não a implementação atual.
 > Complementa `Normalizacao.md` — esse descreve **o que o código faz hoje**; este descreve **para onde o modelo deve ir** e **porquê**, reusando standards em vez de reinventar.
 > **Consolidado (2026-06-07)** com 5 revisões externas + experiências empíricas (head-to-head de extração, classificação, chave do Mestre, e novo-vs-antigo nos dados reais) + decisões de portão do dono. Marcas: **[rev]** = de revisão; **[dono]** = decisão do dono.
+> **Atualização 2026-06-08:** ligado ao **modelo de 3 níveis de nome** da implementação (§3.1) e ao progresso real (EAN da linha do talão, `produto_nome`/`nome_sugestao`, `produto_generico` — ver §9).
 
 ## 0. Propósito e princípio
 
@@ -51,6 +52,25 @@ A identidade de um produto **não é uma string de nome** — é um **vetor face
 ² **marca = faceta própria** [rev], **não** "= cadeia". Ler quando impressa; quando ausente, **inferir num passo separado e com confiança** (marca-própria: Mercadona→Hacendado, Aldi→Milsani…) — nunca acoplar ao campo `cadeia`, que é frágil e não 1:1 (Continente → Continente/Seleção/Mythos…). **Marca desconhecida** é um valor válido (não "igual a tudo") — crítico para o agrupamento (§4).
 
 ---
+
+### 3.1 — Os três níveis de NOME ↔ as facetas (ligação à implementação, 2026-06-08)
+
+A implementação fixou um **modelo de 3 níveis de nome** (ver `Normalizacao.md` §1.1)
+que **é exatamente esta tabela de níveis, vista pelo lado do nome**:
+
+| Nível de nome (implementação) | Onde vive | Nível facetado (este doc) |
+|---|---|---|
+| **Nome da nota** (`item.descricao_original`) | linha do talão | a **entrada** a mapear (§8) |
+| **Nome do produto real** (por EAN, **com marca/tamanho**) | `produto_ean`, mostrado **ao nível do item** | **Específico / SKU físico** (facetas A + **marca** + formato) |
+| **Nome normalizado** (`sku_normalizado.nome_canonico`, **família genérica sem marca**, mantém a variedade/tipo) | `sku_normalizado` | **Produto Mestre** (= equivalente: só facetas A, **brand-free**) |
+
+→ A decisão "**a marca NÃO entra no nome normalizado**" é a forma-string da regra do
+§4.1 ("**agrupar, não fundir**"): a marca é **faceta do específico**, e o brand-free
+é o que agrupa para comparar. A **nutrição** segue a mesma lógica de herança: os
+**frescos** herdam da classe via LLM (`produto_generico`, sem EAN); os **embalados**
+herdam por **EAN→OFF** (natureza B). O `produto_nome` (todas as variantes vistas por
+EAN) é a matéria-prima da **camada de sinónimos** que o §6.2/§11.2 pedem — ainda
+parcial (por EAN, não ainda chave-do-Mestre).
 
 ## 4. Os níveis = **projeções** das facetas (não campos separados)
 
@@ -331,7 +351,25 @@ O modelo de hoje (`Normalizacao.md`) **achata** este desenho: um `nome_canonico`
 
 **A dívida real de desenho** (não "abstrata"): a dependência **marca→merge** (resolvida pelo Produto Mestre, que não funde) e os **defaults de coorte** (§5.1). O resto está bem pensado.
 
-**Leitura sóbria [rev]:** para um utilizador único, **~90% do valor está em Fase 1** (coorte + Produto Mestre + unidade-por-categoria — tudo barato). A **camada B (EAN→OFF) é andaime aspiracional** até existir captura de EAN — **não construir scaffolding B antes** de haver um produto com EAN na BD. *(Nuance: alguns atributos B de produtos famosos — Manchego→ovelha — vêm dos priors do LLM hoje, com confiança baixa.)*
+**Progresso (2026-06-08) — passos dados nesta direção:**
+- **Marca fora do nome genérico** (lacuna 1, parcial): a implementação fixou o
+  **modelo de 3 níveis de nome** (§3.1) — `nome_canonico` é **família genérica sem
+  marca**; a marca vai para o **nível do produto real** (por EAN) e o item. É a
+  forma-string do "agrupar, não fundir". **Falta** ainda materializar o Produto
+  Mestre como entidade que liga os específicos (a migração 017 já tem a tabela).
+- **Camada de sinónimos / afinação do nome**: `produto_nome` (todas as variantes por
+  EAN) + `sugerirNomeCanonico` (LLM, sem marca) + aba "Nomes" do operador com guarda
+  anti-colisão → o nome genérico afina-se com as variantes vistas. É o embrião da
+  camada de sinónimos que o §6.2/§11.2 pedem (ainda por EAN, não por chave-do-Mestre).
+- **Captura de EAN começou** (desbloqueia a natureza B): `item.ean` (migração 027) lê
+  o EAN **da linha do talão** (Makro) e enriquece pelo OFF na ingestão; mais a
+  identificação por foto/scan. Já **há produtos com EAN na BD** → a camada B deixou
+  de ser puro andaime. Tudo com **validação de dígito verificador** (`eanValido`).
+- **Nutrição herdada da classe nos frescos**: `produto_generico` classifica
+  fresco/processado por SKU e dá a nutrição típica dos frescos via LLM — a herança
+  "da classe" do modelo, no ramo que não precisa de EAN.
+
+**Leitura sóbria [rev]:** para um utilizador único, **~90% do valor está em Fase 1** (coorte + Produto Mestre + unidade-por-categoria — tudo barato). A **camada B (EAN→OFF) é andaime aspiracional** até existir captura de EAN — **não construir scaffolding B antes** de haver um produto com EAN na BD. *(Nuance: alguns atributos B de produtos famosos — Manchego→ovelha — vêm dos priors do LLM hoje, com confiança baixa. E desde 2026-06-08 já há EAN real na BD — via linha do Makro e foto/scan.)*
 
 ---
 

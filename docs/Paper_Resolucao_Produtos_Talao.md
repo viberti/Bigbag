@@ -1,6 +1,6 @@
 # Resolução de Entidades de Produtos a partir de Talões de Supermercado: Taxonomia Facetada, Normalização e Correspondência de Descrições Incompletas
 
-> **Relatório técnico — Projeto Bigbag.** Última revisão: 2026-06-07.
+> **Relatório técnico — Projeto Bigbag.** Última revisão: 2026-06-08.
 > Documento de engenharia/investigação. Sem segredos, credenciais nem dados pessoais.
 > Documentos irmãos: [`Taxonomia_Produto.md`](Taxonomia_Produto.md) (modelo-alvo facetado),
 > [`Normalizacao.md`](Normalizacao.md) (estado de implementação), [`Schema_e_Funcoes_ToolUse.md`](Schema_e_Funcoes_ToolUse.md).
@@ -106,7 +106,7 @@ imagem/PDF → (1) extração estruturada → (2) reconciliação aritmética
 
 Cada documento é lido para **JSON estruturado**. Para **imagens** usa-se um modelo multimodal (VLM) diretamente; para **PDFs digitais** extrai-se o texto e usa-se um LLM textual — uma comparação *head-to-head* mostrou que, em fotografias, o VLM-direto reconcilia muito melhor do que OCR clássico seguido de LLM (o OCR de foto induz o LLM a *alucinar* a partir do ruído).
 
-Decisão de desenho relevante: o esquema do item pede **campos próprios** para o que é estruturado — nome, quantidade, **`peso_kg`**, **`preço por kg impresso`**, taxa de IVA — em vez de deixar o modelo colar peso e preço no nome. Isto entrega o **nome limpo na origem** e o €/kg directamente do talão, eliminando pós-processamento por expressão regular.
+Decisão de desenho relevante: o esquema do item pede **campos próprios** para o que é estruturado — nome, quantidade, **`peso_kg`**, **`preço por kg impresso`**, taxa de IVA, e o **`ean`** quando a linha o traz (cash-and-carry, §6.4) — em vez de deixar o modelo colar peso, preço ou código no nome. Isto entrega o **nome limpo na origem**, o €/kg directamente do talão e o EAN da linha já isolado, eliminando pós-processamento por expressão regular.
 
 ### 5.2 Reconciliação aritmética (verificação embutida)
 
@@ -158,6 +158,30 @@ A correspondência por *nome* (§6.1) resolve a ligação ao SKU de marca; a lig
 
 Validámos que é a **chave estável**, e não o modelo, que decide o agrupamento: com a mesma limpeza e a mesma chave canónica, cinco modelos de fronteira distintos produziram agrupamento idêntico (F1 = 1.0) sobre dados limpos. A chave leve (sem normalização) sobre-une ou parte; a canonicalizada agrupa corretamente.
 
+### 6.4 Identificação por EAN — a âncora forte, quando existe
+
+Embora a linha de talão *normalmente* não traga código de barras (§2), há três vias para obter um EAN, que quando disponível **resolve a identidade sem ambiguidade** (ancora à embalagem exata e abre a porta ao enriquecimento OFF, §7-bis no documento de visão):
+
+1. **Scan do código de barras** — leitura ao vivo pela câmara (biblioteca `zxing` no cliente), o caminho preferido e mais fiável.
+2. **Foto do EAN** — quando o scanner ao vivo falha (telemóvel antigo, código danificado), uma foto do código é lida por VLM (`lerEanDeFoto`); o resultado passa pela mesma validação.
+3. **EAN da própria linha do talão** — em **cash-and-carry** (Makro e afins), a primeira coluna de cada linha é o "Nº Código Artigo" = um EAN-13. A extração captura-o num campo próprio (`ean` por item) e ele persiste na linha (`item.ean`), identificando o produto **sem foto nem scan**.
+
+**Validação por dígito verificador.** Todo o EAN — leia-se por que via for — passa por uma verificação determinística do **dígito de controlo GTIN** (`eanValido`, válida para EAN-8/UPC-12/EAN-13/GTIN-14, *offline*). Isto **apanha a maioria das leituras erradas** (uma troca de um dígito quase nunca mantém o *checksum*) antes de poluir a base com produtos-fantasma; um EAN que falhe o dígito é descartado e o item volta ao estado "por identificar".
+
+**Caveat honesto — o EAN válido-mas-errado.** O dígito verificador é necessário, não suficiente: um VLM pode ler um EAN **diferente do real mas ainda assim válido**. Caso observado: papel higiénico cujo código foi lido como `…540` em vez de `…560` — ambos passam o *checksum* (a fórmula do dígito é, por construção, o que torna *qualquer* sequência válida ao ajustar o último dígito). A mitigação é **cruzar o EAN com a descrição do talão / o nome OFF**: se o produto que o EAN devolve não casa com a linha, sinaliza-se em vez de aceitar cegamente. Esta é uma fronteira ativa do método.
+
+**Autoridade do EAN do talão.** Quando o mesmo item tem um EAN vindo do talão **e** um EAN identificado à mão (foto/scan), o **do talão sobrepõe-se** — é o que o documento fiscal afirma sobre aquela compra concreta, logo a fonte mais autoritativa para ligar a linha ao produto.
+
+### 6.5 Modelo de três níveis de nome
+
+A par da chave facetada (que decide a coorte) e do nome canónico *brand-agnostic* (§6.1), o sistema mantém uma **hierarquia de nomes** que serve propósitos distintos, alimentada por todas as fontes (talão, rótulo via VLM, OFF — por vezes noutra língua):
+
+- **Nível 1 — nome do talão** (`descricao_original`): cru, abreviado, por cadeia. A entrada.
+- **Nível 2 — nome do produto real**: o nome legível da embalagem/OFF (com marca), recolhido na identificação por EAN.
+- **Nível 3 — nome normalizado genérico** (`nome_canonico`): a **família** sem marca nem formato ("Iogurte Grego Natural", não "… Mythos"), que serve produtos de várias lojas.
+
+Em torno disto, dois artefactos: **`produto_nome`** acumula *todas* as variantes vistas para um EAN (de qualquer fonte/língua) — matéria-prima para *matching* e para compor o canónico; e **`nome_sugestao`** guarda uma **sugestão de nome canónico** gerada por LLM dessas variantes (`sugerirNomeCanonico`), para o operador rever e aplicar/rejeitar. O nome genérico é, deliberadamente, *brand-agnostic*; os nomes de nível 1–2 ricos em variantes existem para o *matching* não perder ligações.
+
 ## 7. Incerteza honesta
 
 Um princípio transversal: **não fabricar números que a fonte não dá.** Três manifestações:
@@ -170,7 +194,7 @@ A honestidade também é uma decisão de produto: uma investigação empírica s
 
 ## 8. Deduplicação robusta de documentos
 
-A mesma compra pode entrar duas vezes se o documento for re-submetido e a leitura variar. Uma deduplicação por (loja, data, total) falha precisamente quando o modelo **lê mal a loja ou a data** — observámos um VLM ler consistentemente uma cadeia como outro nome e errar o ano. A solução é uma chave robusta a leituras erradas:
+A mesma compra pode entrar duas vezes se o documento for re-submetido e a leitura variar. A deduplicação é **em camadas**, da mais barata e específica para a mais robusta: (i) **número do documento por cadeia** — o nº fiscal é único por cadeia, logo `cadeia = ∧ nº-documento =` é um duplicado imediato (rede mais forte quando o nº é lido); (ii) **nº-documento OU (data + total)** no âmbito da loja; e (iii) a rede robusta abaixo. Uma deduplicação só por (loja, data, total) falha precisamente quando o modelo **lê mal a loja ou a data** — observámos um VLM ler consistentemente uma cadeia como outro nome e errar o ano. Daí a chave robusta a leituras erradas:
 
 $$\text{duplicado} \iff \text{cadeia} = \wedge\ \text{total} = \wedge\ |\text{itens}| = \wedge\ \text{sobreposição-de-preços} \ge 0{,}7\,|\text{itens}|$$
 
@@ -194,11 +218,11 @@ onde a *sobreposição* é o tamanho da interseção dos multiconjuntos de preç
 3. **Correspondência na consulta por substring** (`LIKE '%termo%'`) — mistura produtos ("leite" apanha "Doce de Leite"); evoluível para *embeddings* sobre o nome canónico.
 4. **Não-determinismo do LLM na canonicalização** — amortecido pela cache e pela auto-fusão, não eliminado.
 5. **Dependência da leitura a montante** — a normalização é tão boa quanto a extração; muitos €/kg estranhos são erros de formato/quantidade na leitura, não da normalização.
-6. **Facetas-B ainda não ligadas** — sem ingestão de EAN→OFF, os atributos ocultos (açúcar, bio, lactose) permanecem indisponíveis; o modelo já reserva o seu lugar fora da chave.
+6. **Facetas-B ligadas POR PRODUTO, ainda não pela coorte** — a ingestão EAN→OFF já popula os atributos ocultos (açúcar, Nutri-Score, NOVA, aditivos) para o produto **scaneado** (§6.4), fora da chave como previsto. Falta a **herança pela classe** (um irmão scaneado dar nutrição aos restantes da coorte) e a estimativa por mediana/dispersão da categoria.
 
 ## 11. Trabalho futuro
 
-- **Ligação EAN→OFF** por leitura do código de barras (scan), populando facetas-B sem re-particionar a identidade.
+- **Ligação EAN→OFF** — **já implementada** (2026-06-08) por três vias de EAN (scan, foto, linha do talão; §6.4), populando facetas-B (nutrição, Nutri-Score, NOVA, aditivos) sem re-particionar a identidade. Falta robustecer o caso **EAN válido-mas-errado** (cruzamento sistemático EAN↔descrição) e estender as facetas-B à **coorte** (herança entre irmãos da mesma classe).
 - **Embeddings** para a correspondência em tempo de consulta (cross-loja) e para os quase-duplicados.
 - **Resolução de categoria a um nó OFF fino** como passo determinístico (hoje parcial), generalizando a canonicalização de denominação para além do queijo.
 - **Promoção de Mestres provisórios** quando uma re-leitura, um EAN ou o operador resolvem uma faceta-portão em falta.

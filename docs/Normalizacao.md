@@ -3,7 +3,7 @@
 > Documento técnico para análise. Descreve o **problema** da normalização, as
 > **dificuldades** reais encontradas, a **solução** adotada e os **problemas em
 > aberto**. Sem segredos, credenciais nem dados de utilizador.
-> Última atualização: 2026-06-07.
+> Última atualização: 2026-06-08.
 >
 > **Ver também:** [`Taxonomia_Produto.md`](Taxonomia_Produto.md) — o **modelo-alvo**
 > facetado (standards OFF/GS1/IFPS, níveis e coortes), com o iogurte grego como
@@ -25,6 +25,33 @@ convenções diferentes por cadeia (posição do código de IVA, separador de mu
 peso impresso ou não), marcas que aparecem ou não, e acentuação variável. Não há
 EAN/código de barras nas linhas. É, na prática, um problema de *entity resolution*
 sobre texto sujo — a parte mais difícil do sistema.
+
+### 1.1 Os três níveis de NOME (decisão de design, 2026-06-08)
+
+O mesmo produto físico tem **três nomes diferentes**, cada um com o seu papel — e
+**confundi-los** é a raiz de boa parte da dívida de normalização. São níveis, não
+sinónimos:
+
+1. **Nome da nota** — `item.descricao_original`: a abreviatura do talão
+   (`KETCH 500ML`, `IOG MYTHOS CNT EQ NAT LIG`). É o que se leu; varia por cadeia,
+   é ruidoso. Serve de **entrada** da resolução, não de identidade.
+2. **Nome do produto real** — a identificação **por EAN** (`produto_ean`), **com
+   marca e tamanho** (ex.: *Ketchup* da **Heinz**, 500 g). É a identidade física
+   exata. A **marca mostra-se ao NÍVEL DO ITEM** na app (o item comprado é de uma
+   marca concreta), não no nome canónico.
+3. **Nome normalizado** — `sku_normalizado.nome_canonico`: a **família genérica**,
+   **partilhada por várias marcas e lojas** (ex.: *Ketchup*, *Iogurte Grego
+   Natural*, *Queijo Grana Padano*). É o que agrupa para **comparar preços entre
+   marcas**.
+
+**Decisão: a marca NÃO entra no nome normalizado.** Pô-la lá *estraga* o nível 3 —
+o nome canónico é partilhado, e cravar "Heinz" partia o "Ketchup" em tantos SKUs
+quantas as marcas. A marca vive no **nível do produto real** (nível 2, por EAN) e no
+item. O que o nome normalizado **mantém** é a **variedade / tipo que DEFINE a
+família** (*Grego*, *Ligeiro*, *Grana Padano*, *Curado*…) — isso não é marca, é o
+que distingue uma família da outra. Este modelo de 3 níveis alinha com o modelo
+facetado-alvo (ver `Taxonomia_Produto.md` §4): o nome normalizado ≈ o **Produto
+Mestre** genérico; marca/tamanho/EAN são **facetas do específico**.
 
 ## 2. Modelo de dados
 
@@ -48,8 +75,28 @@ item.descricao_original ──(resolução)──► sku_normalizado ◄──(c
   fazia a mesma banana nunca reusar o alias (ver §4.1).
 - **`item`** — guarda `descricao_original` (nome **limpo**; o ruído estrutural vai
   fora), `linha_peso` (peso de balcão, à parte do nome), `preco_por_base`
-  (comparável; **sempre com IVA**), `taxa_iva`, e **`peso_em_falta`** (produto a
-  peso/volume sem peso na nota → `ppb=NULL` honesto, marcado p/ sair do €/kg).
+  (comparável; **sempre com IVA**), `taxa_iva`, **`peso_em_falta`** (produto a
+  peso/volume sem peso na nota → `ppb=NULL` honesto, marcado p/ sair do €/kg), e
+  **`ean`** (migração **027**) — EAN-13 do artigo quando o talão o imprime
+  (cash-and-carry como o Makro, coluna "Nº Código Artigo"). **Validado pelo dígito
+  verificador** antes de gravar; identifica o produto real (nível 2) **sem foto** e
+  é enriquecido pelo OFF na ingestão.
+
+**Tabelas de apoio aos 3 níveis de nome (§1.1) e à caracterização:**
+- **`produto_nome`** (migração **024**) — guarda **todas as variantes de nome**
+  vistas para um produto (chaveado por EAN): `origem` ∈ {`talao`, `canonico`, `vlm`,
+  `off`}. Dedup por `(ean, nome)`. Alimenta o *matching* de descrições e serve de
+  matéria-prima para **afinar o nome canónico**. Preenchida na identificação por
+  EAN (`guardarNomes` em `routes/produto.js`) e por `scripts/backfill_nomes.mjs`.
+- **`nome_sugestao`** (migração **025**) — fila de sugestões de nome canónico
+  geradas por LLM (`sugerirNomeCanonico`) a partir das variantes; o operador
+  **aplica/rejeita** na aba "Nomes" do `/admin`. Estado ∈ {`pendente`, `aplicado`,
+  `rejeitado`}; `scripts/sugerir_nomes.mjs` gera em lote.
+- **`produto_generico`** (migração **023**) — classificação por **SKU**: `tipo`
+  (`fresco`/`processado`) + `nutricao` típica por 100 g **só para os frescos**
+  (a dos embalados vem do rótulo/OFF, não se inventa). Preenchida por
+  `caracterizarProdutoNome` (LLM) / `scripts/enriquecer_genericos.mjs`. Distingue,
+  por SKU, o que precisa de foto/EAN do que já se conhece pela tabela de composição.
 
 ## 3. O pipeline (3 camadas + pós-processos)
 
@@ -225,9 +272,32 @@ agrupam-se em três famílias:
   **taxa por item**; um **guarda aritmético** decide se o IVA é somado (grossista)
   comparando a reconciliação com e sem IVA — robusto a o LLM ler a tabela
   informativa como IVA-somado. `preco_por_base` fica **sempre com IVA**.
+- **Nome canónico afinado pelas variantes** (3 níveis, §1.1): o LLM
+  (`sugerirNomeCanonico`) propõe o **melhor nome GENÉRICO** (PT, **sem marca**, com
+  o tipo/variedade que define a família) a partir de todas as variantes de
+  `produto_nome`; o operador aplica/rejeita na **aba "Nomes"** do `/admin`. A
+  aplicação tem **guarda anti-colisão** (recusa se o nome sugerido já existir noutro
+  SKU — não duplica). A geração ignora SKUs já rejeitados.
+- **EAN da linha do talão como identidade forte** (migração 027): quando a cadeia
+  imprime o EAN na linha (Makro), `item.ean` identifica o **produto real** (nível 2)
+  sem foto e é enriquecido pelo OFF na ingestão (`enriquecerEansFatura`).
+- **Validação de EAN pelo dígito verificador** (`eanValido`, GTIN-8/12/13/14): todo
+  o EAN — lido da linha, do scanner, do VLM ou da foto — passa pela soma de
+  controlo antes de gravar. Apanha leituras erradas (1.º dígito 4→2…) **sem
+  internet** e evita produtos-fantasma. EAN que falha a soma é rejeitado e
+  assinalado (`ean_rejeitado`).
+- **Limpeza de marca** (`limparMarca`, frontend): o OFF lista várias marcas por
+  vírgula, incluindo a **holding** (`Continente, Continente Seleção, SONAE`). Tira a
+  holding (lista `MARCAS_HOLDING`) e fica com a **1.ª marca real** — para a marca
+  mostrada ao nível do item ser a do fabricante, não o grupo.
+- **Caracterização fresco/processado por SKU** (`produto_generico`): o LLM
+  classifica o produto pelo **nome** (fresco vs. embalado) e, para os frescos, dá a
+  **nutrição típica** por 100 g (das tabelas de composição) — dispensa foto/EAN para
+  a parte conhecida; os embalados ficam com nutrição a `NULL` (vem do rótulo).
 - **Operador no ciclo** (`/admin`): renomear, associar/dissociar descrições (alias
   `manual`, confiança máxima), fundir, definir unidade, editar quantidade/peso,
-  e ver outliers de preço. A correção humana alimenta a cache de imediato.
+  ver outliers de preço, e **aprovar nomes canónicos** (aba "Nomes"). A correção
+  humana alimenta a cache de imediato.
 
 ## 6. Problemas em aberto
 
