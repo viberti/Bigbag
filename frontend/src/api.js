@@ -87,7 +87,7 @@ export async function redimensionarImagem(file, { maxLargura = 1200, maxAltura =
 
 export async function enviarFatura(file, origem) {
   const fd = new FormData();
-  fd.append('fatura', await redimensionarImagem(file, { maxLargura: 1200, qualidade: 0.78 }));
+  fd.append('fatura', await redimensionarImagem(file, { maxLargura: 1100, qualidade: 0.72 }));
   if (origem) fd.append('origem', origem);
   const r = await call('/api/faturas', { method: 'POST', body: fd });
   return r.json();
