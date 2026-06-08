@@ -270,7 +270,9 @@ function Chat({ onSair, nome }) {
   // Processa UMA nota (sem gerir `ocupado` — quem chama é que gere, para o lote).
   async function processarUma(file, { dewarp = false, origem = 'arquivo', prefixo = '', etiqueta } = {}) {
     const ehImagem = file.type?.startsWith('image/');
-    add({ lado: 'user', tipo: 'ficheiro', nome: etiqueta || t('nota.enviada') });
+    // Miniatura local imediata: mostra a própria foto na bolha enquanto faz upload
+    // (feedback instantâneo). Só para imagens — PDF mantém o ícone de talão.
+    add({ lado: 'user', tipo: 'ficheiro', nome: etiqueta || t('nota.enviada'), previa: ehImagem ? URL.createObjectURL(file) : null });
     add({ lado: 'bot', tipo: 'pensar', texto: prefixo + (dewarp && ehImagem ? t('nota.scanning') : t('nota.reading')) });
     try {
       const enviar = dewarp && ehImagem ? await digitalizar(file) : file; // dewarp já é feito na Camera (scan)
@@ -660,11 +662,17 @@ function Bolha({ m }) {
         </div>
       )}
       <div className="bubble">
-        {m.tipo === 'ficheiro' && (
-          <span className="fic">
-            <Ico name="receipt" size={17} /> {m.nome}
-          </span>
-        )}
+        {m.tipo === 'ficheiro' &&
+          (m.previa ? (
+            <span className="fic fic-com-img">
+              <img src={m.previa} alt="" className="fic-previa" loading="lazy" />
+              <span className="fic-nome">{m.nome}</span>
+            </span>
+          ) : (
+            <span className="fic">
+              <Ico name="receipt" size={17} /> {m.nome}
+            </span>
+          ))}
         {m.tipo === 'texto' && <span className="txt">{m.texto}</span>}
         {m.tipo === 'resposta' && <Resposta m={m} />}
         {m.tipo === 'erro' && <span className="erro-txt">{m.texto}</span>}

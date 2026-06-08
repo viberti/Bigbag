@@ -620,6 +620,9 @@ body { background: #0c1814; }
 .bb .store { color: #bce8d2; font-weight: 700; }
 .bb .erro-txt { color: #ff9a9a; }
 .bb .fic { display: inline-flex; align-items: center; gap: 8px; }
+.bb .fic-com-img { flex-direction: column; align-items: flex-start; gap: 6px; }
+.bb .fic-previa { display: block; max-width: 200px; max-height: 260px; width: auto; height: auto; border-radius: 12px; object-fit: cover; }
+.bb .fic-nome { font-size: 12px; opacity: 0.85; }
 .bb .typing { display: inline-flex; gap: 4px; align-items: center; padding: 3px 0; }
 .bb .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted-bb); animation: bbt 1.1s infinite ease-in-out; }
 .bb .typing i:nth-child(2) { animation-delay: .16s; } .bb .typing i:nth-child(3) { animation-delay: .32s; }
