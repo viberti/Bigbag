@@ -72,33 +72,43 @@ const fillGaps = (acc, src) => {
 // Consolida TUDO o que sabemos de um produto (por item da nota OU por EAN):
 // funde as várias linhas de produto_ean (vlm/off) e lista as fotos guardadas.
 async function consolidarProduto({ itemId, eanQ }) {
-  const [rows] = itemId
-    ? await getPool().query('SELECT * FROM produto_ean WHERE item_id = ? ORDER BY id', [itemId])
-    : await getPool().query('SELECT * FROM produto_ean WHERE ean = ? ORDER BY id', [eanQ]);
-  let vlm = null, off = null, ean = eanQ;
-  for (const r of rows) {
-    if (r.ean) ean = r.ean;
-    vlm = fillGaps(vlm, parseJson(r.vlm_json));
-    off = fillGaps(off, parseJson(r.off_json));
-  }
-  const [fotos] = itemId
-    ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE item_id = ? ORDER BY ordem, id', [itemId])
-    : await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? ORDER BY ordem, id', [ean]);
-
-  // Fallback genérico (frescos sem EAN): nutrição típica pelo nome, via o SKU.
-  let generico = null, skuId = null, nome = null;
+  // dados do item: SKU (fallback genérico) + EAN do TALÃO (autoritativo).
+  let skuId = null, nome = null, itemEan = null;
   if (itemId) {
     const [[it]] = await getPool().query(
-      `SELECT i.sku_id, COALESCE(s.nome_canonico, i.descricao_original) AS nome FROM item i
+      `SELECT i.sku_id, i.ean, COALESCE(s.nome_canonico, i.descricao_original) AS nome FROM item i
          LEFT JOIN sku_normalizado s ON s.id = i.sku_id WHERE i.id = ?`,
       [itemId],
     );
     skuId = it?.sku_id || null;
     nome = it?.nome || null;
-    if (skuId) {
-      const [[g]] = await getPool().query('SELECT tipo, alimento, categoria, nutricao FROM produto_generico WHERE sku_id = ?', [skuId]);
-      if (g) generico = { tipo: g.tipo, alimento: g.alimento, categoria: g.categoria, nutricao_100g: parseJson(g.nutricao) };
-    }
+    itemEan = it?.ean || null;
+  }
+  // EAN autoritativo: o do TALÃO sobrepõe-se ao lido à mão; senão o eanQ pedido.
+  const ean = itemEan || eanQ || null;
+
+  // produto_ean: pelo EAN autoritativo (ignora identificações manuais com OUTRO
+  // EAN); se o item não tem EAN, pela identificação manual (item_id).
+  const [rows] = ean
+    ? await getPool().query('SELECT * FROM produto_ean WHERE ean = ? ORDER BY id', [ean])
+    : itemId
+      ? await getPool().query('SELECT * FROM produto_ean WHERE item_id = ? ORDER BY id', [itemId])
+      : [[]];
+  let vlm = null, off = null;
+  for (const r of rows) {
+    vlm = fillGaps(vlm, parseJson(r.vlm_json));
+    off = fillGaps(off, parseJson(r.off_json));
+  }
+  const [fotos] = ean
+    ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? OR item_id = ? ORDER BY ordem, id', [ean, itemId])
+    : itemId
+      ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE item_id = ? ORDER BY ordem, id', [itemId])
+      : [[]];
+
+  let generico = null;
+  if (skuId) {
+    const [[g]] = await getPool().query('SELECT tipo, alimento, categoria, nutricao FROM produto_generico WHERE sku_id = ?', [skuId]);
+    if (g) generico = { tipo: g.tipo, alimento: g.alimento, categoria: g.categoria, nutricao_100g: parseJson(g.nutricao) };
   }
 
   const temGenericoNut = !!generico?.nutricao_100g;

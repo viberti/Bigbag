@@ -1,4 +1,5 @@
 import { classificarLoja } from './classify.js';
+import { eanValido } from './produto.js';
 
 // Persiste uma fatura extraída + reconciliada. Tudo numa transação.
 // Loja: upsert por NIF (chave natural). `preco_por_base` já vem calculado
@@ -147,14 +148,16 @@ export async function persistirFatura(
     const faturaId = rf.insertId;
 
     for (const it of dados.itens) {
+      const eanItem = it.ean ? String(it.ean).replace(/\D/g, '') : null;
       await conn.query(
         `INSERT INTO item
-           (fatura_id, sku_id, descricao_original, linha_peso, quantidade, preco_unitario, preco_liquido,
+           (fatura_id, sku_id, descricao_original, ean, linha_peso, quantidade, preco_unitario, preco_liquido,
             preco_por_base, taxa_iva, is_clearance, desconto_direto, is_non_product)
-         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           faturaId,
           String(it.descricao_original || '').slice(0, 200),
+          eanItem && eanValido(eanItem) ? eanItem : null, // só EAN com dígito verificador válido
           it.linha_peso ? String(it.linha_peso).slice(0, 80) : null,
           num(it.quantidade) || 1,
           num(it.preco_unitario),

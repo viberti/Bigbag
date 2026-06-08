@@ -19,6 +19,31 @@ import { normalizarItensFatura, mergeNomesIdenticos } from '../normaliza/matcher
 import { recomputarPpbFatura } from '../normaliza/ppb.js';
 import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 import { guardarMensagem } from '../historico.js';
+import { consultarOFF } from '../ingest/produto.js';
+
+// Enriquece (Open Food Facts) os produtos cujo EAN veio na linha do talão (Makro),
+// guardando os dados como produto_ean autónomo (item_id NULL) → a ficha fica cheia.
+async function enriquecerEansFatura(pool, faturaId) {
+  const [eans] = await pool.query('SELECT DISTINCT ean FROM item WHERE fatura_id = ? AND ean IS NOT NULL', [faturaId]);
+  for (const { ean } of eans) {
+    try {
+      const [[ja]] = await pool.query('SELECT id FROM produto_ean WHERE ean = ? AND off_json IS NOT NULL LIMIT 1', [ean]);
+      if (ja) continue;
+      const off = await consultarOFF(ean);
+      if (!off) continue;
+      await pool.query(
+        `INSERT INTO produto_ean (ean, item_id, fonte, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, off_json)
+           VALUES (?,NULL,'off',?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
+           ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), off_json=VALUES(off_json)`,
+        [ean, off.nome, off.marca, off.quantidade, off.categoria, off.ingredientes, off.alergenios,
+          off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, JSON.stringify(off)],
+      );
+    } catch (e) {
+      console.error('[enriquecer ean]', ean, e.message);
+    }
+  }
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -174,6 +199,10 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       console.error('[faturas] merge idênticos:', e.message);
     }
 
+    // 4e) Enriquece os EANs que vieram nas linhas do talão (Makro) via OFF →
+    // os produtos ficam identificados e com ficha cheia, sem foto. Best-effort.
+    await enriquecerEansFatura(getPool(), fatura_id).catch((e) => console.error('[faturas] enriquecer eans:', e.message));
+
     // Nome legível (canónico) por descrição, para o cartão mostrar o produto
     // limpo em vez do abreviado do talão. Best-effort.
     const canonPorDesc = {};
@@ -292,9 +321,9 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
     const [itens] = await getPool().query(
       `SELECT i.id, i.sku_id, COALESCE(s.nome_canonico, i.descricao_original) AS produto,
               i.quantidade, i.preco_liquido AS preco, s.unidade_base, i.preco_por_base,
-              (SELECT pe.ean FROM produto_ean pe
+              COALESCE(i.ean, (SELECT pe.ean FROM produto_ean pe
                 WHERE pe.item_id = i.id AND pe.ean IS NOT NULL
-                ORDER BY pe.id DESC LIMIT 1) AS ean,
+                ORDER BY pe.id DESC LIMIT 1)) AS ean,
               (SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) FROM produto_ean pe
                 WHERE pe.item_id = i.id AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) IS NOT NULL
                 ORDER BY pe.id DESC LIMIT 1) AS marca,

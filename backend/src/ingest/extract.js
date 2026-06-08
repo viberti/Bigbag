@@ -22,6 +22,7 @@ Esquema exato:
   "itens": [
     {
       "descricao_original": string, // SÓ O NOME do produto, como impresso (ex. "BOL DIGESTIVE AVEIA CNT 425GR"). NÃO incluas aqui peso, preço, €/kg, quantidade nem código de IVA — esses vão nos campos próprios.
+      "ean": string|null,           // EAN-13 do artigo SE a linha o trouxer (ver regra "CÓDIGO DE ARTIGO"). Tipicamente cash-and-carry (Makro): a PRIMEIRA coluna "Nº Código Artigo". null se a linha não tiver um EAN.
       "quantidade": number,         // unidades faturadas nesta linha: "24 OVOS"→24, "6 IOGURTES"→6; 1 se não indicado. Item a peso → 1 (o peso vai em peso_kg).
       "peso_kg": number|null,       // (item A PESO) o peso em QUILOS impresso na linha: "0,505 kg x 6,19 EUR/kg" → 0.505. null para itens contados (vendidos à unidade).
       "preco_base_impresso": number|null, // (item A PESO) o PREÇO POR KG impresso: "0,505 kg x 6,19 EUR/kg" → 6.19. null se a linha não mostrar €/kg.
@@ -38,6 +39,7 @@ Esquema exato:
 Regras:
 - O NIF da LOJA é o do estabelecimento/vendedor (perto do nome no topo), NÃO o NIF do cliente.
 - ENDEREÇO DA LOJA (localizacao): muitos talões têm DOIS endereços. Usa SEMPRE o da LOJA física — o que aparece no TOPO, logo abaixo do nome da marca (ex. na Mercadona: "AV. ANTÓNIO PALHA, 5 …"). NÃO uses o endereço da sociedade/sede fiscal, que aparece mais abaixo, junto ao NIF/"Capital Social"/"S.A."/"Unipessoal, Lda" (ex. "Av. Padre Jorge Duarte 123") — esse é o da empresa, não o da loja.
+- CÓDIGO DE ARTIGO POR LINHA ("ean"): alguns talões — sobretudo cash-and-carry como o MAKRO — têm o CÓDIGO DE ARTIGO (um EAN-13, 13 dígitos) como a PRIMEIRA coluna de cada linha de produto (cabeçalho "Nº Código Artigo"). Quando existir, copia-o EXATO para "ean" desse item (só os 13 dígitos). Lê dígito a dígito com atenção. Nos talões normais de supermercado (Continente, Lidl, Pingo Doce, Mercadona, Aldi) as linhas NÃO trazem o EAN do produto (trazem um código interno curto) → "ean": null.
 - NÚMERO DO DOCUMENTO ("numero_fatura"): TODO o talão tem um número de documento fiscal — PROCURA-O SEMPRE (no topo ou no rodapé) e quase nunca devolvas null. Rótulos comuns: "Fatura Simplificada", "FS", "Fatura/Recibo", "FR", "Nr.", "Nº", "No:", "Nro:", "Doc:", "Documento". O número costuma ter o formato SÉRIE/NÚMERO (ex.: "FS ARQ214/141059", "FS 70060122026001/053682") ou um código alfanumérico longo junto ao ATCUD/QR no fundo. COPIA-O TAL COMO aparece (com a série e a barra). Só devolve null se a zona estiver mesmo cortada/ilegível.
 - "Aprox. fim prazo validade" aparece NA LINHA ABAIXO do produto — associa ao item imediatamente acima (is_clearance=true).
 - Linhas de desconto sob um produto ("Poupança", "Promoção", "Promoção Lidl Plus", "Desconto") pertencem a esse produto: soma a magnitude (positiva) no desconto_direto desse item. NUNCA cries um item separado para um desconto. O "valor" do item é o preço impresso na linha do produto (tal como aparece, mesmo que haja desconto por baixo).
