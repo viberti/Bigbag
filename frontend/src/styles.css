@@ -766,6 +766,17 @@ body { background: #0c1814; }
 .bb .g-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .bb .g-card { display: flex; flex-direction: column; gap: 3px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.02); }
 .bb .g-card.destaque { background: rgba(46,196,110,.10); border-color: rgba(46,196,110,.3); }
+.bb button.g-card { text-align: left; font: inherit; color: inherit; cursor: pointer; align-items: stretch; }
+.bb button.g-card.clic:hover { border-color: var(--accent); }
+.bb .g-card.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.bb .g-compras { margin-top: 14px; }
+.bb .g-compra { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-top: 1px solid var(--line); font-size: 14px; }
+.bb .g-compra:first-of-type { border-top: none; }
+.bb .g-compra-d { flex: 0 0 auto; min-width: 22px; color: var(--muted-bb); font-variant-numeric: tabular-nums; }
+.bb .g-compra-l { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb .g-compra-i { flex: 0 0 auto; color: var(--faint); font-size: 12.5px; }
+.bb .g-compra-v { flex: 0 0 auto; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+.bb .g-vazio { color: var(--muted-bb); font-size: 13.5px; padding: 8px 4px; }
 .bb .g-lbl { font-size: 12.5px; color: var(--muted-bb); }
 .bb .g-val { font-size: 23px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .bb .g-val.sobe { color: #e8705f; }

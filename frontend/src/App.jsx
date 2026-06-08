@@ -949,6 +949,17 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onIdentificar, identific
 function GastosSheet({ aberto, dados, onFechar }) {
   const d = dados;
   const nomeMes = (m) => MESES[(m || 1) - 1];
+  const [todas, setTodas] = useState(null); // todas as notas (carregadas à 1.ª drill)
+  const [mesSel, setMesSel] = useState(null); // { ano, mes } do card aberto
+  const abrirMes = (ano, mes) => {
+    setMesSel((cur) => (cur && cur.ano === ano && cur.mes === mes ? null : { ano, mes }));
+    if (!todas) listarNotas().then(setTodas).catch(() => setTodas([]));
+  };
+  const selecionado = (ano, mes) => mesSel && mesSel.ano === ano && mesSel.mes === mes;
+  const comprasMes =
+    mesSel && todas
+      ? todas.filter((n) => +String(n.data).slice(0, 4) === mesSel.ano && +String(n.data).slice(5, 7) === mesSel.mes)
+      : null;
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
@@ -968,16 +979,24 @@ function GastosSheet({ aberto, dados, onFechar }) {
           ) : (
             <>
               <div className="g-cards">
-                <div className="g-card destaque">
+                <button
+                  type="button"
+                  className={`g-card destaque clic ${selecionado(d.atual.ano, d.atual.mes) ? 'sel' : ''}`}
+                  onClick={() => abrirMes(d.atual.ano, d.atual.mes)}
+                >
                   <span className="g-lbl">Este mês · {nomeMes(d.atual.mes)}</span>
                   <span className="g-val">{eur(d.atual.total)}</span>
-                  <span className="g-sub">{d.atual.n} {d.atual.n === 1 ? 'compra' : 'compras'}</span>
-                </div>
-                <div className="g-card">
+                  <span className="g-sub">{d.atual.n} {d.atual.n === 1 ? 'compra' : 'compras'} ›</span>
+                </button>
+                <button
+                  type="button"
+                  className={`g-card clic ${selecionado(d.anterior.ano, d.anterior.mes) ? 'sel' : ''}`}
+                  onClick={() => abrirMes(d.anterior.ano, d.anterior.mes)}
+                >
                   <span className="g-lbl">Mês anterior · {nomeMes(d.anterior.mes)}</span>
                   <span className="g-val">{eur(d.anterior.total)}</span>
-                  <span className="g-sub">{d.anterior.n} {d.anterior.n === 1 ? 'compra' : 'compras'}</span>
-                </div>
+                  <span className="g-sub">{d.anterior.n} {d.anterior.n === 1 ? 'compra' : 'compras'} ›</span>
+                </button>
                 <div className="g-card">
                   <span className="g-lbl">Média mensal</span>
                   <span className="g-val">{eur(d.media)}</span>
@@ -995,6 +1014,26 @@ function GastosSheet({ aberto, dados, onFechar }) {
                   <span className="g-sub">{d.variacao == null ? 'sem referência' : d.variacao > 0 ? 'gastou mais' : 'gastou menos'}</span>
                 </div>
               </div>
+
+              {mesSel && (
+                <div className="g-compras">
+                  <div className="g-bloco-t">Compras de {nomeMes(mesSel.mes)} {mesSel.ano}</div>
+                  {comprasMes === null ? (
+                    <p className="sheet-vazio">{t('chat.thinking')}</p>
+                  ) : comprasMes.length === 0 ? (
+                    <p className="g-vazio">Sem compras neste mês.</p>
+                  ) : (
+                    comprasMes.map((n) => (
+                      <div key={n.id} className="g-compra">
+                        <span className="g-compra-d">{String(n.data).slice(8, 10)}</span>
+                        <span className="g-compra-l">{n.loja}</span>
+                        <span className="g-compra-i">{n.n_itens} itens</span>
+                        <span className="g-compra-v">{eur(n.total)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
 
               {d.serie?.length > 1 && (
                 <div className="g-graf">
