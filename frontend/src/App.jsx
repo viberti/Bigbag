@@ -967,7 +967,9 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
             const linha = Number(it.preco) || 0;
             const unit = qtd ? linha / qtd : linha;
             const eanItem = it.ean || identificados?.[it.id] || null;
-            const temFicha = !!eanItem || it.tipo_alimento === 'fresco';
+            // Tem ficha (clicável) só quando há DADOS (OFF/VLM/genérico) ou foi
+            // identificado nesta sessão. EAN sem dados → câmara (fotografar p/ enriquecer).
+            const temFicha = !!it.tem_dados || !!identificados?.[it.id] || it.tipo_alimento === 'fresco';
             const marca = limparMarca(it.marca) || null;
             const linhaInner = (
               <>

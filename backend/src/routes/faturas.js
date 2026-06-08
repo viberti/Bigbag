@@ -328,7 +328,13 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
                 WHERE pe.item_id = i.id AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) IS NOT NULL
                 ORDER BY pe.id DESC LIMIT 1) AS marca,
               pg.tipo AS tipo_alimento,
-              (pg.nutricao IS NOT NULL) AS tem_generico
+              (pg.nutricao IS NOT NULL) AS tem_generico,
+              (
+                EXISTS (SELECT 1 FROM produto_ean pe
+                          WHERE (pe.ean = i.ean OR pe.item_id = i.id)
+                            AND (pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL))
+                OR pg.nutricao IS NOT NULL
+              ) AS tem_dados
          FROM item i
          LEFT JOIN sku_normalizado s ON s.id = i.sku_id
          LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
