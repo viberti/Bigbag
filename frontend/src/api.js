@@ -56,16 +56,20 @@ export async function consultar(pergunta) {
   return r.json();
 }
 
-// Redimensiona/comprime uma imagem no BROWSER antes do upload (canvas): lado maior
-// <= maxLado, JPEG na qualidade dada. Reduz drasticamente o tamanho (uploads em
-// dados móveis + memória do servidor) sem perda útil (o VLM reduz a resolução na
-// mesma). Respeita a orientação EXIF. Não-imagens (PDF) ou já pequenas → original.
-export async function redimensionarImagem(file, { maxLado = 2000, qualidade = 0.82 } = {}) {
+// Redimensiona/comprime uma imagem no BROWSER antes do upload (canvas). Limita pela
+// LARGURA (maxLargura), com um teto de altura de segurança (maxAltura), e exporta
+// JPEG na qualidade dada. A largura é o que manda: a legibilidade de um talão depende
+// da resolução horizontal das suas colunas — limitar pelo lado maior over-encolhe
+// talões altos e estreitos (testado: largura ~1200 reconcilia 3/3 no talão mais denso;
+// abaixo de ~900 fica frágil). Reduz muito o tamanho (uploads móveis + memória do
+// servidor) sem perda útil (o VLM reduz a resolução na mesma). Respeita a orientação
+// EXIF. Não-imagens (PDF) ou já pequenas → original.
+export async function redimensionarImagem(file, { maxLargura = 1200, maxAltura = 2600, qualidade = 0.78 } = {}) {
   if (!file || !/^image\//.test(file.type) || file.type === 'image/gif') return file;
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-    const escala = Math.min(1, maxLado / Math.max(bitmap.width, bitmap.height));
-    if (escala >= 1 && file.size < 900_000) { bitmap.close?.(); return file; }
+    const escala = Math.min(1, maxLargura / bitmap.width, maxAltura / bitmap.height);
+    if (escala >= 1 && file.size < 500_000) { bitmap.close?.(); return file; }
     const w = Math.round(bitmap.width * escala);
     const h = Math.round(bitmap.height * escala);
     const canvas = document.createElement('canvas');
@@ -83,7 +87,7 @@ export async function redimensionarImagem(file, { maxLado = 2000, qualidade = 0.
 
 export async function enviarFatura(file, origem) {
   const fd = new FormData();
-  fd.append('fatura', await redimensionarImagem(file, { maxLado: 2200, qualidade: 0.85 }));
+  fd.append('fatura', await redimensionarImagem(file, { maxLargura: 1200, qualidade: 0.78 }));
   if (origem) fd.append('origem', origem);
   const r = await call('/api/faturas', { method: 'POST', body: fd });
   return r.json();
@@ -107,7 +111,8 @@ export async function identificarProduto({ ean, skuId, itemId, fotos }) {
   if (ean) fd.append('ean', ean);
   if (skuId) fd.append('sku_id', skuId);
   if (itemId) fd.append('item_id', itemId);
-  const reduzidas = await Promise.all((fotos || []).map((f) => redimensionarImagem(f)));
+  // Rótulos: texto pequeno (ingredientes, tabela nutricional) → um pouco mais de largura.
+  const reduzidas = await Promise.all((fotos || []).map((f) => redimensionarImagem(f, { maxLargura: 1400, qualidade: 0.8 })));
   reduzidas.forEach((f) => fd.append('fotos', f));
   const r = await call('/api/produto/identificar', { method: 'POST', body: fd });
   if (!r.ok) {
@@ -156,7 +161,8 @@ export async function avaliacaoPersonalizada({ itemId, ean }) {
 
 export async function lerEanFoto(file) {
   const fd = new FormData();
-  fd.append('foto', await redimensionarImagem(file, { maxLado: 2200, qualidade: 0.88 }));
+  // Código de barras: nitidez das barras é crítica → mantém mais largura/qualidade.
+  fd.append('foto', await redimensionarImagem(file, { maxLargura: 1600, qualidade: 0.85 }));
   const r = await call('/api/produto/ler-ean', { method: 'POST', body: fd });
   if (!r.ok) throw new Error(`ler-ean ${r.status}`);
   return r.json(); // { ean }
