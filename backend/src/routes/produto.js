@@ -75,3 +75,61 @@ produtoRouter.post('/identificar', requireAuth, upload.array('fotos', 6), async 
     res.status(500).json({ erro: 'Falha a identificar o produto' });
   }
 });
+
+// Toda a info que TEMOS de um produto, consolidada (por item da nota OU por EAN).
+// Junta as várias linhas de produto_ean do item (ex.: uma com EAN+nutrição, outra
+// só com ingredientes) num único vlm/off, e lista as fotos guardadas.
+produtoRouter.get('/info', requireAuth, async (req, res) => {
+  try {
+    const itemId = Number(req.query.item_id) || null;
+    const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
+    if (!itemId && !eanQ) return res.status(400).json({ erro: 'item_id ou ean em falta' });
+
+    const [rows] = itemId
+      ? await getPool().query('SELECT * FROM produto_ean WHERE item_id = ? ORDER BY id', [itemId])
+      : await getPool().query('SELECT * FROM produto_ean WHERE ean = ? ORDER BY id', [eanQ]);
+
+    const parse = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
+    // Preenche lacunas: o 1.º valor não-nulo ganha; objetos fundem-se recursivamente.
+    const fill = (acc, src) => {
+      if (!src) return acc;
+      acc = acc || {};
+      for (const [k, v] of Object.entries(src)) {
+        if (v == null) continue;
+        if (acc[k] == null) acc[k] = v;
+        else if (typeof v === 'object' && typeof acc[k] === 'object' && !Array.isArray(v)) acc[k] = fill(acc[k], v);
+      }
+      return acc;
+    };
+    let vlm = null, off = null, ean = eanQ;
+    for (const r of rows) {
+      if (r.ean) ean = r.ean;
+      vlm = fill(vlm, parse(r.vlm_json));
+      off = fill(off, parse(r.off_json));
+    }
+
+    const [fotos] = itemId
+      ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE item_id = ? ORDER BY ordem, id', [itemId])
+      : await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? ORDER BY ordem, id', [ean]);
+
+    const fonte = vlm && off ? 'ambos' : off ? 'off' : vlm ? 'vlm' : null;
+    res.json({ ean, vlm, off, fonte, fotos, existe: rows.length > 0 });
+  } catch (e) {
+    console.error('[produto/info] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar info do produto' });
+  }
+});
+
+// Serve uma foto de produto (com auth). O caminho vem da BD (fora do static root).
+produtoRouter.get('/foto/:id', requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [[f]] = await getPool().query('SELECT ficheiro, mime FROM produto_foto WHERE id = ?', [id]);
+    if (!f?.ficheiro) return res.status(404).json({ erro: 'Sem foto' });
+    if (f.mime) res.type(f.mime);
+    res.sendFile(f.ficheiro, (err) => { if (err && !res.headersSent) res.status(404).json({ erro: 'Foto não encontrada' }); });
+  } catch (e) {
+    console.error('[produto/foto] erro:', e.message);
+    if (!res.headersSent) res.status(500).json({ erro: 'Falha a servir foto' });
+  }
+});

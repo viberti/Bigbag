@@ -88,6 +88,21 @@ export async function identificarProduto({ ean, skuId, itemId, fotos }) {
   return r.json(); // { ean, vlm, off, fonte, custo }
 }
 
+export async function infoProduto({ itemId, ean }) {
+  const qs = itemId ? `item_id=${itemId}` : `ean=${encodeURIComponent(ean)}`;
+  const r = await call(`/api/produto/info?${qs}`);
+  if (!r.ok) throw new Error(`info ${r.status}`);
+  return r.json(); // { ean, vlm, off, fonte, fotos, existe }
+}
+
+// Foto de produto (rota com auth → não dá para usar em <img src> direto).
+// Busca o blob com o header e devolve um object URL.
+export async function fotoProdutoUrl(id) {
+  const r = await call(`/api/produto/foto/${id}`);
+  if (!r.ok) throw new Error(`foto ${r.status}`);
+  return URL.createObjectURL(await r.blob());
+}
+
 export async function enviarVoz(blob) {
   const fd = new FormData();
   const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];

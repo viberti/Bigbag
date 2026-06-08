@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -138,6 +138,7 @@ function Chat({ onSair, nome }) {
   const [notasAberto, setNotasAberto] = useState(false);
   const [notasLista, setNotasLista] = useState(null); // null=a carregar · []=vazio
   const [identItem, setIdentItem] = useState(null); // item a identificar (EAN+fotos) ou null
+  const [infoItem, setInfoItem] = useState(null); // item com EAN → ver toda a info
   const abrirNotas = () => {
     setNotasAberto(true);
     setNotasLista(null);
@@ -511,8 +512,9 @@ function Chat({ onSair, nome }) {
         onLimpar={limparCarrinho}
         onFechar={() => setCarrinhoAberto(false)}
       />
-      <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} />
+      <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} />
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} />
+      <ProdutoInfoSheet item={infoItem} onFechar={() => setInfoItem(null)} />
     </div>
   );
 }
@@ -685,7 +687,7 @@ function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCar
 
 // As minhas compras: lista de notas (data · loja · nº itens · valor), por data
 // decrescente. Tocar numa linha expande os itens dessa nota.
-function NotasSheet({ aberto, notas, onFechar, onIdentificar }) {
+function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo }) {
   const [expandida, setExpandida] = useState(null); // id da nota aberta
   const [itensPorNota, setItensPorNota] = useState({});
   const [carregando, setCarregando] = useState(null);
@@ -739,15 +741,27 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar }) {
                         <div key={it.id} className="nota-item">
                           <span className="ni-nome">{it.produto}</span>
                           <span className="ni-preco">{eur(it.preco)}</span>
-                          <button
-                            type="button"
-                            className="ni-ident"
-                            onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })}
-                            title="identificar produto (EAN + fotos)"
-                            aria-label="identificar produto"
-                          >
-                            <Ico name="camera" size={16} />
-                          </button>
+                          {it.ean ? (
+                            <button
+                              type="button"
+                              className="ni-ident"
+                              onClick={() => onInfo({ id: it.id, ean: it.ean, produto: it.produto })}
+                              title="ver informação do produto"
+                              aria-label="informação do produto"
+                            >
+                              <Ico name="info" size={17} />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="ni-ident"
+                              onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })}
+                              title="identificar produto (EAN + fotos)"
+                              aria-label="identificar produto"
+                            >
+                              <Ico name="camera" size={16} />
+                            </button>
+                          )}
                         </div>
                       ))
                     )}
@@ -838,6 +852,76 @@ function ProdutoIdentSheet({ item, onFechar }) {
       </section>
     </>
   );
+}
+
+// Toda a info que TEMOS de um produto (item da nota que já tem EAN). Reusa o
+// display do resultado de identificação + mostra as fotos guardadas do produto.
+function ProdutoInfoSheet({ item, onFechar }) {
+  const [info, setInfo] = useState(null); // null = a carregar
+  useEffect(() => {
+    if (!item) return;
+    setInfo(null);
+    infoProduto({ itemId: item.id, ean: item.ean })
+      .then(setInfo)
+      .catch(() => setInfo({ erro: true }));
+  }, [item]);
+  if (!item) return null;
+  return (
+    <>
+      <div className="scrim open" onClick={onFechar} />
+      <section className="sheet open ident" aria-label="Informação do produto">
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">Informação do produto</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        <div className="ident-body">
+          <div className="ident-prod">{item.produto}</div>
+          {info === null ? (
+            <p className="sheet-vazio">{t('chat.thinking')}</p>
+          ) : info.erro ? (
+            <p className="sheet-vazio">Falha a carregar a informação.</p>
+          ) : (
+            <>
+              <ResultadoIdent res={info} />
+              {info.fotos?.length > 0 && (
+                <div className="info-fotos">
+                  {info.fotos.map((f) => (
+                    <AuthImg key={f.id} id={f.id} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+// <img> para rotas protegidas: o <img src> não envia o header de auth, por isso
+// buscamos o blob com fetch (com auth) e mostramo-lo via object URL.
+function AuthImg({ id }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    let u;
+    fotoProdutoUrl(id)
+      .then((x) => {
+        if (vivo) {
+          u = x;
+          setUrl(x);
+        } else URL.revokeObjectURL(x);
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+      if (u) URL.revokeObjectURL(u);
+    };
+  }, [id]);
+  return url ? <img className="info-foto" src={url} alt="" loading="lazy" /> : <span className="info-foto ph" />;
 }
 
 function ResultadoIdent({ res }) {
