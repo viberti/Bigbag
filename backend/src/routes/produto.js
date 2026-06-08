@@ -163,23 +163,25 @@ produtoRouter.get('/despensa', requireAuth, async (req, res) => {
   try {
     const [rows] = await getPool().query(`
       SELECT pe.ean, pe.item_id, pe.id AS pe_id,
-             COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.nome')), pe.nome, i.descricao_original) AS nome,
+             COALESCE(s.nome_canonico, i.descricao_original, JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.nome')), pe.nome) AS nome,
              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) AS marca,
-             COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.vlm_json,'$.validade_iso')), pe.validade) AS validade,
+             COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.vlm_json,'$.validade_iso')), 'null'), NULLIF(pe.validade, 'null')) AS validade,
              f.data_compra AS data,
              COALESCE(l.cadeia, l.nome) AS loja
         FROM produto_ean pe
         LEFT JOIN item i ON i.id = pe.item_id
+        LEFT JOIN sku_normalizado s ON s.id = i.sku_id
         LEFT JOIN fatura f ON f.id = i.fatura_id
         LEFT JOIN loja l ON l.id = f.loja_id
        WHERE pe.ean IS NOT NULL
        ORDER BY f.data_compra DESC, pe.id DESC`);
+    const limparVal = (v) => { const s = String(v ?? '').trim(); return s && !/^null$/i.test(s) ? s : null; };
     const vistos = new Set();
     const produtos = [];
     for (const r of rows) {
       if (vistos.has(r.ean)) continue;
       vistos.add(r.ean);
-      produtos.push({ ean: r.ean, item_id: r.item_id, nome: r.nome, marca: r.marca, validade: r.validade, data: r.data, loja: r.loja });
+      produtos.push({ ean: r.ean, item_id: r.item_id, nome: r.nome, marca: r.marca, validade: limparVal(r.validade), data: r.data, loja: r.loja });
     }
     res.json({ produtos });
   } catch (e) {
