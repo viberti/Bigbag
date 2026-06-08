@@ -803,20 +803,22 @@ function ProdutoIdentSheet({ item, onFechar }) {
           <div className="ident-prod">{item.produto}</div>
           <label className="ident-lbl">EAN (código de barras) — ou apanha-o na foto</label>
           <input className="ident-ean" inputMode="numeric" placeholder="ex.: 5601234567890" value={ean} onChange={(e) => setEan(e.target.value)} />
+          {/* capture SEM multiple (a combinação devolve 0 ficheiros em iOS); uma foto
+              por toque, acumula. Tocar de novo para a próxima (frente · rótulo · ingredientes). */}
           <input
             ref={fotoRef}
             type="file"
             accept="image/*"
             capture="environment"
-            multiple
             hidden
             onChange={(e) => {
-              setFotos((f) => [...f, ...Array.from(e.target.files || [])]);
+              const f = e.target.files?.[0];
+              if (f) setFotos((x) => [...x, f]);
               e.target.value = '';
             }}
           />
           <button type="button" className="ident-add" onClick={() => fotoRef.current?.click()}>
-            <Ico name="camera" size={18} /> Adicionar fotos (frente · ingredientes · rótulo · validade)
+            <Ico name="camera" size={18} /> {fotos.length ? 'Adicionar mais uma foto' : 'Adicionar foto (frente · rótulo · ingredientes)'}
           </button>
           {fotos.length > 0 && (
             <div className="ident-fotos">
