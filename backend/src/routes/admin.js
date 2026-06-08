@@ -153,6 +153,15 @@ adminRouter.get('/painel', async (req, res) => {
     const [[skus]] = await pool.query('SELECT COUNT(*) AS n FROM sku_normalizado');
     const [[mestres]] = await pool.query('SELECT COUNT(*) AS n FROM produto_mestre');
     const [[semMestre]] = await pool.query('SELECT COUNT(*) AS n FROM sku_normalizado WHERE mestre_id IS NULL');
+    // EANs únicos conhecidos: distintos entre a identificação (produto_ean) e a
+    // linha do talão (item.ean), juntos e sem repetir.
+    const [[eans]] = await pool.query(
+      `SELECT COUNT(*) AS n FROM (
+         SELECT ean FROM produto_ean WHERE ean IS NOT NULL AND ean <> ''
+         UNION
+         SELECT ean FROM item WHERE ean IS NOT NULL AND ean <> ''
+       ) e`,
+    );
     res.json({
       n_notas: notas.n,
       por_mercado: porMercado,
@@ -160,6 +169,7 @@ adminRouter.get('/painel', async (req, res) => {
       n_skus: skus.n,
       n_mestres: mestres.n,
       n_skus_sem_mestre: semMestre.n,
+      n_eans_unicos: eans.n,
     });
   } catch (e) {
     console.error('[admin/painel] erro:', e.message);

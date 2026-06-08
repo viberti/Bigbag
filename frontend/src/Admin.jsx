@@ -152,6 +152,10 @@ function TabPainel() {
           <span className="adm-card-n">{p?.n_skus_sem_mestre ?? '—'}</span>
           <span className="adm-card-l">SKUs por classificar</span>
         </div>
+        <div className="adm-card">
+          <span className="adm-card-n">{p?.n_eans_unicos ?? '—'}</span>
+          <span className="adm-card-l">EANs únicos</span>
+        </div>
       </div>
 
       <div className="adm-card-merc">
