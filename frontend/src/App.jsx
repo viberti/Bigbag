@@ -1194,40 +1194,62 @@ function GastosSheet({ aberto, dados, onFechar }) {
 // abre a ficha do produto (que também guarda os dados para uso futuro).
 function ScannerSheet({ aberto, onFechar, onEncontrado }) {
   const videoRef = useRef(null);
+  const trackRef = useRef(null);
   const [fase, setFase] = useState('scan'); // scan | consulta | naoencontrado | erro
   const [ean, setEan] = useState(null);
   const [tentativa, setTentativa] = useState(0);
+  const [temLuz, setTemLuz] = useState(false);
+  const [luz, setLuz] = useState(false);
+  const [manual, setManual] = useState('');
+
+  async function consultarCod(cod) {
+    const c = String(cod).replace(/\D/g, '');
+    if (c.length < 8) return;
+    setEan(c);
+    setFase('consulta');
+    try {
+      const r = await consultarProdutoEan(c);
+      if (r.encontrado) onEncontrado({ ean: r.ean, nome: r.nome });
+      else setFase('naoencontrado');
+    } catch {
+      setFase('naoencontrado');
+    }
+  }
 
   useEffect(() => {
     if (!aberto) return undefined;
     setFase('scan');
     setEan(null);
+    setTemLuz(false);
+    setLuz(false);
     let controls;
     let parado = false;
     (async () => {
       try {
-        const { BrowserMultiFormatReader } = await import('@zxing/browser');
-        const reader = new BrowserMultiFormatReader();
+        const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+        const hints = new Map();
+        hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
+        hints.set(lib.DecodeHintType.TRY_HARDER, true);
+        const reader = new BrowserMultiFormatReader(hints);
         controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' } } },
+          { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
           videoRef.current,
-          async (result) => {
+          (result) => {
             if (!result || parado) return;
             const cod = result.getText().replace(/\D/g, '');
             if (cod.length < 8) return;
             parado = true;
             controls?.stop();
-            setEan(cod);
-            setFase('consulta');
-            try {
-              const r = await consultarProdutoEan(cod);
-              if (r.encontrado) onEncontrado({ ean: r.ean, nome: r.nome });
-              else setFase('naoencontrado');
-            } catch {
-              setFase('naoencontrado');
-            }
+            consultarCod(cod);
           },
         );
+        // foco contínuo + deteção de lanterna (torch), quando suportados
+        const track = videoRef.current?.srcObject?.getVideoTracks?.()[0];
+        if (track) {
+          try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* ignora */ }
+          const caps = track.getCapabilities?.() || {};
+          if (caps.torch) { trackRef.current = track; setTemLuz(true); }
+        }
       } catch {
         setFase('erro');
       }
@@ -1235,8 +1257,16 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
     return () => {
       parado = true;
       controls?.stop();
+      trackRef.current = null;
     };
   }, [aberto, tentativa]);
+
+  async function alternarLuz() {
+    const tr = trackRef.current;
+    if (!tr) return;
+    const novo = !luz;
+    try { await tr.applyConstraints({ advanced: [{ torch: novo }] }); setLuz(novo); } catch { /* ignora */ }
+  }
 
   if (!aberto) return null;
   return (
@@ -1258,6 +1288,11 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
               <div className="scan-cam">
                 <video ref={videoRef} className="scan-video" playsInline muted />
                 <div className="scan-mira" />
+                {temLuz && fase === 'scan' && (
+                  <button type="button" className={`scan-luz ${luz ? 'on' : ''}`} onClick={alternarLuz} aria-label="lanterna">
+                    <Ico name="luz" size={20} />
+                  </button>
+                )}
                 {fase === 'consulta' && <div className="scan-overlay">A consultar {ean}…</div>}
                 {fase === 'naoencontrado' && (
                   <div className="scan-overlay">
@@ -1266,7 +1301,11 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
                   </div>
                 )}
               </div>
-              <p className="scan-hint">Aponta a câmara ao código de barras do produto.</p>
+              <p className="scan-hint">Aproxima até o código preencher a moldura · boa luz · mão estável.</p>
+              <div className="scan-manual">
+                <input inputMode="numeric" placeholder="ou escreve o código (EAN)" value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
+                <button type="button" disabled={manual.length < 8} onClick={() => consultarCod(manual)}>Consultar</button>
+              </div>
             </>
           )}
         </div>
