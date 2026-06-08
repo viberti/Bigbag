@@ -742,7 +742,7 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar }) {
                           <button
                             type="button"
                             className="ni-ident"
-                            onClick={() => onIdentificar({ sku_id: it.sku_id, produto: it.produto })}
+                            onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })}
                             title="identificar produto (EAN + fotos)"
                             aria-label="identificar produto"
                           >
@@ -781,7 +781,7 @@ function ProdutoIdentSheet({ item, onFechar }) {
     setA(true);
     setRes(null);
     try {
-      setRes(await identificarProduto({ ean: ean.trim() || undefined, skuId: item.sku_id || undefined, fotos }));
+      setRes(await identificarProduto({ ean: ean.trim() || undefined, skuId: item.sku_id || undefined, itemId: item.id || undefined, fotos }));
     } catch {
       setRes({ erro: true });
     } finally {

@@ -77,10 +77,11 @@ export async function detalhesNota(id) {
   return r.json(); // { nota, itens }
 }
 
-export async function identificarProduto({ ean, skuId, fotos }) {
+export async function identificarProduto({ ean, skuId, itemId, fotos }) {
   const fd = new FormData();
   if (ean) fd.append('ean', ean);
   if (skuId) fd.append('sku_id', skuId);
+  if (itemId) fd.append('item_id', itemId);
   (fotos || []).forEach((f) => fd.append('fotos', f));
   const r = await call('/api/produto/identificar', { method: 'POST', body: fd });
   if (!r.ok) throw new Error(`identificar ${r.status}`);

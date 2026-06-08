@@ -3,9 +3,16 @@
 // AMBOS — em ambiente de teste, para ver o que se obtém de cada fonte.
 import { Router } from 'express';
 import multer from 'multer';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
+import { config } from '../config.js';
 import { extrairProdutoFotos, consultarOFF } from '../ingest/produto.js';
+
+// Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
+const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: 6 } });
 export const produtoRouter = Router();
@@ -14,7 +21,9 @@ produtoRouter.post('/identificar', requireAuth, upload.array('fotos', 6), async 
   try {
     const eanManual = String(req.body?.ean || '').replace(/\D/g, '') || null;
     const skuId = Number(req.body?.sku_id) || null;
-    const fotos = (req.files || []).map((f) => ({ base64: f.buffer.toString('base64'), mime: f.mimetype || 'image/jpeg' }));
+    const itemId = Number(req.body?.item_id) || null;
+    const ficheiros = req.files || [];
+    const fotos = ficheiros.map((f) => ({ base64: f.buffer.toString('base64'), mime: f.mimetype || 'image/jpeg' }));
     if (!fotos.length && !eanManual) return res.status(400).json({ erro: 'Envia pelo menos uma foto ou um EAN.' });
 
     // VLM sobre as fotos
@@ -31,20 +40,36 @@ produtoRouter.post('/identificar', requireAuth, upload.array('fotos', 6), async 
     const fonte = off && vlm ? 'ambos' : off ? 'off' : 'vlm';
     const nome = off?.nome || vlm?.nome || null;
 
+    // guarda as FOTOS em disco, ligadas ao item (foco: conhecer bem o item comprado)
+    let nGuardadas = 0;
+    if (ficheiros.length) {
+      try {
+        await mkdir(DIR_FOTOS, { recursive: true });
+        for (let i = 0; i < ficheiros.length; i++) {
+          const f = ficheiros[i];
+          const ext = (f.mimetype?.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+          const fich = path.join(DIR_FOTOS, `${randomUUID()}.${ext}`);
+          await writeFile(fich, f.buffer, { mode: 0o600 });
+          await getPool().query('INSERT INTO produto_foto (item_id, ean, ficheiro, mime, ordem) VALUES (?,?,?,?,?)', [itemId, ean, fich, f.mimetype || null, i]);
+          nGuardadas++;
+        }
+      } catch (e) { console.error('[produto/identificar] guardar fotos:', e.message); }
+    }
+
     try {
       await getPool().query(
-        `INSERT INTO produto_ean (ean, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, fonte, vlm_json, off_json)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-         ON DUPLICATE KEY UPDATE sku_id=COALESCE(VALUES(sku_id),sku_id), nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade),
+        `INSERT INTO produto_ean (ean, sku_id, item_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, fonte, vlm_json, off_json)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE sku_id=COALESCE(VALUES(sku_id),sku_id), item_id=COALESCE(VALUES(item_id),item_id), nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade),
            categoria=VALUES(categoria), ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), validade=VALUES(validade),
            nutricao=VALUES(nutricao), fonte=VALUES(fonte), vlm_json=VALUES(vlm_json), off_json=VALUES(off_json)`,
-        [ean, skuId, nome, off?.marca || vlm?.marca || null, off?.quantidade || vlm?.quantidade || null, off?.categoria || vlm?.categoria || null,
+        [ean, skuId, itemId, nome, off?.marca || vlm?.marca || null, off?.quantidade || vlm?.quantidade || null, off?.categoria || vlm?.categoria || null,
           off?.ingredientes || vlm?.ingredientes || null, off?.alergenios || vlm?.alergenios || null, vlm?.validade || null,
           nutricao ? JSON.stringify(nutricao) : null, fonte, vlm ? JSON.stringify(vlm) : null, off ? JSON.stringify(off) : null],
       );
     } catch (e) { console.error('[produto/identificar] guardar:', e.message); }
 
-    res.json({ ean, vlm, off, fonte, custo, n_fotos: fotos.length });
+    res.json({ ean, vlm, off, fonte, custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas });
   } catch (e) {
     console.error('[produto/identificar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a identificar o produto' });
