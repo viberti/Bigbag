@@ -446,6 +446,9 @@ function Chat({ onSair, nome }) {
           <button type="button" className="round" onClick={abrirNotas} disabled={ocupado} aria-label="as minhas compras">
             <Ico name="notas" size={21} />
           </button>
+          <button type="button" className="round scan" onClick={() => setScannerAberto(true)} disabled={ocupado} aria-label="consultar produto (código de barras)">
+            <Ico name="barras" size={21} />
+          </button>
           <span className="ia-sp" />
           <button
             type="button"
@@ -512,7 +515,6 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}><Ico name="galeria" size={18} /> {t('cap.gallery')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
-            <button onClick={() => { setMenuAberto(false); setScannerAberto(true); }}><Ico name="barras" size={18} /> Consultar produto (código de barras)</button>
             <button onClick={() => { setMenuAberto(false); setPerfilAberto(true); }}><Ico name="spark" size={18} /> Perfil nutricional</button>
             <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> A minha despensa</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> Os meus gastos</button>

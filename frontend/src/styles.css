@@ -658,6 +658,8 @@ body { background: #0c1814; }
   color: var(--muted-bb); background: var(--panel); border: 1px solid var(--line); cursor: pointer; transition: .15s; }
 .bb .round:hover { color: var(--txt); border-color: var(--line2); }
 .bb .round:disabled { opacity: .5; }
+.bb .round.scan { color: #46c7e8; border-color: rgba(70,199,232,.4); background: rgba(70,199,232,.1); }
+.bb .round.scan:hover { color: #7adcf5; border-color: rgba(70,199,232,.7); }
 .bb .field { width: 100%; display: flex; align-items: center; background: var(--panel); border: 1px solid var(--line);
   border-radius: 14px; padding: 0 16px; height: 52px; }
 .bb .field:focus-within { border-color: rgba(46,196,110,.5); box-shadow: 0 0 0 3px var(--accent-soft); }
