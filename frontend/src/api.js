@@ -128,6 +128,14 @@ export async function avaliacaoPersonalizada({ itemId, ean }) {
   return r.json(); // { perfil, alertas, avaliacao }
 }
 
+export async function lerEanFoto(file) {
+  const fd = new FormData();
+  fd.append('foto', file);
+  const r = await call('/api/produto/ler-ean', { method: 'POST', body: fd });
+  if (!r.ok) throw new Error(`ler-ean ${r.status}`);
+  return r.json(); // { ean }
+}
+
 export async function consultarProdutoEan(ean) {
   const r = await call(`/api/produto/consultar?ean=${encodeURIComponent(ean)}`);
   if (!r.ok) throw new Error(`consultar ${r.status}`);

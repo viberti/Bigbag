@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, lerEanFoto, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -1195,12 +1195,43 @@ function GastosSheet({ aberto, dados, onFechar }) {
 function ScannerSheet({ aberto, onFechar, onEncontrado }) {
   const videoRef = useRef(null);
   const trackRef = useRef(null);
-  const [fase, setFase] = useState('scan'); // scan | consulta | naoencontrado | erro
+  const controlsRef = useRef(null);
+  const fotoRef = useRef(null);
+  const [fase, setFase] = useState('scan'); // scan | foto | consulta | naoencontrado | semcodigo | erro
   const [ean, setEan] = useState(null);
   const [tentativa, setTentativa] = useState(0);
   const [temLuz, setTemLuz] = useState(false);
   const [luz, setLuz] = useState(false);
   const [manual, setManual] = useState('');
+
+  // Foto do código (fallback): tenta descodificar a foto com zxing (exato) e, se
+  // falhar, o VLM lê o número (validado pelo dígito verificador no backend).
+  async function lerFoto(file) {
+    if (!file) return;
+    controlsRef.current?.stop();
+    setFase('foto');
+    const url = URL.createObjectURL(file);
+    try {
+      const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+      const hints = new Map();
+      hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
+      hints.set(lib.DecodeHintType.TRY_HARDER, true);
+      const reader = new BrowserMultiFormatReader(hints);
+      const res = await reader.decodeFromImageUrl(url);
+      const cod = res.getText().replace(/\D/g, '');
+      URL.revokeObjectURL(url);
+      if (cod.length >= 8) return consultarCod(cod);
+    } catch {
+      URL.revokeObjectURL(url);
+    }
+    try {
+      const r = await lerEanFoto(file);
+      if (r.ean) return consultarCod(r.ean);
+      setFase('semcodigo');
+    } catch {
+      setFase('semcodigo');
+    }
+  }
 
   async function consultarCod(cod) {
     const c = String(cod).replace(/\D/g, '');
@@ -1243,6 +1274,7 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
             consultarCod(cod);
           },
         );
+        controlsRef.current = controls;
         // foco contínuo + deteção de lanterna (torch), quando suportados
         const track = videoRef.current?.srcObject?.getVideoTracks?.()[0];
         if (track) {
@@ -1257,6 +1289,7 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
     return () => {
       parado = true;
       controls?.stop();
+      controlsRef.current = null;
       trackRef.current = null;
     };
   }, [aberto, tentativa]);
@@ -1293,6 +1326,7 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
                     <Ico name="luz" size={20} />
                   </button>
                 )}
+                {fase === 'foto' && <div className="scan-overlay">A ler a foto…</div>}
                 {fase === 'consulta' && <div className="scan-overlay">A consultar {ean}…</div>}
                 {fase === 'naoencontrado' && (
                   <div className="scan-overlay">
@@ -1300,8 +1334,18 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
                     <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>Ler outro código</button>
                   </div>
                 )}
+                {fase === 'semcodigo' && (
+                  <div className="scan-overlay">
+                    <p>Não consegui ler o código nesta foto. Tenta de novo, mais perto e com boa luz.</p>
+                    <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>Voltar à câmara</button>
+                  </div>
+                )}
               </div>
               <p className="scan-hint">Aproxima até o código preencher a moldura · boa luz · mão estável.</p>
+              <input ref={fotoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { lerFoto(e.target.files?.[0]); e.target.value = ''; }} />
+              <button type="button" className="scan-foto" onClick={() => fotoRef.current?.click()}>
+                <Ico name="camera" size={18} /> Não lê? Tira uma foto do código
+              </button>
               <div className="scan-manual">
                 <input inputMode="numeric" placeholder="ou escreve o código (EAN)" value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
                 <button type="button" disabled={manual.length < 8} onClick={() => consultarCod(manual)}>Consultar</button>

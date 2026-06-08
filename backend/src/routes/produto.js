@@ -9,7 +9,7 @@ import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
-import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido } from '../ingest/produto.js';
+import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto } from '../ingest/produto.js';
 import { alertasDoPerfil, avaliarParaPerfil } from '../ingest/perfil.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
@@ -189,6 +189,20 @@ produtoRouter.get('/info', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[produto/info] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar info do produto' });
+  }
+});
+
+// Lê o EAN de uma FOTO do código de barras (fallback do scanner ao vivo). Valida
+// o dígito verificador antes de devolver.
+produtoRouter.post('/ler-ean', requireAuth, upload.single('foto'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Falta a foto' });
+    const { ean } = await lerEanDeFoto({ base64: req.file.buffer.toString('base64'), mime: req.file.mimetype || 'image/jpeg' });
+    if (ean && eanValido(ean)) return res.json({ ean });
+    res.json({ ean: null });
+  } catch (e) {
+    console.error('[produto/ler-ean] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a ler o código' });
   }
 });
 

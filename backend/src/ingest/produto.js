@@ -210,6 +210,31 @@ export async function sugerirNomeCanonico(variantes, { timeoutMs } = {}) {
   }
 }
 
+// Lê os DÍGITOS do código de barras de uma foto (fallback quando o scanner ao vivo
+// falha — ex.: telemóvel antigo). foto: { base64, mime }. O chamador valida o EAN.
+export async function lerEanDeFoto(foto, { timeoutMs } = {}) {
+  const content = [
+    { type: 'text', text: 'Vês a foto de um CÓDIGO DE BARRAS de um produto de supermercado. Devolve SÓ os DÍGITOS do número impresso (EAN-13, EAN-8 ou UPC), lendo com atenção dígito a dígito. JSON: {"ean": string|null}. null se não der para ler.' },
+    { type: 'image_url', image_url: { url: `data:${foto.mime};base64,${foto.base64}` } },
+  ];
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeoutMs || 25000);
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
+      body: JSON.stringify({ model: config.openrouter.modelExtracao, messages: [{ role: 'user', content }], response_format: { type: 'json_object' }, usage: { include: true } }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+    const data = await res.json();
+    const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
+    return { ean: dados.ean ? String(dados.ean).replace(/\D/g, '') : null, custo: Number(data.usage?.cost) || 0 };
+  } finally {
+    clearTimeout(to);
+  }
+}
+
 // Valida o dígito verificador de um código GTIN (EAN-8/UPC-12/EAN-13/GTIN-14).
 // Apanha a maioria dos erros de leitura do VLM (ex.: 1.º dígito 4→2) sem internet.
 export function eanValido(cod) {

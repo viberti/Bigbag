@@ -866,6 +866,8 @@ body { background: #0c1814; }
 .bb .scan-luz { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border-radius: 50%; border: none; display: grid; place-items: center; cursor: pointer; background: rgba(0,0,0,.5); color: #fff; }
 .bb .scan-luz.on { background: #f2c14e; color: #241a00; }
 .bb .scan-hint { text-align: center; color: var(--muted-bb); font-size: 13.5px; }
+.bb .scan-foto { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; border-radius: 12px; border: 1px dashed var(--line); background: none; color: var(--muted-bb); font-size: 14px; cursor: pointer; }
+.bb .scan-foto:hover { color: var(--accent); border-color: var(--accent); }
 .bb .scan-manual { display: flex; gap: 8px; }
 .bb .scan-manual input { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text-bb); font-size: 15px; font-variant-numeric: tabular-nums; }
 .bb .scan-manual button { flex: 0 0 auto; padding: 0 16px; border-radius: 11px; border: none; background: var(--accent); color: #06231a; font-weight: 700; cursor: pointer; }
