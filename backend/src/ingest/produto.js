@@ -174,6 +174,18 @@ export async function caracterizarProdutoNome(nome, { timeoutMs } = {}) {
   }
 }
 
+// Valida o dígito verificador de um código GTIN (EAN-8/UPC-12/EAN-13/GTIN-14).
+// Apanha a maioria dos erros de leitura do VLM (ex.: 1.º dígito 4→2) sem internet.
+export function eanValido(cod) {
+  const s = String(cod || '').replace(/\D/g, '');
+  if (![8, 12, 13, 14].includes(s.length)) return false;
+  const d = s.split('').map(Number);
+  const check = d.pop();
+  let sum = 0;
+  for (let i = d.length - 1, w = 3; i >= 0; i--, w = w === 3 ? 1 : 3) sum += d[i] * w;
+  return (10 - (sum % 10)) % 10 === check;
+}
+
 // Consulta o Open Food Facts pelo EAN (dados autoritativos do produto exato).
 export async function consultarOFF(ean) {
   const cod = String(ean || '').replace(/\D/g, '');

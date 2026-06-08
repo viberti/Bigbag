@@ -895,6 +895,7 @@ body { background: #0c1814; }
 .bb .info-foto { width: 88px; height: 88px; border-radius: 10px; object-fit: cover; border: 1px solid var(--line); background: rgba(255,255,255,.04); }
 .bb .info-foto.ph { display: inline-block; }
 .bb .ident-eanok { color: var(--muted-bb); font-size: 13px; margin-bottom: 10px; }
+.bb .ident-aviso { font-size: 13px; line-height: 1.45; color: #f0c074; background: rgba(240,170,60,.12); border: 1px solid rgba(240,170,60,.35); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
 .bb .ident-fonte { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.02); }
 .bb .ident-fonte h4 { margin: 0 0 8px; font-size: 14px; }
 .bb .ident-na { color: var(--faint); font-size: 13px; margin: 0; }

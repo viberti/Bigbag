@@ -1482,6 +1482,9 @@ function ResultadoIdent({ res }) {
   if (res.erro) return <p className="sheet-vazio">{res.msg || 'Falha a analisar.'}</p>;
   return (
     <div className="ident-res">
+      {res.ean_rejeitado && !res.ean && (
+        <div className="ident-aviso">⚠ O código de barras lido não passou na validação (dígito verificador) — provavelmente foi mal lido. Tira uma foto mais nítida do código, ou escreve o EAN à mão.</div>
+      )}
       {res.ean && <div className="ident-eanok">EAN usado: <b>{res.ean}</b></div>}
       <FonteIdent titulo="📷 Lido das fotos (VLM)" d={res.vlm} vazio="sem fotos analisadas" />
       <FonteIdent titulo="🌐 Open Food Facts (pelo EAN)" d={res.off} nutri={res.off?.nutriscore} nova={res.off?.nova} vazio="este EAN não está no Open Food Facts" />

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
-import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome } from '../ingest/produto.js';
+import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido } from '../ingest/produto.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -95,8 +95,11 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       try { const r = await extrairProdutoFotos(fotos); vlm = r.dados; custo = r.custo; }
       catch (e) { vlm = { erro: e.message }; }
     }
-    // EAN para o OFF: o manual, senão o que o VLM leu na foto
-    const ean = eanManual || (vlm?.ean ? String(vlm.ean).replace(/\D/g, '') : null);
+    // EAN para o OFF: o manual, senão o que o VLM leu na foto. SÓ se passar o
+    // dígito verificador (apanha leituras erradas → evita produtos-fantasma).
+    const eanCandidato = eanManual || (vlm?.ean ? String(vlm.ean).replace(/\D/g, '') : null);
+    const ean = eanCandidato && eanValido(eanCandidato) ? eanCandidato : null;
+    const eanRejeitado = !!(eanCandidato && !ean); // leu um código mas o dígito verificador falhou
     const off = await consultarOFF(ean);
 
     const nutricao = off?.nutricao_100g || vlm?.nutricao_100g || null;
@@ -132,7 +135,7 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       );
     } catch (e) { console.error('[produto/identificar] guardar:', e.message); }
 
-    res.json({ ean, vlm, off, fonte, custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas });
+    res.json({ ean, vlm, off, fonte, custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas, ean_rejeitado: eanRejeitado });
   } catch (e) {
     console.error('[produto/identificar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a identificar o produto' });
