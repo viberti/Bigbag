@@ -147,6 +147,11 @@ function Chat({ onSair, nome }) {
   const [notasLista, setNotasLista] = useState(null); // null=a carregar · []=vazio
   const [identItem, setIdentItem] = useState(null); // item a identificar (EAN+fotos) ou null
   const [infoItem, setInfoItem] = useState(null); // item com EAN → ver toda a info
+  // item_id → EAN, dos identificados nesta sessão (atualiza listas sem refresh)
+  const [identificados, setIdentificados] = useState({});
+  const marcarIdentificado = (itemId, ean) => {
+    if (itemId && ean) setIdentificados((m) => ({ ...m, [itemId]: ean }));
+  };
   const abrirNotas = () => {
     setNotasAberto(true);
     setNotasLista(null);
@@ -545,11 +550,11 @@ function Chat({ onSair, nome }) {
         onLimpar={limparCarrinho}
         onFechar={() => setCarrinhoAberto(false)}
       />
-      <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} />
+      <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} identificados={identificados} />
       <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} />
       <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
-      <PorIdentificarSheet aberto={porIdentAberto} itens={porIdentLista} onFechar={() => setPorIdentAberto(false)} onIdentificar={setIdentItem} />
-      <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} />
+      <PorIdentificarSheet aberto={porIdentAberto} itens={porIdentLista} onFechar={() => setPorIdentAberto(false)} onIdentificar={setIdentItem} identificados={identificados} />
+      <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} onIdentificado={marcarIdentificado} />
       <ProdutoInfoSheet item={infoItem} onFechar={() => setInfoItem(null)} />
     </div>
   );
@@ -723,7 +728,7 @@ function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCar
 
 // As minhas compras: lista de notas (data · loja · nº itens · valor), por data
 // decrescente. Tocar numa linha expande os itens dessa nota.
-function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo }) {
+function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identificados }) {
   const [expandida, setExpandida] = useState(null); // id da nota aberta
   const [itensPorNota, setItensPorNota] = useState({});
   const [carregando, setCarregando] = useState(null);
@@ -791,16 +796,17 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo }) {
                       <p className="sheet-vazio">{t('chat.thinking')}</p>
                     ) : (
                       (itensPorNota[n.id] || []).map((it) => {
-                        // Tem ficha (abre ao clicar) se tem EAN identificado OU é fresco
-                        // com nutrição genérica. Senão (embalado por identificar) → câmara.
-                        const temFicha = !!it.ean || it.tipo_alimento === 'fresco';
+                        // Tem ficha (abre ao clicar) se tem EAN (identificado já ou
+                        // nesta sessão) OU é fresco. Senão (embalado por identificar) → câmara.
+                        const eanItem = it.ean || identificados?.[it.id] || null;
+                        const temFicha = !!eanItem || it.tipo_alimento === 'fresco';
                         const precisaFoto = !temFicha;
                         return temFicha ? (
                           <button
                             key={it.id}
                             type="button"
                             className="nota-item clic"
-                            onClick={() => onInfo({ id: it.id, ean: it.ean, produto: it.produto })}
+                            onClick={() => onInfo({ id: it.id, ean: eanItem, produto: it.produto })}
                           >
                             <span className="ni-nome">{it.produto}</span>
                             <span className="ni-preco">{eur(it.preco)}</span>
@@ -883,28 +889,29 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
 
 // Produtos por identificar (precisam de fotos), agrupados por compra (data/loja).
 // Cada produto tem a câmara para abrir o fluxo de identificação.
-function PorIdentificarSheet({ aberto, itens, onFechar, onIdentificar }) {
+function PorIdentificarSheet({ aberto, itens, onFechar, onIdentificar, identificados }) {
+  const pendentes = itens ? itens.filter((it) => !identificados?.[it.item_id]) : null;
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
       <section className={`sheet ${aberto ? 'open' : ''}`} aria-label="Produtos por identificar">
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">Por identificar{itens?.length ? ` · ${itens.length}` : ''}</span>
+          <span className="t">Por identificar{pendentes?.length ? ` · ${pendentes.length}` : ''}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
         </div>
         <div className="notas-list">
-          {itens === null ? (
+          {pendentes === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
-          ) : itens.length === 0 ? (
+          ) : pendentes.length === 0 ? (
             <p className="sheet-vazio">Tudo identificado 🎉</p>
           ) : (
             (() => {
               let lastF = null;
               const out = [];
-              for (const it of itens) {
+              for (const it of pendentes) {
                 if (it.fatura_id !== lastF) {
                   lastF = it.fatura_id;
                   out.push(
@@ -1036,7 +1043,7 @@ function GastosSheet({ aberto, dados, onFechar }) {
 const MAX_FOTOS = 10;
 
 // Identificar produto: EAN + fotos → VLM (rótulos) e OFF (EAN). Mostra ambos.
-function ProdutoIdentSheet({ item, onFechar }) {
+function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
   const [ean, setEan] = useState('');
   const [fotos, setFotos] = useState([]);
   const [res, setRes] = useState(null);
@@ -1054,7 +1061,9 @@ function ProdutoIdentSheet({ item, onFechar }) {
     setA(true);
     setRes(null);
     try {
-      setRes(await identificarProduto({ ean: ean.trim() || undefined, skuId: item.sku_id || undefined, itemId: item.id || undefined, fotos }));
+      const r = await identificarProduto({ ean: ean.trim() || undefined, skuId: item.sku_id || undefined, itemId: item.id || undefined, fotos });
+      setRes(r);
+      if (r && !r.erro && r.ean && item?.id) onIdentificado?.(item.id, r.ean); // remove o ícone/pendência sem refresh
     } catch (e) {
       setRes({ erro: true, msg: e.message });
     } finally {
