@@ -818,7 +818,7 @@ function ProdutoIdentSheet({ item, onFechar }) {
             }}
           />
           <button type="button" className="ident-add" onClick={() => fotoRef.current?.click()}>
-            <Ico name="camera" size={18} /> {fotos.length ? 'Adicionar mais uma foto' : 'Adicionar foto (frente · rótulo · ingredientes)'}
+            <Ico name="camera" size={18} /> {fotos.length ? 'Adicionar mais uma foto' : 'Adicionar foto (frente · ingredientes · validade)'}
           </button>
           {fotos.length > 0 && (
             <div className="ident-fotos">

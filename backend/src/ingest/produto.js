@@ -5,21 +5,37 @@
 import { config } from '../config.js';
 import { parseJsonLoose } from './extract.js';
 
-const PROMPT = `És um extrator de RÓTULOS de produtos de supermercado. Vês uma ou mais fotos do MESMO produto (frente, lista de ingredientes, tabela nutricional, código de barras, validade). Descobre o MÁXIMO possível e devolve SÓ um objeto JSON, sem texto à volta:
+const PROMPT = `És um extrator de RÓTULOS de produtos de supermercado. Vês uma ou mais fotos do MESMO produto, possivelmente de FACES DIFERENTES (frente, verso, lista de ingredientes, tabela nutricional, código de barras, fundo/aba com a validade). COMBINA a informação de todas as fotos. Descobre o MÁXIMO possível e devolve SÓ um objeto JSON, sem texto à volta:
 {
   "nome": string|null,            // nome do produto como na embalagem
   "marca": string|null,
   "quantidade": string|null,      // peso/volume LÍQUIDO (ex.: "500 g", "1 L", "4 x 125 g")
   "ean": string|null,             // os DÍGITOS do código de barras, se visível na foto
   "categoria": string|null,       // tipo de produto (ex.: "iogurte grego", "bolacha digestive", "leite UHT")
-  "ingredientes": string|null,    // lista de ingredientes, texto como impresso
+  "ingredientes": string|null,    // VER REGRAS ABAIXO
   "alergenios": string|null,      // alergénios destacados (ex.: "leite, glúten")
-  "validade": string|null,        // data de validade impressa (texto, como aparece)
+  "validade": string|null,        // texto da validade como impresso (VER REGRAS)
+  "validade_iso": string|null,    // a MESMA data normalizada: "AAAA-MM-DD", ou "AAAA-MM" se só houver mês/ano
   "nutricao_100g": {              // valores POR 100 g/ml; null o que não estiver legível
     "energia_kcal": number|null, "gordura": number|null, "gordura_saturada": number|null,
     "hidratos": number|null, "acucares": number|null, "proteina": number|null, "sal": number|null, "fibra": number|null
   }
 }
+
+REGRAS DA VALIDADE (importante):
+- Procura a data junto a: "Validade", "Val.", "VAL", "Consumir até", "Cons. de preferência antes de", "Cons. pref.", "Best before", "BB", "EXP", "Use by".
+- NÃO confundas com o LOTE ("Lote", "L", "LOT") nem com a data de FABRICO/produção/embalamento. O lote costuma vir colado a um código alfanumérico; ignora-o.
+- Se houver VÁRIAS datas, a validade é a marcada como tal (ou, na dúvida, a mais TARDIA).
+- Formatos comuns: "DD/MM/AAAA", "DD-MM-AA", "DD.MM.AAAA", "MM/AAAA", "fim de <mês> AAAA". Em "validade" mete o texto tal como impresso; em "validade_iso" mete a data normalizada (AAAA-MM-DD; usa AAAA-MM se só houver mês e ano).
+- Se não vires nenhuma data de validade nas fotos, mete null nos dois campos (não inventes).
+
+REGRAS DOS INGREDIENTES (importante):
+- Transcreve a lista COMPLETA e VERBATIM, na ordem impressa, INCLUINDO percentagens (ex.: "tomate 90%") e sub-ingredientes entre parênteses.
+- NÃO resumas, NÃO traduzas, NÃO omitas itens, NÃO reordenes. Copia o texto.
+- Se a lista aparecer em VÁRIAS línguas, usa a versão PORTUGUESA (PT-PT); se não houver, a que estiver.
+- Mantém o destaque dos alergénios (MAIÚSCULAS/negrito) tal como aparece no rótulo, e repete-os em "alergenios".
+- Se a lista de ingredientes não estiver visível/legível em nenhuma foto, mete null (não inventes ingredientes a partir do nome do produto).
+
 Não inventes — null no que não conseguires ler com confiança. Só o JSON.`;
 
 // VLM sobre N fotos do mesmo produto. fotos: [{ base64, mime }].
