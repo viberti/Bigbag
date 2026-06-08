@@ -70,12 +70,12 @@ const PROMPT_ANALISE = `És um documentalista de nutrição. Recebes os dados de
     "rotulo": string,                         // ex.: "ultraprocessado", "processado", "in natura"
     "porque": string                          // 1 frase factual
   },
-  "nutriscore": { "grau": "A"|"B"|"C"|"D"|"E"|null, "porque": string },  // usa o fornecido; senão estima e diz que é estimado
+  "nutriscore": { "grau": "A"|"B"|"C"|"D"|"E"|null, "porque": string },  // explica pelos NUTRIENTES (ver regras)
   "ingredientes": [                           // UM objeto por ingrediente, na ordem do rótulo
     {
       "nome": string,
       "tipo": string,                         // ex.: "base", "regulador de acidez", "estabilizador", "conservante", "antiaglomerante"
-      "e_numero": string|null,                // ex.: "E406"; null se não tiveres a certeza
+      "e_numero": string|null,                // o E-número do aditivo (ver regras)
       "funcao": string,                       // para que serve, 1 frase simples
       "origem": string|null,                  // ex.: "alga", "leguminosa", "mineral", "leite"
       "nota": string|null                     // facto relevante, se houver (ex.: "fonte de fósforo adicionado")
@@ -86,7 +86,11 @@ const PROMPT_ANALISE = `És um documentalista de nutrição. Recebes os dados de
     { "tom": "atencao"|"bom"|"neutro", "texto": string }   // ex.: sal alto, gordura saturada, nº de aditivos, fósforo adicionado, sem açúcar adicionado
   ]
 }
-Regras: NÃO inventes E-números — null em caso de dúvida. Se o Nutri-Score/NOVA forem fornecidos, usa-os; senão estima e assinala-o no "porque". Sê factual, nunca prescritivo. Só o JSON.`;
+Regras:
+- E-NÚMEROS: para aditivos bem conhecidos, INCLUI o E-número correto (ex.: ácido cítrico→E330, fosfato dissódico→E339, citrato trissódico→E331, fosfato tricálcico→E341, agar-agar→E406, farinha de sementes de alfarroba/goma de alfarroba→E410, goma de tara→E417, sorbato de potássio→E202). Usa null SÓ para ingredientes que não são aditivos com E-número (leite, nata, sal, água, fermentos) ou se realmente desconheceres.
+- NUTRI-SCORE: usa o grau fornecido se existir; no "porque", explica-o pelos NUTRIENTES concretos (ex.: "penalizado pela gordura saturada alta e pelo sal; pouca fibra/proteína a compensar"). Se não for fornecido, estima e di-lo.
+- NOVA: usa o fornecido se existir; senão deriva (presença de aditivos cosméticos → 4).
+- Sê factual, nunca prescritivo (nada de "deve evitar"/"é saudável"). Só o JSON.`;
 
 // Análise FACTUAL (não clínica) de um produto a partir dos dados consolidados.
 // p: { nome, categoria, ingredientes, nutricao_100g, nutriscore, nova }.
