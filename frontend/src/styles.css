@@ -755,13 +755,13 @@ body { background: #0c1814; }
 .bb .ident-res { margin-top: 18px; }
 
 /* Selo Nutri-Score (formato oficial: escala A→E, letra ativa em destaque) */
-.bb .nutri-selo { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; background: #fff; padding: 5px 6px 6px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
-.bb .nutri-selo .ns-cap { font-size: 9px; font-weight: 800; letter-spacing: .5px; color: #222; line-height: 1; padding-left: 1px; }
+.bb .nutri-selo { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 5px; background: #fff; padding: 8px 10px 9px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.28); }
+.bb .nutri-selo .ns-cap { font-size: 12px; font-weight: 800; letter-spacing: .5px; color: #222; line-height: 1; padding-left: 1px; }
 .bb .nutri-selo .ns-escala { display: inline-flex; align-items: center; gap: 0; }
-.bb .nutri-selo .ns-cel { width: 19px; height: 22px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 12px; opacity: .5; }
-.bb .nutri-selo .ns-cel:first-child { border-radius: 5px 0 0 5px; }
-.bb .nutri-selo .ns-cel:last-child { border-radius: 0 5px 5px 0; }
-.bb .nutri-selo .ns-cel.on { opacity: 1; width: 27px; height: 30px; font-size: 17px; border-radius: 6px; box-shadow: 0 0 0 2.5px #222; position: relative; z-index: 1; }
+.bb .nutri-selo .ns-cel { width: 30px; height: 34px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 18px; opacity: .5; }
+.bb .nutri-selo .ns-cel:first-child { border-radius: 7px 0 0 7px; }
+.bb .nutri-selo .ns-cel:last-child { border-radius: 0 7px 7px 0; }
+.bb .nutri-selo .ns-cel.on { opacity: 1; width: 46px; height: 52px; font-size: 30px; border-radius: 8px; box-shadow: 0 0 0 3px #222; position: relative; z-index: 1; }
 
 /* Semáforo nutricional (UK FSA) */
 .bb .semaforo { margin-top: 16px; }
@@ -788,8 +788,8 @@ body { background: #0c1814; }
 /* Análise factual do produto */
 .bb .analise { margin-top: 6px; }
 .bb .an-resumo { font-size: 14.5px; line-height: 1.5; margin: 0 0 12px; }
-.bb .an-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-.bb .an-badges .nova { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: rgba(255,255,255,.07); border: 1px solid var(--line); }
+.bb .an-badges { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; margin-bottom: 14px; }
+.bb .an-badges .nova { display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: 14px; font-weight: 700; background: rgba(255,255,255,.07); border: 1px solid var(--line); }
 .bb .an-porques { font-size: 13px; color: var(--muted-bb); line-height: 1.5; margin-bottom: 12px; }
 .bb .an-porques p { margin: 0 0 5px; }
 .bb .an-porques b { color: var(--text-bb); }
