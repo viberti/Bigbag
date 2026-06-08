@@ -259,7 +259,7 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
     );
     if (!nota) return res.status(404).json({ erro: 'Nota não encontrada' });
     const [itens] = await getPool().query(
-      `SELECT i.id, COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+      `SELECT i.id, i.sku_id, COALESCE(s.nome_canonico, i.descricao_original) AS produto,
               i.quantidade, i.preco_liquido AS preco, s.unidade_base, i.preco_por_base
          FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
         WHERE i.fatura_id = ? AND i.is_non_product = 0

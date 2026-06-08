@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -137,6 +137,7 @@ function Chat({ onSair, nome }) {
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
   const [notasAberto, setNotasAberto] = useState(false);
   const [notasLista, setNotasLista] = useState(null); // null=a carregar · []=vazio
+  const [identItem, setIdentItem] = useState(null); // item a identificar (EAN+fotos) ou null
   const abrirNotas = () => {
     setNotasAberto(true);
     setNotasLista(null);
@@ -510,7 +511,8 @@ function Chat({ onSair, nome }) {
         onLimpar={limparCarrinho}
         onFechar={() => setCarrinhoAberto(false)}
       />
-      <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} />
+      <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} />
+      <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} />
     </div>
   );
 }
@@ -683,7 +685,7 @@ function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCar
 
 // As minhas compras: lista de notas (data · loja · nº itens · valor), por data
 // decrescente. Tocar numa linha expande os itens dessa nota.
-function NotasSheet({ aberto, notas, onFechar }) {
+function NotasSheet({ aberto, notas, onFechar, onIdentificar }) {
   const [expandida, setExpandida] = useState(null); // id da nota aberta
   const [itensPorNota, setItensPorNota] = useState({});
   const [carregando, setCarregando] = useState(null);
@@ -737,6 +739,15 @@ function NotasSheet({ aberto, notas, onFechar }) {
                         <div key={it.id} className="nota-item">
                           <span className="ni-nome">{it.produto}</span>
                           <span className="ni-preco">{eur(it.preco)}</span>
+                          <button
+                            type="button"
+                            className="ni-ident"
+                            onClick={() => onIdentificar({ sku_id: it.sku_id, produto: it.produto })}
+                            title="identificar produto (EAN + fotos)"
+                            aria-label="identificar produto"
+                          >
+                            <Ico name="camera" size={16} />
+                          </button>
                         </div>
                       ))
                     )}
@@ -748,6 +759,145 @@ function NotasSheet({ aberto, notas, onFechar }) {
         </div>
       </section>
     </>
+  );
+}
+
+// Identificar produto: EAN + fotos → VLM (rótulos) e OFF (EAN). Mostra ambos.
+function ProdutoIdentSheet({ item, onFechar }) {
+  const [ean, setEan] = useState('');
+  const [fotos, setFotos] = useState([]);
+  const [res, setRes] = useState(null);
+  const [a, setA] = useState(false);
+  const fotoRef = useRef(null);
+  useEffect(() => {
+    setEan('');
+    setFotos([]);
+    setRes(null);
+    setA(false);
+  }, [item]);
+  if (!item) return null;
+  async function analisar() {
+    if (a || (!ean.trim() && !fotos.length)) return;
+    setA(true);
+    setRes(null);
+    try {
+      setRes(await identificarProduto({ ean: ean.trim() || undefined, skuId: item.sku_id || undefined, fotos }));
+    } catch {
+      setRes({ erro: true });
+    } finally {
+      setA(false);
+    }
+  }
+  return (
+    <>
+      <div className="scrim open" onClick={onFechar} />
+      <section className="sheet open ident" aria-label="Identificar produto">
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">Identificar produto</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        <div className="ident-body">
+          <div className="ident-prod">{item.produto}</div>
+          <label className="ident-lbl">EAN (código de barras) — ou apanha-o na foto</label>
+          <input className="ident-ean" inputMode="numeric" placeholder="ex.: 5601234567890" value={ean} onChange={(e) => setEan(e.target.value)} />
+          <input
+            ref={fotoRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            hidden
+            onChange={(e) => {
+              setFotos((f) => [...f, ...Array.from(e.target.files || [])]);
+              e.target.value = '';
+            }}
+          />
+          <button type="button" className="ident-add" onClick={() => fotoRef.current?.click()}>
+            <Ico name="camera" size={18} /> Adicionar fotos (frente · ingredientes · rótulo · validade)
+          </button>
+          {fotos.length > 0 && (
+            <div className="ident-fotos">
+              {fotos.map((f, i) => (
+                <span key={i} className="ident-thumb">
+                  <img src={URL.createObjectURL(f)} alt="" />
+                  <button type="button" onClick={() => setFotos((x) => x.filter((_, j) => j !== i))} aria-label="remover">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <button type="button" className="ident-go" onClick={analisar} disabled={a || (!ean.trim() && !fotos.length)}>
+            {a ? 'a analisar…' : 'Analisar'}
+          </button>
+          {res && <ResultadoIdent res={res} />}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function ResultadoIdent({ res }) {
+  if (res.erro) return <p className="sheet-vazio">Falha a analisar.</p>;
+  return (
+    <div className="ident-res">
+      {res.ean && <div className="ident-eanok">EAN usado: <b>{res.ean}</b></div>}
+      <FonteIdent titulo="📷 Lido das fotos (VLM)" d={res.vlm} vazio="sem fotos analisadas" />
+      <FonteIdent titulo="🌐 Open Food Facts (pelo EAN)" d={res.off} nutri={res.off?.nutriscore} nova={res.off?.nova} vazio="este EAN não está no Open Food Facts" />
+    </div>
+  );
+}
+
+function FonteIdent({ titulo, d, nutri, nova, vazio }) {
+  return (
+    <div className="ident-fonte">
+      <h4>{titulo}</h4>
+      {!d || d.erro ? (
+        <p className="ident-na">{vazio}</p>
+      ) : (
+        <>
+          {d.nome && (
+            <div className="ident-nome">
+              <b>{d.nome}</b>
+              {d.marca ? ` · ${d.marca}` : ''}
+              {d.quantidade ? ` · ${d.quantidade}` : ''}
+            </div>
+          )}
+          {(nutri || nova) && (
+            <div className="ident-badges">
+              {nutri && <span className={`ns ns-${String(nutri).toLowerCase()}`}>Nutri-Score {nutri}</span>}
+              {nova && <span className="nova">NOVA {nova}</span>}
+            </div>
+          )}
+          <TabNut n={d.nutricao_100g} />
+          {d.ingredientes && <div className="ident-txt"><span className="k">Ingredientes:</span> {d.ingredientes}</div>}
+          {d.alergenios && <div className="ident-txt"><span className="k">Alergénios:</span> {d.alergenios}</div>}
+          {d.validade && <div className="ident-txt"><span className="k">Validade:</span> {d.validade}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function TabNut({ n }) {
+  if (!n) return null;
+  const linhas = [
+    ['Energia', n.energia_kcal, 'kcal'], ['Gordura', n.gordura, 'g'], ['— saturada', n.gordura_saturada, 'g'],
+    ['Hidratos', n.hidratos, 'g'], ['— açúcares', n.acucares, 'g'], ['Fibra', n.fibra, 'g'], ['Proteína', n.proteina, 'g'], ['Sal', n.sal, 'g'],
+  ].filter(([, v]) => v != null);
+  if (!linhas.length) return null;
+  return (
+    <table className="ident-nut">
+      <tbody>
+        {linhas.map(([k, v, u]) => (
+          <tr key={k}>
+            <td>{k}</td>
+            <td>{v} {u}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

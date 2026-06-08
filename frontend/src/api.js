@@ -77,6 +77,16 @@ export async function detalhesNota(id) {
   return r.json(); // { nota, itens }
 }
 
+export async function identificarProduto({ ean, skuId, fotos }) {
+  const fd = new FormData();
+  if (ean) fd.append('ean', ean);
+  if (skuId) fd.append('sku_id', skuId);
+  (fotos || []).forEach((f) => fd.append('fotos', f));
+  const r = await call('/api/produto/identificar', { method: 'POST', body: fd });
+  if (!r.ok) throw new Error(`identificar ${r.status}`);
+  return r.json(); // { ean, vlm, off, fonte, custo }
+}
+
 export async function enviarVoz(blob) {
   const fd = new FormData();
   const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
