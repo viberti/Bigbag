@@ -84,12 +84,14 @@ const PROMPT_ANALISE = `És um documentalista de nutrição. Recebes os dados de
   "alergenios": [string],
   "destaques": [                              // factos que saltam à vista
     { "tom": "atencao"|"bom"|"neutro", "texto": string }   // ex.: sal alto, gordura saturada, nº de aditivos, fósforo adicionado, sem açúcar adicionado
-  ]
+  ],
+  "parecer": string                           // VER REGRAS (comentário estilo nutricionista)
 }
 Regras:
 - E-NÚMEROS: para aditivos bem conhecidos, INCLUI o E-número correto (ex.: ácido cítrico→E330, fosfato dissódico→E339, citrato trissódico→E331, fosfato tricálcico→E341, agar-agar→E406, farinha de sementes de alfarroba/goma de alfarroba→E410, goma de tara→E417, sorbato de potássio→E202). Usa null SÓ para ingredientes que não são aditivos com E-número (leite, nata, sal, água, fermentos) ou se realmente desconheceres.
 - NUTRI-SCORE: usa o grau fornecido se existir; no "porque", explica-o pelos NUTRIENTES concretos (ex.: "penalizado pela gordura saturada alta e pelo sal; pouca fibra/proteína a compensar"). Se não for fornecido, estima e di-lo.
 - NOVA: usa o fornecido se existir; senão deriva (presença de aditivos cosméticos → 4).
+- PARECER: 3 a 5 frases, como um nutricionista comentaria o produto de forma EQUILIBRADA — diz o que ele é, o lado positivo (ex.: fonte de proteína/cálcio) E os pontos de atenção em contexto (processamento, aditivos, nutrientes altos), e como interpretar tudo isto. Trata o leitor por "você". NUNCA prescrevas ("deve evitar", "não coma"), NUNCA julgues quem consome, NUNCA dês diagnóstico. Factual e sereno.
 - Sê factual, nunca prescritivo (nada de "deve evitar"/"é saudável"). Só o JSON.`;
 
 // Análise FACTUAL (não clínica) de um produto a partir dos dados consolidados.

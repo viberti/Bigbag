@@ -1031,15 +1031,59 @@ function NutritionFacts({ n }) {
   );
 }
 
-// Análise factual (não clínica) do produto: resumo, Nutri-Score + NOVA com
-// porquê, destaques, e cada ingrediente explicado (tipo · E-número · função).
+// Faixa de AVISOS no topo (estilo Chile "ALTO EM" + alergénio). Derivada dos
+// limiares do semáforo: o que é "alto" (vermelho) vira octógono de aviso.
+function FaixaAvisos({ n, alergenios }) {
+  const avisos = [];
+  if (n) {
+    const mapa = { gordura_saturada: 'GORDURA SATURADA', gordura: 'GORDURA', acucares: 'AÇÚCAR', sal: 'SAL' };
+    for (const k of ['gordura_saturada', 'gordura', 'acucares', 'sal']) {
+      if (n[k] != null && sfNivel(k, n[k]) === 'alto') avisos.push(mapa[k]);
+    }
+  }
+  const alerg = (alergenios || []).filter(Boolean);
+  if (!avisos.length && !alerg.length) return null;
+  return (
+    <div className="avisos">
+      {avisos.map((tx) => (
+        <span key={tx} className="aviso-oct" role="img" aria-label={`Alto em ${tx}`}>
+          <b>ALTO EM</b>
+          <span>{tx}</span>
+        </span>
+      ))}
+      {alerg.length > 0 && (
+        <span className="aviso-alerg">
+          Contém
+          <b>{alerg.join(', ').toUpperCase()}</b>
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Rodapé de transparência: de onde vem cada classificação + aviso factual.
+function RodapeFontes() {
+  return (
+    <div className="an-rodape">
+      <p className="rod-fontes">
+        Fontes: dados nutricionais e Nutri-Score do Open Food Facts; ingredientes lidos do rótulo por IA; nível NOVA e limiares do semáforo segundo a FSA (Reino Unido), por 100 g.
+      </p>
+      <p className="rod-aviso">Informação factual sobre o produto. Não é aconselhamento de saúde nem substitui um profissional.</p>
+    </div>
+  );
+}
+
+// Análise factual (não clínica) do produto: avisos, Nutri-Score + NOVA, semáforo,
+// tabela, parecer (LLM), destaques, aditivos e ingredientes explicados.
 function AnaliseProduto({ a, n }) {
   if (a === null) return <p className="sheet-vazio">a analisar…</p>;
   if (a.erro) return <p className="sheet-vazio">Não foi possível analisar este produto.</p>;
   const ns = a.nutriscore?.grau;
   const nova = a.nivel_processamento?.nova;
+  const aditivos = (a.ingredientes || []).filter((i) => i.e_numero);
   return (
     <div className="analise">
+      <FaixaAvisos n={n} alergenios={a.alergenios} />
       {a.resumo && <p className="an-resumo">{a.resumo}</p>}
       {(ns || nova) && (
         <div className="an-badges">
@@ -1049,6 +1093,12 @@ function AnaliseProduto({ a, n }) {
       )}
       <SemaforoNutri n={n} />
       <NutritionFacts n={n} />
+      {a.parecer && (
+        <div className="an-parecer">
+          <h4>Parecer</h4>
+          <p>{a.parecer}</p>
+        </div>
+      )}
       {(a.nutriscore?.porque || a.nivel_processamento?.porque) && (
         <div className="an-porques">
           {a.nutriscore?.porque && <p><b>Nutri-Score:</b> {a.nutriscore.porque}</p>}
@@ -1059,6 +1109,21 @@ function AnaliseProduto({ a, n }) {
         <div className="an-destaques">
           {a.destaques.map((d, i) => (
             <span key={i} className={`an-tag t-${d.tom || 'neutro'}`}>{d.texto}</span>
+          ))}
+        </div>
+      )}
+      {aditivos.length > 0 && (
+        <div className="an-aditivos">
+          <h4>Aditivos · {aditivos.length}</h4>
+          {aditivos.map((i, idx) => (
+            <div key={idx} className="adt-item">
+              {i.e_numero && <span className="adt-e">{i.e_numero}</span>}
+              <span className="adt-corpo">
+                <span className="adt-nome">{i.nome}</span>
+                {i.funcao && <span className="adt-f">{i.funcao}</span>}
+                {i.nota && <span className="adt-nota">{i.nota}</span>}
+              </span>
+            </div>
           ))}
         </div>
       )}
@@ -1088,7 +1153,7 @@ function AnaliseProduto({ a, n }) {
           <b>Alergénios:</b> {a.alergenios.join(', ')}
         </div>
       )}
-      <p className="an-aviso">Informação factual sobre o produto — não é aconselhamento de saúde.</p>
+      <RodapeFontes />
     </div>
   );
 }
