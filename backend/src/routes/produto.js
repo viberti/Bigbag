@@ -175,6 +175,13 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
     }
 
     try {
+      // Guarda anti-acumulação: a re-identificação do MESMO item substitui as
+      // fichas anteriores SEM EAN (o upsert só dedupe por EAN; com ean=NULL,
+      // cada foto criava uma linha nova → duplicados na despensa). As fichas COM
+      // EAN ficam (catálogo por EAN; o ON DUPLICATE KEY UPDATE trata-as).
+      if (itemId) {
+        await getPool().query('DELETE FROM produto_ean WHERE item_id = ? AND ean IS NULL', [itemId]);
+      }
       await getPool().query(
         `INSERT INTO produto_ean (ean, sku_id, item_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, fonte, vlm_json, off_json)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
