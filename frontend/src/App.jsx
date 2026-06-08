@@ -726,30 +726,57 @@ function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCar
   );
 }
 
-// As minhas compras: lista de notas (data · loja · nº itens · valor), por data
-// decrescente. Tocar numa linha expande os itens dessa nota.
+// Identidade visual por loja (cor + monograma) para os cartões de compra.
+const LOJAS_TEMA = {
+  continente: { c: '#ef5346', mono: 'C' },
+  mercadona: { c: '#f0a73c', mono: 'M' },
+  'pingo doce': { c: '#37bcb4', mono: 'PD' },
+  makro: { c: '#9b8cf2', mono: 'Mk' },
+  aldi: { c: '#5b8def', mono: 'A' },
+  lidl: { c: '#f2c14e', mono: 'L' },
+};
+const LOJA_PALETA = ['#ef5346', '#f0a73c', '#37bcb4', '#9b8cf2', '#5b8def', '#f2c14e', '#46d488', '#e57bb0'];
+function lojaTema(nome) {
+  const k = String(nome || '').trim().toLowerCase();
+  for (const [key, tema] of Object.entries(LOJAS_TEMA)) if (k === key || k.includes(key)) return tema;
+  let h = 0;
+  for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) >>> 0;
+  const mono = (k.split(/\s+/).map((w) => w[0]).filter(Boolean).join('').slice(0, 2) || '?').toUpperCase();
+  return { c: LOJA_PALETA[h % LOJA_PALETA.length], mono };
+}
+
+// As minhas compras (redesign): cartões por loja (cor+monograma) agrupados por
+// mês, com resumo do mês; tocar abre o detalhe (produtos + total) que desliza.
 function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identificados }) {
-  const [expandida, setExpandida] = useState(null); // id da nota aberta
-  const [itensPorNota, setItensPorNota] = useState({});
-  const [carregando, setCarregando] = useState(null);
-  async function alternar(id) {
-    if (expandida === id) return setExpandida(null);
-    setExpandida(id);
-    if (itensPorNota[id]) return;
-    setCarregando(id);
-    try {
-      const d = await detalhesNota(id);
-      setItensPorNota((m) => ({ ...m, [id]: d.itens }));
-    } catch {
-      setItensPorNota((m) => ({ ...m, [id]: [] }));
-    } finally {
-      setCarregando(null);
-    }
+  const [aberta, setAberta] = useState(null); // nota mostrada no detalhe (mantém-se no slide-out)
+  const [detAberto, setDetAberto] = useState(false);
+  const [detItens, setDetItens] = useState(null); // itens da nota aberta (null = a carregar)
+
+  useEffect(() => {
+    if (!aberto) setDetAberto(false);
+  }, [aberto]);
+
+  function abrirDetalhe(n) {
+    setAberta(n);
+    setDetItens(null);
+    setDetAberto(true);
+    detalhesNota(n.id).then((d) => setDetItens(d.itens)).catch(() => setDetItens([]));
   }
+
+  const somaMes = (y, m) =>
+    notas.filter((n) => +String(n.data).slice(0, 4) === y && +String(n.data).slice(5, 7) === m).reduce((a, n) => a + Number(n.total || 0), 0);
+
+  let resumo = null;
+  if (notas && notas.length) {
+    const y = +String(notas[0].data).slice(0, 4), m = +String(notas[0].data).slice(5, 7);
+    const doMes = notas.filter((n) => +String(n.data).slice(0, 4) === y && +String(n.data).slice(5, 7) === m);
+    resumo = { mes: m, n: doMes.length, gasto: doMes.reduce((a, n) => a + Number(n.total || 0), 0), lojas: new Set(doMes.map((n) => n.loja)).size };
+  }
+
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
-      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label="As minhas compras">
+      <section className={`sheet ${aberto ? 'open' : ''} cmp`} aria-label="As minhas compras">
         <div className="sheet-h">
           <Mark size={30} chip />
           <span className="t">As minhas compras</span>
@@ -757,90 +784,144 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
             <Ico name="close" size={18} />
           </button>
         </div>
-        <div className="notas-list">
+
+        {resumo && (
+          <div className="cmp-sum">
+            <div className="cmp-s">
+              <span className="cmp-k">Este mês</span>
+              <span className="cmp-v">{resumo.n} {resumo.n === 1 ? 'compra' : 'compras'}</span>
+            </div>
+            <div className="cmp-s">
+              <span className="cmp-k">Gasto · {MESES[resumo.mes - 1].toLowerCase()}</span>
+              <span className="cmp-v eur">{eur(resumo.gasto)}</span>
+            </div>
+            <div className="cmp-s">
+              <span className="cmp-k">Lojas</span>
+              <span className="cmp-v">{resumo.lojas}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="cmp-list">
           {notas === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : notas.length === 0 ? (
             <p className="sheet-vazio">Ainda sem compras.</p>
           ) : (
             (() => {
-              const anoBase = +String(notas[0].data).slice(0, 4); // o ano mais recente não leva cabeçalho
-              let lastY = null;
-              let lastM = null;
+              const anoBase = +String(notas[0].data).slice(0, 4);
+              let lastY = null, lastM = null;
               const out = [];
               for (const n of notas) {
-                const ano = +String(n.data).slice(0, 4);
-                const mes = +String(n.data).slice(5, 7);
-                if (ano !== lastY) {
-                  if (ano !== anoBase) out.push(<div key={`y${ano}`} className="nota-ano-h">{ano}</div>);
-                  out.push(<div key={`m${ano}-${mes}`} className="nota-mes-h">{MESES[mes - 1]}</div>);
-                  lastY = ano;
-                  lastM = mes;
-                } else if (mes !== lastM) {
-                  out.push(<div key={`m${ano}-${mes}`} className="nota-mes-h">{MESES[mes - 1]}</div>);
-                  lastM = mes;
+                const y = +String(n.data).slice(0, 4), m = +String(n.data).slice(5, 7);
+                if (y !== lastY || m !== lastM) {
+                  out.push(
+                    <div key={`h${y}-${m}`} className="cmp-mes">
+                      <b>{MESES[m - 1]}{y !== anoBase ? ` ${y}` : ''}</b>
+                      <span className="cmp-ln" />
+                      <span className="cmp-mt">{eur(somaMes(y, m))}</span>
+                    </div>,
+                  );
+                  lastY = y;
+                  lastM = m;
                 }
+                const tema = lojaTema(n.loja);
                 out.push(
-              <div key={n.id} className="nota-bloco">
-                <button type="button" className={`nota-row ${expandida === n.id ? 'on' : ''}`} onClick={() => alternar(n.id)}>
-                  <span className="nota-data">{String(n.data).slice(8, 10)}</span>
-                  <span className="nota-loja">{n.loja}</span>
-                  <span className="nota-meta">
-                    <em>{n.n_itens} itens</em>
-                    <b>{eur(n.total)}</b>
-                  </span>
-                </button>
-                {expandida === n.id && (
-                  <div className="nota-itens">
-                    {carregando === n.id ? (
-                      <p className="sheet-vazio">{t('chat.thinking')}</p>
-                    ) : (
-                      (itensPorNota[n.id] || []).map((it) => {
-                        // Tem ficha (abre ao clicar) se tem EAN (identificado já ou
-                        // nesta sessão) OU é fresco. Senão (embalado por identificar) → câmara.
-                        const eanItem = it.ean || identificados?.[it.id] || null;
-                        const temFicha = !!eanItem || it.tipo_alimento === 'fresco';
-                        const precisaFoto = !temFicha;
-                        return temFicha ? (
-                          <button
-                            key={it.id}
-                            type="button"
-                            className="nota-item clic"
-                            onClick={() => onInfo({ id: it.id, ean: eanItem, produto: it.produto })}
-                          >
-                            <span className="ni-nome">{it.produto}</span>
-                            <span className="ni-preco">{eur(it.preco)}</span>
-                          </button>
-                        ) : (
-                          <div key={it.id} className="nota-item">
-                            <span className="ni-nome">{it.produto}</span>
-                            <span className="ni-preco">{eur(it.preco)}</span>
-                            {precisaFoto && (
-                              <button
-                                type="button"
-                                className="ni-ident"
-                                onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })}
-                                title="identificar produto (fotos do rótulo)"
-                                aria-label="identificar produto"
-                              >
-                                <Ico name="camera" size={16} />
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>,
+                  <button key={n.id} type="button" className="cmp-card" style={{ '--c': tema.c }} onClick={() => abrirDetalhe(n)}>
+                    <span className="cmp-logo"><span className="cmp-mono">{tema.mono}</span></span>
+                    <span className="cmp-ci">
+                      <span className="cmp-nm">{n.loja}</span>
+                      <span className="cmp-dt">
+                        <span className="cmp-tag">{String(n.data).slice(8, 10)} {MESES[m - 1].slice(0, 3).toLowerCase()}</span>
+                        {n.n_itens} {n.n_itens === 1 ? 'item' : 'itens'}
+                      </span>
+                    </span>
+                    <span className="cmp-cr"><span className="cmp-pr">{eur(n.total)}</span></span>
+                    <span className="cmp-chev"><Ico name="chevron" size={18} /></span>
+                  </button>,
                 );
               }
               return out;
             })()
           )}
         </div>
+
+        <DetalheCompra
+          aberto={detAberto}
+          nota={aberta}
+          itens={detItens}
+          identificados={identificados}
+          onVoltar={() => setDetAberto(false)}
+          onInfo={onInfo}
+          onIdentificar={onIdentificar}
+        />
       </section>
     </>
+  );
+}
+
+// Detalhe de uma compra (slide-in): cabeçalho da loja + produtos + total. Tocar
+// num produto abre a ficha (ou a identificação, se ainda for preciso).
+function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, onIdentificar }) {
+  const tema = lojaTema(nota?.loja);
+  const dia = nota ? String(nota.data).slice(8, 10) : '';
+  const mes = nota ? +String(nota.data).slice(5, 7) : 1;
+  const nprod = itens ? itens.length : nota?.n_itens || 0;
+  return (
+    <div className={`cmp-det ${aberto ? 'open' : ''}`} style={{ '--c': tema.c }} aria-hidden={!aberto}>
+      <div className="cmp-dhead">
+        <button className="cmp-back" onClick={onVoltar} aria-label="voltar">
+          <Ico name="voltar" size={20} />
+        </button>
+        <span className="cmp-dava"><span className="cmp-mono">{tema.mono}</span></span>
+        <span className="cmp-dht">
+          <span className="cmp-dnm">{nota?.loja}</span>
+          {nota && (
+            <span className="cmp-ddt">
+              {dia} de {MESES[mes - 1]} · {nota.n_itens} {nota.n_itens === 1 ? 'item' : 'itens'}
+            </span>
+          )}
+        </span>
+      </div>
+      <div className="cmp-dlist">
+        {itens === null ? (
+          <p className="sheet-vazio">{t('chat.thinking')}</p>
+        ) : itens.length === 0 ? (
+          <p className="sheet-vazio">Sem produtos.</p>
+        ) : (
+          itens.map((it) => {
+            const qtd = Number(it.quantidade) || 1;
+            const linha = Number(it.preco) || 0;
+            const unit = qtd ? linha / qtd : linha;
+            const eanItem = it.ean || identificados?.[it.id] || null;
+            const temFicha = !!eanItem || it.tipo_alimento === 'fresco';
+            return (
+              <button
+                key={it.id}
+                type="button"
+                className="cmp-prow"
+                onClick={() => (temFicha ? onInfo({ id: it.id, ean: eanItem, produto: it.produto }) : onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto }))}
+              >
+                <span className="cmp-pn">
+                  <b>{it.produto}</b>
+                  <span>{qtd} × {eur(unit)}</span>
+                </span>
+                {!temFicha && (
+                  <span className="cmp-pcam" aria-label="por identificar">
+                    <Ico name="camera" size={15} />
+                  </span>
+                )}
+                <span className="cmp-pp">{eur(linha)}</span>
+              </button>
+            );
+          })
+        )}
+      </div>
+      <div className="cmp-dfoot">
+        <span className="cmp-dlab">{nprod} {nprod === 1 ? 'produto' : 'produtos'}</span>
+        <span className="cmp-dtot">{nota ? eur(nota.total) : ''}</span>
+      </div>
+    </div>
   );
 }
 
