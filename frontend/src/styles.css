@@ -745,7 +745,8 @@ body { background: #0c1814; }
 .bb .ident-ean { width: 100%; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--campo, rgba(255,255,255,.04)); color: var(--text-bb); font-size: 15px; font-variant-numeric: tabular-nums; }
 .bb .ident-add { width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; border-radius: 11px;
   background: none; border: 1px dashed var(--line); color: var(--muted-bb); cursor: pointer; font-size: 13.5px; }
-.bb .ident-add:hover { color: var(--accent); border-color: var(--accent); }
+.bb .ident-add:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.bb .ident-add:disabled { opacity: .5; cursor: default; }
 .bb .ident-fotos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .bb .ident-thumb { position: relative; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
 .bb .ident-thumb img { width: 100%; height: 100%; object-fit: cover; }

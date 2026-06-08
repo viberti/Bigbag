@@ -776,6 +776,9 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo }) {
   );
 }
 
+// Limite de fotos por identificação (acompanha o limite do backend). Mudável.
+const MAX_FOTOS = 10;
+
 // Identificar produto: EAN + fotos → VLM (rótulos) e OFF (EAN). Mostra ambos.
 function ProdutoIdentSheet({ item, onFechar }) {
   const [ean, setEan] = useState('');
@@ -827,12 +830,22 @@ function ProdutoIdentSheet({ item, onFechar }) {
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) setFotos((x) => [...x, f]);
+              if (f) setFotos((x) => (x.length >= MAX_FOTOS ? x : [...x, f]));
               e.target.value = '';
             }}
           />
-          <button type="button" className="ident-add" onClick={() => fotoRef.current?.click()}>
-            <Ico name="camera" size={18} /> {fotos.length ? 'Adicionar mais uma foto' : 'Adicionar foto (frente · ingredientes · validade)'}
+          <button
+            type="button"
+            className="ident-add"
+            onClick={() => fotoRef.current?.click()}
+            disabled={fotos.length >= MAX_FOTOS}
+          >
+            <Ico name="camera" size={18} />{' '}
+            {fotos.length >= MAX_FOTOS
+              ? `Máximo de ${MAX_FOTOS} fotos`
+              : fotos.length
+                ? `Adicionar mais uma foto · ${fotos.length}/${MAX_FOTOS}`
+                : 'Adicionar foto (frente · ingredientes · validade)'}
           </button>
           {fotos.length > 0 && (
             <div className="ident-fotos">
