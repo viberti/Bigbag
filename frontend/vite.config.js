@@ -61,11 +61,20 @@ export default defineConfig({
         name: 'Bigbag',
         short_name: 'Bigbag',
         description: 'Histórico de preços de compras',
-        theme_color: '#1f2c33',
-        background_color: '#0b141a',
+        theme_color: '#0c3b32',
+        background_color: '#06201d',
         display: 'standalone',
         start_url: '/',
-        icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
+        // Ícone "Spotlight" (saco iluminado por holofote verde sobre fundo escuro).
+        // SVG escalável + PNGs `any` (tile com cantos) + PNGs `maskable` (saco na
+        // safe zone sobre fundo full-bleed, p/ o SO aplicar a sua máscara).
+        icons: [
+          { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: '/icons/bigbag-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/bigbag-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/bigbag-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icons/bigbag-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
       },
     }),
   ],
