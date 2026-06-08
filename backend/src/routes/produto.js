@@ -136,6 +136,36 @@ produtoRouter.get('/info', requireAuth, async (req, res) => {
   }
 });
 
+// "Despensa" da casa: os produtos que conhecemos (com EAN), por ordem de compra
+// (data) decrescente. Dedup por EAN, mantendo a compra mais recente.
+produtoRouter.get('/despensa', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await getPool().query(`
+      SELECT pe.ean, pe.item_id, pe.id AS pe_id,
+             COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.nome')), pe.nome, i.descricao_original) AS nome,
+             COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) AS marca,
+             f.data_compra AS data,
+             COALESCE(l.cadeia, l.nome) AS loja
+        FROM produto_ean pe
+        LEFT JOIN item i ON i.id = pe.item_id
+        LEFT JOIN fatura f ON f.id = i.fatura_id
+        LEFT JOIN loja l ON l.id = f.loja_id
+       WHERE pe.ean IS NOT NULL
+       ORDER BY f.data_compra DESC, pe.id DESC`);
+    const vistos = new Set();
+    const produtos = [];
+    for (const r of rows) {
+      if (vistos.has(r.ean)) continue;
+      vistos.add(r.ean);
+      produtos.push({ ean: r.ean, item_id: r.item_id, nome: r.nome, marca: r.marca, data: r.data, loja: r.loja });
+    }
+    res.json({ produtos });
+  } catch (e) {
+    console.error('[produto/despensa] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar a despensa' });
+  }
+});
+
 // Análise factual (não clínica) do produto: ingredientes explicados, NOVA,
 // Nutri-Score com porquê, destaques. Cacheada por EAN (re-gera com ?forcar=1).
 produtoRouter.get('/analise', requireAuth, async (req, res) => {

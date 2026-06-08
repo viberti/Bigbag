@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -143,6 +143,13 @@ function Chat({ onSair, nome }) {
     setNotasAberto(true);
     setNotasLista(null);
     listarNotas().then(setNotasLista).catch(() => setNotasLista([]));
+  };
+  const [despensaAberto, setDespensaAberto] = useState(false);
+  const [despensaLista, setDespensaLista] = useState(null); // null=a carregar · []=vazio
+  const abrirDespensa = () => {
+    setDespensaAberto(true);
+    setDespensaLista(null);
+    listarDespensa().then(setDespensaLista).catch(() => setDespensaLista([]));
   };
   // Habituais com stale-while-revalidate: arranca da cache offline (renderiza
   // já, mesmo sem rede), e revalida em fundo quando online.
@@ -410,6 +417,9 @@ function Chat({ onSair, nome }) {
           <button type="button" className="round" onClick={abrirNotas} disabled={ocupado} aria-label="as minhas compras">
             <Ico name="notas" size={21} />
           </button>
+          <button type="button" className="round" onClick={abrirDespensa} disabled={ocupado} aria-label="a minha despensa">
+            <Ico name="despensa" size={21} />
+          </button>
           <span className="ia-sp" />
           <button
             type="button"
@@ -513,6 +523,7 @@ function Chat({ onSair, nome }) {
         onFechar={() => setCarrinhoAberto(false)}
       />
       <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} />
+      <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} />
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} />
       <ProdutoInfoSheet item={infoItem} onFechar={() => setInfoItem(null)} />
     </div>
@@ -768,6 +779,43 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo }) {
                   </div>
                 )}
               </div>
+            ))
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Despensa: produtos que conhecemos (com EAN), por ordem de compra desc. Tocar
+// num produto abre a ficha completa (info + análise).
+function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
+  return (
+    <>
+      <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label="A minha despensa">
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">A minha despensa</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        <div className="despensa-list">
+          {produtos === null ? (
+            <p className="sheet-vazio">{t('chat.thinking')}</p>
+          ) : produtos.length === 0 ? (
+            <p className="sheet-vazio">Ainda sem produtos com código de barras. Use o ícone da câmara numa nota para identificar um produto.</p>
+          ) : (
+            produtos.map((p) => (
+              <button key={p.ean} type="button" className="desp-row" onClick={() => onInfo({ id: p.item_id, ean: p.ean, produto: p.nome })}>
+                <span className="desp-corpo">
+                  <span className="desp-nome">{p.nome}</span>
+                  {(p.marca || p.loja) && <span className="desp-sub">{[p.marca, p.loja].filter(Boolean).join(' · ')}</span>}
+                </span>
+                {p.data && <span className="desp-data">{dataNota(p.data)}</span>}
+                <Ico name="info" size={17} />
+              </button>
             ))
           )}
         </div>
