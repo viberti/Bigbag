@@ -933,6 +933,26 @@ function AuthImg({ id }) {
   return url ? <img className="info-foto" src={url} alt="" loading="lazy" /> : <span className="info-foto ph" />;
 }
 
+// Selo Nutri-Score no formato oficial: escala A B C D E com a letra ativa em
+// destaque (maior, com contorno). Cores oficiais do rótulo.
+const NS_CORES = { A: '#038141', B: '#85bb2f', C: '#fecb02', D: '#ef8200', E: '#e63e11' };
+function NutriSelo({ grau }) {
+  const g = String(grau || '').toUpperCase();
+  if (!['A', 'B', 'C', 'D', 'E'].includes(g)) return null;
+  return (
+    <span className="nutri-selo" role="img" aria-label={`Nutri-Score ${g}`}>
+      <span className="ns-cap">NUTRI-SCORE</span>
+      <span className="ns-escala">
+        {['A', 'B', 'C', 'D', 'E'].map((l) => (
+          <span key={l} className={`ns-cel${l === g ? ' on' : ''}`} style={{ background: NS_CORES[l] }}>
+            {l}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
 // Análise factual (não clínica) do produto: resumo, Nutri-Score + NOVA com
 // porquê, destaques, e cada ingrediente explicado (tipo · E-número · função).
 function AnaliseProduto({ a }) {
@@ -945,7 +965,7 @@ function AnaliseProduto({ a }) {
       {a.resumo && <p className="an-resumo">{a.resumo}</p>}
       {(ns || nova) && (
         <div className="an-badges">
-          {ns && <span className={`ns ns-${String(ns).toLowerCase()}`}>Nutri-Score {ns}</span>}
+          {ns && <NutriSelo grau={ns} />}
           {nova && <span className="nova">NOVA {nova}{a.nivel_processamento?.rotulo ? ` · ${a.nivel_processamento.rotulo}` : ''}</span>}
         </div>
       )}
@@ -1021,7 +1041,7 @@ function FonteIdent({ titulo, d, nutri, nova, vazio }) {
           )}
           {(nutri || nova) && (
             <div className="ident-badges">
-              {nutri && <span className={`ns ns-${String(nutri).toLowerCase()}`}>Nutri-Score {nutri}</span>}
+              {nutri && <NutriSelo grau={nutri} />}
               {nova && <span className="nova">NOVA {nova}</span>}
             </div>
           )}
