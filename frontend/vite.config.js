@@ -70,10 +70,10 @@ export default defineConfig({
         // safe zone sobre fundo full-bleed, p/ o SO aplicar a sua máscara).
         icons: [
           { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: '/icons/bigbag-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icons/bigbag-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/icons/bigbag-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: '/icons/bigbag-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/app-icons/bigbag-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/app-icons/bigbag-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/app-icons/bigbag-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/app-icons/bigbag-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),
