@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -858,12 +858,17 @@ function ProdutoIdentSheet({ item, onFechar }) {
 // display do resultado de identificação + mostra as fotos guardadas do produto.
 function ProdutoInfoSheet({ item, onFechar }) {
   const [info, setInfo] = useState(null); // null = a carregar
+  const [analise, setAnalise] = useState(null); // null = a carregar · {erro} em falha
   useEffect(() => {
     if (!item) return;
     setInfo(null);
+    setAnalise(null);
     infoProduto({ itemId: item.id, ean: item.ean })
       .then(setInfo)
       .catch(() => setInfo({ erro: true }));
+    analiseProduto({ itemId: item.id, ean: item.ean })
+      .then((r) => setAnalise(r.analise || { erro: true }))
+      .catch(() => setAnalise({ erro: true }));
   }, [item]);
   if (!item) return null;
   return (
@@ -885,7 +890,7 @@ function ProdutoInfoSheet({ item, onFechar }) {
             <p className="sheet-vazio">Falha a carregar a informação.</p>
           ) : (
             <>
-              <ResultadoIdent res={info} />
+              <AnaliseProduto a={analise} />
               {info.fotos?.length > 0 && (
                 <div className="info-fotos">
                   {info.fotos.map((f) => (
@@ -893,6 +898,10 @@ function ProdutoInfoSheet({ item, onFechar }) {
                   ))}
                 </div>
               )}
+              <details className="info-bruto">
+                <summary>Dados em bruto (VLM · Open Food Facts)</summary>
+                <ResultadoIdent res={info} />
+              </details>
             </>
           )}
         </div>
@@ -922,6 +931,66 @@ function AuthImg({ id }) {
     };
   }, [id]);
   return url ? <img className="info-foto" src={url} alt="" loading="lazy" /> : <span className="info-foto ph" />;
+}
+
+// Análise factual (não clínica) do produto: resumo, Nutri-Score + NOVA com
+// porquê, destaques, e cada ingrediente explicado (tipo · E-número · função).
+function AnaliseProduto({ a }) {
+  if (a === null) return <p className="sheet-vazio">a analisar…</p>;
+  if (a.erro) return <p className="sheet-vazio">Não foi possível analisar este produto.</p>;
+  const ns = a.nutriscore?.grau;
+  const nova = a.nivel_processamento?.nova;
+  return (
+    <div className="analise">
+      {a.resumo && <p className="an-resumo">{a.resumo}</p>}
+      {(ns || nova) && (
+        <div className="an-badges">
+          {ns && <span className={`ns ns-${String(ns).toLowerCase()}`}>Nutri-Score {ns}</span>}
+          {nova && <span className="nova">NOVA {nova}{a.nivel_processamento?.rotulo ? ` · ${a.nivel_processamento.rotulo}` : ''}</span>}
+        </div>
+      )}
+      {(a.nutriscore?.porque || a.nivel_processamento?.porque) && (
+        <div className="an-porques">
+          {a.nutriscore?.porque && <p><b>Nutri-Score:</b> {a.nutriscore.porque}</p>}
+          {a.nivel_processamento?.porque && <p><b>Processamento:</b> {a.nivel_processamento.porque}</p>}
+        </div>
+      )}
+      {a.destaques?.length > 0 && (
+        <div className="an-destaques">
+          {a.destaques.map((d, i) => (
+            <span key={i} className={`an-tag t-${d.tom || 'neutro'}`}>{d.texto}</span>
+          ))}
+        </div>
+      )}
+      {a.ingredientes?.length > 0 && (
+        <div className="an-ings">
+          <h4>Ingredientes · {a.ingredientes.length}</h4>
+          {a.ingredientes.map((ing, i) => (
+            <div key={i} className="an-ing">
+              <div className="an-ing-h">
+                <span className="an-ing-nome">{ing.nome}</span>
+                {ing.e_numero && <span className="an-e">{ing.e_numero}</span>}
+                {ing.tipo && <span className="an-tipo">{ing.tipo}</span>}
+              </div>
+              {ing.funcao && (
+                <div className="an-ing-f">
+                  {ing.funcao}
+                  {ing.origem ? ` · origem: ${ing.origem}` : ''}
+                </div>
+              )}
+              {ing.nota && <div className="an-ing-nota">{ing.nota}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {a.alergenios?.length > 0 && (
+        <div className="an-alerg">
+          <b>Alergénios:</b> {a.alergenios.join(', ')}
+        </div>
+      )}
+      <p className="an-aviso">Informação factual sobre o produto — não é aconselhamento de saúde.</p>
+    </div>
+  );
 }
 
 function ResultadoIdent({ res }) {

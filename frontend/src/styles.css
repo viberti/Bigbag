@@ -753,6 +753,33 @@ body { background: #0c1814; }
 .bb .ident-go { width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px; border: none; background: var(--accent); color: #06231a; font-weight: 700; font-size: 15px; cursor: pointer; }
 .bb .ident-go:disabled { opacity: .5; cursor: default; }
 .bb .ident-res { margin-top: 18px; }
+
+/* Análise factual do produto */
+.bb .analise { margin-top: 6px; }
+.bb .an-resumo { font-size: 14.5px; line-height: 1.5; margin: 0 0 12px; }
+.bb .an-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.bb .an-badges .nova { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: rgba(255,255,255,.07); border: 1px solid var(--line); }
+.bb .an-porques { font-size: 13px; color: var(--muted-bb); line-height: 1.5; margin-bottom: 12px; }
+.bb .an-porques p { margin: 0 0 5px; }
+.bb .an-porques b { color: var(--text-bb); }
+.bb .an-destaques { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.bb .an-tag { font-size: 12px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); }
+.bb .an-tag.t-atencao { background: rgba(240,170,60,.14); border-color: rgba(240,170,60,.4); color: #f0c074; }
+.bb .an-tag.t-bom { background: rgba(65,222,134,.13); border-color: rgba(65,222,134,.4); color: #6fe0a2; }
+.bb .an-tag.t-neutro { background: rgba(255,255,255,.05); color: var(--muted-bb); }
+.bb .an-ings h4 { font-size: 14px; margin: 4px 0 10px; }
+.bb .an-ing { padding: 9px 0; border-top: 1px solid var(--line); }
+.bb .an-ing-h { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.bb .an-ing-nome { font-weight: 700; font-size: 14px; }
+.bb .an-e { font-size: 11.5px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: rgba(255,255,255,.08); color: var(--muted-bb); font-variant-numeric: tabular-nums; }
+.bb .an-tipo { font-size: 12px; color: var(--muted-bb); }
+.bb .an-ing-f { font-size: 13px; color: var(--muted-bb); margin-top: 3px; line-height: 1.45; }
+.bb .an-ing-nota { font-size: 12.5px; color: #f0c074; margin-top: 3px; }
+.bb .an-alerg { margin-top: 14px; font-size: 13.5px; }
+.bb .an-aviso { margin-top: 16px; font-size: 11.5px; color: var(--muted-bb); font-style: italic; }
+.bb .info-bruto { margin-top: 18px; }
+.bb .info-bruto summary { cursor: pointer; font-size: 13px; color: var(--muted-bb); padding: 6px 0; }
+
 .bb .info-fotos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .bb .info-foto { width: 88px; height: 88px; border-radius: 10px; object-fit: cover; border: 1px solid var(--line); background: rgba(255,255,255,.04); }
 .bb .info-foto.ph { display: inline-block; }

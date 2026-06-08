@@ -62,6 +62,69 @@ export async function extrairProdutoFotos(fotos, { timeoutMs } = {}) {
   }
 }
 
+const PROMPT_ANALISE = `És um documentalista de nutrição. Recebes os dados de UM produto alimentar (nome, categoria, ingredientes, nutrição por 100 g, e Nutri-Score/NOVA quando existirem). Produz uma análise FACTUAL e NÃO CLÍNICA — só factos sobre o produto, SEM conselhos médicos, diagnósticos nem recomendações personalizadas. Idioma: português do Brasil (trata o leitor por "você"). Devolve SÓ um objeto JSON:
+{
+  "resumo": string,                          // 1-2 frases, linguagem simples: do que se trata
+  "nivel_processamento": {
+    "nova": 1|2|3|4|null,                     // grupo NOVA (usa o fornecido se existir)
+    "rotulo": string,                         // ex.: "ultraprocessado", "processado", "in natura"
+    "porque": string                          // 1 frase factual
+  },
+  "nutriscore": { "grau": "A"|"B"|"C"|"D"|"E"|null, "porque": string },  // usa o fornecido; senão estima e diz que é estimado
+  "ingredientes": [                           // UM objeto por ingrediente, na ordem do rótulo
+    {
+      "nome": string,
+      "tipo": string,                         // ex.: "base", "regulador de acidez", "estabilizador", "conservante", "antiaglomerante"
+      "e_numero": string|null,                // ex.: "E406"; null se não tiveres a certeza
+      "funcao": string,                       // para que serve, 1 frase simples
+      "origem": string|null,                  // ex.: "alga", "leguminosa", "mineral", "leite"
+      "nota": string|null                     // facto relevante, se houver (ex.: "fonte de fósforo adicionado")
+    }
+  ],
+  "alergenios": [string],
+  "destaques": [                              // factos que saltam à vista
+    { "tom": "atencao"|"bom"|"neutro", "texto": string }   // ex.: sal alto, gordura saturada, nº de aditivos, fósforo adicionado, sem açúcar adicionado
+  ]
+}
+Regras: NÃO inventes E-números — null em caso de dúvida. Se o Nutri-Score/NOVA forem fornecidos, usa-os; senão estima e assinala-o no "porque". Sê factual, nunca prescritivo. Só o JSON.`;
+
+// Análise FACTUAL (não clínica) de um produto a partir dos dados consolidados.
+// p: { nome, categoria, ingredientes, nutricao_100g, nutriscore, nova }.
+export async function analisarProduto(p, { timeoutMs } = {}) {
+  const payload = {
+    nome: p.nome || null,
+    categoria: p.categoria || null,
+    ingredientes: p.ingredientes || null,
+    nutricao_100g: p.nutricao_100g || null,
+    nutriscore: p.nutriscore || null,
+    nova: p.nova ?? null,
+  };
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeoutMs || 30000);
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
+      body: JSON.stringify({
+        model: config.openrouter.modelConsulta,
+        messages: [
+          { role: 'system', content: PROMPT_ANALISE },
+          { role: 'user', content: 'Dados do produto:\n' + JSON.stringify(payload, null, 2) },
+        ],
+        response_format: { type: 'json_object' },
+        usage: { include: true },
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+    const data = await res.json();
+    const analise = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
+    return { analise, custo: Number(data.usage?.cost) || 0 };
+  } finally {
+    clearTimeout(to);
+  }
+}
+
 // Consulta o Open Food Facts pelo EAN (dados autoritativos do produto exato).
 export async function consultarOFF(ean) {
   const cod = String(ean || '').replace(/\D/g, '');

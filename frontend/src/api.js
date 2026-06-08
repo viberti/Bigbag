@@ -95,6 +95,16 @@ export async function infoProduto({ itemId, ean }) {
   return r.json(); // { ean, vlm, off, fonte, fotos, existe }
 }
 
+export async function analiseProduto({ itemId, ean, forcar }) {
+  const qs = new URLSearchParams();
+  if (itemId) qs.set('item_id', itemId);
+  if (ean) qs.set('ean', ean);
+  if (forcar) qs.set('forcar', '1');
+  const r = await call(`/api/produto/analise?${qs}`);
+  if (!r.ok) throw new Error(`analise ${r.status}`);
+  return r.json(); // { analise, custo?, cacheada }
+}
+
 // Foto de produto (rota com auth → não dá para usar em <img src> direto).
 // Busca o blob com o header e devolve um object URL.
 export async function fotoProdutoUrl(id) {

@@ -9,10 +9,42 @@ import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
-import { extrairProdutoFotos, consultarOFF } from '../ingest/produto.js';
+import { extrairProdutoFotos, consultarOFF, analisarProduto } from '../ingest/produto.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
+
+const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
+// Preenche lacunas: o 1.º valor não-nulo ganha; objetos fundem-se recursivamente.
+const fillGaps = (acc, src) => {
+  if (!src) return acc;
+  acc = acc || {};
+  for (const [k, v] of Object.entries(src)) {
+    if (v == null) continue;
+    if (acc[k] == null) acc[k] = v;
+    else if (typeof v === 'object' && typeof acc[k] === 'object' && !Array.isArray(v)) acc[k] = fillGaps(acc[k], v);
+  }
+  return acc;
+};
+
+// Consolida TUDO o que sabemos de um produto (por item da nota OU por EAN):
+// funde as várias linhas de produto_ean (vlm/off) e lista as fotos guardadas.
+async function consolidarProduto({ itemId, eanQ }) {
+  const [rows] = itemId
+    ? await getPool().query('SELECT * FROM produto_ean WHERE item_id = ? ORDER BY id', [itemId])
+    : await getPool().query('SELECT * FROM produto_ean WHERE ean = ? ORDER BY id', [eanQ]);
+  let vlm = null, off = null, ean = eanQ;
+  for (const r of rows) {
+    if (r.ean) ean = r.ean;
+    vlm = fillGaps(vlm, parseJson(r.vlm_json));
+    off = fillGaps(off, parseJson(r.off_json));
+  }
+  const [fotos] = itemId
+    ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE item_id = ? ORDER BY ordem, id', [itemId])
+    : await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? ORDER BY ordem, id', [ean]);
+  const fonte = vlm && off ? 'ambos' : off ? 'off' : vlm ? 'vlm' : null;
+  return { ean, vlm, off, fonte, fotos, existe: rows.length > 0 };
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: 6 } });
 export const produtoRouter = Router();
@@ -84,39 +116,59 @@ produtoRouter.get('/info', requireAuth, async (req, res) => {
     const itemId = Number(req.query.item_id) || null;
     const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
     if (!itemId && !eanQ) return res.status(400).json({ erro: 'item_id ou ean em falta' });
-
-    const [rows] = itemId
-      ? await getPool().query('SELECT * FROM produto_ean WHERE item_id = ? ORDER BY id', [itemId])
-      : await getPool().query('SELECT * FROM produto_ean WHERE ean = ? ORDER BY id', [eanQ]);
-
-    const parse = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
-    // Preenche lacunas: o 1.º valor não-nulo ganha; objetos fundem-se recursivamente.
-    const fill = (acc, src) => {
-      if (!src) return acc;
-      acc = acc || {};
-      for (const [k, v] of Object.entries(src)) {
-        if (v == null) continue;
-        if (acc[k] == null) acc[k] = v;
-        else if (typeof v === 'object' && typeof acc[k] === 'object' && !Array.isArray(v)) acc[k] = fill(acc[k], v);
-      }
-      return acc;
-    };
-    let vlm = null, off = null, ean = eanQ;
-    for (const r of rows) {
-      if (r.ean) ean = r.ean;
-      vlm = fill(vlm, parse(r.vlm_json));
-      off = fill(off, parse(r.off_json));
-    }
-
-    const [fotos] = itemId
-      ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE item_id = ? ORDER BY ordem, id', [itemId])
-      : await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? ORDER BY ordem, id', [ean]);
-
-    const fonte = vlm && off ? 'ambos' : off ? 'off' : vlm ? 'vlm' : null;
-    res.json({ ean, vlm, off, fonte, fotos, existe: rows.length > 0 });
+    res.json(await consolidarProduto({ itemId, eanQ }));
   } catch (e) {
     console.error('[produto/info] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar info do produto' });
+  }
+});
+
+// Análise factual (não clínica) do produto: ingredientes explicados, NOVA,
+// Nutri-Score com porquê, destaques. Cacheada por EAN (re-gera com ?forcar=1).
+produtoRouter.get('/analise', requireAuth, async (req, res) => {
+  try {
+    const itemId = Number(req.query.item_id) || null;
+    const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
+    const forcar = String(req.query.forcar || '') === '1';
+    if (!itemId && !eanQ) return res.status(400).json({ erro: 'item_id ou ean em falta' });
+
+    const info = await consolidarProduto({ itemId, eanQ });
+    if (!info.existe) return res.status(404).json({ erro: 'Produto sem dados para analisar' });
+    const ean = info.ean || null;
+
+    // cache por EAN
+    if (ean && !forcar) {
+      const [[c]] = await getPool().query('SELECT analise FROM produto_analise WHERE ean = ?', [ean]);
+      if (c?.analise) return res.json({ analise: parseJson(c.analise), cacheada: true });
+    }
+
+    // melhor fonte por campo: ingredientes do rótulo (vlm) > off; nutrição/score do off
+    const p = {
+      nome: info.off?.nome || info.vlm?.nome || null,
+      categoria: info.off?.categoria || info.vlm?.categoria || null,
+      ingredientes: info.vlm?.ingredientes || info.off?.ingredientes || null,
+      nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || null,
+      nutriscore: info.off?.nutriscore || null,
+      nova: info.off?.nova ?? null,
+    };
+    if (!p.ingredientes && !p.nutricao_100g) {
+      return res.status(422).json({ erro: 'Sem ingredientes nem nutrição para analisar' });
+    }
+
+    const { analise, custo } = await analisarProduto(p);
+    if (ean) {
+      await getPool()
+        .query('INSERT INTO produto_analise (ean, analise, modelo) VALUES (?,?,?) ON DUPLICATE KEY UPDATE analise=VALUES(analise), modelo=VALUES(modelo), criado_em=CURRENT_TIMESTAMP', [
+          ean,
+          JSON.stringify(analise),
+          'modelConsulta',
+        ])
+        .catch((e) => console.error('[produto/analise] cache:', e.message));
+    }
+    res.json({ analise, custo, cacheada: false });
+  } catch (e) {
+    console.error('[produto/analise] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a analisar o produto' });
   }
 });
 
