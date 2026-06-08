@@ -313,7 +313,7 @@ function Chat({ onSair, nome }) {
       for (let i = 0; i < lista.length; i++) {
         const prefixo = lista.length > 1 ? t('cap.lote', { i: i + 1, n: lista.length }) + ' ' : '';
         const etiqueta = lista.length > 1 ? t('nota.enviadaN', { i: i + 1, n: lista.length }) : t('nota.enviada');
-        await processarUma(lista[i], { dewarp: true, origem, prefixo, etiqueta });
+        await processarUma(lista[i], { dewarp: false, origem, prefixo, etiqueta });
       }
     } finally {
       setOcupado(false);
@@ -541,7 +541,7 @@ function Chat({ onSair, nome }) {
               try {
                 const r = await fotoInteligente(f);
                 if (r.tipo === 'talao') {
-                  fatura(f, { dewarp: true, origem: 'foto' }); // endireita/recorta o talão antes de enviar
+                  fatura(f, { dewarp: false, origem: 'foto' });
                 } else if (r.tipo === 'produto' && r.encontrado) {
                   setInfoItem({ ean: r.ean, produto: r.nome || r.ean });
                 } else if (r.tipo === 'produto') {
@@ -550,7 +550,7 @@ function Chat({ onSair, nome }) {
                   mostrarToast('Não reconheci a imagem. Tenta o código de barras ou um talão.');
                 }
               } catch {
-                fatura(f, { dewarp: true, origem: 'foto' }); // em falha, assume talão (e endireita)
+                fatura(f, { dewarp: false, origem: 'foto' }); // em falha, assume talão
               }
             }}
           />
