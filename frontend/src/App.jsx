@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -178,6 +178,7 @@ function Chat({ onSair, nome }) {
     setPorIdentLista(null);
     listarPorIdentificar().then(setPorIdentLista).catch(() => setPorIdentLista([]));
   };
+  const [scannerAberto, setScannerAberto] = useState(false);
   // Habituais com stale-while-revalidate: arranca da cache offline (renderiza
   // já, mesmo sem rede), e revalida em fundo quando online.
   const [habituaisLista, setHabituaisLista] = useState(() => lerCacheHabituais()?.produtos ?? null);
@@ -510,6 +511,7 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}><Ico name="galeria" size={18} /> {t('cap.gallery')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
+            <button onClick={() => { setMenuAberto(false); setScannerAberto(true); }}><Ico name="barras" size={18} /> Consultar produto (código de barras)</button>
             <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> A minha despensa</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> Os meus gastos</button>
             <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> Produtos por identificar</button>
@@ -554,6 +556,11 @@ function Chat({ onSair, nome }) {
       <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} />
       <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
       <PorIdentificarSheet aberto={porIdentAberto} itens={porIdentLista} onFechar={() => setPorIdentAberto(false)} onIdentificar={setIdentItem} identificados={identificados} />
+      <ScannerSheet
+        aberto={scannerAberto}
+        onFechar={() => setScannerAberto(false)}
+        onEncontrado={(p) => { setScannerAberto(false); setInfoItem({ ean: p.ean, produto: p.nome || p.ean }); }}
+      />
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} onIdentificado={marcarIdentificado} />
       <ProdutoInfoSheet item={infoItem} onFechar={() => setInfoItem(null)} />
     </div>
@@ -1170,6 +1177,92 @@ function GastosSheet({ aberto, dados, onFechar }) {
               )}
 
               <p className="g-total">Total registado: <b>{eur(d.total_geral)}</b></p>
+            </>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Scanner de código de barras: consulta um produto no mercado (sem ligação a nota).
+// Lê o EAN com a câmara (zxing, carregado on-demand), consulta a base → OFF, e
+// abre a ficha do produto (que também guarda os dados para uso futuro).
+function ScannerSheet({ aberto, onFechar, onEncontrado }) {
+  const videoRef = useRef(null);
+  const [fase, setFase] = useState('scan'); // scan | consulta | naoencontrado | erro
+  const [ean, setEan] = useState(null);
+  const [tentativa, setTentativa] = useState(0);
+
+  useEffect(() => {
+    if (!aberto) return undefined;
+    setFase('scan');
+    setEan(null);
+    let controls;
+    let parado = false;
+    (async () => {
+      try {
+        const { BrowserMultiFormatReader } = await import('@zxing/browser');
+        const reader = new BrowserMultiFormatReader();
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' } } },
+          videoRef.current,
+          async (result) => {
+            if (!result || parado) return;
+            const cod = result.getText().replace(/\D/g, '');
+            if (cod.length < 8) return;
+            parado = true;
+            controls?.stop();
+            setEan(cod);
+            setFase('consulta');
+            try {
+              const r = await consultarProdutoEan(cod);
+              if (r.encontrado) onEncontrado({ ean: r.ean, nome: r.nome });
+              else setFase('naoencontrado');
+            } catch {
+              setFase('naoencontrado');
+            }
+          },
+        );
+      } catch {
+        setFase('erro');
+      }
+    })();
+    return () => {
+      parado = true;
+      controls?.stop();
+    };
+  }, [aberto, tentativa]);
+
+  if (!aberto) return null;
+  return (
+    <>
+      <div className="scrim open" onClick={onFechar} />
+      <section className="sheet open" aria-label="Consultar produto">
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">Consultar produto</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        <div className="scan-body">
+          {fase === 'erro' ? (
+            <p className="sheet-vazio">Não foi possível abrir a câmara. Verifica as permissões.</p>
+          ) : (
+            <>
+              <div className="scan-cam">
+                <video ref={videoRef} className="scan-video" playsInline muted />
+                <div className="scan-mira" />
+                {fase === 'consulta' && <div className="scan-overlay">A consultar {ean}…</div>}
+                {fase === 'naoencontrado' && (
+                  <div className="scan-overlay">
+                    <p>Produto <b>{ean}</b> não encontrado — nem na nossa base nem no Open Food Facts.</p>
+                    <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>Ler outro código</button>
+                  </div>
+                )}
+              </div>
+              <p className="scan-hint">Aponta a câmara ao código de barras do produto.</p>
             </>
           )}
         </div>

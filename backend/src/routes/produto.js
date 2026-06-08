@@ -191,6 +191,45 @@ produtoRouter.get('/info', requireAuth, async (req, res) => {
   }
 });
 
+// Consultar um produto pelo EAN (scan no mercado), SEM ligação a nota. Se já o
+// conhecemos, devolve da nossa base; senão busca no Open Food Facts, GUARDA
+// (item_id NULL) para uso futuro, e devolve.
+produtoRouter.get('/consultar', requireAuth, async (req, res) => {
+  try {
+    const ean = String(req.query.ean || '').replace(/\D/g, '');
+    if (!eanValido(ean)) return res.status(400).json({ erro: 'Código de barras inválido', ean });
+
+    const [[ja]] = await getPool().query(
+      `SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), nome) AS nome
+         FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL) ORDER BY id LIMIT 1`,
+      [ean],
+    );
+    if (ja) return res.json({ ean, encontrado: true, fonte: 'base', nome: ja.nome || null });
+
+    const off = await consultarOFF(ean);
+    if (!off) return res.json({ ean, encontrado: false });
+
+    try {
+      await getPool().query(
+        `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, fonte, off_json)
+           VALUES (?,NULL,NULL,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
+           ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), fonte=VALUES(fonte), off_json=VALUES(off_json)`,
+        [ean, off.nome, off.marca, off.quantidade, off.categoria, off.ingredientes, off.alergenios,
+          off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
+      );
+      await guardarNomes(ean, null, [{ nome: off.nome, origem: 'off' }]);
+    } catch (e) {
+      console.error('[produto/consultar] guardar:', e.message);
+    }
+
+    res.json({ ean, encontrado: true, fonte: 'off', nome: off.nome || null });
+  } catch (e) {
+    console.error('[produto/consultar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a consultar o produto' });
+  }
+});
+
 // "Despensa" da casa: os produtos que conhecemos (com EAN), por ordem de compra
 // (data) decrescente. Dedup por EAN, mantendo a compra mais recente.
 produtoRouter.get('/despensa', requireAuth, async (req, res) => {

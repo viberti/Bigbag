@@ -105,6 +105,12 @@ export async function listarPorIdentificar() {
   return itens || [];
 }
 
+export async function consultarProdutoEan(ean) {
+  const r = await call(`/api/produto/consultar?ean=${encodeURIComponent(ean)}`);
+  if (!r.ok) throw new Error(`consultar ${r.status}`);
+  return r.json(); // { ean, encontrado, fonte, nome }
+}
+
 export async function listarDespensa() {
   const r = await call('/api/produto/despensa');
   if (!r.ok) throw new Error(`despensa ${r.status}`);

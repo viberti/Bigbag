@@ -47,6 +47,7 @@ const P = {
   despensa: `<rect x="4.5" y="3.5" width="15" height="17" rx="1.5"/><path d="M12 3.5v17"/><path d="M4.5 9.5h15M4.5 14.5h15"/><path d="M10 6.3v1.4M14 6.3v1.4"/>`,
   gastos: `<circle cx="12" cy="12" r="8.5"/><path d="M14.7 9.3a3.4 3.4 0 1 0 0 5.4"/><path d="M7.8 11.2h4.4M7.8 13h4"/>`,
   chevron: `<path d="M9 6l6 6-6 6"/>`,
+  barras: `<path d="M4 6v12M7 6v12M10 6v12M13.5 6v12M17 6v12M20 6v12"/>`,
   voltar: `<path d="M15 5l-7 7 7 7"/>`,
   scan: `<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8"/><path d="M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8"/><path d="M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16"/><path d="M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M4 12h16"/>`,
   galeria: `<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M4 16.5l4.5-4 3 2.5L16 11l4 4"/>`,
