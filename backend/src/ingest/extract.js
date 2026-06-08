@@ -13,7 +13,7 @@ Esquema exato:
 {
   "loja": { "cadeia": string, "nome": string, "nif": string|null, "localizacao": string|null }, // localizacao = endereço da LOJA física (topo, logo abaixo da marca), NÃO o da sede fiscal
 
-  "numero_fatura": string|null,     // nº do documento fiscal após "Nro:"/"No :" (ex. "FS ARQ214/141059"); null se ilegível
+  "numero_fatura": string|null,     // nº do DOCUMENTO FISCAL do talão — ver regra "NÚMERO DO DOCUMENTO"; null SÓ se mesmo ilegível
   "data_compra": string,            // ISO 8601, ex. "2026-05-22T18:02:00"
   "subtotal": number|null,          // SUBTOTAL antes do desconto global
   "desconto_global": number,        // ex. "Desconto Cartão Utilizado"; 0 se não houver
@@ -38,6 +38,7 @@ Esquema exato:
 Regras:
 - O NIF da LOJA é o do estabelecimento/vendedor (perto do nome no topo), NÃO o NIF do cliente.
 - ENDEREÇO DA LOJA (localizacao): muitos talões têm DOIS endereços. Usa SEMPRE o da LOJA física — o que aparece no TOPO, logo abaixo do nome da marca (ex. na Mercadona: "AV. ANTÓNIO PALHA, 5 …"). NÃO uses o endereço da sociedade/sede fiscal, que aparece mais abaixo, junto ao NIF/"Capital Social"/"S.A."/"Unipessoal, Lda" (ex. "Av. Padre Jorge Duarte 123") — esse é o da empresa, não o da loja.
+- NÚMERO DO DOCUMENTO ("numero_fatura"): TODO o talão tem um número de documento fiscal — PROCURA-O SEMPRE (no topo ou no rodapé) e quase nunca devolvas null. Rótulos comuns: "Fatura Simplificada", "FS", "Fatura/Recibo", "FR", "Nr.", "Nº", "No:", "Nro:", "Doc:", "Documento". O número costuma ter o formato SÉRIE/NÚMERO (ex.: "FS ARQ214/141059", "FS 70060122026001/053682") ou um código alfanumérico longo junto ao ATCUD/QR no fundo. COPIA-O TAL COMO aparece (com a série e a barra). Só devolve null se a zona estiver mesmo cortada/ilegível.
 - "Aprox. fim prazo validade" aparece NA LINHA ABAIXO do produto — associa ao item imediatamente acima (is_clearance=true).
 - Linhas de desconto sob um produto ("Poupança", "Promoção", "Promoção Lidl Plus", "Desconto") pertencem a esse produto: soma a magnitude (positiva) no desconto_direto desse item. NUNCA cries um item separado para um desconto. O "valor" do item é o preço impresso na linha do produto (tal como aparece, mesmo que haja desconto por baixo).
 - desconto_global é SÓ a linha de desconto que reduz o SUBTOTAL até ao TOTAL A PAGAR — tipicamente "Desconto Cartão Utilizado"/"Desconto Cartão" (Continente). NÃO contes aqui as poupanças por linha (já vão no desconto_direto do item) NEM a linha-resumo "Total de descontos e poupanças" (é só o somatório das poupanças, informativo) — senão o desconto fica contado a dobrar e o total não fecha. Regra de verificação: SUBTOTAL − desconto_global deve dar o TOTAL A PAGAR; se não der, o desconto_global está errado (provavelmente devia ser 0).

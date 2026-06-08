@@ -52,6 +52,21 @@ export async function persistirFatura(
     const numero = dados.numero_fatura ? String(dados.numero_fatura).trim().slice(0, 60) : null;
     const data = toMysqlDate(dados.data_compra);
     const total = num(dados.total_impresso);
+    const cadeia = dados.loja?.cadeia ? String(dados.loja.cadeia).trim() : null;
+
+    // Dedup por NÚMERO do documento (o critério mais fiável) — por CADEIA, para
+    // sobreviver a nome de loja mal lido (loja_id diferente). O nº já é único por talão.
+    if (numero && cadeia) {
+      const [byNum] = await conn.query(
+        `SELECT f.id FROM fatura f JOIN loja l ON l.id = f.loja_id WHERE l.cadeia = ? AND f.numero_fatura = ? LIMIT 1`,
+        [cadeia, numero],
+      );
+      if (byNum.length) {
+        await conn.rollback();
+        return { duplicada: true, fatura_id: byNum[0].id, loja_id: lojaId };
+      }
+    }
+
     const [dup] = await conn.query(
       `SELECT id FROM fatura
         WHERE loja_id = ?
@@ -69,7 +84,6 @@ export async function persistirFatura(
     // estável: cadeia + total + nº de itens, CONFIRMADA por sobreposição de preços
     // (tolerante a cêntimos de OCR). Foi assim que 3 duplicados do Mercadona —
     // lido como "Irmadona", com datas erradas — passaram despercebidos.
-    const cadeia = dados.loja?.cadeia ? String(dados.loja.cadeia).trim() : null;
     const precos = dados.itens.map((i) => num(i.preco_liquido)).filter((x) => x != null);
 
     // Dedup por ASSINATURA FORTE: cadeia + MESMA DATA + total + nº de itens. É
