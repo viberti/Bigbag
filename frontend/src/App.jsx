@@ -811,7 +811,14 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
               <button key={p.ean} type="button" className="desp-row" onClick={() => onInfo({ id: p.item_id, ean: p.ean, produto: p.nome })}>
                 <span className="desp-corpo">
                   <span className="desp-nome">{p.nome}</span>
-                  {(p.marca || p.loja) && <span className="desp-sub">{[p.marca, p.loja].filter(Boolean).join(' · ')}</span>}
+                  {(() => {
+                    const partes = [];
+                    for (const x of [p.marca, p.loja]) {
+                      const v = (x || '').trim();
+                      if (v && !partes.some((y) => y.toLowerCase() === v.toLowerCase())) partes.push(v);
+                    }
+                    return partes.length ? <span className="desp-sub">{partes.join(' · ')}</span> : null;
+                  })()}
                 </span>
                 {p.data && <span className="desp-data">{dataNota(p.data)}</span>}
                 <Ico name="info" size={17} />
