@@ -717,6 +717,24 @@ body { background: #0c1814; }
 .bb .sheet-f { padding: 14px 16px; border-top: 1px solid var(--line); color: var(--muted-bb); font-size: 13.5px; text-align: center; }
 .bb .sheet-f .hint { color: var(--faint); }
 
+/* folha "As minhas compras" (notas) */
+.bb .notas-list { overflow-y: auto; padding: 8px 8px 16px; }
+.bb .nota-bloco { margin-bottom: 4px; }
+.bb .nota-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 13px 12px; border-radius: 14px;
+  background: none; border: none; color: inherit; cursor: pointer; transition: .12s; font: inherit; }
+.bb .nota-row:hover { background: rgba(255,255,255,.035); }
+.bb .nota-row.on { background: rgba(46,196,110,.10); }
+.bb .nota-data { color: var(--muted-bb); font-variant-numeric: tabular-nums; font-size: 13px; flex: 0 0 auto; }
+.bb .nota-loja { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb .nota-meta { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; flex: 0 0 auto; }
+.bb .nota-meta em { color: var(--faint); font-style: normal; font-size: 12px; }
+.bb .nota-meta b { color: var(--accent); font-size: 14px; }
+.bb .nota-itens { padding: 2px 14px 10px 14px; }
+.bb .nota-item { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 14px; border-top: 1px solid var(--line); }
+.bb .nota-item:first-child { border-top: none; }
+.bb .ni-nome { color: var(--text-bb); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb .ni-preco { color: var(--muted-bb); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+
 /* folha "Lista" (carrinho) */
 .bb .cart-ic { width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto; display: grid; place-items: center;
   background: rgba(46,196,110,.14); color: var(--accent); }

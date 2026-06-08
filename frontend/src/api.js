@@ -64,6 +64,19 @@ export async function enviarFatura(file, origem) {
   return r.json();
 }
 
+export async function listarNotas() {
+  const r = await call('/api/faturas');
+  if (!r.ok) throw new Error(`notas ${r.status}`);
+  const { notas } = await r.json();
+  return notas || [];
+}
+
+export async function detalhesNota(id) {
+  const r = await call(`/api/faturas/${id}`);
+  if (!r.ok) throw new Error(`nota ${r.status}`);
+  return r.json(); // { nota, itens }
+}
+
 export async function enviarVoz(blob) {
   const fd = new FormData();
   const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];

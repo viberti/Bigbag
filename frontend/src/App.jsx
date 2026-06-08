@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -20,6 +20,10 @@ const dataCurta = (iso) => {
   return s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
 };
 const fmtQtd = (q) => (Number.isInteger(q) ? String(q) : q.toFixed(3).replace(/0+$/, '').replace('.', ','));
+const dataNota = (iso) => {
+  const s = String(iso || '').slice(0, 10);
+  return s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4) : '';
+};
 
 // Wrappers SVG do handoff (marca + ícones de linha).
 const Mark = ({ size = 30, chip = false }) => <span className="mk" dangerouslySetInnerHTML={{ __html: MARK({ size, chip }) }} />;
@@ -131,6 +135,13 @@ function Chat({ onSair, nome }) {
   });
   const [habituaisAberto, setHabituaisAberto] = useState(false);
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
+  const [notasAberto, setNotasAberto] = useState(false);
+  const [notasLista, setNotasLista] = useState(null); // null=a carregar · []=vazio
+  const abrirNotas = () => {
+    setNotasAberto(true);
+    setNotasLista(null);
+    listarNotas().then(setNotasLista).catch(() => setNotasLista([]));
+  };
   // Habituais com stale-while-revalidate: arranca da cache offline (renderiza
   // já, mesmo sem rede), e revalida em fundo quando online.
   const [habituaisLista, setHabituaisLista] = useState(() => lerCacheHabituais()?.produtos ?? null);
@@ -394,6 +405,9 @@ function Chat({ onSair, nome }) {
           <button type="button" className="round" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="mais opções">
             <Ico name="more" size={21} />
           </button>
+          <button type="button" className="round" onClick={abrirNotas} disabled={ocupado} aria-label="as minhas compras">
+            <Ico name="notas" size={21} />
+          </button>
           <span className="ia-sp" />
           <button
             type="button"
@@ -496,6 +510,7 @@ function Chat({ onSair, nome }) {
         onLimpar={limparCarrinho}
         onFechar={() => setCarrinhoAberto(false)}
       />
+      <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} />
     </div>
   );
 }
@@ -660,6 +675,76 @@ function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCar
         </div>
         <div className="sheet-f">
           <span>{t('habituais.footer', { n: cartCount })}</span> <span className="hint">{t('habituais.footerHint')}</span>
+        </div>
+      </section>
+    </>
+  );
+}
+
+// As minhas compras: lista de notas (data · loja · nº itens · valor), por data
+// decrescente. Tocar numa linha expande os itens dessa nota.
+function NotasSheet({ aberto, notas, onFechar }) {
+  const [expandida, setExpandida] = useState(null); // id da nota aberta
+  const [itensPorNota, setItensPorNota] = useState({});
+  const [carregando, setCarregando] = useState(null);
+  async function alternar(id) {
+    if (expandida === id) return setExpandida(null);
+    setExpandida(id);
+    if (itensPorNota[id]) return;
+    setCarregando(id);
+    try {
+      const d = await detalhesNota(id);
+      setItensPorNota((m) => ({ ...m, [id]: d.itens }));
+    } catch {
+      setItensPorNota((m) => ({ ...m, [id]: [] }));
+    } finally {
+      setCarregando(null);
+    }
+  }
+  return (
+    <>
+      <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label="As minhas compras">
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">As minhas compras</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        <div className="notas-list">
+          {notas === null ? (
+            <p className="sheet-vazio">{t('chat.thinking')}</p>
+          ) : notas.length === 0 ? (
+            <p className="sheet-vazio">Ainda sem compras.</p>
+          ) : (
+            notas.map((n) => (
+              <div key={n.id} className="nota-bloco">
+                <button type="button" className={`nota-row ${expandida === n.id ? 'on' : ''}`} onClick={() => alternar(n.id)}>
+                  <span className="nota-data">{dataNota(n.data)}</span>
+                  <span className="nota-loja">{n.loja}</span>
+                  <span className="nota-meta">
+                    <em>{n.n_itens} itens</em>
+                    <b>{eur(n.total)}</b>
+                  </span>
+                </button>
+                {expandida === n.id && (
+                  <div className="nota-itens">
+                    {carregando === n.id ? (
+                      <p className="sheet-vazio">{t('chat.thinking')}</p>
+                    ) : (
+                      (itensPorNota[n.id] || []).map((it) => (
+                        <div key={it.id} className="nota-item">
+                          <span className="ni-nome">{it.produto}</span>
+                          <span className="ni-preco">{eur(it.preco)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </section>
     </>

@@ -231,6 +231,48 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
   }
 });
 
+// Lista as notas do utilizador (para a tela "As minhas compras"): data, loja,
+// nº de itens, valor — por data decrescente.
+faturasRouter.get('/', requireAuth, async (req, res) => {
+  try {
+    const [notas] = await getPool().query(`
+      SELECT f.id, f.data_compra AS data, COALESCE(l.cadeia, l.nome) AS loja,
+             f.total_impresso AS total,
+             (SELECT COUNT(*) FROM item i WHERE i.fatura_id = f.id AND i.is_non_product = 0) AS n_itens
+        FROM fatura f JOIN loja l ON l.id = f.loja_id
+       ORDER BY f.data_compra DESC, f.id DESC`);
+    res.json({ notas });
+  } catch (e) {
+    console.error('[faturas GET] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar notas' });
+  }
+});
+
+// Itens de UMA nota (ao tocar numa entrada da lista).
+faturasRouter.get('/:id', requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [[nota]] = await getPool().query(
+      `SELECT f.id, f.data_compra AS data, COALESCE(l.cadeia, l.nome) AS loja, f.total_impresso AS total
+         FROM fatura f JOIN loja l ON l.id = f.loja_id WHERE f.id = ?`,
+      [id],
+    );
+    if (!nota) return res.status(404).json({ erro: 'Nota não encontrada' });
+    const [itens] = await getPool().query(
+      `SELECT i.id, COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+              i.quantidade, i.preco_liquido AS preco, s.unidade_base, i.preco_por_base
+         FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+        WHERE i.fatura_id = ? AND i.is_non_product = 0
+        ORDER BY i.id`,
+      [id],
+    );
+    res.json({ nota, itens });
+  } catch (e) {
+    console.error('[faturas/:id] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar nota' });
+  }
+});
+
 // Serve a imagem original da nota (para a tela de revisão do operador).
 faturasRouter.get('/:id/imagem', requireAuth, async (req, res) => {
   try {
