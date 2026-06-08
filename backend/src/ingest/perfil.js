@@ -65,16 +65,42 @@ export async function extrairPerfil(texto, { timeoutMs } = {}) {
   }
 }
 
+// Grupos de sinónimos por alergénio (PT + EN/OFF + formas comuns), para o alerta
+// determinístico ser robusto à língua e às etiquetas do Open Food Facts (en:milk…).
+const GRUPOS_ALERGENIO = [
+  ['leite', 'milk', 'lactose', 'lácteo', 'lacteo', 'leche', 'dairy', 'manteiga', 'butter', 'nata', 'cream', 'queijo', 'cheese', 'iogurte', 'yogurt', 'whey', 'caseína', 'caseina'],
+  ['glúten', 'gluten', 'trigo', 'wheat', 'cevada', 'barley', 'centeio', 'rye', 'aveia', 'oats'],
+  ['ovo', 'ovos', 'egg', 'huevo'],
+  ['soja', 'soy', 'soya'],
+  ['amendoim', 'peanut', 'cacahuete'],
+  ['frutos de casca rija', 'noz', 'nozes', 'nut', 'nuts', 'amêndoa', 'amendoa', 'avelã', 'avela', 'caju', 'cashew', 'pistácio', 'pistacio'],
+  ['peixe', 'fish', 'pescado', 'atum', 'tuna', 'bacalhau'],
+  ['marisco', 'crustáceo', 'crustaceans', 'shellfish', 'camarão', 'camarao', 'gamba', 'lagosta'],
+  ['mostarda', 'mustard'],
+  ['aipo', 'celery'],
+  ['sésamo', 'sesamo', 'sesame', 'gergelim'],
+  ['sulfito', 'sulfitos', 'sulphite', 'sulfite'],
+];
+const normTxt = (s) => String(s || '').toLowerCase();
+function termosAlergenio(a) {
+  const n = normTxt(a);
+  for (const g of GRUPOS_ALERGENIO) if (g.some((t) => n.includes(t) || t.includes(n))) return g;
+  return [n];
+}
+
 // Verificações DETERMINÍSTICAS (sem IA): alergias, intolerâncias, "evitar".
 export function alertasDoPerfil(produto, resumo) {
-  const norm = (s) => String(s || '').toLowerCase();
-  const alerg = norm(produto?.alergenios);
-  const ingr = norm(produto?.ingredientes);
-  const hay = `${alerg} ${ingr}`;
+  // tira prefixos de etiqueta ("en:", "pt:") e separadores → texto pesquisável
+  const limpa = (s) => normTxt(s).replace(/\b[a-z]{2}:/g, ' ').replace(/[,_;]/g, ' ');
+  const hay = `${limpa(produto?.alergenios)} ${limpa(produto?.ingredientes)}`;
+  const ingr = limpa(produto?.ingredientes);
+  const tem = (termos) => termos.some((t) => t && hay.includes(t));
   const alertas = [];
-  for (const a of resumo?.alergias || []) if (a && hay.includes(norm(a))) alertas.push({ tom: 'alergia', texto: `Contém ${a} — está nas alergias` });
-  for (const i of resumo?.intolerancias || []) if (i && hay.includes(norm(i))) alertas.push({ tom: 'intolerancia', texto: `Pode conter ${i} — há intolerância` });
-  for (const e of resumo?.evitar || []) if (e && ingr.includes(norm(e))) alertas.push({ tom: 'evitar', texto: `Contém ${e} — na lista a evitar` });
+  const vistos = new Set();
+  const push = (tom, texto) => { if (!vistos.has(texto)) { vistos.add(texto); alertas.push({ tom, texto }); } };
+  for (const a of resumo?.alergias || []) if (a && tem(termosAlergenio(a))) push('alergia', `Contém ${a} — está nas alergias`);
+  for (const i of resumo?.intolerancias || []) if (i && tem(termosAlergenio(i))) push('intolerancia', `Pode conter ${i} — há intolerância`);
+  for (const e of resumo?.evitar || []) if (e && ingr.includes(normTxt(e))) push('evitar', `Contém ${e} — na lista a evitar`);
   return alertas;
 }
 

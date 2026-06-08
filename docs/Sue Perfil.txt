@@ -1,0 +1,60 @@
+{
+  "nome": null,
+  "objetivos": [
+    "Perder 6 kg de gordura visceral/abdominal",
+    "Ganhar pelo menos 1 kg de massa muscular",
+    "Reduzir LDL colesterol",
+    "Estabilizar glicemia pós-prandial e reduzir HbA1c (alvo < 5,6%)",
+    "Preservar massa muscular durante o défice calórico"
+  ],
+  "restricoes": [
+    "Dieta mediterrânea low glycemic",
+    "Défice calórico moderado: 2300 kcal treino / 2150 kcal pilates / 1950 kcal descanso / 1800-1900 kcal sem actividade",
+    "Carboidratos de baixo índice glicémico",
+    "Redução de gordura saturada",
+    "Jantar sempre mais leve em carboidratos"
+  ],
+  "alergias": [],
+  "intolerancias": [],
+  "condicoes": [
+    "Menopausa",
+    "LDL elevado — multifatorial (menopausa + predisposição familiar leve)",
+    "Pré-diabetes: HbA1c 5.6–5.9% com suspeita de picos pós-prandiais",
+    "Resistência insulínica incipiente",
+    "TG baixos e HDL alto — perfil metabólico ainda favorável"
+  ],
+  "preferir": [
+    "Peixe gordo: salmão, sardinha, atum — 2-3x/semana",
+    "Proteína magra: peru, frango sem pele, bacalhau, filé mignon suíno, ovos",
+    "Proteína vegetal: tofu, lentilha, grão-de-bico, feijão, soja em flocos",
+    "Laticínios sem açúcar: Skyr natural, kefir natural, iogurte desnatado",
+    "Gorduras boas: azeite, abacate, nozes, amêndoas, chia, linhaça, tahine",
+    "Carboidratos de qualidade: aveia/farelo, batata-doce, quinoa, arroz integral, pão funcional",
+    "Leguminosas: 80g como acompanhamento / 150g como proteína principal",
+    "Vegetais livres: brócolos, couve-flor, abobrinha, espinafres, rúcula",
+    "Frutas de baixo IG: framboesas, morangos, maçã/pera com casca, kiwi, mirtilos",
+    "Canela do Ceilão: 0.5-1 col. chá/dia"
+  ],
+  "evitar": [
+    "Óleo de coco",
+    "Óleo de girassol comum",
+    "Manteiga em uso frequente",
+    "Queijo gordo em quantidade (feta máx. 20-30g · 1-2x/semana)",
+    "Pão branco e farinhas refinadas",
+    "Iogurtes aromatizados ou adoçados",
+    "Sumos de fruta",
+    "Enchidos e carnes processadas",
+    "Frituras e molhos industriais",
+    "Salmão defumado em excesso (máx. 40g · 1-2x/semana)",
+    "Banana madura em excesso (máx. meia unidade pouco madura)",
+    "Ultrarprocessados"
+  ],
+  "nutrientes": {
+    "proteina":         { "objetivo": "aumentar", "alvo": "≥ 110g/dia (1.6g/kg), 25-35g por refeição" },
+    "fibra":            { "objetivo": "aumentar", "alvo": "≥ 25-30g/dia (psyllium + farelo aveia + leguminosas)" },
+    "acucares":         { "objetivo": "reduzir",  "limite": "mínimo absoluto — sem limite numérico fixado" },
+    "gordura_saturada": { "objetivo": "reduzir",  "limite": "< 20g/dia" },
+    "sodio":            { "objetivo": "vigiar",   "limite": "sem limite numérico fixado — atenção a enchidos, conservas e salmão defumado" }
+  },
+  "notas": "Mulher, 54 anos, menopausa, 68,5kg, 1,72m. TMB ~1869 kcal. Academia 3-4x/semana (2ª, 3ª, 6ª) + pilates quarta. Pequeno-almoço fixo: pão funcional caseiro ou Shape/Go Active + 80g peru + legumes + café (~215 kcal, 22g prot). Lanche fixo tarde: overnight oats com kefir (150ml kefir + 3 col. sopa aveia + 1 col. chá chia + 1 col. chá psyllium + fruta). Whey isolado (~30g) apenas pós-treino academia. Suplementos: ómega-3, vitamina D, magnésio (com refeição), psyllium (antes almoço/jantar), berberina 500mg (a confirmar endocrinologista). Mounjaro prescrito — uso planeado após 1 mês adaptação. Caminhada 15min pós-almoço e pós-jantar prioritária. Prep semanal domingo."
+}
