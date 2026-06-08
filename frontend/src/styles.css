@@ -757,6 +757,30 @@ body { background: #0c1814; }
 .bb .desp-data { color: var(--muted-bb); font-variant-numeric: tabular-nums; font-size: 13px; flex: 0 0 auto; }
 .bb .desp-val { flex: 0 0 auto; font-size: 12.5px; color: var(--muted-bb); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* Gastos */
+.bb .gastos-body { overflow-y: auto; padding: 14px 16px 22px; }
+.bb .g-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bb .g-card { display: flex; flex-direction: column; gap: 3px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.02); }
+.bb .g-card.destaque { background: rgba(46,196,110,.10); border-color: rgba(46,196,110,.3); }
+.bb .g-lbl { font-size: 12.5px; color: var(--muted-bb); }
+.bb .g-val { font-size: 23px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.bb .g-val.sobe { color: #e8705f; }
+.bb .g-val.desce { color: #4fd089; }
+.bb .g-sub { font-size: 12px; color: var(--faint); }
+.bb .g-bloco-t { font-size: 14px; font-weight: 700; margin: 22px 0 10px; }
+.bb .g-barras { display: flex; align-items: flex-end; gap: 6px; height: 130px; padding-top: 6px; }
+.bb .g-barra { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; }
+.bb .g-barra-v { font-size: 10px; color: var(--muted-bb); font-variant-numeric: tabular-nums; }
+.bb .g-barra-c { width: 70%; max-width: 26px; border-radius: 5px 5px 0 0; background: linear-gradient(180deg, #41de86, #16a06a); }
+.bb .g-barra-m { font-size: 10.5px; color: var(--muted-bb); }
+.bb .g-loja { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.bb .g-loja-n { flex: 0 0 34%; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb .g-loja-bar { flex: 1; height: 9px; border-radius: 6px; background: rgba(255,255,255,.06); overflow: hidden; }
+.bb .g-loja-bar span { display: block; height: 100%; border-radius: 6px; background: var(--accent); }
+.bb .g-loja-v { flex: 0 0 auto; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bb .g-total { margin-top: 22px; font-size: 13.5px; color: var(--muted-bb); text-align: center; }
+.bb .g-total b { color: var(--text-bb); }
+
 /* Identificar produto (EAN + fotos → VLM/OFF) */
 .bb .ident-body { overflow-y: auto; padding: 14px 16px 20px; }
 .bb .ident-prod { font-weight: 700; font-size: 17px; margin-bottom: 12px; }

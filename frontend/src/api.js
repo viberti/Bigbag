@@ -92,6 +92,12 @@ export async function identificarProduto({ ean, skuId, itemId, fotos }) {
   return r.json(); // { ean, vlm, off, fonte, custo }
 }
 
+export async function resumoGastos() {
+  const r = await call('/api/faturas/gastos');
+  if (!r.ok) throw new Error(`gastos ${r.status}`);
+  return r.json(); // { atual, anterior, media, total_geral, variacao, serie, por_loja }
+}
+
 export async function listarDespensa() {
   const r = await call('/api/produto/despensa');
   if (!r.ok) throw new Error(`despensa ${r.status}`);

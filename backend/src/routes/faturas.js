@@ -248,6 +248,37 @@ faturasRouter.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// Resumo de GASTOS para a análise doméstica: mês corrente, anterior, média, série
+// mensal e repartição por loja do mês corrente. (Antes de '/:id' para não colidir.)
+faturasRouter.get('/gastos', requireAuth, async (req, res) => {
+  try {
+    const [[hoje]] = await getPool().query('SELECT YEAR(CURDATE()) y, MONTH(CURDATE()) m');
+    const [meses] = await getPool().query(`
+      SELECT YEAR(data_compra) ano, MONTH(data_compra) mes,
+             ROUND(SUM(total_impresso), 2) total, COUNT(*) n
+        FROM fatura
+       GROUP BY ano, mes ORDER BY ano, mes`);
+    const acha = (y, m) => meses.find((x) => x.ano === y && x.mes === m) || { ano: y, mes: m, total: 0, n: 0 };
+    const atual = acha(hoje.y, hoje.m);
+    const pm = hoje.m === 1 ? { y: hoje.y - 1, m: 12 } : { y: hoje.y, m: hoje.m - 1 };
+    const anterior = acha(pm.y, pm.m);
+    const totais = meses.map((x) => Number(x.total));
+    const media = totais.length ? +(totais.reduce((a, b) => a + b, 0) / totais.length).toFixed(2) : 0;
+    const total_geral = +totais.reduce((a, b) => a + b, 0).toFixed(2);
+    const variacao = anterior.total > 0 ? Math.round(((atual.total - anterior.total) / anterior.total) * 100) : null;
+    const serie = meses.slice(-12);
+    const [por_loja] = await getPool().query(`
+      SELECT COALESCE(l.cadeia, l.nome) AS loja, ROUND(SUM(f.total_impresso), 2) AS total, COUNT(*) AS n
+        FROM fatura f JOIN loja l ON l.id = f.loja_id
+       WHERE YEAR(f.data_compra) = ? AND MONTH(f.data_compra) = ?
+       GROUP BY loja ORDER BY total DESC`, [hoje.y, hoje.m]);
+    res.json({ atual, anterior, media, total_geral, variacao, serie, por_loja });
+  } catch (e) {
+    console.error('[faturas/gastos] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a calcular gastos' });
+  }
+});
+
 // Itens de UMA nota (ao tocar numa entrada da lista).
 faturasRouter.get('/:id', requireAuth, async (req, res) => {
   try {

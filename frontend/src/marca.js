@@ -45,6 +45,7 @@ const P = {
   more: `<circle cx="5.5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18.5" cy="12" r="1.5"/>`,
   info: `<circle cx="12" cy="12" r="9"/><path d="M12 11.2v5"/><path d="M12 7.8v.01"/>`,
   despensa: `<rect x="4.5" y="3.5" width="15" height="17" rx="1.5"/><path d="M12 3.5v17"/><path d="M4.5 9.5h15M4.5 14.5h15"/><path d="M10 6.3v1.4M14 6.3v1.4"/>`,
+  gastos: `<circle cx="12" cy="12" r="8.5"/><path d="M14.7 9.3a3.4 3.4 0 1 0 0 5.4"/><path d="M7.8 11.2h4.4M7.8 13h4"/>`,
   notas: `<rect x="8" y="3.5" width="10.5" height="13" rx="1.5"/><rect x="5.5" y="7.5" width="10.5" height="13" rx="1.5"/><path d="M8.2 11.5h5M8.2 14.5h5M8.2 17.5h3"/>`,
   send: `<path d="M5.5 12L20 5l-4.2 14.5a.7.7 0 0 1-1.3.1l-3-6.2-6.2-3a.7.7 0 0 1 .2-1.4z"/><path d="M11.5 13.5L20 5"/>`,
   receipt: `<path d="M6 3h12v18l-2.2-1.4L13.6 21 11 19.6 8.4 21 6 19.6z"/><path d="M9.5 8h5M9.5 12h5"/>`,

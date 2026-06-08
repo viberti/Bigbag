@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -158,6 +158,13 @@ function Chat({ onSair, nome }) {
     setDespensaAberto(true);
     setDespensaLista(null);
     listarDespensa().then(setDespensaLista).catch(() => setDespensaLista([]));
+  };
+  const [gastosAberto, setGastosAberto] = useState(false);
+  const [gastosDados, setGastosDados] = useState(null); // null=a carregar · {erro} em falha
+  const abrirGastos = () => {
+    setGastosAberto(true);
+    setGastosDados(null);
+    resumoGastos().then(setGastosDados).catch(() => setGastosDados({ erro: true }));
   };
   // Habituais com stale-while-revalidate: arranca da cache offline (renderiza
   // já, mesmo sem rede), e revalida em fundo quando online.
@@ -428,6 +435,9 @@ function Chat({ onSair, nome }) {
           <button type="button" className="round" onClick={abrirDespensa} disabled={ocupado} aria-label="a minha despensa">
             <Ico name="despensa" size={21} />
           </button>
+          <button type="button" className="round" onClick={abrirGastos} disabled={ocupado} aria-label="os meus gastos">
+            <Ico name="gastos" size={21} />
+          </button>
           <span className="ia-sp" />
           <button
             type="button"
@@ -532,6 +542,7 @@ function Chat({ onSair, nome }) {
       />
       <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} />
       <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} />
+      <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} />
       <ProdutoInfoSheet item={infoItem} onFechar={() => setInfoItem(null)} />
     </div>
@@ -857,6 +868,101 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
                 {p.validade && <span className="desp-val">Val. {fmtValidade(p.validade)}</span>}
               </button>
             ))
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Gastos: análise dos gastos de mercado (mês atual, anterior, média, por mês e
+// por loja) em cards, para acompanhar as despesas domésticas.
+function GastosSheet({ aberto, dados, onFechar }) {
+  const d = dados;
+  const nomeMes = (m) => MESES[(m || 1) - 1];
+  return (
+    <>
+      <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label="Os meus gastos">
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">Os meus gastos</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        <div className="gastos-body">
+          {d === null ? (
+            <p className="sheet-vazio">{t('chat.thinking')}</p>
+          ) : d.erro ? (
+            <p className="sheet-vazio">Falha a carregar os gastos.</p>
+          ) : (
+            <>
+              <div className="g-cards">
+                <div className="g-card destaque">
+                  <span className="g-lbl">Este mês · {nomeMes(d.atual.mes)}</span>
+                  <span className="g-val">{eur(d.atual.total)}</span>
+                  <span className="g-sub">{d.atual.n} {d.atual.n === 1 ? 'compra' : 'compras'}</span>
+                </div>
+                <div className="g-card">
+                  <span className="g-lbl">Mês anterior · {nomeMes(d.anterior.mes)}</span>
+                  <span className="g-val">{eur(d.anterior.total)}</span>
+                  <span className="g-sub">{d.anterior.n} {d.anterior.n === 1 ? 'compra' : 'compras'}</span>
+                </div>
+                <div className="g-card">
+                  <span className="g-lbl">Média mensal</span>
+                  <span className="g-val">{eur(d.media)}</span>
+                  <span className="g-sub">{d.serie.length} {d.serie.length === 1 ? 'mês' : 'meses'}</span>
+                </div>
+                <div className="g-card">
+                  <span className="g-lbl">vs. mês anterior</span>
+                  {d.variacao == null ? (
+                    <span className="g-val">—</span>
+                  ) : (
+                    <span className={`g-val ${d.variacao > 0 ? 'sobe' : 'desce'}`}>
+                      {d.variacao > 0 ? '▲' : '▼'} {Math.abs(d.variacao)}%
+                    </span>
+                  )}
+                  <span className="g-sub">{d.variacao == null ? 'sem referência' : d.variacao > 0 ? 'gastou mais' : 'gastou menos'}</span>
+                </div>
+              </div>
+
+              {d.serie?.length > 1 && (
+                <div className="g-graf">
+                  <div className="g-bloco-t">Por mês</div>
+                  <div className="g-barras">
+                    {(() => {
+                      const max = Math.max(...d.serie.map((s) => Number(s.total)), 1);
+                      return d.serie.map((s) => (
+                        <div key={`${s.ano}-${s.mes}`} className="g-barra">
+                          <span className="g-barra-v">{Math.round(s.total)}</span>
+                          <span className="g-barra-c" style={{ height: `${Math.max(4, (Number(s.total) / max) * 90)}px` }} />
+                          <span className="g-barra-m">{MESES[s.mes - 1].slice(0, 3)}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {d.por_loja?.length > 0 && (
+                <div className="g-lojas">
+                  <div className="g-bloco-t">Onde gastou este mês</div>
+                  {(() => {
+                    const max = Math.max(...d.por_loja.map((l) => Number(l.total)), 1);
+                    return d.por_loja.map((l) => (
+                      <div key={l.loja} className="g-loja">
+                        <span className="g-loja-n">{l.loja}</span>
+                        <span className="g-loja-bar"><span style={{ width: `${(Number(l.total) / max) * 100}%` }} /></span>
+                        <span className="g-loja-v">{eur(l.total)}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+
+              <p className="g-total">Total registado: <b>{eur(d.total_geral)}</b></p>
+            </>
           )}
         </div>
       </section>
