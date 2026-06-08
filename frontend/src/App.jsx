@@ -890,9 +890,7 @@ function ProdutoInfoSheet({ item, onFechar }) {
             <p className="sheet-vazio">Falha a carregar a informação.</p>
           ) : (
             <>
-              <AnaliseProduto a={analise} />
-              <SemaforoNutri n={info.off?.nutricao_100g || info.vlm?.nutricao_100g} />
-              <NutritionFacts n={info.off?.nutricao_100g || info.vlm?.nutricao_100g} />
+              <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g} />
               {info.fotos?.length > 0 && (
                 <div className="info-fotos">
                   {info.fotos.map((f) => (
@@ -1035,7 +1033,7 @@ function NutritionFacts({ n }) {
 
 // Análise factual (não clínica) do produto: resumo, Nutri-Score + NOVA com
 // porquê, destaques, e cada ingrediente explicado (tipo · E-número · função).
-function AnaliseProduto({ a }) {
+function AnaliseProduto({ a, n }) {
   if (a === null) return <p className="sheet-vazio">a analisar…</p>;
   if (a.erro) return <p className="sheet-vazio">Não foi possível analisar este produto.</p>;
   const ns = a.nutriscore?.grau;
@@ -1049,6 +1047,8 @@ function AnaliseProduto({ a }) {
           {nova && <span className="nova">NOVA {nova}{a.nivel_processamento?.rotulo ? ` · ${a.nivel_processamento.rotulo}` : ''}</span>}
         </div>
       )}
+      <SemaforoNutri n={n} />
+      <NutritionFacts n={n} />
       {(a.nutriscore?.porque || a.nivel_processamento?.porque) && (
         <div className="an-porques">
           {a.nutriscore?.porque && <p><b>Nutri-Score:</b> {a.nutriscore.porque}</p>}
