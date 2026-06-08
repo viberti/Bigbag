@@ -891,6 +891,8 @@ function ProdutoInfoSheet({ item, onFechar }) {
           ) : (
             <>
               <AnaliseProduto a={analise} />
+              <SemaforoNutri n={info.off?.nutricao_100g || info.vlm?.nutricao_100g} />
+              <NutritionFacts n={info.off?.nutricao_100g || info.vlm?.nutricao_100g} />
               {info.fotos?.length > 0 && (
                 <div className="info-fotos">
                   {info.fotos.map((f) => (
@@ -950,6 +952,84 @@ function NutriSelo({ grau }) {
         ))}
       </span>
     </span>
+  );
+}
+
+// Semáforo nutricional (UK FSA / "traffic light"): cor por nutriente segundo os
+// limiares oficiais por 100 g (sólidos), + % da dose de referência do adulto.
+const RI_ADULTO = { energia_kcal: 2000, gordura: 70, gordura_saturada: 20, acucares: 90, sal: 6 };
+const SF_LIMIARES = { gordura: [3.0, 17.5], gordura_saturada: [1.5, 5.0], acucares: [5.0, 22.5], sal: [0.3, 1.5] };
+const SF_COR = { baixo: '#3a9b3a', medio: '#e8a000', alto: '#d6271f' };
+const SF_TXT = { baixo: 'BAIXO', medio: 'MÉDIO', alto: 'ALTO' };
+function sfNivel(key, v) {
+  const [lo, hi] = SF_LIMIARES[key];
+  return v <= lo ? 'baixo' : v <= hi ? 'medio' : 'alto';
+}
+function SemaforoNutri({ n }) {
+  if (!n) return null;
+  const cols = [
+    { key: 'gordura', rotulo: 'Gordura' },
+    { key: 'gordura_saturada', rotulo: 'Saturados' },
+    { key: 'acucares', rotulo: 'Açúcares' },
+    { key: 'sal', rotulo: 'Sal' },
+  ].filter((c) => n[c.key] != null);
+  if (!cols.length) return null;
+  const pct = (v, ri) => Math.round((v / ri) * 100);
+  return (
+    <div className="semaforo">
+      <div className="sf-titulo">Cada 100 g contém</div>
+      <div className="sf-linha">
+        {n.energia_kcal != null && (
+          <div className="sf-cel energia">
+            <div className="sf-rot">Energia</div>
+            <div className="sf-val">{Math.round(n.energia_kcal)}<span>kcal</span></div>
+            <div className="sf-pct">{pct(n.energia_kcal, RI_ADULTO.energia_kcal)}%</div>
+          </div>
+        )}
+        {cols.map((c) => {
+          const v = n[c.key];
+          const nv = sfNivel(c.key, v);
+          return (
+            <div key={c.key} className="sf-cel" style={{ background: SF_COR[nv] }}>
+              <div className="sf-rot">{c.rotulo}</div>
+              <div className="sf-val">{v}<span>g</span></div>
+              <div className="sf-tag">{SF_TXT[nv]}</div>
+              <div className="sf-pct">{pct(v, RI_ADULTO[c.key])}%</div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="sf-rodape">% da dose de referência de um adulto (8400 kJ / 2000 kcal)</div>
+    </div>
+  );
+}
+
+// Tabela de informação nutricional, estilo "Nutrition Facts" (por 100 g).
+function NutritionFacts({ n }) {
+  if (!n) return null;
+  const g = (x) => (x != null ? `${x} g` : null);
+  const linhas = [
+    ['Energia', n.energia_kcal != null ? `${Math.round(n.energia_kcal)} kcal` : null, false, true],
+    ['Gordura', g(n.gordura), false, false],
+    ['dos quais saturados', g(n.gordura_saturada), true, false],
+    ['Hidratos de carbono', g(n.hidratos), false, false],
+    ['dos quais açúcares', g(n.acucares), true, false],
+    ['Fibra', g(n.fibra), false, false],
+    ['Proteína', g(n.proteina), false, false],
+    ['Sal', g(n.sal), false, false],
+  ].filter(([, v]) => v != null);
+  if (!linhas.length) return null;
+  return (
+    <div className="nfacts">
+      <div className="nf-titulo">Informação Nutricional</div>
+      <div className="nf-sub">Valores por 100 g</div>
+      {linhas.map(([k, v, ind, forte], i) => (
+        <div key={i} className={`nf-row${ind ? ' ind' : ''}${forte ? ' forte' : ''}`}>
+          <span>{k}</span>
+          <b>{v}</b>
+        </div>
+      ))}
+    </div>
   );
 }
 
