@@ -14,7 +14,10 @@ import { extrairFormato, precoPorBase } from '../src/normaliza/formato.js';
 const UA = 'Mozilla/5.0 (compatible; BigbagBot/0.1; +catálogo pessoal)';
 const SITEMAP_INDEX = 'https://www.auchan.pt/sitemap_index.xml';
 const LIMITE = Number(process.argv[2] || process.env.AUCHAN_LIMITE || 0); // 0 = todos
-const FILTRO = process.env.AUCHAN_FILTRO || '/alimentacao/';
+// Prefixos de caminho a incluir (vírgula-separados). Frescos vivem fora de
+// /alimentacao/ (em /produtos-frescos/) → ambos por padrão.
+const FILTROS = (process.env.AUCHAN_FILTRO || '/alimentacao/,/produtos-frescos/')
+  .split(',').map((s) => s.trim()).filter(Boolean);
 const POOL = Number(process.env.AUCHAN_POOL || 4);
 const DELAY = Number(process.env.AUCHAN_DELAY || 250);
 const SO_NOVOS = process.env.AUCHAN_SO_NOVOS !== '0';
@@ -119,8 +122,8 @@ async function main() {
     urls.push(...locs(xml));
   }
   const total = urls.length;
-  urls = urls.filter((u) => u.includes(FILTRO));
-  console.log(`URLs de produto: ${total} no total, ${urls.length} em "${FILTRO}".`);
+  urls = urls.filter((u) => FILTROS.some((f) => u.includes(f)));
+  console.log(`URLs de produto: ${total} no total, ${urls.length} em [${FILTROS.join(', ')}].`);
 
   if (SO_NOVOS) {
     const [exist] = await pool.query('SELECT sku_auchan FROM catalogo_auchan');
