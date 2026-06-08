@@ -24,6 +24,14 @@ const dataNota = (iso) => {
   const s = String(iso || '').slice(0, 10);
   return s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4) : '';
 };
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+// Validade: aceita "AAAA-MM-DD" → "DD/MM/AAAA", "AAAA-MM" → "MM/AAAA", senão o texto cru.
+const fmtValidade = (v) => {
+  const s = String(v || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4);
+  if (/^\d{4}-\d{2}$/.test(s)) return s.slice(5, 7) + '/' + s.slice(0, 4);
+  return s;
+};
 
 // Wrappers SVG do handoff (marca + ícones de linha).
 const Mark = ({ size = 30, chip = false }) => <span className="mk" dangerouslySetInnerHTML={{ __html: MARK({ size, chip }) }} />;
@@ -733,10 +741,27 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo }) {
           ) : notas.length === 0 ? (
             <p className="sheet-vazio">Ainda sem compras.</p>
           ) : (
-            notas.map((n) => (
+            (() => {
+              const anoBase = +String(notas[0].data).slice(0, 4); // o ano mais recente não leva cabeçalho
+              let lastY = null;
+              let lastM = null;
+              const out = [];
+              for (const n of notas) {
+                const ano = +String(n.data).slice(0, 4);
+                const mes = +String(n.data).slice(5, 7);
+                if (ano !== lastY) {
+                  if (ano !== anoBase) out.push(<div key={`y${ano}`} className="nota-ano-h">{ano}</div>);
+                  out.push(<div key={`m${ano}-${mes}`} className="nota-mes-h">{MESES[mes - 1]}</div>);
+                  lastY = ano;
+                  lastM = mes;
+                } else if (mes !== lastM) {
+                  out.push(<div key={`m${ano}-${mes}`} className="nota-mes-h">{MESES[mes - 1]}</div>);
+                  lastM = mes;
+                }
+                out.push(
               <div key={n.id} className="nota-bloco">
                 <button type="button" className={`nota-row ${expandida === n.id ? 'on' : ''}`} onClick={() => alternar(n.id)}>
-                  <span className="nota-data">{dataNota(n.data)}</span>
+                  <span className="nota-data">{String(n.data).slice(8, 10)}</span>
                   <span className="nota-loja">{n.loja}</span>
                   <span className="nota-meta">
                     <em>{n.n_itens} itens</em>
@@ -784,8 +809,11 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo }) {
                     )}
                   </div>
                 )}
-              </div>
-            ))
+              </div>,
+                );
+              }
+              return out;
+            })()
           )}
         </div>
       </section>
@@ -826,8 +854,7 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
                     return partes.length ? <span className="desp-sub">{partes.join(' · ')}</span> : null;
                   })()}
                 </span>
-                {p.data && <span className="desp-data">{dataNota(p.data)}</span>}
-                <Ico name="info" size={17} />
+                {p.validade && <span className="desp-val">Val. {fmtValidade(p.validade)}</span>}
               </button>
             ))
           )}

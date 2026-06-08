@@ -162,6 +162,7 @@ produtoRouter.get('/despensa', requireAuth, async (req, res) => {
       SELECT pe.ean, pe.item_id, pe.id AS pe_id,
              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.nome')), pe.nome, i.descricao_original) AS nome,
              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) AS marca,
+             COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.vlm_json,'$.validade_iso')), pe.validade) AS validade,
              f.data_compra AS data,
              COALESCE(l.cadeia, l.nome) AS loja
         FROM produto_ean pe
@@ -175,7 +176,7 @@ produtoRouter.get('/despensa', requireAuth, async (req, res) => {
     for (const r of rows) {
       if (vistos.has(r.ean)) continue;
       vistos.add(r.ean);
-      produtos.push({ ean: r.ean, item_id: r.item_id, nome: r.nome, marca: r.marca, data: r.data, loja: r.loja });
+      produtos.push({ ean: r.ean, item_id: r.item_id, nome: r.nome, marca: r.marca, validade: r.validade, data: r.data, loja: r.loja });
     }
     res.json({ produtos });
   } catch (e) {
