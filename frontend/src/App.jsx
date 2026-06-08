@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -165,6 +165,13 @@ function Chat({ onSair, nome }) {
     setGastosAberto(true);
     setGastosDados(null);
     resumoGastos().then(setGastosDados).catch(() => setGastosDados({ erro: true }));
+  };
+  const [porIdentAberto, setPorIdentAberto] = useState(false);
+  const [porIdentLista, setPorIdentLista] = useState(null); // null=a carregar · []=vazio
+  const abrirPorIdentificar = () => {
+    setPorIdentAberto(true);
+    setPorIdentLista(null);
+    listarPorIdentificar().then(setPorIdentLista).catch(() => setPorIdentLista([]));
   };
   // Habituais com stale-while-revalidate: arranca da cache offline (renderiza
   // já, mesmo sem rede), e revalida em fundo quando online.
@@ -432,12 +439,6 @@ function Chat({ onSair, nome }) {
           <button type="button" className="round" onClick={abrirNotas} disabled={ocupado} aria-label="as minhas compras">
             <Ico name="notas" size={21} />
           </button>
-          <button type="button" className="round" onClick={abrirDespensa} disabled={ocupado} aria-label="a minha despensa">
-            <Ico name="despensa" size={21} />
-          </button>
-          <button type="button" className="round" onClick={abrirGastos} disabled={ocupado} aria-label="os meus gastos">
-            <Ico name="gastos" size={21} />
-          </button>
           <span className="ia-sp" />
           <button
             type="button"
@@ -503,6 +504,10 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); setCamAberta(true); }}>{t('cap.scan')}</button>
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}>{t('cap.gallery')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}>{t('cap.file')}</button>
+            <div className="cap-menu-sep" />
+            <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> A minha despensa</button>
+            <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> Os meus gastos</button>
+            <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> Produtos por identificar</button>
           </div>
         </>
       )}
@@ -543,6 +548,7 @@ function Chat({ onSair, nome }) {
       <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} />
       <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} />
       <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
+      <PorIdentificarSheet aberto={porIdentAberto} itens={porIdentLista} onFechar={() => setPorIdentAberto(false)} onIdentificar={setIdentItem} />
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} />
       <ProdutoInfoSheet item={infoItem} onFechar={() => setInfoItem(null)} />
     </div>
@@ -868,6 +874,62 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
                 {p.validade && <span className="desp-val">Val. {fmtValidade(p.validade)}</span>}
               </button>
             ))
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Produtos por identificar (precisam de fotos), agrupados por compra (data/loja).
+// Cada produto tem a câmara para abrir o fluxo de identificação.
+function PorIdentificarSheet({ aberto, itens, onFechar, onIdentificar }) {
+  return (
+    <>
+      <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label="Produtos por identificar">
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">Por identificar{itens?.length ? ` · ${itens.length}` : ''}</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        <div className="notas-list">
+          {itens === null ? (
+            <p className="sheet-vazio">{t('chat.thinking')}</p>
+          ) : itens.length === 0 ? (
+            <p className="sheet-vazio">Tudo identificado 🎉</p>
+          ) : (
+            (() => {
+              let lastF = null;
+              const out = [];
+              for (const it of itens) {
+                if (it.fatura_id !== lastF) {
+                  lastF = it.fatura_id;
+                  out.push(
+                    <div key={`f${it.fatura_id}`} className="pid-grupo">
+                      {dataNota(it.data)} · {it.loja}
+                    </div>,
+                  );
+                }
+                out.push(
+                  <div key={it.item_id} className="nota-item">
+                    <span className="ni-nome">{it.produto}</span>
+                    <button
+                      type="button"
+                      className="ni-ident"
+                      onClick={() => onIdentificar({ id: it.item_id, sku_id: it.sku_id, produto: it.produto })}
+                      title="identificar (fotos do rótulo)"
+                      aria-label="identificar produto"
+                    >
+                      <Ico name="camera" size={16} />
+                    </button>
+                  </div>,
+                );
+              }
+              return out;
+            })()
           )}
         </div>
       </section>

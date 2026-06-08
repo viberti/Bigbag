@@ -185,6 +185,30 @@ produtoRouter.get('/despensa', requireAuth, async (req, res) => {
   }
 });
 
+// Produtos que PRECISAM de fotos (embalados sem EAN, não-frescos), por compra
+// (data/loja) decrescente — worklist de identificação.
+produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
+  try {
+    const [itens] = await getPool().query(`
+      SELECT i.id AS item_id, i.sku_id,
+             COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+             f.id AS fatura_id, f.data_compra AS data, COALESCE(l.cadeia, l.nome) AS loja
+        FROM item i
+        LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+        LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
+        JOIN fatura f ON f.id = i.fatura_id
+        JOIN loja l ON l.id = f.loja_id
+       WHERE i.is_non_product = 0
+         AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
+         AND NOT EXISTS (SELECT 1 FROM produto_ean pe WHERE pe.item_id = i.id AND pe.ean IS NOT NULL)
+       ORDER BY f.data_compra DESC, f.id DESC, i.id`);
+    res.json({ itens });
+  } catch (e) {
+    console.error('[produto/por-identificar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar produtos por identificar' });
+  }
+});
+
 // Análise factual (não clínica) do produto: ingredientes explicados, NOVA,
 // Nutri-Score com porquê, destaques. Cacheada por EAN (re-gera com ?forcar=1).
 produtoRouter.get('/analise', requireAuth, async (req, res) => {

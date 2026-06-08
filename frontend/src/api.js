@@ -98,6 +98,13 @@ export async function resumoGastos() {
   return r.json(); // { atual, anterior, media, total_geral, variacao, serie, por_loja }
 }
 
+export async function listarPorIdentificar() {
+  const r = await call('/api/produto/por-identificar');
+  if (!r.ok) throw new Error(`por-identificar ${r.status}`);
+  const { itens } = await r.json();
+  return itens || [];
+}
+
 export async function listarDespensa() {
   const r = await call('/api/produto/despensa');
   if (!r.ok) throw new Error(`despensa ${r.status}`);

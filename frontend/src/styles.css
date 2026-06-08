@@ -678,10 +678,14 @@ body { background: #0c1814; }
 .bb .cap-menu-bd { position: fixed; inset: 0; z-index: 40; background: rgba(6,14,11,.6); }
 .bb .cap-menu { position: fixed; left: 12px; bottom: calc(143px + env(safe-area-inset-bottom)); z-index: 41; min-width: 232px;
   background: var(--panel2); border: 1px solid var(--line2); border-radius: 14px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
-.bb .cap-menu button { display: block; width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+.bb .cap-menu button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: none; cursor: pointer;
   color: var(--txt); font: inherit; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid var(--line); }
 .bb .cap-menu button:last-child { border-bottom: none; }
 .bb .cap-menu button:active { background: rgba(255,255,255,.06); }
+.bb .cap-menu button .ico { color: var(--muted-bb); flex: 0 0 auto; }
+.bb .cap-menu-sep { height: 1px; background: var(--line2); margin: 2px 0; }
+.bb .pid-grupo { font-weight: 700; font-size: 13.5px; color: var(--muted-bb); padding: 14px 12px 5px; border-top: 1px solid var(--line); margin-top: 4px; }
+.bb .pid-grupo:first-child { border-top: none; margin-top: 0; }
 
 /* folhas (bottom sheets) */
 .bb .scrim { position: fixed; inset: 0; background: rgba(6,14,11,.6); z-index: 40; opacity: 0; pointer-events: none; transition: .22s; }
