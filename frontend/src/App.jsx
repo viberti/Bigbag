@@ -37,6 +37,26 @@ const fmtValidade = (v) => {
 const Mark = ({ size = 30, chip = false }) => <span className="mk" dangerouslySetInnerHTML={{ __html: MARK({ size, chip }) }} />;
 const Ico = ({ name, size = 21, stroke }) => <span className="ico" dangerouslySetInnerHTML={{ __html: ICON(name, { size, stroke }) }} />;
 
+// Tenta descodificar um código de barras (EAN/UPC) de uma imagem (zxing). Devolve
+// os dígitos ou null. Usado para distinguir "foto de produto" de "foto de talão".
+async function decodeEanDeImagem(file) {
+  if (!file) return null;
+  const url = URL.createObjectURL(file);
+  try {
+    const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+    const hints = new Map();
+    hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
+    hints.set(lib.DecodeHintType.TRY_HARDER, true);
+    const res = await new BrowserMultiFormatReader(hints).decodeFromImageUrl(url);
+    const cod = res.getText().replace(/\D/g, '');
+    return cod.length >= 8 ? cod : null;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 // Realce subtil na resposta do assistente: valores em € (verde) e cadeias (menta).
 const CADEIAS = /\b(Continente|Pingo Doce|Mercadona|Lidl|Aldi|Auchan|Minipre[çc]o|Makro|Intermarch[ée])\b/g;
 const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -180,6 +200,8 @@ function Chat({ onSair, nome }) {
   };
   const [scannerAberto, setScannerAberto] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
+  const [toast, setToast] = useState('');
+  const mostrarToast = (m) => { setToast(m); setTimeout(() => setToast(''), 4500); };
   // Habituais com stale-while-revalidate: arranca da cache offline (renderiza
   // já, mesmo sem rede), e revalida em fundo quando online.
   const [habituaisLista, setHabituaisLista] = useState(() => lerCacheHabituais()?.produtos ?? null);
@@ -486,10 +508,24 @@ function Chat({ onSair, nome }) {
             accept="image/*"
             capture="environment"
             hidden
-            onChange={(e) => {
+            onChange={async (e) => {
               const f = e.target.files?.[0];
               e.target.value = '';
-              fatura(f, { dewarp: false, origem: 'foto' }); // foto crua, sem processar
+              if (!f) return;
+              // se a foto for de um código de barras → consultar produto (como o scanner);
+              // senão, trata-se de um talão → fluxo normal de nota.
+              const cod = await decodeEanDeImagem(f);
+              if (cod) {
+                try {
+                  const r = await consultarProdutoEan(cod);
+                  if (r.encontrado) setInfoItem({ ean: r.ean, produto: r.nome || r.ean });
+                  else mostrarToast(`Produto ${cod} não está na base nem no Open Food Facts.`);
+                } catch {
+                  mostrarToast('Falha a consultar o produto.');
+                }
+                return;
+              }
+              fatura(f, { dewarp: false, origem: 'foto' }); // sem código → talão
             }}
           />
           <input
@@ -566,6 +602,7 @@ function Chat({ onSair, nome }) {
         onEncontrado={(p) => { setScannerAberto(false); setInfoItem({ ean: p.ean, produto: p.nome || p.ean }); }}
       />
       <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
+      {toast && <div className="toast" onClick={() => setToast('')}>{toast}</div>}
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} onIdentificado={marcarIdentificado} />
       <ProdutoInfoSheet item={infoItem} onFechar={() => setInfoItem(null)} />
     </div>

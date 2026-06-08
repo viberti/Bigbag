@@ -858,6 +858,11 @@ body { background: #0c1814; }
 .bb .ap-favor li { color: #6fe0a2; }
 .bb .ap-contra li { color: #f0c074; }
 
+/* Toast (aviso transitório) */
+.bb .toast { position: fixed; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 70;
+  max-width: min(92vw, 460px); padding: 12px 16px; border-radius: 12px; background: #223129; border: 1px solid var(--line2);
+  color: var(--text-bb); font-size: 13.5px; line-height: 1.4; box-shadow: 0 8px 30px rgba(0,0,0,.5); text-align: center; cursor: pointer; }
+
 /* Scanner de código de barras */
 .bb .scan-body { padding: 14px 16px 22px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
 .bb .scan-cam { position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 58vh; border-radius: 16px; overflow: hidden; background: #000; }
