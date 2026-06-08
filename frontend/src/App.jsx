@@ -895,24 +895,43 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
             const unit = qtd ? linha / qtd : linha;
             const eanItem = it.ean || identificados?.[it.id] || null;
             const temFicha = !!eanItem || it.tipo_alimento === 'fresco';
-            return (
-              <button
-                key={it.id}
-                type="button"
-                className="cmp-prow"
-                onClick={() => (temFicha ? onInfo({ id: it.id, ean: eanItem, produto: it.produto }) : onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto }))}
-              >
+            const linhaInner = (
+              <>
                 <span className="cmp-pn">
                   <b>{it.produto}</b>
                   <span>{qtd} × {eur(unit)}</span>
                 </span>
-                {!temFicha && (
-                  <span className="cmp-pcam" aria-label="por identificar">
-                    <Ico name="camera" size={15} />
-                  </span>
-                )}
                 <span className="cmp-pp">{eur(linha)}</span>
+              </>
+            );
+            // Tem ficha → linha clicável abre a ficha. Precisa de identificação →
+            // botão de câmara à direita (não pode ser botão dentro de botão).
+            return temFicha ? (
+              <button
+                key={it.id}
+                type="button"
+                className="cmp-prow clic"
+                onClick={() => onInfo({ id: it.id, ean: eanItem, produto: it.produto })}
+              >
+                {linhaInner}
               </button>
+            ) : (
+              <div key={it.id} className="cmp-prow">
+                <span className="cmp-pn">
+                  <b>{it.produto}</b>
+                  <span>{qtd} × {eur(unit)}</span>
+                </span>
+                <button
+                  type="button"
+                  className="cmp-pcam"
+                  onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })}
+                  title="identificar produto (fotos do rótulo)"
+                  aria-label="identificar produto"
+                >
+                  <Ico name="camera" size={16} />
+                </button>
+                <span className="cmp-pp">{eur(linha)}</span>
+              </div>
             );
           })
         )}
