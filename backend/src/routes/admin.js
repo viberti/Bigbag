@@ -84,20 +84,25 @@ adminRouter.post('/nomes/gerar', async (req, res) => {
         WHERE NOT EXISTS (SELECT 1 FROM nome_sugestao ns WHERE ns.sku_id = s.id AND ns.estado IN ('aplicado','rejeitado'))
         GROUP BY s.id, s.nome_canonico`,
     );
-    let novas = 0, custo = 0;
+    let novas = 0, custo = 0, erros = 0;
     for (const s of skus) {
-      const variantes = String(s.variantes || '').split('||');
-      const { nome, custo: c } = await sugerirNomeCanonico(variantes, { marca: s.marca });
-      custo += c || 0;
-      if (!nome || normNome(nome) === normNome(s.atual)) continue;
-      await getPool().query(
-        `INSERT INTO nome_sugestao (sku_id, atual, sugerido, variantes, estado) VALUES (?,?,?,?,'pendente')
-           ON DUPLICATE KEY UPDATE atual=VALUES(atual), sugerido=VALUES(sugerido), variantes=VALUES(variantes), estado='pendente', decidido_em=NULL`,
-        [s.id, s.atual, nome, variantes.join('||')],
-      );
-      novas++;
+      try {
+        const variantes = String(s.variantes || '').split('||');
+        const { nome, custo: c } = await sugerirNomeCanonico(variantes, { marca: s.marca });
+        custo += c || 0;
+        if (!nome || normNome(nome) === normNome(s.atual)) continue;
+        await getPool().query(
+          `INSERT INTO nome_sugestao (sku_id, atual, sugerido, variantes, estado) VALUES (?,?,?,?,'pendente')
+             ON DUPLICATE KEY UPDATE atual=VALUES(atual), sugerido=VALUES(sugerido), variantes=VALUES(variantes), estado='pendente', decidido_em=NULL`,
+          [s.id, s.atual, nome, variantes.join('||')],
+        );
+        novas++;
+      } catch (e) {
+        erros++;
+        console.error('[admin/nomes/gerar] sku', s.id, e.message);
+      }
     }
-    res.json({ novas, analisados: skus.length, custo });
+    res.json({ novas, analisados: skus.length, custo, erros });
   } catch (e) {
     console.error('[admin/nomes/gerar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a gerar sugestões' });
