@@ -246,7 +246,7 @@ produtoRouter.get('/despensa', requireAuth, async (req, res) => {
         LEFT JOIN sku_normalizado s ON s.id = i.sku_id
         LEFT JOIN fatura f ON f.id = i.fatura_id
         LEFT JOIN loja l ON l.id = f.loja_id
-       WHERE pe.ean IS NOT NULL
+       WHERE pe.ean IS NOT NULL AND pe.item_id IS NOT NULL
        ORDER BY f.data_compra DESC, pe.id DESC`);
     const limparVal = (v) => { const s = String(v ?? '').trim(); return s && !/^null$/i.test(s) ? s : null; };
     const vistos = new Set();
