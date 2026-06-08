@@ -1280,6 +1280,7 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
 function PerfilSheet({ aberto, onFechar }) {
   const [perfis, setPerfis] = useState(null);
   const [nome, setNome] = useState('Sue');
+  const [texto, setTexto] = useState('');
   const [a, setA] = useState(false);
   const [msg, setMsg] = useState('');
   const fileRef = useRef(null);
@@ -1288,21 +1289,25 @@ function PerfilSheet({ aberto, onFechar }) {
     if (aberto) recarregar();
   }, [aberto]);
 
-  async function carregar(file) {
-    if (!file) return;
+  async function salvar(conteudo) {
+    if (!conteudo?.trim()) return;
     setA(true);
-    setMsg('a ler o ficheiro…');
+    setMsg('a extrair o perfil…');
     try {
-      const texto = await file.text();
-      setMsg('a extrair o perfil…');
-      const r = await carregarPerfil({ nome: nome.trim(), texto });
+      const r = await carregarPerfil({ nome: nome.trim(), texto: conteudo });
       setMsg(`✓ perfil de ${r.nome} carregado e ativo`);
+      setTexto('');
       await recarregar();
     } catch {
       setMsg('falha a carregar o perfil');
     } finally {
       setA(false);
     }
+  }
+  async function carregar(file) {
+    if (!file) return;
+    setMsg('a ler o ficheiro…');
+    salvar(await file.text());
   }
 
   if (!aberto) return null;
@@ -1322,6 +1327,18 @@ function PerfilSheet({ aberto, onFechar }) {
           <input ref={fileRef} type="file" accept=".txt,.md,.json,text/plain" hidden onChange={(e) => { carregar(e.target.files?.[0]); e.target.value = ''; }} />
           <button type="button" className="perfil-add" disabled={a || !nome.trim()} onClick={() => fileRef.current?.click()}>
             <Ico name="ficheiro" size={18} /> {a ? 'a processar…' : 'Carregar ficheiro do perfil'}
+          </button>
+
+          <div className="perfil-ou">ou cola o texto do perfil</div>
+          <textarea
+            className="perfil-texto"
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Cola aqui o conteúdo do perfil (o texto que a Sue gerou)…"
+            rows={6}
+          />
+          <button type="button" className="perfil-add solido" disabled={a || !nome.trim() || !texto.trim()} onClick={() => salvar(texto)}>
+            {a ? 'a processar…' : 'Guardar perfil (texto colado)'}
           </button>
           {msg && <p className="perfil-msg">{msg}</p>}
 

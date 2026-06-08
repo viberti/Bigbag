@@ -820,6 +820,10 @@ body { background: #0c1814; }
 .bb .perfil-add { width: 100%; margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; border: 1px dashed var(--line); background: none; color: var(--muted-bb); font-size: 14px; cursor: pointer; }
 .bb .perfil-add:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
 .bb .perfil-add:disabled { opacity: .5; }
+.bb .perfil-ou { text-align: center; font-size: 12px; color: var(--faint); margin: 16px 0 8px; }
+.bb .perfil-texto { width: 100%; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text-bb); font-size: 14px; line-height: 1.5; font-family: inherit; resize: vertical; }
+.bb .perfil-add.solido { margin-top: 10px; border-style: solid; background: var(--accent); color: #06231a; font-weight: 700; }
+.bb .perfil-add.solido:hover:not(:disabled) { color: #06231a; }
 .bb .perfil-msg { font-size: 13px; color: var(--accent); margin: 10px 0 0; }
 .bb .perfil-lista { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
 .bb .perfil-card { padding: 13px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.02); }
