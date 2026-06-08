@@ -55,7 +55,7 @@ export async function persistirFatura(
     const [dup] = await conn.query(
       `SELECT id FROM fatura
         WHERE loja_id = ?
-          AND ( (? IS NOT NULL AND numero_fatura = ?) OR (data_compra = ? AND total_impresso = ?) )
+          AND ( (? IS NOT NULL AND numero_fatura = ?) OR (DATE(data_compra) = DATE(?) AND total_impresso = ?) )
         LIMIT 1`,
       [lojaId, numero, numero, data, total],
     );
@@ -71,6 +71,25 @@ export async function persistirFatura(
     // lido como "Irmadona", com datas erradas — passaram despercebidos.
     const cadeia = dados.loja?.cadeia ? String(dados.loja.cadeia).trim() : null;
     const precos = dados.itens.map((i) => num(i.preco_liquido)).filter((x) => x != null);
+
+    // Dedup por ASSINATURA FORTE: cadeia + MESMA DATA + total + nº de itens. É
+    // praticamente impossível haver duas compras distintas com isto tudo igual.
+    // Apanha os casos que a rede 2 falha por os preços terem sido lidos de forma
+    // diferente entre as duas leituras (ex.: foto em revisão do ALDI; PDFs reenviados).
+    if (cadeia && total != null && data) {
+      const [sig] = await conn.query(
+        `SELECT f.id FROM fatura f JOIN loja l ON l.id = f.loja_id
+          WHERE l.cadeia = ? AND DATE(f.data_compra) = DATE(?) AND f.total_impresso = ?
+            AND (SELECT COUNT(*) FROM item it WHERE it.fatura_id = f.id) = ?
+          LIMIT 1`,
+        [cadeia, data, total, dados.itens.length],
+      );
+      if (sig.length) {
+        await conn.rollback();
+        return { duplicada: true, fatura_id: sig[0].id, loja_id: lojaId };
+      }
+    }
+
     if (cadeia && total != null && precos.length) {
       const [cands] = await conn.query(
         `SELECT f.id, (SELECT COUNT(*) FROM item it WHERE it.fatura_id = f.id) AS n
