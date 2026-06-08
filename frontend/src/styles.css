@@ -803,6 +803,7 @@ body { background: #0c1814; }
 .bb .cmp-pn { flex: 1; min-width: 0; }
 .bb .cmp-pn b { display: block; font-size: 15.5px; font-weight: 600; color: var(--text-bb); line-height: 1.25; }
 .bb .cmp-pn span { font-size: 12.5px; color: var(--faint); font-weight: 500; }
+.bb .cmp-marca { font-style: normal; font-size: 11px; font-weight: 700; color: #46d488; background: rgba(70,212,136,.12); border-radius: 6px; padding: 1px 6px; margin-left: 7px; vertical-align: middle; white-space: nowrap; }
 .bb .cmp-pcam { flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; cursor: pointer;
   color: var(--c, #46d488); background: color-mix(in srgb, var(--c) 15%, transparent); border: 1px solid color-mix(in srgb, var(--c) 42%, transparent); }
 .bb .cmp-pcam:active { transform: scale(.92); }

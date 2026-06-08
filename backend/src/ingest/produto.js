@@ -178,17 +178,15 @@ const PROMPT_NOME = `És um normalizador de nomes de produtos de supermercado. R
 Regras:
 - Português (PT). Capitalização normal: Primeira Letra Maiúscula nas palavras principais (minúsculas em "de/da/do/com/e/para").
 - SEM códigos de loja, SEM quantidades/pesos/embalagem (ex.: "2KG", "X4", "TP 25", "500 G").
-- INCLUI a MARCA no nome quando for conhecida (vem nas variantes ou é fornecida) — a marca é identidade: distingue produtos com preço e composição diferentes (ex.: "Ketchup Heinz" ≠ "Ketchup Hacendado"). Coloca a marca no FIM (ex.: "Iogurte Grego Natural Mythos", "Grana Padano", "Mel de Rosmaninho SerraMel"). Só deixa a marca de fora se não houver nenhuma identificável.
-- Mantém a VARIEDADE/tipo que distingue o produto (ex.: "Grego", "Ligeiro", "Biológico", "Curado 7 Meses") — não a apagues.
-- Claro e natural. Se uma das variantes já for um bom nome PT, usa-a (limpa).
+- NOME GENÉRICO (de FAMÍLIA): NÃO incluas a MARCA comercial (fabricante ou marca-de-loja: Heinz, Mythos, SerraMel, Hacendado, Continente, Milbona, Kania…). O nome normalizado é a FAMÍLIA que engloba VÁRIAS marcas e tamanhos — o mesmo nome serve produtos de lojas diferentes. Ex.: "Ketchup" (NÃO "Ketchup Heinz"), "Iogurte Grego Natural" (NÃO "... Mythos"), "Doce de Leite" (NÃO "... Chimbote").
+- Mantém o TIPO e a VARIEDADE que DEFINEM a família (ex.: "Grego", "Ligeiro", "Biológico", "Curado 7 Meses", "de Rosmaninho", "Grana Padano" — este é um tipo de queijo, não uma marca). Só a MARCA comercial é que sai.
+- Claro e natural. Se uma das variantes já for um bom nome PT genérico, usa-a (limpa).
 - Só o JSON.`;
 
-// Sugere o melhor nome canónico (PT) a partir das variantes de nome de um produto.
-// marca (opcional): marca conhecida do produto, para entrar no nome.
-export async function sugerirNomeCanonico(variantes, { timeoutMs, marca } = {}) {
+// Sugere o melhor nome canónico GENÉRICO (PT, sem marca) das variantes de nome.
+export async function sugerirNomeCanonico(variantes, { timeoutMs } = {}) {
   const lista = [...new Set((variantes || []).map((v) => String(v || '').trim()).filter(Boolean))];
   if (!lista.length) return { nome: null, custo: 0 };
-  const ctxMarca = marca ? `\nMarca conhecida: ${marca}` : '';
   const ctrl = new AbortController();
   const to = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
   try {
@@ -197,7 +195,7 @@ export async function sugerirNomeCanonico(variantes, { timeoutMs, marca } = {}) 
       headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
       body: JSON.stringify({
         model: config.openrouter.modelConsulta,
-        messages: [{ role: 'system', content: PROMPT_NOME }, { role: 'user', content: 'Variantes:\n- ' + lista.join('\n- ') + ctxMarca }],
+        messages: [{ role: 'system', content: PROMPT_NOME }, { role: 'user', content: 'Variantes:\n- ' + lista.join('\n- ') }],
         response_format: { type: 'json_object' },
         usage: { include: true },
       }),

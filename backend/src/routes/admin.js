@@ -77,18 +77,16 @@ adminRouter.get('/nomes', async (req, res) => {
 adminRouter.post('/nomes/gerar', async (req, res) => {
   try {
     const [skus] = await getPool().query(
-      `SELECT s.id, s.nome_canonico AS atual, GROUP_CONCAT(pn.nome SEPARATOR '||') AS variantes,
-              (SELECT pe.marca FROM produto_ean pe JOIN item i ON i.id = pe.item_id
-                WHERE i.sku_id = s.id AND pe.marca IS NOT NULL AND pe.marca <> '' ORDER BY pe.id DESC LIMIT 1) AS marca
+      `SELECT s.id, s.nome_canonico AS atual, GROUP_CONCAT(pn.nome SEPARATOR '||') AS variantes
          FROM produto_nome pn JOIN sku_normalizado s ON s.id = pn.sku_id
-        WHERE NOT EXISTS (SELECT 1 FROM nome_sugestao ns WHERE ns.sku_id = s.id AND ns.estado IN ('aplicado','rejeitado'))
+        WHERE NOT EXISTS (SELECT 1 FROM nome_sugestao ns WHERE ns.sku_id = s.id AND ns.estado = 'rejeitado')
         GROUP BY s.id, s.nome_canonico`,
     );
     let novas = 0, custo = 0, erros = 0;
     for (const s of skus) {
       try {
         const variantes = String(s.variantes || '').split('||');
-        const { nome, custo: c } = await sugerirNomeCanonico(variantes, { marca: s.marca });
+        const { nome, custo: c } = await sugerirNomeCanonico(variantes);
         custo += c || 0;
         if (!nome || normNome(nome) === normNome(s.atual)) continue;
         await getPool().query(

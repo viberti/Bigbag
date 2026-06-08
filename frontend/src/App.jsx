@@ -902,10 +902,11 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
             const unit = qtd ? linha / qtd : linha;
             const eanItem = it.ean || identificados?.[it.id] || null;
             const temFicha = !!eanItem || it.tipo_alimento === 'fresco';
+            const marca = it.marca && String(it.marca).trim() ? String(it.marca).trim() : null;
             const linhaInner = (
               <>
                 <span className="cmp-pn">
-                  <b>{it.produto}</b>
+                  <b>{it.produto}{marca && <em className="cmp-marca">{marca}</em>}</b>
                   <span>{qtd} × {eur(unit)}</span>
                 </span>
                 <span className="cmp-pp">{eur(linha)}</span>

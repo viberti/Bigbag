@@ -295,6 +295,9 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
               (SELECT pe.ean FROM produto_ean pe
                 WHERE pe.item_id = i.id AND pe.ean IS NOT NULL
                 ORDER BY pe.id DESC LIMIT 1) AS ean,
+              (SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) FROM produto_ean pe
+                WHERE pe.item_id = i.id AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) IS NOT NULL
+                ORDER BY pe.id DESC LIMIT 1) AS marca,
               pg.tipo AS tipo_alimento,
               (pg.nutricao IS NOT NULL) AS tem_generico
          FROM item i
