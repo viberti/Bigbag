@@ -10,6 +10,7 @@ import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
 import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido } from '../ingest/produto.js';
+import { alertasDoPerfil, avaliarParaPerfil } from '../ingest/perfil.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -335,6 +336,45 @@ produtoRouter.get('/analise', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[produto/analise] erro:', e.message);
     res.status(500).json({ erro: 'Falha a analisar o produto' });
+  }
+});
+
+// Avaliação PERSONALIZADA do produto à luz do perfil ATIVO (alergias/limiares
+// determinísticos + parecer do LLM). Devolve { perfil:null } se não houver perfil.
+produtoRouter.get('/personalizado', requireAuth, async (req, res) => {
+  try {
+    const itemId = Number(req.query.item_id) || null;
+    const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
+    if (!itemId && !eanQ) return res.status(400).json({ erro: 'item_id ou ean em falta' });
+
+    const [[p]] = await getPool().query('SELECT id, nome, resumo FROM perfil_membro WHERE ativo = 1 LIMIT 1');
+    if (!p) return res.json({ perfil: null });
+    const resumo = typeof p.resumo === 'string' ? JSON.parse(p.resumo) : p.resumo;
+
+    const info = await consolidarProduto({ itemId, eanQ });
+    const produto = {
+      nome: info.off?.nome || info.vlm?.nome || info.generico?.alimento || info.nome || null,
+      categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
+      ingredientes: info.vlm?.ingredientes || info.off?.ingredientes || null,
+      alergenios: info.off?.alergenios || info.vlm?.alergenios || null,
+      nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
+      nutriscore: info.off?.nutriscore || null,
+      nova: info.off?.nova ?? null,
+    };
+
+    const alertas = alertasDoPerfil(produto, resumo);
+    let avaliacao = null, custo = 0;
+    try {
+      const r = await avaliarParaPerfil(produto, resumo);
+      avaliacao = r.avaliacao;
+      custo = r.custo;
+    } catch (e) {
+      console.error('[produto/personalizado] avaliar:', e.message);
+    }
+    res.json({ perfil: p.nome, alertas, avaliacao, custo });
+  } catch (e) {
+    console.error('[produto/personalizado] erro:', e.message);
+    res.status(500).json({ erro: 'Falha na avaliação personalizada' });
   }
 });
 

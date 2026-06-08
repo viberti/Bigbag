@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -179,6 +179,7 @@ function Chat({ onSair, nome }) {
     listarPorIdentificar().then(setPorIdentLista).catch(() => setPorIdentLista([]));
   };
   const [scannerAberto, setScannerAberto] = useState(false);
+  const [perfilAberto, setPerfilAberto] = useState(false);
   // Habituais com stale-while-revalidate: arranca da cache offline (renderiza
   // já, mesmo sem rede), e revalida em fundo quando online.
   const [habituaisLista, setHabituaisLista] = useState(() => lerCacheHabituais()?.produtos ?? null);
@@ -512,6 +513,7 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
             <button onClick={() => { setMenuAberto(false); setScannerAberto(true); }}><Ico name="barras" size={18} /> Consultar produto (código de barras)</button>
+            <button onClick={() => { setMenuAberto(false); setPerfilAberto(true); }}><Ico name="spark" size={18} /> Perfil nutricional</button>
             <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> A minha despensa</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> Os meus gastos</button>
             <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> Produtos por identificar</button>
@@ -561,6 +563,7 @@ function Chat({ onSair, nome }) {
         onFechar={() => setScannerAberto(false)}
         onEncontrado={(p) => { setScannerAberto(false); setInfoItem({ ean: p.ean, produto: p.nome || p.ean }); }}
       />
+      <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} onIdentificado={marcarIdentificado} />
       <ProdutoInfoSheet item={infoItem} onFechar={() => setInfoItem(null)} />
     </div>
@@ -1272,6 +1275,93 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
   );
 }
 
+// Perfil nutricional por membro: carrega o ficheiro (gerado por LLM), extrai o
+// resumo e ativa-o para as avaliações personalizadas.
+function PerfilSheet({ aberto, onFechar }) {
+  const [perfis, setPerfis] = useState(null);
+  const [nome, setNome] = useState('Sue');
+  const [a, setA] = useState(false);
+  const [msg, setMsg] = useState('');
+  const fileRef = useRef(null);
+  const recarregar = () => listarPerfis().then(setPerfis).catch(() => setPerfis([]));
+  useEffect(() => {
+    if (aberto) recarregar();
+  }, [aberto]);
+
+  async function carregar(file) {
+    if (!file) return;
+    setA(true);
+    setMsg('a ler o ficheiro…');
+    try {
+      const texto = await file.text();
+      setMsg('a extrair o perfil…');
+      const r = await carregarPerfil({ nome: nome.trim(), texto });
+      setMsg(`✓ perfil de ${r.nome} carregado e ativo`);
+      await recarregar();
+    } catch {
+      setMsg('falha a carregar o perfil');
+    } finally {
+      setA(false);
+    }
+  }
+
+  if (!aberto) return null;
+  return (
+    <>
+      <div className="scrim open" onClick={onFechar} />
+      <section className="sheet open" aria-label="Perfil nutricional">
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">Perfil nutricional</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar"><Ico name="close" size={18} /></button>
+        </div>
+        <div className="perfil-body">
+          <p className="perfil-intro">Carrega o ficheiro do perfil (gerado pelo LLM) de um membro. Fica ativo para as avaliações personalizadas dos produtos.</p>
+          <label className="perfil-lbl">Membro</label>
+          <input className="perfil-nome" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex.: Sue" />
+          <input ref={fileRef} type="file" accept=".txt,.md,.json,text/plain" hidden onChange={(e) => { carregar(e.target.files?.[0]); e.target.value = ''; }} />
+          <button type="button" className="perfil-add" disabled={a || !nome.trim()} onClick={() => fileRef.current?.click()}>
+            <Ico name="ficheiro" size={18} /> {a ? 'a processar…' : 'Carregar ficheiro do perfil'}
+          </button>
+          {msg && <p className="perfil-msg">{msg}</p>}
+
+          {perfis === null ? (
+            <p className="sheet-vazio">{t('chat.thinking')}</p>
+          ) : perfis.length === 0 ? (
+            <p className="sheet-vazio">Ainda sem perfis.</p>
+          ) : (
+            <div className="perfil-lista">
+              {perfis.map((p) => (
+                <div key={p.id} className={`perfil-card ${p.ativo ? 'on' : ''}`}>
+                  <div className="perfil-card-h">
+                    <b>{p.nome}</b>
+                    {p.ativo ? <span className="perfil-ativo">ativo</span> : <button className="perfil-usar" onClick={async () => { await ativarPerfil(p.id); recarregar(); }}>usar</button>}
+                  </div>
+                  <ResumoPerfil r={p.resumo} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function ResumoPerfil({ r }) {
+  if (!r) return null;
+  const chips = (lst) => (lst || []).map((x, i) => <span key={i} className="pf-chip">{x}</span>);
+  return (
+    <div className="pf-resumo">
+      {r.alergias?.length > 0 && <div className="pf-linha"><b>Alergias:</b> {chips(r.alergias)}</div>}
+      {r.intolerancias?.length > 0 && <div className="pf-linha"><b>Intolerâncias:</b> {chips(r.intolerancias)}</div>}
+      {r.objetivos?.length > 0 && <div className="pf-linha"><b>Objetivos:</b> {chips(r.objetivos)}</div>}
+      {r.restricoes?.length > 0 && <div className="pf-linha"><b>Restrições:</b> {chips(r.restricoes)}</div>}
+      {r.evitar?.length > 0 && <div className="pf-linha"><b>Evitar:</b> {chips(r.evitar)}</div>}
+    </div>
+  );
+}
+
 // Limite de fotos por identificação (acompanha o limite do backend). Mudável.
 const MAX_FOTOS = 10;
 
@@ -1370,16 +1460,21 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
 function ProdutoInfoSheet({ item, onFechar }) {
   const [info, setInfo] = useState(null); // null = a carregar
   const [analise, setAnalise] = useState(null); // null = a carregar · {erro} em falha
+  const [aval, setAval] = useState(null); // avaliação personalizada (perfil ativo)
   useEffect(() => {
     if (!item) return;
     setInfo(null);
     setAnalise(null);
+    setAval(null);
     infoProduto({ itemId: item.id, ean: item.ean })
       .then(setInfo)
       .catch(() => setInfo({ erro: true }));
     analiseProduto({ itemId: item.id, ean: item.ean })
       .then((r) => setAnalise(r.analise || { erro: true }))
       .catch(() => setAnalise({ erro: true }));
+    avaliacaoPersonalizada({ itemId: item.id, ean: item.ean })
+      .then((r) => setAval(r?.perfil ? r : null))
+      .catch(() => setAval(null));
   }, [item]);
   if (!item) return null;
   return (
@@ -1401,6 +1496,7 @@ function ProdutoInfoSheet({ item, onFechar }) {
             <p className="sheet-vazio">Falha a carregar a informação.</p>
           ) : (
             <>
+              {aval && <AvaliacaoPessoal aval={aval} />}
               {info.fonte === 'generico' && (
                 <p className="info-generico">Valores típicos do alimento (sem rótulo) — estimativa por 100 g.</p>
               )}
@@ -1583,6 +1679,38 @@ function RodapeFontes() {
         Fontes: dados nutricionais e Nutri-Score do Open Food Facts; ingredientes lidos do rótulo por IA; nível NOVA e limiares do semáforo segundo a FSA (Reino Unido), por 100 g.
       </p>
       <p className="rod-aviso">Informação factual sobre o produto. Não é aconselhamento de saúde nem substitui um profissional.</p>
+    </div>
+  );
+}
+
+// Avaliação PERSONALIZADA do produto para o perfil ativo (no topo da ficha):
+// alertas determinísticos (alergias/evitar) + veredicto e parecer do LLM.
+function AvaliacaoPessoal({ aval }) {
+  const v = aval.avaliacao || {};
+  const cls = v.veredicto === 'evitar' ? 'evitar' : v.veredicto === 'atencao' ? 'atencao' : 'adequado';
+  const rotulo = v.veredicto === 'evitar' ? 'Evitar' : v.veredicto === 'atencao' ? 'Atenção' : 'Adequado';
+  return (
+    <div className={`ap ap-${cls}`}>
+      <div className="ap-h">
+        <span className="ap-quem">Para {aval.perfil}</span>
+        {v.veredicto && <span className={`ap-vd ap-vd-${cls}`}>{rotulo}</span>}
+      </div>
+      {aval.alertas?.length > 0 && (
+        <div className="ap-alertas">
+          {aval.alertas.map((al, i) => <div key={i} className="ap-alerta">⚠ {al.texto}</div>)}
+        </div>
+      )}
+      {v.resumo && <p className="ap-resumo">{v.resumo}</p>}
+      {(v.a_favor?.length > 0 || v.contra?.length > 0) && (
+        <div className="ap-listas">
+          {v.a_favor?.length > 0 && (
+            <ul className="ap-favor">{v.a_favor.map((x, i) => <li key={i}>{x}</li>)}</ul>
+          )}
+          {v.contra?.length > 0 && (
+            <ul className="ap-contra">{v.contra.map((x, i) => <li key={i}>{x}</li>)}</ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -812,6 +812,46 @@ body { background: #0c1814; }
 .bb .cmp-dlab { font-size: 13.5px; color: var(--muted-bb); font-weight: 600; }
 .bb .cmp-dtot { font-size: 24px; font-weight: 800; color: #46d488; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 
+/* Perfil nutricional */
+.bb .perfil-body { overflow-y: auto; padding: 14px 16px 22px; }
+.bb .perfil-intro { font-size: 13.5px; color: var(--muted-bb); line-height: 1.5; margin: 0 0 14px; }
+.bb .perfil-lbl { display: block; font-size: 12.5px; color: var(--muted-bb); margin: 0 0 5px; }
+.bb .perfil-nome { width: 100%; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text-bb); font-size: 15px; }
+.bb .perfil-add { width: 100%; margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; border: 1px dashed var(--line); background: none; color: var(--muted-bb); font-size: 14px; cursor: pointer; }
+.bb .perfil-add:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.bb .perfil-add:disabled { opacity: .5; }
+.bb .perfil-msg { font-size: 13px; color: var(--accent); margin: 10px 0 0; }
+.bb .perfil-lista { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.bb .perfil-card { padding: 13px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.02); }
+.bb .perfil-card.on { border-color: rgba(46,196,110,.4); background: rgba(46,196,110,.06); }
+.bb .perfil-card-h { display: flex; align-items: center; gap: 10px; }
+.bb .perfil-card-h b { flex: 1; font-size: 16px; }
+.bb .perfil-ativo { font-size: 11.5px; font-weight: 700; color: var(--accent); background: rgba(46,196,110,.14); border-radius: 999px; padding: 2px 9px; }
+.bb .perfil-usar { font-size: 12.5px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted-bb); cursor: pointer; }
+.bb .pf-resumo { margin-top: 9px; display: flex; flex-direction: column; gap: 6px; }
+.bb .pf-linha { font-size: 12.5px; color: var(--muted-bb); }
+.bb .pf-linha b { color: var(--text-bb); margin-right: 4px; }
+.bb .pf-chip { display: inline-block; font-size: 12px; padding: 2px 8px; margin: 2px 3px 0 0; border-radius: 7px; background: rgba(255,255,255,.06); color: var(--text-bb); }
+
+/* Avaliação personalizada (topo da ficha) */
+.bb .ap { margin: 4px 0 18px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); }
+.bb .ap-adequado { background: rgba(65,222,134,.08); border-color: rgba(65,222,134,.32); }
+.bb .ap-atencao { background: rgba(240,170,60,.10); border-color: rgba(240,170,60,.34); }
+.bb .ap-evitar { background: rgba(230,62,17,.10); border-color: rgba(230,62,17,.4); }
+.bb .ap-h { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.bb .ap-quem { flex: 1; font-size: 15px; font-weight: 800; }
+.bb .ap-vd { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
+.bb .ap-vd-adequado { background: #2ec46e; color: #06231a; }
+.bb .ap-vd-atencao { background: #e8a000; color: #241a00; }
+.bb .ap-vd-evitar { background: #e63e11; color: #fff; }
+.bb .ap-alertas { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.bb .ap-alerta { font-size: 13.5px; font-weight: 700; color: #ff8b73; background: rgba(230,62,17,.14); border-radius: 9px; padding: 8px 10px; }
+.bb .ap-resumo { font-size: 14.5px; line-height: 1.55; margin: 0 0 8px; }
+.bb .ap-listas { display: flex; flex-direction: column; gap: 4px; }
+.bb .ap-favor, .bb .ap-contra { margin: 0; padding-left: 20px; font-size: 13.5px; line-height: 1.5; }
+.bb .ap-favor li { color: #6fe0a2; }
+.bb .ap-contra li { color: #f0c074; }
+
 /* Scanner de código de barras */
 .bb .scan-body { padding: 14px 16px 22px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
 .bb .scan-cam { position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 58vh; border-radius: 16px; overflow: hidden; background: #000; }

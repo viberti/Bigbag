@@ -9,6 +9,7 @@ import { vozRouter } from './routes/voz.js';
 import { adminRouter } from './routes/admin.js';
 import { explorarRouter } from './routes/explorar.js';
 import { produtoRouter } from './routes/produto.js';
+import { perfilRouter } from './routes/perfil.js';
 import { requireAuth } from './auth.js';
 
 const app = express();
@@ -109,6 +110,7 @@ app.use('/api/voz', vozRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/explorar', explorarRouter);
 app.use('/api/produto', produtoRouter);
+app.use('/api/perfil', perfilRouter);
 
 const server = app.listen(config.port, () => {
   console.log(`[bigbag-backend] a escutar na porta ${config.port} (${config.nodeEnv})`);

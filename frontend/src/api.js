@@ -105,6 +105,29 @@ export async function listarPorIdentificar() {
   return itens || [];
 }
 
+export async function carregarPerfil({ nome, texto }) {
+  const r = await call('/api/perfil', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome, texto }) });
+  if (!r.ok) throw new Error(`perfil ${r.status}`);
+  return r.json();
+}
+export async function listarPerfis() {
+  const r = await call('/api/perfil');
+  if (!r.ok) throw new Error(`perfis ${r.status}`);
+  const { perfis } = await r.json();
+  return perfis || [];
+}
+export async function ativarPerfil(id) {
+  const r = await call(`/api/perfil/${id}/ativar`, { method: 'POST' });
+  if (!r.ok) throw new Error(`ativar ${r.status}`);
+  return r.json();
+}
+export async function avaliacaoPersonalizada({ itemId, ean }) {
+  const qs = itemId ? `item_id=${itemId}` : `ean=${encodeURIComponent(ean)}`;
+  const r = await call(`/api/produto/personalizado?${qs}`);
+  if (!r.ok) throw new Error(`personalizado ${r.status}`);
+  return r.json(); // { perfil, alertas, avaliacao }
+}
+
 export async function consultarProdutoEan(ean) {
   const r = await call(`/api/produto/consultar?ean=${encodeURIComponent(ean)}`);
   if (!r.ok) throw new Error(`consultar ${r.status}`);
