@@ -46,10 +46,23 @@ async function consolidarProduto({ itemId, eanQ }) {
   return { ean, vlm, off, fonte, fotos, existe: rows.length > 0 };
 }
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: 6 } });
+const MAX_FOTOS = 10;
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: MAX_FOTOS } });
 export const produtoRouter = Router();
 
-produtoRouter.post('/identificar', requireAuth, upload.array('fotos', 6), async (req, res) => {
+// Recebe as fotos tratando os erros do multer (ex.: demasiados ficheiros) com uma
+// mensagem clara em JSON — senão o erro vira 500 e a app só mostra "Falha".
+const receberFotos = (req, res, next) =>
+  upload.array('fotos', MAX_FOTOS)(req, res, (err) => {
+    if (!err) return next();
+    const msg =
+      err.code === 'LIMIT_FILE_COUNT' ? `Demasiadas fotos (máximo ${MAX_FOTOS} por produto).`
+      : err.code === 'LIMIT_FILE_SIZE' ? 'Há uma foto demasiado grande (máx. 12 MB).'
+      : 'Falha ao receber as fotos.';
+    return res.status(400).json({ erro: msg });
+  });
+
+produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) => {
   try {
     const eanManual = String(req.body?.ean || '').replace(/\D/g, '') || null;
     const skuId = Number(req.body?.sku_id) || null;

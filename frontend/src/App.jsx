@@ -796,8 +796,8 @@ function ProdutoIdentSheet({ item, onFechar }) {
     setRes(null);
     try {
       setRes(await identificarProduto({ ean: ean.trim() || undefined, skuId: item.sku_id || undefined, itemId: item.id || undefined, fotos }));
-    } catch {
-      setRes({ erro: true });
+    } catch (e) {
+      setRes({ erro: true, msg: e.message });
     } finally {
       setA(false);
     }
@@ -1159,7 +1159,7 @@ function AnaliseProduto({ a, n }) {
 }
 
 function ResultadoIdent({ res }) {
-  if (res.erro) return <p className="sheet-vazio">Falha a analisar.</p>;
+  if (res.erro) return <p className="sheet-vazio">{res.msg || 'Falha a analisar.'}</p>;
   return (
     <div className="ident-res">
       {res.ean && <div className="ident-eanok">EAN usado: <b>{res.ean}</b></div>}

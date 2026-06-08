@@ -84,7 +84,11 @@ export async function identificarProduto({ ean, skuId, itemId, fotos }) {
   if (itemId) fd.append('item_id', itemId);
   (fotos || []).forEach((f) => fd.append('fotos', f));
   const r = await call('/api/produto/identificar', { method: 'POST', body: fd });
-  if (!r.ok) throw new Error(`identificar ${r.status}`);
+  if (!r.ok) {
+    let msg = `identificar ${r.status}`;
+    try { msg = (await r.json()).erro || msg; } catch { /* corpo não-JSON */ }
+    throw new Error(msg);
+  }
   return r.json(); // { ean, vlm, off, fonte, custo }
 }
 
