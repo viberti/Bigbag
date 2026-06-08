@@ -9,13 +9,40 @@ import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
-import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto } from '../ingest/produto.js';
+import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome } from '../ingest/produto.js';
 import { alertasDoPerfil, avaliarParaPerfil } from '../ingest/perfil.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
 
 const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
+
+// Consulta um produto pelo EAN: nossa base → Open Food Facts (e GUARDA, item_id
+// NULL). Devolve { encontrado, fonte, nome }. Partilhado por /consultar e /foto.
+async function consultarOuGuardar(ean) {
+  const [[ja]] = await getPool().query(
+    `SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), nome) AS nome
+       FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL) ORDER BY id LIMIT 1`,
+    [ean],
+  );
+  if (ja) return { encontrado: true, fonte: 'base', nome: ja.nome || null };
+  const off = await consultarOFF(ean);
+  if (!off) return { encontrado: false };
+  try {
+    await getPool().query(
+      `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, fonte, off_json)
+         VALUES (?,NULL,NULL,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
+         ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), fonte=VALUES(fonte), off_json=VALUES(off_json)`,
+      [ean, off.nome, off.marca, off.quantidade, off.categoria, off.ingredientes, off.alergenios,
+        off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
+    );
+    await guardarNomes(ean, null, [{ nome: off.nome, origem: 'off' }]);
+  } catch (e) {
+    console.error('[consultarOuGuardar] guardar:', e.message);
+  }
+  return { encontrado: true, fonte: 'off', nome: off.nome || null };
+}
 
 // Guarda todos os nomes vistos para um produto (por EAN), para matching/canónico.
 async function guardarNomes(ean, skuId, nomes) {
@@ -213,35 +240,34 @@ produtoRouter.get('/consultar', requireAuth, async (req, res) => {
   try {
     const ean = String(req.query.ean || '').replace(/\D/g, '');
     if (!eanValido(ean)) return res.status(400).json({ erro: 'Código de barras inválido', ean });
-
-    const [[ja]] = await getPool().query(
-      `SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), nome) AS nome
-         FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL) ORDER BY id LIMIT 1`,
-      [ean],
-    );
-    if (ja) return res.json({ ean, encontrado: true, fonte: 'base', nome: ja.nome || null });
-
-    const off = await consultarOFF(ean);
-    if (!off) return res.json({ ean, encontrado: false });
-
-    try {
-      await getPool().query(
-        `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, fonte, off_json)
-           VALUES (?,NULL,NULL,?,?,?,?,?,?,?,?,?)
-         ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
-           ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), fonte=VALUES(fonte), off_json=VALUES(off_json)`,
-        [ean, off.nome, off.marca, off.quantidade, off.categoria, off.ingredientes, off.alergenios,
-          off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
-      );
-      await guardarNomes(ean, null, [{ nome: off.nome, origem: 'off' }]);
-    } catch (e) {
-      console.error('[produto/consultar] guardar:', e.message);
-    }
-
-    res.json({ ean, encontrado: true, fonte: 'off', nome: off.nome || null });
+    res.json({ ean, ...(await consultarOuGuardar(ean)) });
   } catch (e) {
     console.error('[produto/consultar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a consultar o produto' });
+  }
+});
+
+// Câmara "inteligente": classifica a foto (talão/produto/outro). Se produto,
+// tenta o EAN (do rótulo ou via OFF por nome) e devolve o resultado da consulta.
+produtoRouter.post('/foto', requireAuth, upload.single('foto'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Falta a foto' });
+    const foto = { base64: req.file.buffer.toString('base64'), mime: req.file.mimetype || 'image/jpeg' };
+    const { dados } = await analisarFotoProduto(foto);
+    if (dados.tipo === 'talao') return res.json({ tipo: 'talao' });
+    if (dados.tipo !== 'produto') return res.json({ tipo: 'outro' });
+
+    let ean = dados.ean ? String(dados.ean).replace(/\D/g, '') : null;
+    if (ean && !eanValido(ean)) ean = null;
+    if (!ean && dados.nome) ean = await buscarOffPorNome([dados.nome, dados.marca].filter(Boolean).join(' '));
+    if (ean && eanValido(ean)) {
+      const r = await consultarOuGuardar(ean);
+      return res.json({ tipo: 'produto', ean, ...r, lido: dados.nome || null });
+    }
+    res.json({ tipo: 'produto', encontrado: false, nome: dados.nome || null, marca: dados.marca || null });
+  } catch (e) {
+    console.error('[produto/foto] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a analisar a foto' });
   }
 });
 

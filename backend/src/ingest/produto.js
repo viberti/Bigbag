@@ -235,6 +235,48 @@ export async function lerEanDeFoto(foto, { timeoutMs } = {}) {
   }
 }
 
+// Classifica uma foto da câmara: TALÃO, PRODUTO (embalagem) ou outro. Se produto,
+// extrai nome/marca/EAN(se legível). Para a câmara "inteligente" do rodapé.
+export async function analisarFotoProduto(foto, { timeoutMs } = {}) {
+  const content = [
+    { type: 'text', text: `Classifica esta imagem. Devolve SÓ JSON:
+- se for um TALÃO/recibo de supermercado: {"tipo":"talao"}
+- se for a FOTO de UM PRODUTO (embalagem/rótulo de um único artigo): {"tipo":"produto","nome":string,"marca":string|null,"ean":string|null,"categoria":string|null}  (ean = dígitos do código de barras SE legíveis, senão null)
+- outra coisa qualquer: {"tipo":"outro"}` },
+    { type: 'image_url', image_url: { url: `data:${foto.mime};base64,${foto.base64}` } },
+  ];
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeoutMs || 25000);
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
+      body: JSON.stringify({ model: config.openrouter.modelExtracao, messages: [{ role: 'user', content }], response_format: { type: 'json_object' }, usage: { include: true } }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+    const data = await res.json();
+    return { dados: parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}'), custo: Number(data.usage?.cost) || 0 };
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+// Procura no Open Food Facts por NOME (texto) e devolve o EAN do melhor resultado.
+export async function buscarOffPorNome(query) {
+  const q = String(query || '').trim();
+  if (q.length < 3) return null;
+  try {
+    const u = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=3&fields=code,product_name,brands`;
+    const r = await fetch(u, { headers: { 'User-Agent': 'Bigbag/0.1 (laboratorio pessoal)' } });
+    const j = await r.json();
+    const p = (j.products || []).find((x) => x.code && /^\d{8,14}$/.test(String(x.code)));
+    return p ? String(p.code) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Valida o dígito verificador de um código GTIN (EAN-8/UPC-12/EAN-13/GTIN-14).
 // Apanha a maioria dos erros de leitura do VLM (ex.: 1.º dígito 4→2) sem internet.
 export function eanValido(cod) {

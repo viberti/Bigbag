@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, lerEanFoto, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -525,7 +525,22 @@ function Chat({ onSair, nome }) {
                 }
                 return;
               }
-              fatura(f, { dewarp: false, origem: 'foto' }); // sem código → talão
+              // 3.º comportamento: sem código → classificar (talão / produto / outro)
+              mostrarToast('a analisar a foto…');
+              try {
+                const r = await fotoInteligente(f);
+                if (r.tipo === 'talao') {
+                  fatura(f, { dewarp: false, origem: 'foto' });
+                } else if (r.tipo === 'produto' && r.encontrado) {
+                  setInfoItem({ ean: r.ean, produto: r.nome || r.ean });
+                } else if (r.tipo === 'produto') {
+                  mostrarToast(`Li "${r.nome || 'produto'}"${r.marca ? ` (${r.marca})` : ''}, mas sem dados completos. Aponta o código de barras para a ficha.`);
+                } else {
+                  mostrarToast('Não reconheci a imagem. Tenta o código de barras ou um talão.');
+                }
+              } catch {
+                fatura(f, { dewarp: false, origem: 'foto' }); // em falha, assume talão
+              }
             }}
           />
           <input

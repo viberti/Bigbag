@@ -136,6 +136,14 @@ export async function lerEanFoto(file) {
   return r.json(); // { ean }
 }
 
+export async function fotoInteligente(file) {
+  const fd = new FormData();
+  fd.append('foto', file);
+  const r = await call('/api/produto/foto', { method: 'POST', body: fd });
+  if (!r.ok) throw new Error(`foto ${r.status}`);
+  return r.json(); // { tipo, ean?, encontrado?, nome?, marca?, lido? }
+}
+
 export async function consultarProdutoEan(ean) {
   const r = await call(`/api/produto/consultar?ean=${encodeURIComponent(ean)}`);
   if (!r.ok) throw new Error(`consultar ${r.status}`);
