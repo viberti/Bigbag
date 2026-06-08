@@ -501,9 +501,9 @@ function Chat({ onSair, nome }) {
         <>
           <div className="cap-menu-bd" onClick={() => setMenuAberto(false)} />
           <div className="cap-menu">
-            <button onClick={() => { setMenuAberto(false); setCamAberta(true); }}>{t('cap.scan')}</button>
-            <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}>{t('cap.gallery')}</button>
-            <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}>{t('cap.file')}</button>
+            <button onClick={() => { setMenuAberto(false); setCamAberta(true); }}><Ico name="scan" size={18} /> {t('cap.scan')}</button>
+            <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}><Ico name="galeria" size={18} /> {t('cap.gallery')}</button>
+            <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
             <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> A minha despensa</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> Os meus gastos</button>
