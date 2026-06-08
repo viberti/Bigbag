@@ -6,6 +6,7 @@
 // aliases (incl. manuais) são preservados: os itens novos re-resolvem pela cache.
 import { readFile } from 'node:fs/promises';
 import { extrairFatura, extrairFaturaDeTexto } from './extract.js';
+import { eanValido } from './produto.js';
 import { extrairTextoPdf } from './pdf.js';
 import { preProcessarImagem } from './imagem.js';
 import { distribuirDesconto, validarLinhas, pistaCirurgica } from './reconcile.js';
@@ -90,13 +91,15 @@ export async function reprocessarFatura(pool, faturaId) {
     await conn.beginTransaction();
     await conn.query('DELETE FROM item WHERE fatura_id = ?', [faturaId]);
     for (const it of itens) {
+      const eanItem = it.ean ? String(it.ean).replace(/\D/g, '') : null;
       await conn.query(
-        `INSERT INTO item (fatura_id, sku_id, descricao_original, linha_peso, quantidade, preco_unitario, preco_liquido,
+        `INSERT INTO item (fatura_id, sku_id, descricao_original, ean, linha_peso, quantidade, preco_unitario, preco_liquido,
            preco_por_base, taxa_iva, is_clearance, desconto_direto, is_non_product)
-         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           faturaId,
           String(it.descricao_original || '').slice(0, 200),
+          eanItem && eanValido(eanItem) ? eanItem : null,
           it.linha_peso ? String(it.linha_peso).slice(0, 80) : null,
           num(it.quantidade) || 1,
           num(it.preco_unitario),
