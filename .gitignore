@@ -27,3 +27,8 @@ imagens/
 Thumbs.db
 .vscode/
 .idea/
+
+# Perfis nutricionais / dados clínicos (sensíveis — nunca versionar)
+*Perfil*.txt
+*perfil*.txt
+docs/*Perfil*
