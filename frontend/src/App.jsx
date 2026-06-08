@@ -748,33 +748,39 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo }) {
                     {carregando === n.id ? (
                       <p className="sheet-vazio">{t('chat.thinking')}</p>
                     ) : (
-                      (itensPorNota[n.id] || []).map((it) => (
-                        <div key={it.id} className="nota-item">
-                          <span className="ni-nome">{it.produto}</span>
-                          <span className="ni-preco">{eur(it.preco)}</span>
-                          {it.ean ? (
-                            <button
-                              type="button"
-                              className="ni-ident"
-                              onClick={() => onInfo({ id: it.id, ean: it.ean, produto: it.produto })}
-                              title="ver informação do produto"
-                              aria-label="informação do produto"
-                            >
-                              <Ico name="info" size={17} />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="ni-ident"
-                              onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })}
-                              title="identificar produto (EAN + fotos)"
-                              aria-label="identificar produto"
-                            >
-                              <Ico name="camera" size={16} />
-                            </button>
-                          )}
-                        </div>
-                      ))
+                      (itensPorNota[n.id] || []).map((it) => {
+                        // Tem ficha (abre ao clicar) se tem EAN identificado OU é fresco
+                        // com nutrição genérica. Senão (embalado por identificar) → câmara.
+                        const temFicha = !!it.ean || it.tipo_alimento === 'fresco';
+                        const precisaFoto = !temFicha;
+                        return temFicha ? (
+                          <button
+                            key={it.id}
+                            type="button"
+                            className="nota-item clic"
+                            onClick={() => onInfo({ id: it.id, ean: it.ean, produto: it.produto })}
+                          >
+                            <span className="ni-nome">{it.produto}</span>
+                            <span className="ni-preco">{eur(it.preco)}</span>
+                          </button>
+                        ) : (
+                          <div key={it.id} className="nota-item">
+                            <span className="ni-nome">{it.produto}</span>
+                            <span className="ni-preco">{eur(it.preco)}</span>
+                            {precisaFoto && (
+                              <button
+                                type="button"
+                                className="ni-ident"
+                                onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })}
+                                title="identificar produto (fotos do rótulo)"
+                                aria-label="identificar produto"
+                              >
+                                <Ico name="camera" size={16} />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 )}
@@ -958,7 +964,10 @@ function ProdutoInfoSheet({ item, onFechar }) {
             <p className="sheet-vazio">Falha a carregar a informação.</p>
           ) : (
             <>
-              <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g} />
+              {info.fonte === 'generico' && (
+                <p className="info-generico">Valores típicos do alimento (sem rótulo) — estimativa por 100 g.</p>
+              )}
+              <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g} />
               {info.fotos?.length > 0 && (
                 <div className="info-fotos">
                   {info.fotos.map((f) => (

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
-import { extrairProdutoFotos, consultarOFF, analisarProduto } from '../ingest/produto.js';
+import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome } from '../ingest/produto.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -42,8 +42,26 @@ async function consolidarProduto({ itemId, eanQ }) {
   const [fotos] = itemId
     ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE item_id = ? ORDER BY ordem, id', [itemId])
     : await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? ORDER BY ordem, id', [ean]);
-  const fonte = vlm && off ? 'ambos' : off ? 'off' : vlm ? 'vlm' : null;
-  return { ean, vlm, off, fonte, fotos, existe: rows.length > 0 };
+
+  // Fallback genérico (frescos sem EAN): nutrição típica pelo nome, via o SKU.
+  let generico = null, skuId = null, nome = null;
+  if (itemId) {
+    const [[it]] = await getPool().query(
+      `SELECT i.sku_id, COALESCE(s.nome_canonico, i.descricao_original) AS nome FROM item i
+         LEFT JOIN sku_normalizado s ON s.id = i.sku_id WHERE i.id = ?`,
+      [itemId],
+    );
+    skuId = it?.sku_id || null;
+    nome = it?.nome || null;
+    if (skuId) {
+      const [[g]] = await getPool().query('SELECT tipo, alimento, categoria, nutricao FROM produto_generico WHERE sku_id = ?', [skuId]);
+      if (g) generico = { tipo: g.tipo, alimento: g.alimento, categoria: g.categoria, nutricao_100g: parseJson(g.nutricao) };
+    }
+  }
+
+  const temGenericoNut = !!generico?.nutricao_100g;
+  const fonte = vlm && off ? 'ambos' : off ? 'off' : vlm ? 'vlm' : temGenericoNut ? 'generico' : null;
+  return { ean, vlm, off, generico, skuId, nome, fonte, fotos, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;
@@ -178,31 +196,33 @@ produtoRouter.get('/analise', requireAuth, async (req, res) => {
     const info = await consolidarProduto({ itemId, eanQ });
     if (!info.existe) return res.status(404).json({ erro: 'Produto sem dados para analisar' });
     const ean = info.ean || null;
+    // chave de cache: EAN (embalados) ou sku:<id> (frescos genéricos)
+    const chave = ean || (info.skuId ? `sku:${info.skuId}` : null);
 
-    // cache por EAN
-    if (ean && !forcar) {
-      const [[c]] = await getPool().query('SELECT analise FROM produto_analise WHERE ean = ?', [ean]);
+    if (chave && !forcar) {
+      const [[c]] = await getPool().query('SELECT analise FROM produto_analise WHERE ean = ?', [chave]);
       if (c?.analise) return res.json({ analise: parseJson(c.analise), cacheada: true });
     }
 
-    // melhor fonte por campo: ingredientes do rótulo (vlm) > off; nutrição/score do off
+    // melhor fonte por campo: ingredientes do rótulo (vlm) > off; nutrição: off > vlm > genérico
+    const ehFresco = info.generico?.tipo === 'fresco';
     const p = {
-      nome: info.off?.nome || info.vlm?.nome || null,
-      categoria: info.off?.categoria || info.vlm?.categoria || null,
+      nome: info.off?.nome || info.vlm?.nome || info.generico?.alimento || info.nome || null,
+      categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
       ingredientes: info.vlm?.ingredientes || info.off?.ingredientes || null,
-      nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || null,
+      nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
       nutriscore: info.off?.nutriscore || null,
-      nova: info.off?.nova ?? null,
+      nova: info.off?.nova ?? (ehFresco ? 1 : null), // fresco/inteiro → NOVA 1
     };
     if (!p.ingredientes && !p.nutricao_100g) {
       return res.status(422).json({ erro: 'Sem ingredientes nem nutrição para analisar' });
     }
 
     const { analise, custo } = await analisarProduto(p);
-    if (ean) {
+    if (chave) {
       await getPool()
         .query('INSERT INTO produto_analise (ean, analise, modelo) VALUES (?,?,?) ON DUPLICATE KEY UPDATE analise=VALUES(analise), modelo=VALUES(modelo), criado_em=CURRENT_TIMESTAMP', [
-          ean,
+          chave,
           JSON.stringify(analise),
           'modelConsulta',
         ])

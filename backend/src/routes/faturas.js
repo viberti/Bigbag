@@ -263,8 +263,12 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
               i.quantidade, i.preco_liquido AS preco, s.unidade_base, i.preco_por_base,
               (SELECT pe.ean FROM produto_ean pe
                 WHERE pe.item_id = i.id AND pe.ean IS NOT NULL
-                ORDER BY pe.id DESC LIMIT 1) AS ean
-         FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+                ORDER BY pe.id DESC LIMIT 1) AS ean,
+              pg.tipo AS tipo_alimento,
+              (pg.nutricao IS NOT NULL) AS tem_generico
+         FROM item i
+         LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+         LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
         WHERE i.fatura_id = ? AND i.is_non_product = 0
         ORDER BY i.id`,
       [id],

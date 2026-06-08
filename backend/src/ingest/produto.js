@@ -131,6 +131,49 @@ export async function analisarProduto(p, { timeoutMs } = {}) {
   }
 }
 
+const PROMPT_CARACT = `És uma base de composição de alimentos. Recebes o NOME de um produto de supermercado (em português) e classificas + dás a nutrição típica. Devolve SÓ JSON:
+{
+  "tipo": "fresco" | "processado",
+  "alimento": string,              // alimento genérico identificado (ex.: "banana", "courgette", "peito de frango")
+  "categoria": string,
+  "nutricao_100g": {               // por 100 g
+    "energia_kcal": number|null, "gordura": number|null, "gordura_saturada": number|null,
+    "hidratos": number|null, "acucares": number|null, "proteina": number|null, "sal": number|null, "fibra": number|null
+  }
+}
+Regras:
+- "fresco" = alimento inteiro ou minimamente processado, vendido a peso/unidade, SEM rótulo de ingredientes: fruta, legume, hortaliça, carne/peixe fresco, ovos, frutos secos/leguminosas a granel. Para estes, dá os valores TÍPICOS por 100 g (crus, são bem conhecidos das tabelas de composição).
+- "processado" = produto EMBALADO com rótulo (iogurte, queijo, bolacha, conserva, bebida, cereais, charcutaria…). Para estes, mete TODOS os campos de nutricao_100g a NULL — a nutrição vem do rótulo, não inventes.
+- Na dúvida entre fresco e processado, escolhe "processado".
+- Só o JSON.`;
+
+// Classifica um produto pelo NOME (fresco vs. embalado) e, se fresco, devolve a
+// nutrição típica por 100 g (sem precisar de EAN nem rótulo).
+export async function caracterizarProdutoNome(nome, { timeoutMs } = {}) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
+      body: JSON.stringify({
+        model: config.openrouter.modelConsulta,
+        messages: [{ role: 'system', content: PROMPT_CARACT }, { role: 'user', content: `Produto: "${nome}"` }],
+        response_format: { type: 'json_object' },
+        usage: { include: true },
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+    const data = await res.json();
+    const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
+    if (dados.tipo !== 'fresco') dados.nutricao_100g = null; // processado → nutrição vem do rótulo
+    return { dados, custo: Number(data.usage?.cost) || 0 };
+  } finally {
+    clearTimeout(to);
+  }
+}
+
 // Consulta o Open Food Facts pelo EAN (dados autoritativos do produto exato).
 export async function consultarOFF(ean) {
   const cod = String(ean || '').replace(/\D/g, '');
