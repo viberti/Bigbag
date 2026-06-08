@@ -37,6 +37,15 @@ const fmtValidade = (v) => {
 const Mark = ({ size = 30, chip = false }) => <span className="mk" dangerouslySetInnerHTML={{ __html: MARK({ size, chip }) }} />;
 const Ico = ({ name, size = 21, stroke }) => <span className="ico" dangerouslySetInnerHTML={{ __html: ICON(name, { size, stroke }) }} />;
 
+// Limpa a marca: o Open Food Facts lista várias separadas por vírgula (incl. a
+// HOLDING, ex.: "Continente, Continente Seleção, SONAE"). Fica com a 1.ª marca real.
+const MARCAS_HOLDING = new Set(['sonae', 'jerónimo martins', 'jeronimo martins', 'auchan holding', 'schwarz']);
+const limparMarca = (s) => {
+  const partes = String(s || '').split(/[,/;]/).map((x) => x.trim()).filter(Boolean);
+  const reais = partes.filter((p) => !MARCAS_HOLDING.has(p.toLowerCase()));
+  return (reais[0] || partes[0] || '').trim();
+};
+
 // Tenta descodificar um código de barras (EAN/UPC) de uma imagem (zxing). Devolve
 // os dígitos ou null. Usado para distinguir "foto de produto" de "foto de talão".
 async function decodeEanDeImagem(file) {
@@ -959,7 +968,7 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
             const unit = qtd ? linha / qtd : linha;
             const eanItem = it.ean || identificados?.[it.id] || null;
             const temFicha = !!eanItem || it.tipo_alimento === 'fresco';
-            const marca = it.marca && String(it.marca).trim() ? String(it.marca).trim() : null;
+            const marca = limparMarca(it.marca) || null;
             const linhaInner = (
               <>
                 <span className="cmp-pn">
@@ -1035,7 +1044,7 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
                   <span className="desp-nome">{p.nome}</span>
                   {(() => {
                     const partes = [];
-                    for (const x of [p.marca, p.loja]) {
+                    for (const x of [limparMarca(p.marca), p.loja]) {
                       const v = (x || '').trim();
                       if (v && !partes.some((y) => y.toLowerCase() === v.toLowerCase())) partes.push(v);
                     }
