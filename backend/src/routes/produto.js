@@ -15,6 +15,20 @@ import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProduto
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
 
 const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
+
+// Guarda todos os nomes vistos para um produto (por EAN), para matching/canónico.
+async function guardarNomes(ean, skuId, nomes) {
+  if (!ean) return; // só com EAN válido (identidade forte do produto)
+  const vistos = new Set();
+  for (const { nome, origem } of nomes) {
+    const n = String(nome || '').trim();
+    if (!n || /^null$/i.test(n) || vistos.has(n.toLowerCase())) continue;
+    vistos.add(n.toLowerCase());
+    await getPool()
+      .query('INSERT IGNORE INTO produto_nome (ean, sku_id, nome, origem) VALUES (?,?,?,?)', [ean, skuId || null, n, origem])
+      .catch((e) => console.error('[produto_nome]', e.message));
+  }
+}
 // Preenche lacunas: o 1.º valor não-nulo ganha; objetos fundem-se recursivamente.
 const fillGaps = (acc, src) => {
   if (!src) return acc;
@@ -134,6 +148,26 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
           nutricao ? JSON.stringify(nutricao) : null, fonte, vlm ? JSON.stringify(vlm) : null, off ? JSON.stringify(off) : null],
       );
     } catch (e) { console.error('[produto/identificar] guardar:', e.message); }
+
+    // guarda todos os nomes vistos para este produto (matching / nome canónico)
+    try {
+      let descNota = null, nomeCanon = null, skuItem = skuId;
+      if (itemId) {
+        const [[it]] = await getPool().query(
+          'SELECT i.sku_id, i.descricao_original AS d, s.nome_canonico AS c FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id WHERE i.id = ?',
+          [itemId],
+        );
+        descNota = it?.d || null;
+        nomeCanon = it?.c || null;
+        skuItem = it?.sku_id || skuId;
+      }
+      await guardarNomes(ean, skuItem, [
+        { nome: nomeCanon, origem: 'canonico' },
+        { nome: descNota, origem: 'talao' },
+        { nome: vlm?.nome, origem: 'vlm' },
+        { nome: off?.nome, origem: 'off' },
+      ]);
+    } catch (e) { console.error('[produto/identificar] nomes:', e.message); }
 
     res.json({ ean, vlm, off, fonte, custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas, ean_rejeitado: eanRejeitado });
   } catch (e) {
