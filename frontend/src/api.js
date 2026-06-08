@@ -56,9 +56,34 @@ export async function consultar(pergunta) {
   return r.json();
 }
 
+// Redimensiona/comprime uma imagem no BROWSER antes do upload (canvas): lado maior
+// <= maxLado, JPEG na qualidade dada. Reduz drasticamente o tamanho (uploads em
+// dados móveis + memória do servidor) sem perda útil (o VLM reduz a resolução na
+// mesma). Respeita a orientação EXIF. Não-imagens (PDF) ou já pequenas → original.
+export async function redimensionarImagem(file, { maxLado = 2000, qualidade = 0.82 } = {}) {
+  if (!file || !/^image\//.test(file.type) || file.type === 'image/gif') return file;
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const escala = Math.min(1, maxLado / Math.max(bitmap.width, bitmap.height));
+    if (escala >= 1 && file.size < 900_000) { bitmap.close?.(); return file; }
+    const w = Math.round(bitmap.width * escala);
+    const h = Math.round(bitmap.height * escala);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', qualidade));
+    if (!blob || blob.size >= file.size) return file; // não piorar
+    return new File([blob], String(file.name || 'foto').replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file; // qualquer falha → envia o original
+  }
+}
+
 export async function enviarFatura(file, origem) {
   const fd = new FormData();
-  fd.append('fatura', file);
+  fd.append('fatura', await redimensionarImagem(file, { maxLado: 2200, qualidade: 0.85 }));
   if (origem) fd.append('origem', origem);
   const r = await call('/api/faturas', { method: 'POST', body: fd });
   return r.json();
@@ -82,7 +107,8 @@ export async function identificarProduto({ ean, skuId, itemId, fotos }) {
   if (ean) fd.append('ean', ean);
   if (skuId) fd.append('sku_id', skuId);
   if (itemId) fd.append('item_id', itemId);
-  (fotos || []).forEach((f) => fd.append('fotos', f));
+  const reduzidas = await Promise.all((fotos || []).map((f) => redimensionarImagem(f)));
+  reduzidas.forEach((f) => fd.append('fotos', f));
   const r = await call('/api/produto/identificar', { method: 'POST', body: fd });
   if (!r.ok) {
     let msg = `identificar ${r.status}`;
@@ -130,7 +156,7 @@ export async function avaliacaoPersonalizada({ itemId, ean }) {
 
 export async function lerEanFoto(file) {
   const fd = new FormData();
-  fd.append('foto', file);
+  fd.append('foto', await redimensionarImagem(file, { maxLado: 2200, qualidade: 0.88 }));
   const r = await call('/api/produto/ler-ean', { method: 'POST', body: fd });
   if (!r.ok) throw new Error(`ler-ean ${r.status}`);
   return r.json(); // { ean }
