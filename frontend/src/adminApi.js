@@ -38,6 +38,12 @@ export const baixaConfianca = (limiar) => jget(`/api/admin/baixa-confianca${limi
 export const qualidadePreco = (fator) => jget(`/api/admin/qualidade-preco${fator ? '?fator=' + fator : ''}`);
 export const saude = () => jget('/api/admin/saude');
 
+// Sugestões de nome canónico
+export const nomesSugeridos = () => jget('/api/admin/nomes');
+export const gerarNomes = () => jsend('/api/admin/nomes/gerar', 'POST', {});
+export const aplicarNome = (skuId) => jsend(`/api/admin/nomes/${skuId}/aplicar`, 'POST', {});
+export const rejeitarNome = (skuId) => jsend(`/api/admin/nomes/${skuId}/rejeitar`, 'POST', {});
+
 // Notas
 export const listarNotas = (status) => jget(`/api/admin/faturas?status=${status || 'all'}&limit=300`);
 export const carregarNota = (id) => jget(`/api/admin/faturas/${id}`);

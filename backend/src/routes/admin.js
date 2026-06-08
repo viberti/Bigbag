@@ -16,6 +16,7 @@ import { recomputarPpbSku } from '../normaliza/ppb.js';
 import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 import { marcaCompativel, precoPlausivel } from '../normaliza/validadores.js';
 import { ln } from '../normaliza/mestre.js';
+import { sugerirNomeCanonico } from '../ingest/produto.js';
 
 export const adminRouter = Router();
 
@@ -54,6 +55,80 @@ adminRouter.post('/precos/reverter/:itemId', async (req, res) => {
 adminRouter.use(requireAuth);
 
 const str = (v, max = 200) => (v == null ? null : String(v).trim().slice(0, max));
+const normNome = (s) => String(s || '').trim().toLowerCase();
+
+// === Sugestões de nome canónico (a partir das variantes em produto_nome) ===
+// Lista as sugestões pendentes para o operador rever.
+adminRouter.get('/nomes', async (req, res) => {
+  try {
+    const [rows] = await getPool().query(
+      `SELECT ns.sku_id, s.nome_canonico AS atual, ns.sugerido, ns.variantes
+         FROM nome_sugestao ns JOIN sku_normalizado s ON s.id = ns.sku_id
+        WHERE ns.estado = 'pendente' ORDER BY ns.sku_id`,
+    );
+    res.json({ sugestoes: rows.map((r) => ({ ...r, variantes: String(r.variantes || '').split('||').filter(Boolean) })) });
+  } catch (e) {
+    console.error('[admin/nomes] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar sugestões' });
+  }
+});
+
+// Gera/atualiza sugestões (LLM) para os SKUs com variantes ainda sem decisão.
+adminRouter.post('/nomes/gerar', async (req, res) => {
+  try {
+    const [skus] = await getPool().query(
+      `SELECT s.id, s.nome_canonico AS atual, GROUP_CONCAT(pn.nome SEPARATOR '||') AS variantes
+         FROM produto_nome pn JOIN sku_normalizado s ON s.id = pn.sku_id
+        WHERE NOT EXISTS (SELECT 1 FROM nome_sugestao ns WHERE ns.sku_id = s.id)
+        GROUP BY s.id, s.nome_canonico`,
+    );
+    let novas = 0, custo = 0;
+    for (const s of skus) {
+      const variantes = String(s.variantes || '').split('||');
+      const { nome, custo: c } = await sugerirNomeCanonico(variantes);
+      custo += c || 0;
+      if (!nome || normNome(nome) === normNome(s.atual)) continue;
+      await getPool().query(
+        `INSERT INTO nome_sugestao (sku_id, atual, sugerido, variantes, estado) VALUES (?,?,?,?,'pendente')
+           ON DUPLICATE KEY UPDATE atual=VALUES(atual), sugerido=VALUES(sugerido), variantes=VALUES(variantes), estado='pendente', decidido_em=NULL`,
+        [s.id, s.atual, nome, variantes.join('||')],
+      );
+      novas++;
+    }
+    res.json({ novas, analisados: skus.length, custo });
+  } catch (e) {
+    console.error('[admin/nomes/gerar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a gerar sugestões' });
+  }
+});
+
+// Aplica uma sugestão (renomeia o SKU), com guarda anti-colisão.
+adminRouter.post('/nomes/:skuId/aplicar', async (req, res) => {
+  try {
+    const skuId = Number(req.params.skuId);
+    const [[ns]] = await getPool().query("SELECT sugerido FROM nome_sugestao WHERE sku_id = ? AND estado = 'pendente'", [skuId]);
+    if (!ns) return res.status(404).json({ erro: 'Sugestão não encontrada' });
+    const [[col]] = await getPool().query('SELECT id FROM sku_normalizado WHERE LOWER(nome_canonico) = LOWER(?) AND id <> ?', [ns.sugerido, skuId]);
+    if (col) return res.status(409).json({ erro: `Colide com o produto #${col.id} (mesmo nome)` });
+    await getPool().query('UPDATE sku_normalizado SET nome_canonico = ? WHERE id = ?', [ns.sugerido, skuId]);
+    await getPool().query("UPDATE nome_sugestao SET estado = 'aplicado', decidido_em = NOW() WHERE sku_id = ?", [skuId]);
+    res.json({ ok: true, nome: ns.sugerido });
+  } catch (e) {
+    console.error('[admin/nomes/aplicar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a aplicar' });
+  }
+});
+
+// Rejeita uma sugestão (fica registada como rejeitada, não reaparece).
+adminRouter.post('/nomes/:skuId/rejeitar', async (req, res) => {
+  try {
+    await getPool().query("UPDATE nome_sugestao SET estado = 'rejeitado', decidido_em = NOW() WHERE sku_id = ?", [Number(req.params.skuId)]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/nomes/rejeitar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a rejeitar' });
+  }
+});
 
 // ───────────────────────── Painel (Admin v2) ─────────────────────────
 

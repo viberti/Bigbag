@@ -489,6 +489,13 @@ body {
 .adm-un { color: var(--muted); font-style: normal; font-size: 12px; }
 .adm-pares button:disabled { opacity: 0.5; }
 
+/* Sugestões de nome canónico */
+.adm-nomes .adm-nome-li { flex-wrap: wrap; }
+.adm-nome-atual { color: var(--muted); text-decoration: line-through; }
+.adm-nome-vars { flex: 1 0 100%; color: var(--muted); font-size: 12px; margin-top: -2px; }
+.adm-nome-acoes { flex: 0 0 auto; display: flex; gap: 8px; }
+.adm-nomes .adm-rej { background: transparent; color: var(--muted); border: 1px solid #ffffff22; }
+
 /* Ligar nomes (descrição da nota → produto canónico) */
 .adm-ligar { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; padding: 18px 24px; overflow-y: auto; align-items: start; }
 .adm-lig-col h3 { margin: 0 0 10px; font-size: 15px; }

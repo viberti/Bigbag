@@ -41,6 +41,9 @@ export default function Admin() {
           <button className={aba === 'fusoes' ? 'on' : ''} onClick={() => setAba('fusoes')}>
             Fusões
           </button>
+          <button className={aba === 'nomes' ? 'on' : ''} onClick={() => setAba('nomes')}>
+            Nomes
+          </button>
           <button className={aba === 'notas' ? 'on' : ''} onClick={() => setAba('notas')}>
             Notas
           </button>
@@ -71,6 +74,8 @@ export default function Admin() {
         <TabLigar />
       ) : aba === 'fusoes' ? (
         <TabFusoes />
+      ) : aba === 'nomes' ? (
+        <TabNomes />
       ) : aba === 'revisao' ? (
         <TabRevisao />
       ) : aba === 'qualidade' ? (
@@ -703,6 +708,87 @@ function TabLigar() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// Sugestões de nome canónico (das variantes guardadas) — rever e aplicar/rejeitar.
+function TabNomes() {
+  const [sugestoes, setSugestoes] = useState(null);
+  const [msg, setMsg] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+
+  const recarregar = () => adm.nomesSugeridos().then((r) => setSugestoes(r.sugestoes)).catch(() => setSugestoes([]));
+  useEffect(() => {
+    recarregar();
+  }, []);
+
+  async function gerar() {
+    setOcupado(true);
+    setMsg('a gerar sugestões…');
+    try {
+      const r = await adm.gerarNomes();
+      setMsg(`✓ ${r.novas} nova(s) de ${r.analisados} produto(s) · ~$${(r.custo || 0).toFixed(4)}`);
+      await recarregar();
+    } catch {
+      setMsg('falha a gerar');
+    } finally {
+      setOcupado(false);
+    }
+  }
+  async function aplicar(s) {
+    setOcupado(true);
+    try {
+      await adm.aplicarNome(s.sku_id);
+      setMsg(`✓ "${s.atual}" → "${s.sugerido}"`);
+      setSugestoes((l) => l.filter((x) => x.sku_id !== s.sku_id));
+    } catch (e) {
+      setMsg(e.status === 409 ? '⚠ colisão: já existe um produto com esse nome' : 'falha a aplicar');
+    } finally {
+      setOcupado(false);
+    }
+  }
+  async function rejeitar(s) {
+    setOcupado(true);
+    try {
+      await adm.rejeitarNome(s.sku_id);
+      setSugestoes((l) => l.filter((x) => x.sku_id !== s.sku_id));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <div className="adm-fusoes">
+      <div className="adm-auto">
+        <button className="adm-auto-btn" onClick={gerar} disabled={ocupado}>
+          ✨ Gerar sugestões de nome
+        </button>
+        <span className="adm-sug-dica">analisa os produtos com variantes de nome (talão · rótulo · Open Food Facts) e propõe o melhor nome canónico em português.</span>
+        {msg && <span className="adm-ok">{msg}</span>}
+      </div>
+      {sugestoes === null ? (
+        <p className="adm-vazio">a carregar…</p>
+      ) : sugestoes.length === 0 ? (
+        <p className="adm-vazio">Sem sugestões pendentes. Carrega em "Gerar sugestões". 👍</p>
+      ) : (
+        <ul className="adm-pares adm-nomes">
+          {sugestoes.map((s) => (
+            <li key={s.sku_id} className="adm-nome-li">
+              <span className="adm-par-nomes">
+                <span className="adm-nome-atual">{s.atual}</span>
+                <span className="adm-par-seta">→</span>
+                <b>{s.sugerido}</b>
+              </span>
+              {s.variantes?.length > 0 && <span className="adm-nome-vars">{s.variantes.join(' · ')}</span>}
+              <span className="adm-nome-acoes">
+                <button onClick={() => aplicar(s)} disabled={ocupado}>Aplicar</button>
+                <button className="adm-rej" onClick={() => rejeitar(s)} disabled={ocupado}>Rejeitar</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
