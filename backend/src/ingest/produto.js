@@ -174,6 +174,41 @@ export async function caracterizarProdutoNome(nome, { timeoutMs } = {}) {
   }
 }
 
+const PROMPT_NOME = `És um normalizador de nomes de produtos de supermercado. Recebes VÁRIAS variantes do nome do MESMO produto (de talões, rótulos e bases de dados — podem estar em línguas diferentes, em MAIÚSCULAS, abreviadas ou com códigos). Escolhe/compõe o MELHOR nome canónico em PORTUGUÊS. Devolve SÓ JSON: {"nome": string}.
+Regras:
+- Português (PT). Capitalização normal: Primeira Letra Maiúscula nas palavras principais (minúsculas em "de/da/do/com/e/para").
+- SEM códigos de loja, SEM quantidades/pesos/embalagem (ex.: "2KG", "X4", "TP 25", "500 G").
+- Inclui a MARCA só se fizer parte do nome comum do produto; senão deixa fora.
+- Claro, curto e natural. Se uma das variantes já for um bom nome PT, usa-a (limpa).
+- Só o JSON.`;
+
+// Sugere o melhor nome canónico (PT) a partir das variantes de nome de um produto.
+export async function sugerirNomeCanonico(variantes, { timeoutMs } = {}) {
+  const lista = [...new Set((variantes || []).map((v) => String(v || '').trim()).filter(Boolean))];
+  if (!lista.length) return { nome: null, custo: 0 };
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
+      body: JSON.stringify({
+        model: config.openrouter.modelConsulta,
+        messages: [{ role: 'system', content: PROMPT_NOME }, { role: 'user', content: 'Variantes:\n- ' + lista.join('\n- ') }],
+        response_format: { type: 'json_object' },
+        usage: { include: true },
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+    const data = await res.json();
+    const j = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
+    return { nome: (j.nome || '').trim() || null, custo: Number(data.usage?.cost) || 0 };
+  } finally {
+    clearTimeout(to);
+  }
+}
+
 // Valida o dígito verificador de um código GTIN (EAN-8/UPC-12/EAN-13/GTIN-14).
 // Apanha a maioria dos erros de leitura do VLM (ex.: 1.º dígito 4→2) sem internet.
 export function eanValido(cod) {
