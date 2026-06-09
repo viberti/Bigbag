@@ -714,8 +714,17 @@ adminRouter.post('/skus/merge', async (req, res) => {
       return res.status(404).json({ erro: 'SKU inexistente' });
     }
     const [up] = await conn.query('UPDATE item SET sku_id = ? WHERE sku_id = ?', [para, de]);
-    // descricao_original é única no alias → repontar não gera conflito de chave
+    // descricao_original é única no alias → repontar não gera conflito de chave.
+    // PRESERVA os nomes de talão (alias) ligando-os ao SKU que fica → matching futuro intacto.
     await conn.query("UPDATE sku_alias SET sku_id = ?, origem = 'manual', confianca = 100 WHERE sku_id = ?", [para, de]);
+    // variantes de nome (por EAN/SKU) e fichas por EAN também acompanham o SKU.
+    await conn.query('UPDATE produto_nome SET sku_id = ? WHERE sku_id = ?', [para, de]);
+    await conn.query('UPDATE produto_ean SET sku_id = ? WHERE sku_id = ?', [para, de]);
+    await conn.query('DELETE FROM nome_sugestao WHERE sku_id = ?', [de]); // regenerável
+    // produto_generico tem chave por sku_id: move se o destino não tiver, senão descarta o do 'de'.
+    const [[temGen]] = await conn.query('SELECT 1 AS x FROM produto_generico WHERE sku_id = ? LIMIT 1', [para]);
+    if (temGen) await conn.query('DELETE FROM produto_generico WHERE sku_id = ?', [de]);
+    else await conn.query('UPDATE produto_generico SET sku_id = ? WHERE sku_id = ?', [para, de]);
     await conn.query('DELETE FROM sku_normalizado WHERE id = ?', [de]);
     await conn.commit();
     res.json({ ok: true, itens_movidos: up.affectedRows });

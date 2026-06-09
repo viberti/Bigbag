@@ -479,6 +479,19 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
             WHERE (pe.ean IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.off_json IS NOT NULL OR pe.nutricao IS NOT NULL)
               AND i2.descricao_original = i.descricao_original
               AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
+         -- REUSO DE EAN ENTRE CADEIAS (marcas nacionais): se o MESMO produto canónico
+         -- (SKU) já tem ficha por EAN noutra compra — em QUALQUER cadeia — não vale a
+         -- pena re-identificá-lo. Marcas próprias são exclusivas da cadeia (nunca
+         -- cruzam lojas), por isso um SKU com EAN visto em várias cadeias é, por
+         -- definição, marca nacional → reuso seguro. (Requer SKU específico; um SKU
+         -- demasiado genérico pode esconder a mais — corrige-se separando o SKU.)
+         AND NOT EXISTS (
+           SELECT 1 FROM produto_ean pe
+             JOIN item i3 ON i3.id = pe.item_id
+            WHERE pe.ean IS NOT NULL
+              AND (pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.nutricao IS NOT NULL)
+              AND i.sku_id IS NOT NULL
+              AND i3.sku_id = i.sku_id)
        GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
        ORDER BY loja, produto`);
     res.json({ itens });
