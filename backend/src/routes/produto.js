@@ -439,14 +439,14 @@ produtoRouter.get('/despensa', requireAuth, async (req, res) => {
   }
 });
 
-// Produtos que PRECISAM de fotos (embalados sem EAN, não-frescos), por compra
-// (data/loja) decrescente — worklist de identificação.
+// Produtos que PRECISAM de fotos (embalados sem EAN, não-frescos) — worklist de
+// identificação, agrupada por LOJA e ordenada por NOME (dedup por loja+produto).
 produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
   try {
     const [itens] = await getPool().query(`
-      SELECT i.id AS item_id, i.sku_id,
-             COALESCE(s.nome_canonico, i.descricao_original) AS produto,
-             f.id AS fatura_id, f.data_compra AS data, COALESCE(l.cadeia, l.nome) AS loja
+      SELECT MAX(i.id) AS item_id, MAX(i.sku_id) AS sku_id,
+             MAX(COALESCE(s.nome_canonico, i.descricao_original)) AS produto,
+             MAX(f.id) AS fatura_id, MAX(f.data_compra) AS data, COALESCE(l.cadeia, l.nome) AS loja
         FROM item i
         LEFT JOIN sku_normalizado s ON s.id = i.sku_id
         LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
@@ -466,7 +466,8 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
             WHERE pe.ean IS NOT NULL
               AND i2.descricao_original = i.descricao_original
               AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
-       ORDER BY f.data_compra DESC, f.id DESC, i.id`);
+       GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
+       ORDER BY loja, produto`);
     res.json({ itens });
   } catch (e) {
     console.error('[produto/por-identificar] erro:', e.message);

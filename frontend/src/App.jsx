@@ -1127,8 +1127,8 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
   );
 }
 
-// Produtos por identificar (precisam de fotos), agrupados por compra (data/loja).
-// Cada produto tem a câmara para abrir o fluxo de identificação.
+// Produtos por identificar (precisam de fotos), agrupados por LOJA e ordenados por
+// nome dentro de cada loja. Cada produto tem a câmara para abrir a identificação.
 function PorIdentificarSheet({ aberto, itens, onFechar, onIdentificar, identificados }) {
   const pendentes = itens ? itens.filter((it) => !identificados?.[it.item_id]) : null;
   return (
@@ -1149,14 +1149,15 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onIdentificar, identific
             <p className="sheet-vazio">Tudo identificado 🎉</p>
           ) : (
             (() => {
-              let lastF = null;
+              let lastLoja = null;
               const out = [];
               for (const it of pendentes) {
-                if (it.fatura_id !== lastF) {
-                  lastF = it.fatura_id;
+                if (it.loja !== lastLoja) {
+                  lastLoja = it.loja;
+                  const n = pendentes.filter((x) => x.loja === it.loja).length;
                   out.push(
-                    <div key={`f${it.fatura_id}`} className="pid-grupo">
-                      {dataNota(it.data)} · {it.loja}
+                    <div key={`loja-${it.loja}`} className="pid-grupo">
+                      {it.loja} · {n}
                     </div>,
                   );
                 }
