@@ -37,18 +37,20 @@ function pontuar(item, cand) {
 
 // ── Candidatos do catálogo local (só com EAN) ──────────────────────────────
 export async function candidatosCatalogo(pool, item, limite = 12) {
-  const q = toks(`${item.descricao} ${item.marca || ''}`);
+  const q = [...new Set(toks(`${item.descricao} ${item.marca || ''}`))];
   if (!q.length) return [];
-  // procura pelos 3 tokens mais distintivos (mais longos)
-  const chave = [...q].sort((a, b) => b.length - a.length).slice(0, 3);
-  const likes = chave.map(() => 'nome LIKE ?').join(' OR ');
-  const params = chave.map((t) => `%${t}%`);
-  const [rows] = await pool.query(
-    `SELECT ean, nome, marca, categoria_path, fonte FROM catalogo_produto
-       WHERE ean IS NOT NULL AND ean <> '' AND (${likes}) LIMIT 80`,
-    params,
-  );
-  return rows
+  // Procura CADA token distintivo SEPARADAMENTE (os mais longos primeiro) e funde
+  // — evita que um token comum (ex.: "cereais") encha o LIMIT e corte o match
+  // específico (ex.: "frosties").
+  const chave = q.sort((a, b) => b.length - a.length).slice(0, 4);
+  const seen = new Map();
+  for (const tok of chave) {
+    const [rows] = await pool.query(
+      `SELECT ean, nome, marca, categoria_path, fonte FROM catalogo_produto
+         WHERE ean IS NOT NULL AND ean <> '' AND nome LIKE ? LIMIT 40`, [`%${tok}%`]);
+    for (const r of rows) if (!seen.has(r.ean)) seen.set(r.ean, r);
+  }
+  return [...seen.values()]
     .map((r) => ({ ...r, origem: r.fonte, score: pontuar(item, r) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limite);
@@ -56,7 +58,8 @@ export async function candidatosCatalogo(pool, item, limite = 12) {
 
 // ── Candidatos do Open Food Facts (por nome) ───────────────────────────────
 export async function candidatosOFF(item, limite = 8) {
-  const termos = toks(`${item.marca || ''} ${item.descricao}`).join(' ');
+  // termos limpos: tira tokens com dígitos (formato: 330g, 18, 36) e limita a 5
+  const termos = toks(`${item.marca || ''} ${item.descricao}`).filter((t) => !/\d/.test(t)).slice(0, 5).join(' ');
   if (!termos) return [];
   try {
     const u = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(termos)}&search_simple=1&action=process&json=1&page_size=${limite}&fields=code,product_name,brands,quantity,nutriscore_grade,nova_group`;
@@ -101,14 +104,12 @@ export async function resolverProduto(pool, item, { usarLLM = true } = {}) {
   const todos = [...cat, ...off].filter((c) => c.score > 0).sort((a, b) => b.score - a.score);
   if (!todos.length) return null;
 
-  // atalho: candidato muito forte por pontuação (token+marca+formato) → aceita sem LLM
-  const top = todos[0];
-  if (top.score >= 0.85) return { ...top, confianca: top.score, via: 'pontuacao' };
+  // Sem LLM: só aceita o topo se a pontuação for forte (token+marca+formato).
+  if (!usarLLM) { const top = todos[0]; return top.score >= 0.6 ? { ...top, confianca: top.score, via: 'pontuacao' } : null; }
 
-  if (!usarLLM) return top.score >= 0.5 ? { ...top, confianca: top.score, via: 'pontuacao' } : null;
-
-  // juiz LLM sobre os melhores candidatos
-  const { escolha, confianca, motivo } = await juiz(item, todos.slice(0, 6));
+  // Com LLM: SEMPRE confirma com o juiz (evita falsos positivos de nomes genéricos
+  // como "creme de limpeza" → Cif). O juiz distingue variantes e rejeita não-matches.
+  const { escolha, confianca, motivo } = await juiz(item, todos.slice(0, 8));
   if (!escolha) return null;
   return { ...escolha, confianca, motivo, via: 'llm' };
 }
