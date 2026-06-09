@@ -1063,6 +1063,20 @@ function ItemRow({ it, onAbrirNota, onPatch }) {
   const fmt = (v, dec = 2) => (v == null || v === '' ? '—' : Number(v).toFixed(dec).replace('.', ','));
   const set = (k) => (e) => setD((x) => ({ ...x, [k]: e.target.value }));
   const setChk = (k) => (e) => setD((x) => ({ ...x, [k]: e.target.checked ? 1 : 0 }));
+  // ao dar o peso (quantidade), recalcula €/base ao vivo e limpa "peso em falta"
+  const setQtd = (e) => {
+    const val = e.target.value;
+    setD((x) => {
+      const q = Number(String(val).replace(',', '.'));
+      const pl = Number(x.preco_liquido);
+      const next = { ...x, quantidade: val };
+      if (q > 0 && Number.isFinite(pl)) {
+        next.preco_por_base = Math.round((pl / q) * 10000) / 10000;
+        next.peso_em_falta = 0;
+      }
+      return next;
+    });
+  };
   const flag = (cond, label, cls) => (Number(cond) ? <span className={`adm-flag ${cls}`}>{label}</span> : null);
 
   async function salvar() {
@@ -1087,7 +1101,7 @@ function ItemRow({ it, onAbrirNota, onPatch }) {
         <td><input className="adm-it-inp adm-it-inp-nome" value={d.descricao_original || ''} onChange={set('descricao_original')} /></td>
         <td>{it.loja}</td>
         <td>{dataCurta(it.data)}</td>
-        <td><input className="adm-it-inp num" value={d.quantidade ?? ''} onChange={set('quantidade')} /></td>
+        <td><input className="adm-it-inp num" value={d.quantidade ?? ''} onChange={setQtd} /></td>
         <td><input className="adm-it-inp num" value={d.preco_unitario ?? ''} onChange={set('preco_unitario')} /></td>
         <td><input className="adm-it-inp num" value={d.preco_liquido ?? ''} onChange={set('preco_liquido')} /></td>
         <td><input className="adm-it-inp num" value={d.preco_por_base ?? ''} onChange={set('preco_por_base')} /></td>

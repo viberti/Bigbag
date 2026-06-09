@@ -151,28 +151,24 @@ adminRouter.post('/itens/:id/ean', async (req, res) => {
 });
 
 // Editar os campos extraídos de um item à mão. Só os campos enviados são
-// atualizados; numéricos nuláveis aceitam vazio→NULL; os obrigatórios
-// (quantidade, preço pago) ignoram vazio. Se a QUANTIDADE muda e o preco_por_base
-// NÃO vem no corpo, recalcula-se ppb = preco_liquido/quantidade (preserva a edição
-// de quantidade da aba Notas). Usado pela aba Itens (todos os campos) e pela Notas
-// (só quantidade).
+// atualizados. preco_por_base: valor explícito do corpo > recálculo por quantidade
+// (preco_liquido/quantidade) > limpar. Quando o ppb passa a ter valor, o
+// "peso_em_falta" limpa-se sozinho (deixou de faltar o peso → já é computável).
+// Usado pela aba Itens (todos os campos) e pela Notas (só quantidade).
 adminRouter.patch('/itens/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ erro: 'id inválido' });
     const b = req.body || {};
-    const sets = [], vals = [];
     const num = (x) => Number(String(x).replace(',', '.'));
-    const NUM_NULAVEL = ['preco_unitario', 'preco_por_base', 'taxa_iva', 'desconto_direto'];
-    const NUM_OBRIG = ['quantidade', 'preco_liquido'];
-    const fin = {}; // valores numéricos finais (p/ o recálculo de ppb)
-    for (const c of [...NUM_NULAVEL, ...NUM_OBRIG]) {
+    const vazio = (x) => x === '' || x == null;
+    const sets = [], vals = [];
+    const fin = {};
+    const NULAVEL = ['preco_unitario', 'taxa_iva', 'desconto_direto'];
+    const OBRIG = ['quantidade', 'preco_liquido'];
+    for (const c of [...NULAVEL, ...OBRIG]) {
       if (!(c in b)) continue;
-      if (b[c] === '' || b[c] == null) {
-        if (NUM_OBRIG.includes(c)) continue; // obrigatório → não apaga
-        sets.push(`${c} = NULL`); fin[c] = null;
-        continue;
-      }
+      if (vazio(b[c])) { if (OBRIG.includes(c)) continue; sets.push(`${c} = NULL`); fin[c] = null; continue; }
       const v = num(b[c]);
       if (!Number.isFinite(v)) return res.status(400).json({ erro: `${c} inválido` });
       sets.push(`${c} = ?`); vals.push(v); fin[c] = v;
@@ -182,25 +178,33 @@ adminRouter.patch('/itens/:id', async (req, res) => {
       if (!s) return res.status(400).json({ erro: 'descrição não pode ficar vazia' });
       sets.push('descricao_original = ?'); vals.push(s);
     }
-    for (const c of ['is_clearance', 'is_non_product', 'peso_em_falta', 'ppb_inferido']) {
-      if (c in b) { sets.push(`${c} = ?`); vals.push(b[c] ? 1 : 0); }
-    }
-    let ppbCalc;
-    if ('quantidade' in b && !('preco_por_base' in b) && Number.isFinite(fin.quantidade) && fin.quantidade > 0) {
+    // preco_por_base
+    let ppbFinal; // undefined = não mexe
+    const ppbTem = 'preco_por_base' in b;
+    if (ppbTem && !vazio(b.preco_por_base)) {
+      ppbFinal = num(b.preco_por_base);
+      if (!Number.isFinite(ppbFinal)) return res.status(400).json({ erro: 'preco_por_base inválido' });
+    } else if ('quantidade' in b && Number.isFinite(fin.quantidade) && fin.quantidade > 0) {
       let pl = fin.preco_liquido;
-      if (!Number.isFinite(pl)) {
-        const [[row]] = await getPool().query('SELECT preco_liquido FROM item WHERE id = ?', [id]);
-        pl = row?.preco_liquido;
-      }
-      if (pl != null) {
-        ppbCalc = Math.round((Number(pl) / fin.quantidade) * 10000) / 10000;
-        sets.push('preco_por_base = ?'); vals.push(ppbCalc);
-      }
+      if (!Number.isFinite(pl)) { const [[r]] = await getPool().query('SELECT preco_liquido FROM item WHERE id = ?', [id]); pl = r?.preco_liquido; }
+      if (pl != null) ppbFinal = Math.round((Number(pl) / fin.quantidade) * 10000) / 10000;
+    } else if (ppbTem && vazio(b.preco_por_base)) {
+      ppbFinal = null; // limpar explícito
+    }
+    if (ppbFinal !== undefined) {
+      if (ppbFinal === null) sets.push('preco_por_base = NULL');
+      else { sets.push('preco_por_base = ?'); vals.push(ppbFinal); }
+    }
+    // flags — peso_em_falta força a 0 quando o ppb passa a ter valor
+    const forcaPeso0 = Number.isFinite(ppbFinal);
+    for (const c of ['is_clearance', 'is_non_product', 'peso_em_falta', 'ppb_inferido']) {
+      if (c === 'peso_em_falta' && forcaPeso0) { sets.push('peso_em_falta = ?'); vals.push(0); continue; }
+      if (c in b) { sets.push(`${c} = ?`); vals.push(b[c] ? 1 : 0); }
     }
     if (!sets.length) return res.status(400).json({ erro: 'nada para atualizar' });
     vals.push(id);
     await getPool().query(`UPDATE item SET ${sets.join(', ')} WHERE id = ?`, vals);
-    res.json({ ok: true, preco_por_base: ppbCalc });
+    res.json({ ok: true, preco_por_base: ppbFinal, peso_em_falta: forcaPeso0 ? 0 : undefined });
   } catch (e) {
     console.error('[admin/itens PATCH] erro:', e.message);
     res.status(500).json({ erro: 'Falha a atualizar o item' });
