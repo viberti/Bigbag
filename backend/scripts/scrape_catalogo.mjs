@@ -165,6 +165,29 @@ const FONTES = {
       };
     },
   },
+  // Pingo Doce: SFCC (como Auchan/Continente), ~20k produtos, categoria no path
+  // do URL, nome/marca no JSON-LD. SEM EAN (não o publica). Útil para nome+categoria
+  // dos itens de talões DO Pingo Doce (cadeia grande). Aceita o nosso UA de bot.
+  pingodoce: {
+    sitemapIndex: 'https://www.pingodoce.pt/home/sitemap_index.xml',
+    sitemapMatch: /-product\.xml/i,
+    filtros: [],
+    skuDoUrl: (u) => u.match(/-(\d+)\.html?$/)?.[1] || null,
+    extrair(url, html) {
+      const p = jsonLdProduct(html); if (!p) return null;
+      const nome = String(p.name || '').trim(); if (!nome) return null;
+      const preco = num(Array.isArray(p.offers) ? p.offers[0]?.price : p.offers?.price);
+      const niveis = new URL(url).pathname.split('/').filter(Boolean).slice(2, -1); // tira 'home','produtos' e o slug do produto
+      return {
+        ean: null, // o Pingo Doce não publica EAN
+        nome: nome.slice(0, 255), marca: ((typeof p.brand === 'object' ? p.brand?.name : p.brand) || null)?.toString().slice(0, 140) || null,
+        ...niveisToCat(niveis.map((n) => n.slice(0, 90))),
+        preco, moeda: (Array.isArray(p.offers) ? p.offers[0]?.priceCurrency : p.offers?.priceCurrency) || 'EUR',
+        imagem_url: ((Array.isArray(p.image) ? p.image[0] : p.image) || null)?.toString().slice(0, 600) || null,
+        ...comporFormatoPreco(p, nome, preco),
+      };
+    },
+  },
 };
 
 async function upsert(pool, fonte, sku, url, f) {
