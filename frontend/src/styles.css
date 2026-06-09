@@ -793,12 +793,24 @@ body { background: #0c1814; }
 .bb .ni-ident { flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px;
   background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--muted-bb); cursor: pointer; }
 .bb .ni-ident:hover { color: var(--accent); border-color: var(--accent); }
-/* Captura por identificar: item já com barcode+fotos (por enviar) muda de cor */
+/* Por identificar (cartões por mercado, estilo "minhas compras") */
+.bb .pid-list { padding: 10px 14px 30px; }
+.bb .pid-grp { margin-bottom: 20px; }
+.bb .pid-cab { display: flex; align-items: center; gap: 12px; padding: 2px 2px 11px; }
+.bb .pid-cab .cmp-logo { width: 44px; height: 44px; }
+.bb .pid-cab-i { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bb .pid-cab-n { font-size: 12.5px; color: var(--faint); font-weight: 600; }
+.bb .pid-card { background: #1b2a22; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.bb .pid-row { display: flex; align-items: center; gap: 12px; padding: 11px 13px; border-top: 1px solid var(--line); transition: background .15s ease; }
+.bb .pid-row:first-child { border-top: none; }
+.bb .pid-row.on { background: var(--accent-soft); }
+.bb .pid-pn { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bb .pid-pn b { font-size: 15px; font-weight: 600; color: var(--text-bb); line-height: 1.2; }
+.bb .pid-nota { font-size: 12px; color: var(--faint); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb .pid-pp { font-size: 14.5px; font-weight: 700; color: var(--text-bb); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+/* item já com barcode+fotos (por enviar) muda de cor */
 .bb .ni-ident.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-.bb .pid-cap { background: linear-gradient(90deg, var(--accent-soft), transparent); border-radius: 8px; }
-.bb .pid-cap .ni-nome { color: var(--accent); font-weight: 600; }
-.bb .pid-badge { flex: 0 0 auto; font-size: 11.5px; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.bb .pid-list { flex: 1 1 auto; }
+.bb .pid-badge { font-size: 11px; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
 .bb .pid-enviar { flex: 0 0 auto; padding: 12px; border-top: 1px solid var(--line); }
 .bb .pid-enviar-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px; border-radius: 12px; border: none; background: var(--accent); color: #06231a; font-weight: 700; font-size: 15px; cursor: pointer; }
 .bb .pid-enviar-btn:disabled { opacity: .6; cursor: default; }
@@ -831,11 +843,11 @@ body { background: #0c1814; }
 .bb .cmp-mono { font-weight: 800; font-size: 16px; letter-spacing: -.02em; color: var(--c); }
 /* Ícones de mercado (filtro) */
 .bb .cmp-lojas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
-.bb .cmp-loja { width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto; display: grid; place-items: center; cursor: pointer;
+.bb .cmp-loja { width: 41px; height: 41px; border-radius: 12px; flex: 0 0 auto; display: grid; place-items: center; cursor: pointer;
   background: #f6f8f7; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); opacity: .55; transition: opacity .12s, transform .12s; }
 .bb .cmp-loja:hover { opacity: .85; }
 .bb .cmp-loja.on { opacity: 1; transform: translateY(-1px); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
-.bb .cmp-loja-mono { font-weight: 800; font-size: 13px; letter-spacing: -.02em; color: var(--c); }
+.bb .cmp-loja-mono { font-weight: 800; font-size: 16px; letter-spacing: -.02em; color: var(--c); }
 .bb .cmp-loja-todos { margin-left: 4px; font-size: 12px; color: var(--muted-bb); background: none; border: none; cursor: pointer; text-decoration: underline; }
 .bb .cmp-ci { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .bb .cmp-nm { font-size: 17.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

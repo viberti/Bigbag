@@ -41,10 +41,15 @@ const Ico = ({ name, size = 21, stroke }) => <span className="ico" dangerouslySe
 // Limpa a marca: o Open Food Facts lista várias separadas por vírgula (incl. a
 // HOLDING, ex.: "Continente, Continente Seleção, SONAE"). Fica com a 1.ª marca real.
 const MARCAS_HOLDING = new Set(['sonae', 'jerónimo martins', 'jeronimo martins', 'auchan holding', 'schwarz']);
+// Padroniza a capitalização da marca: 1.ª letra de cada palavra maiúscula, resto
+// minúscula (o OFF/talão ora vem ALLCAPS ora não → "NESTLE"/"nestle" → "Nestle",
+// "PINGO DOCE" → "Pingo Doce").
+const capMarca = (s) =>
+  String(s || '').toLowerCase().replace(/(^|[\s\-/&.])([a-zà-ÿ])/g, (_, sep, ch) => sep + ch.toUpperCase());
 const limparMarca = (s) => {
   const partes = String(s || '').split(/[,/;]/).map((x) => x.trim()).filter(Boolean);
   const reais = partes.filter((p) => !MARCAS_HOLDING.has(p.toLowerCase()));
-  return (reais[0] || partes[0] || '').trim();
+  return capMarca((reais[0] || partes[0] || '').trim());
 };
 
 // Tenta descodificar um código de barras (EAN/UPC) de uma imagem (zxing). Devolve
@@ -1174,10 +1179,19 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
 function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificados, capturas, enviando, onEnviar }) {
   const pendentes = itens ? itens.filter((it) => !identificados?.[it.item_id]) : null;
   const nCap = capturas ? Object.keys(capturas).length : 0;
+  // agrupa por mercado preservando a ordem (a query já vem ORDER BY loja, produto)
+  const grupos = [];
+  if (pendentes) {
+    let atual = null;
+    for (const it of pendentes) {
+      if (!atual || atual.loja !== it.loja) { atual = { loja: it.loja, itens: [] }; grupos.push(atual); }
+      atual.itens.push(it);
+    }
+  }
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
-      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label="Produtos por identificar">
+      <section className={`sheet ${aberto ? 'open' : ''} cmp`} aria-label="Produtos por identificar">
         <div className="sheet-h">
           <Mark size={30} chip />
           <span className="t">Por identificar{pendentes?.length ? ` · ${pendentes.length}` : ''}</span>
@@ -1185,48 +1199,55 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificado
             <Ico name="close" size={18} />
           </button>
         </div>
-        <div className="notas-list pid-list">
+        <div className="cmp-list pid-list">
           {pendentes === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : pendentes.length === 0 ? (
             <p className="sheet-vazio">Tudo identificado 🎉</p>
           ) : (
-            (() => {
-              let lastLoja = null;
-              const out = [];
-              for (const it of pendentes) {
-                if (it.loja !== lastLoja) {
-                  lastLoja = it.loja;
-                  const n = pendentes.filter((x) => x.loja === it.loja).length;
-                  out.push(
-                    <div key={`loja-${it.loja}`} className="pid-grupo">
-                      {it.loja} · {n}
-                    </div>,
-                  );
-                }
-                const cap = capturas?.[it.item_id];
-                out.push(
-                  <div key={it.item_id} className={`nota-item${cap ? ' pid-cap' : ''}`}>
-                    <span className="ni-nome">{it.produto}</span>
-                    {cap && (
-                      <span className="pid-badge" title="capturado, por enviar">
-                        {cap.ean ? `#${cap.ean.slice(-4)}` : 'sem código'}{cap.fotos?.length ? ` · ${cap.fotos.length}📷` : ''}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className={`ni-ident${cap ? ' on' : ''}`}
-                      onClick={() => onCapturar({ item_id: it.item_id, sku_id: it.sku_id, produto: it.produto })}
-                      title={cap ? 'rever / refazer captura' : 'ler código de barras + fotos'}
-                      aria-label="capturar produto"
-                    >
-                      <Ico name="escanear" size={17} />
-                    </button>
-                  </div>,
-                );
-              }
-              return out;
-            })()
+            grupos.map((g) => {
+              const tema = lojaTema(g.loja);
+              return (
+                <div key={g.loja} className="pid-grp" style={{ '--c': tema.c }}>
+                  <div className="pid-cab">
+                    <span className="cmp-logo"><span className="cmp-mono">{tema.mono}</span></span>
+                    <span className="pid-cab-i">
+                      <span className="cmp-nm">{g.loja}</span>
+                      <span className="pid-cab-n">{g.itens.length} por identificar</span>
+                    </span>
+                  </div>
+                  <div className="pid-card">
+                    {g.itens.map((it) => {
+                      const cap = capturas?.[it.item_id];
+                      const mostraNota = it.descricao && it.descricao !== it.produto;
+                      return (
+                        <div key={it.item_id} className={`pid-row${cap ? ' on' : ''}`}>
+                          <span className="pid-pn">
+                            <b>{it.produto}</b>
+                            {mostraNota && <span className="pid-nota">{it.descricao}</span>}
+                            {cap && (
+                              <span className="pid-badge" title="capturado, por enviar">
+                                {cap.ean ? `#${cap.ean.slice(-4)}` : 'sem código'}{cap.fotos?.length ? ` · ${cap.fotos.length}📷` : ''}
+                              </span>
+                            )}
+                          </span>
+                          {it.preco != null && <span className="pid-pp">{eur(it.preco)}</span>}
+                          <button
+                            type="button"
+                            className={`ni-ident${cap ? ' on' : ''}`}
+                            onClick={() => onCapturar({ item_id: it.item_id, sku_id: it.sku_id, produto: it.produto })}
+                            title={cap ? 'rever / refazer captura' : 'ler código de barras + fotos'}
+                            aria-label="capturar produto"
+                          >
+                            <Ico name="escanear" size={17} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
         {nCap > 0 && (
@@ -1990,7 +2011,7 @@ function ProdutoInfoSheet({ item, onFechar }) {
               {info.fonte === 'catalogo' && info.base && (
                 <div className="info-catalogo">
                   <div className="info-cat-linha">
-                    {info.base.marca && <span className="info-cat-marca">{info.base.marca}</span>}
+                    {info.base.marca && <span className="info-cat-marca">{limparMarca(info.base.marca)}</span>}
                     {info.base.quantidade && <span className="info-cat-tam">{info.base.quantidade}</span>}
                   </div>
                   {info.base.categoria && <div className="info-cat-cat">{info.base.categoria}</div>}
@@ -2322,7 +2343,7 @@ function FonteIdent({ titulo, d, nutri, nova, vazio }) {
           {d.nome && (
             <div className="ident-nome">
               <b>{d.nome}</b>
-              {d.marca ? ` · ${d.marca}` : ''}
+              {d.marca ? ` · ${limparMarca(d.marca)}` : ''}
               {d.quantidade ? ` · ${d.quantidade}` : ''}
             </div>
           )}

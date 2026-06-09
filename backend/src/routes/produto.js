@@ -454,6 +454,8 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
     const [itens] = await getPool().query(`
       SELECT MAX(i.id) AS item_id, MAX(i.sku_id) AS sku_id,
              MAX(COALESCE(s.nome_canonico, i.descricao_original)) AS produto,
+             i.descricao_original AS descricao,
+             CAST(SUBSTRING_INDEX(GROUP_CONCAT(i.preco_liquido ORDER BY i.id DESC), ',', 1) AS DECIMAL(10,2)) AS preco,
              MAX(f.id) AS fatura_id, MAX(f.data_compra) AS data, COALESCE(l.cadeia, l.nome) AS loja
         FROM item i
         LEFT JOIN sku_normalizado s ON s.id = i.sku_id

@@ -3,18 +3,18 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// Versão da app em SEMVER MAJOR.MINOR.PATCH (ex.: "0.55.0"), fonte de verdade no
-// package.json. Mostrada junto ao logo. Regra de incremento (estamos na major 0
-// até estabilizar):
-//   PATCH (0.55.x) → correções e ajustes pequenos (bug fix, tweak de UI);
-//   MINOR (0.x.0)  → funcionalidade nova (nova aba, novo endpoint, novo fluxo);
-//   MAJOR (x.0.0)  → marco grande / quebra (ex.: 1.0 quando estabilizar).
+// Versão da app, fonte de verdade no package.json, mostrada junto ao logo (verbatim
+// — pode ter 4 partes). Estamos em fase BETA e re-baseámos para "0.0.90.x" (em vez
+// de aproximar a 1.0): a major/minor ficam 0.0 e o contador útil é o 3.º segmento.
+// Regra de incremento nesta fase:
+//   4.º seg. (0.0.90.x) → correções e ajustes pequenos (bug fix, tweak de UI);
+//   3.º seg. (0.0.x.0)  → funcionalidade nova (nova aba, novo endpoint, novo fluxo);
+//   1.0.0.0 fica reservado para o marco de estabilização (longe).
 // O PWA (autoUpdate) trata da cache; a versão é só informativa para o utilizador.
 function versaoApp() {
   try {
     const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url)));
-    const [maj = '0', min = '0', pat = '0'] = String(pkg.version || '0.0.0').split('.');
-    return `${maj}.${min}.${pat}`;
+    return String(pkg.version || '0.0.0');
   } catch {
     return '0.0.0';
   }
