@@ -12,6 +12,14 @@ const APPLY = process.argv.includes('--apply');
 const LIMIAR = 0.85;
 const pool = getPool();
 
+// peso/volume lido no nome ("330g", "475g", "6*1l"); null se não houver.
+const tamanho = (d) => {
+  const m = String(d).match(/(\d+\s*[x*]\s*)?\d+[.,]?\d*\s*(kg|gr?s?|ml|cl|lt|l|un|dz)\b/i);
+  return m ? m[0].replace(/\s+/g, '').toLowerCase() : null;
+};
+// só funde se o TAMANHO bater (ou ambos sem tamanho) — OCR muda letras, não o pack.
+const mesmoTamanho = (a, b) => { const ta = tamanho(a), tb = tamanho(b); return !ta || !tb ? true : ta === tb; };
+
 const [ident] = await pool.query(`
   SELECT i.id, i.sku_id, i.descricao_original d, COALESCE(l.cadeia,l.nome) cadeia,
          (SELECT MAX(pe.ean) FROM produto_ean pe WHERE pe.item_id=i.id AND pe.ean IS NOT NULL) ean
@@ -30,7 +38,7 @@ for (const o of orfaos) {
   if (ident.some((x) => x.cadeia === o.cadeia && x.d === o.d)) continue;
   // candidatos: mesmo sku+cadeia, descrição DIFERENTE, com EAN.
   const cands = ident
-    .filter((x) => x.sku_id === o.sku_id && x.cadeia === o.cadeia && x.d !== o.d && x.ean)
+    .filter((x) => x.sku_id === o.sku_id && x.cadeia === o.cadeia && x.d !== o.d && x.ean && mesmoTamanho(o.d, x.d))
     .map((x) => ({ x, s: razaoCaractere(o.d, x.d) }))
     .sort((a, b) => b.s - a.s);
   const top = cands[0];
