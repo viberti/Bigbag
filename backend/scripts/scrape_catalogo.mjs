@@ -9,7 +9,8 @@
 import { getPool } from '../src/db.js';
 import { extrairFormato, precoPorBase } from '../src/normaliza/formato.js';
 
-const UA = 'Mozilla/5.0 (compatible; BigbagBot/0.1; +catálogo pessoal)';
+// NB: sem acentos — o Continente devolve HTTP 400 se o User-Agent tiver chars não-ASCII.
+const UA = 'Mozilla/5.0 (compatible; BigbagBot/0.1; +catalogo pessoal)';
 const FONTE = (process.argv[2] || '').toLowerCase();
 const LIMITE = Number(process.argv[3] || process.env.LIMITE || 0);
 const POOL = Number(process.env.POOL || 4);
