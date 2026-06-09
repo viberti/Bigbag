@@ -20,6 +20,27 @@ function formatoCompativel(a, b) {
   return r > 0.8 && r < 1.25; // ±25%
 }
 
+// PORTA de marca: a marca do candidato (catálogo) tem de aparecer no item do talão.
+// Exige TODOS os tokens da marca presentes (evita falsos como "Pingo Doce" a casar
+// só por "doce"). Sem marca no candidato, ou marca ausente no item → não confirma.
+// É o que separa o Caso 2 (marca nacional, mesmo GTIN) do Caso 1 (marca-própria).
+function marcaBate(item, marcaCand) {
+  const bm = toks(marcaCand);
+  if (!bm.length) return false;
+  const hay = new Set(toks(`${item.descricao} ${item.marca || ''}`));
+  return bm.every((t) => hay.has(t));
+}
+
+// Peso do PREÇO (€/base): sinal mole e graduado, só quando ambos presentes. Cross-loja
+// e cross-data → "igual" realista = "muito próximo". Próximo sobe a confiança; longe baixa.
+function precoPeso(itemPpb, candPpb) {
+  if (!itemPpb || !candPpb) return 0;
+  const r = itemPpb / candPpb;
+  if (r > 0.85 && r < 1.18) return 0.15;  // muito próximo → bónus
+  if (r > 0.6 && r < 1.66) return 0;      // mais ou menos → neutro
+  return -0.2;                            // muito longe → penaliza
+}
+
 function pontuar(item, cand) {
   const qi = toks(`${item.descricao} ${item.marca || ''}`);
   const tc = new Set(toks(`${cand.nome} ${cand.marca || ''}`));
@@ -43,16 +64,17 @@ export async function candidatosCatalogo(pool, item, limite = 12) {
   // 1) Gera EANs candidatos: procura CADA token distintivo SEPARADAMENTE (evita que
   // um token comum encha o LIMIT e corte o match específico — ex.: "frosties").
   const chave = q.sort((a, b) => b.length - a.length).slice(0, 4);
-  const meta = new Map(); // ean → { marca, categoria_path, fontes:Set }
+  const meta = new Map(); // ean → { marca, categoria_path, fontes:Set, ppb }
   for (const tok of chave) {
     const [rows] = await pool.query(
-      `SELECT ean, marca, categoria_path, fonte FROM catalogo_produto
+      `SELECT ean, marca, categoria_path, fonte, preco_por_base FROM catalogo_produto
          WHERE ean IS NOT NULL AND ean <> '' AND nome LIKE ? LIMIT 40`, [`%${tok}%`]);
     for (const r of rows) {
-      if (!meta.has(r.ean)) meta.set(r.ean, { marca: r.marca, categoria_path: r.categoria_path, fontes: new Set() });
+      if (!meta.has(r.ean)) meta.set(r.ean, { marca: r.marca, categoria_path: r.categoria_path, fontes: new Set(), ppb: r.preco_por_base });
       const m = meta.get(r.ean);
       m.fontes.add(r.fonte);
       if (!m.marca && r.marca) m.marca = r.marca;
+      if (r.preco_por_base != null && (m.ppb == null || r.preco_por_base < m.ppb)) m.ppb = r.preco_por_base;
     }
   }
   if (!meta.size) return [];
@@ -60,15 +82,20 @@ export async function candidatosCatalogo(pool, item, limite = 12) {
   // cada EAN e pontua contra a MELHOR variante → a tese (match contra todas as fontes).
   const nomes = await nomesPorEan(pool, [...meta.keys()]);
   return [...meta.entries()].map(([ean, m]) => {
+    // PORTA: a marca do candidato tem de aparecer no talão — senão não arriscamos
+    // (é o que evita o "BIO MILHO DOCE" → Bonduelle, marca que o talão não traz).
+    if (!marcaBate(item, m.marca)) return null;
     const variantes = [...(nomes.get(ean) || [])];
     let melhor = variantes[0] || '', best = 0;
     for (const n of variantes) { const s = pontuar(item, { nome: n, marca: m.marca }); if (s > best) { best = s; melhor = n; } }
     // EANs com prefixo "2" são códigos INTERNOS de loja (peso variável) — não são
     // GTINs reais nem têm nutrição no OFF; despriorizar para o GTIN real ganhar.
-    const score = /^2/.test(ean) ? best * 0.6 : best;
+    let score = /^2/.test(ean) ? best * 0.6 : best;
+    // preço (€/base) como peso graduado: muito próximo sobe, muito longe baixa.
+    score = Math.max(0, Math.min(1, score + precoPeso(item.preco_por_base, m.ppb)));
     const fonte = [...m.fontes].join('+');
-    return { ean, nome: melhor, nomes: variantes, marca: m.marca, categoria_path: m.categoria_path, fonte, origem: fonte, score };
-  }).sort((a, b) => b.score - a.score).slice(0, limite);
+    return { ean, nome: melhor, nomes: variantes, marca: m.marca, categoria_path: m.categoria_path, preco_por_base: m.ppb, fonte, origem: fonte, score };
+  }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, limite);
 }
 
 // ── Candidatos do Open Food Facts (por nome) ───────────────────────────────
