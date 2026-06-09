@@ -12,16 +12,16 @@ const parseNutri = (v) => { if (!v) return null; try { return typeof v === 'stri
 export async function nomesPorEan(pool, eans) {
   const lista = [...new Set(eans.map(limpaEan).filter(Boolean))];
   if (!lista.length) return new Map();
-  const [rows] = await pool.query(
-    `SELECT ean, nome FROM catalogo_produto WHERE ean IN (?) AND nome IS NOT NULL
-       UNION ALL
-     SELECT ean, nome FROM produto_ean WHERE ean IN (?) AND nome IS NOT NULL`,
-    [lista, lista],
-  );
+  // duas queries separadas (evita "Illegal mix of collations" no UNION) e funde em JS.
+  const [[cat], [pe]] = await Promise.all([
+    pool.query('SELECT ean, nome FROM catalogo_produto WHERE ean IN (?) AND nome IS NOT NULL', [lista]),
+    pool.query('SELECT ean, nome FROM produto_ean WHERE ean IN (?) AND nome IS NOT NULL', [lista]),
+  ]);
   const m = new Map();
-  for (const r of rows) {
-    if (!m.has(r.ean)) m.set(r.ean, new Set());
-    m.get(r.ean).add(r.nome);
+  for (const r of [...cat, ...pe]) {
+    const k = String(r.ean);
+    if (!m.has(k)) m.set(k, new Set());
+    m.get(k).add(r.nome);
   }
   return m;
 }
