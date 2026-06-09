@@ -45,6 +45,14 @@ export const config = {
     faturas: process.env.UPLOAD_DIR_FATURAS || './uploads/comprovantes',
     voz: process.env.UPLOAD_DIR_VOZ || './uploads/notas_voz',
   },
+  // Lidl Plus (faturas digitais com EAN por linha). Só o refresh token é segredo
+  // (vai no .env); o login inicial (browser+password+OTP) faz-se à parte com a
+  // ferramenta `lidl-plus` e nunca toca no Bigbag. Ver src/ingest/lidlplus.js.
+  lidlplus: {
+    refreshToken: process.env.LIDLPLUS_REFRESH_TOKEN || '',
+    country: process.env.LIDLPLUS_COUNTRY || 'PT',
+    language: process.env.LIDLPLUS_LANGUAGE || 'pt',
+  },
 };
 
 function parseTestUsers(raw) {
