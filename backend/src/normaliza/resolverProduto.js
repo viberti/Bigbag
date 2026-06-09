@@ -65,14 +65,15 @@ function produtoOverlap(item, nomeCand, marcaCand, idf) {
   return den ? num / den : 0;
 }
 
-// Peso do PREÇO (€/base): sinal mole e graduado, só quando ambos presentes. Cross-loja
-// e cross-data → "igual" realista = "muito próximo". Próximo sobe a confiança; longe baixa.
-function precoPeso(itemPpb, candPpb) {
-  if (!itemPpb || !candPpb) return 0;
+// PORTA de preço (FILTRO DE DISPARATE, não desempate fino): preço é cross-loja/data e
+// o €/base varia com a embalagem, por isso NÃO se usa para escolher entre vizinhos a
+// cêntimos (isso promovia a variante errada). Serve só para matar o GROSSEIRAMENTE
+// fora — >5× num sentido = quase de certeza outro produto (ex.: requeijão €1,51 vs
+// queijo €16,69). Margem larga p/ tolerar diferença de loja/promo/tamanho e unidades.
+function precoDisparate(itemPpb, candPpb) {
+  if (!itemPpb || !candPpb) return false; // sem preço → não filtra
   const r = itemPpb / candPpb;
-  if (r > 0.85 && r < 1.18) return 0.15;  // muito próximo → bónus
-  if (r > 0.6 && r < 1.66) return 0;      // mais ou menos → neutro
-  return -0.2;                            // muito longe → penaliza
+  return r > 5 || r < 0.2;
 }
 
 function pontuar(item, cand, idf) {
@@ -127,11 +128,12 @@ export async function candidatosCatalogo(pool, item, limite = 12) {
     // PORTA do produto: o substantivo distintivo (sem a marca) tem de bater em ≥50%
     // do PESO — mata "requeijão→água", "mel rosmaninho→mel laranjeira", variantes erradas.
     if (produtoOverlap(item, melhor, m.marca, idf) < 0.5) return null;
+    // PORTA de preço: mata disparates (>5× fora) — ex.: "REQUEIJÃO €1,51/kg" → "QUEIJO
+    // Serra Estrela €16,69/kg". Não desempata fino (isso erra a variante).
+    if (precoDisparate(item.preco_por_base, m.ppb)) return null;
     // EANs com prefixo "2" são códigos INTERNOS de loja (peso variável) — não são
     // GTINs reais nem têm nutrição no OFF; despriorizar para o GTIN real ganhar.
-    let score = /^2/.test(ean) ? best * 0.6 : best;
-    // preço (€/base) como peso graduado: muito próximo sobe, muito longe baixa.
-    score = Math.max(0, Math.min(1, score + precoPeso(item.preco_por_base, m.ppb)));
+    const score = /^2/.test(ean) ? best * 0.6 : best;
     const fonte = [...m.fontes].join('+');
     return { ean, nome: melhor, nomes: variantes, marca: m.marca, categoria_path: m.categoria_path, preco_por_base: m.ppb, fonte, origem: fonte, score };
   }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, limite);
