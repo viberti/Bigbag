@@ -185,7 +185,12 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
          LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
         WHERE i.is_non_product = 0 AND i.ean IS NULL
           AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
-          AND NOT EXISTS (SELECT 1 FROM produto_ean pe WHERE pe.item_id = i.id AND pe.ean IS NOT NULL)
+          -- já identificado: QUALQUER compra com o MESMO nome já tem EAN (aprovar uma
+          -- vale para todas — não re-propõe o que já casaste, mesmo que só 1 das compras
+          -- tenha ganho a ficha produto_ean).
+          AND NOT EXISTS (
+            SELECT 1 FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
+             WHERE i2.descricao_original = i.descricao_original AND pe.ean IS NOT NULL)
           AND NOT EXISTS (SELECT 1 FROM match_ean_sugestao m WHERE m.descricao = i.descricao_original)
         GROUP BY i.descricao_original
         LIMIT ?`, [limite]);
