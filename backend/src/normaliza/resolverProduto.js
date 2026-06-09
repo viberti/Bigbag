@@ -1,0 +1,114 @@
+// Resolve um item de talão (nome abreviado) → produto real (EAN + nutrição),
+// juntando candidatos do CATÁLOGO local (Auchan/Continente, com EAN por nome PT)
+// e do OPEN FOOD FACTS (por nome, traz marcas-próprias + nutrição). Pontua por
+// tokens/marca/formato e, opcionalmente, confirma com um JUIZ LLM (distingue
+// variantes: caixa vs barras, culinário vs leite — onde o token-overlap falha).
+import { chatCompletion } from '../openrouter.js';
+import { extrairFormato } from './formato.js';
+
+const STOP = new Set(['de','da','do','e','com','sem','para','por','kg','kgs','g','gr','grs','ml','cl','lt','l','un','und','unid','sabor','tipo','pack','x','the','of']);
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const toks = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOP.has(t));
+
+// Formatos compatíveis? (ex.: 330g vs 6x25g → incompatível). null = desconhecido (não penaliza).
+function formatoCompativel(a, b) {
+  const fa = extrairFormato(a), fb = extrairFormato(b);
+  if (!fa || !fb || fa.formato_valor == null || fb.formato_valor == null) return null;
+  if (fa.unidade_base !== fb.unidade_base) return false;
+  const r = fa.formato_valor / fb.formato_valor;
+  return r > 0.8 && r < 1.25; // ±25%
+}
+
+function pontuar(item, cand) {
+  const qi = toks(`${item.descricao} ${item.marca || ''}`);
+  const tc = new Set(toks(`${cand.nome} ${cand.marca || ''}`));
+  if (!qi.length) return 0;
+  let hit = 0;
+  for (const t of qi) if (tc.has(t)) hit++;
+  let score = hit / qi.length;
+  // bónus de marca
+  if (item.marca && tc.has(norm(item.marca).split(' ')[0])) score += 0.15;
+  // formato
+  const fc = formatoCompativel(item.descricao, cand.nome);
+  if (fc === false) score -= 0.35; // formato incompatível → forte penalização
+  if (fc === true) score += 0.1;
+  return Math.max(0, Math.min(1, score));
+}
+
+// ── Candidatos do catálogo local (só com EAN) ──────────────────────────────
+export async function candidatosCatalogo(pool, item, limite = 12) {
+  const q = toks(`${item.descricao} ${item.marca || ''}`);
+  if (!q.length) return [];
+  // procura pelos 3 tokens mais distintivos (mais longos)
+  const chave = [...q].sort((a, b) => b.length - a.length).slice(0, 3);
+  const likes = chave.map(() => 'nome LIKE ?').join(' OR ');
+  const params = chave.map((t) => `%${t}%`);
+  const [rows] = await pool.query(
+    `SELECT ean, nome, marca, categoria_path, fonte FROM catalogo_produto
+       WHERE ean IS NOT NULL AND ean <> '' AND (${likes}) LIMIT 80`,
+    params,
+  );
+  return rows
+    .map((r) => ({ ...r, origem: r.fonte, score: pontuar(item, r) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limite);
+}
+
+// ── Candidatos do Open Food Facts (por nome) ───────────────────────────────
+export async function candidatosOFF(item, limite = 8) {
+  const termos = toks(`${item.marca || ''} ${item.descricao}`).join(' ');
+  if (!termos) return [];
+  try {
+    const u = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(termos)}&search_simple=1&action=process&json=1&page_size=${limite}&fields=code,product_name,brands,quantity,nutriscore_grade,nova_group`;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
+    const r = await fetch(u, { headers: { 'User-Agent': 'Bigbag/0.1 (laboratorio pessoal)' }, signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) return [];
+    const j = await r.json();
+    return (j.products || [])
+      .filter((p) => p.code && p.product_name)
+      .map((p) => ({ ean: String(p.code), nome: p.product_name, marca: p.brands || null, origem: 'off', score: pontuar(item, { nome: p.product_name, marca: p.brands }) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limite);
+  } catch {
+    return [];
+  }
+}
+
+// ── Juiz LLM: qual candidato é O MESMO produto (ou nenhum)? ─────────────────
+async function juiz(item, candidatos) {
+  const lista = candidatos.map((c, i) => `${i + 1}. ${c.nome}${c.marca ? ` (${c.marca})` : ''} [EAN ${c.ean}]`).join('\n');
+  const messages = [
+    { role: 'system', content: 'És um normalizador de produtos de supermercado português. Dada a descrição ABREVIADA de um item de talão e uma lista de candidatos, escolhe o que é EXATAMENTE o mesmo produto (mesma variante, sabor e formato). Se nenhum corresponde com confiança, devolve indice null. Distingue variantes (ex.: caixa de cereais ≠ barras; culinário ≠ leite; 330g ≠ 6x25g). Responde só JSON: {"indice": n|null, "confianca": 0..1, "motivo": "curto"}.' },
+    { role: 'user', content: `ITEM DO TALÃO: "${item.descricao}"${item.marca ? ` | marca: ${item.marca}` : ''}\n\nCANDIDATOS:\n${lista}` },
+  ];
+  try {
+    const txt = await chatCompletion({ messages, responseFormat: { type: 'json_object' }, contexto: 'match_produto' });
+    const j = JSON.parse(txt);
+    const idx = Number.isInteger(j.indice) ? j.indice - 1 : null;
+    if (idx == null || idx < 0 || idx >= candidatos.length) return { escolha: null, confianca: 0, motivo: j.motivo };
+    return { escolha: candidatos[idx], confianca: Number(j.confianca) || 0, motivo: j.motivo };
+  } catch {
+    return { escolha: null, confianca: 0, motivo: 'erro juiz' };
+  }
+}
+
+// ── Orquestrador ───────────────────────────────────────────────────────────
+// item: { descricao, marca? }. Devolve { ean, nome, marca, origem, confianca, via } ou null.
+export async function resolverProduto(pool, item, { usarLLM = true } = {}) {
+  const [cat, off] = await Promise.all([candidatosCatalogo(pool, item), candidatosOFF(item)]);
+  const todos = [...cat, ...off].filter((c) => c.score > 0).sort((a, b) => b.score - a.score);
+  if (!todos.length) return null;
+
+  // atalho: candidato muito forte por pontuação (token+marca+formato) → aceita sem LLM
+  const top = todos[0];
+  if (top.score >= 0.85) return { ...top, confianca: top.score, via: 'pontuacao' };
+
+  if (!usarLLM) return top.score >= 0.5 ? { ...top, confianca: top.score, via: 'pontuacao' } : null;
+
+  // juiz LLM sobre os melhores candidatos
+  const { escolha, confianca, motivo } = await juiz(item, todos.slice(0, 6));
+  if (!escolha) return null;
+  return { ...escolha, confianca, motivo, via: 'llm' };
+}
