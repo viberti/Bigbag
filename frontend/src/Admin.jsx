@@ -1017,11 +1017,12 @@ function Conf({ v }) {
 function TabItens({ onAbrirNota }) {
   const [q, setQ] = useState('');
   const [busca, setBusca] = useState('');
+  const [ordenar, setOrdenar] = useState('loja'); // loja (loja+alfabético) | recente
   const [dados, setDados] = useState(null);
   useEffect(() => {
     setDados(null);
-    adm.listarItens(busca).then((d) => setDados(d.itens || [])).catch(() => setDados([]));
-  }, [busca]);
+    adm.listarItens(busca, ordenar).then((d) => setDados(d.itens || [])).catch(() => setDados([]));
+  }, [busca, ordenar]);
 
   const fmt = (v, d = 2) => (v == null ? '—' : Number(v).toFixed(d).replace('.', ','));
   const flag = (cond, label, cls) => (cond ? <span className={`adm-flag ${cls}`}>{label}</span> : null);
@@ -1038,6 +1039,9 @@ function TabItens({ onAbrirNota }) {
         />
         <button onClick={() => setBusca(q.trim())}>procurar</button>
         {busca && <button onClick={() => { setQ(''); setBusca(''); }}>limpar</button>}
+        <span className="adm-it-ord">ordenar:</span>
+        <button className={ordenar === 'loja' ? 'on' : ''} onClick={() => setOrdenar('loja')}>loja A-Z</button>
+        <button className={ordenar === 'recente' ? 'on' : ''} onClick={() => setOrdenar('recente')}>recente</button>
         <span className="adm-sug-dica">o item tal como aparece no talão + tudo o que extraímos — para diagnosticar/corrigir</span>
       </div>
       {dados === null ? (
@@ -1068,9 +1072,21 @@ function TabItens({ onAbrirNota }) {
               </tr>
             </thead>
             <tbody>
-              {dados.map((it) => (
-                <tr key={it.id}>
-                  <td className="adm-it-nome">{it.descricao_original}</td>
+              {(() => {
+                const linhas = [];
+                let lastLoja = null;
+                for (const it of dados) {
+                  if (ordenar === 'loja' && it.loja !== lastLoja) {
+                    lastLoja = it.loja;
+                    linhas.push(
+                      <tr key={`g-${it.loja}`} className="adm-it-grupo">
+                        <td colSpan={15}>{it.loja} · {dados.filter((x) => x.loja === it.loja).length}</td>
+                      </tr>,
+                    );
+                  }
+                  linhas.push(
+                    <tr key={it.id}>
+                      <td className="adm-it-nome">{it.descricao_original}</td>
                   <td>{it.loja}</td>
                   <td>{dataCurta(it.data)}</td>
                   <td>{fmt(it.quantidade, 3)}</td>
@@ -1094,8 +1110,11 @@ function TabItens({ onAbrirNota }) {
                       {it.numero_fatura ? `#${it.numero_fatura}` : `nota ${it.fatura_id}`}
                     </button>
                   </td>
-                </tr>
-              ))}
+                    </tr>,
+                  );
+                }
+                return linhas;
+              })()}
             </tbody>
           </table>
         </div>

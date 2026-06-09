@@ -593,6 +593,8 @@ body {
 .adm-flag.f-pf { background: #5a4a1a; color: #ffe699; }
 .adm-flag.f-pi { background: #23405a; color: #9fd0ff; }
 .adm-link-min { background: none; border: none; color: #7fb0ff; cursor: pointer; font: inherit; padding: 0; text-decoration: underline; white-space: nowrap; }
+.adm-it-ord { color: var(--muted); font-size: 12.5px; margin-left: 8px; }
+.adm-it-grupo td { background: #1a2730; font-weight: 700; color: var(--texto); font-size: 13px; padding: 9px 10px; position: sticky; left: 0; }
 .q-bom { color: var(--verde); }
 .q-medio { color: #e0b341; }
 .q-mau { color: #ff8a80; }
