@@ -21,7 +21,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
 const locs = (xml) => [...String(xml).matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1]);
 const prettify = (s) => String(s || '').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
-const decode = (s) => String(s || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&[a-z]+;/gi, ' ').trim();
+const ENT = { amp: '&', quot: '"', apos: "'", nbsp: ' ', aacute: 'á', agrave: 'à', acirc: 'â', atilde: 'ã',
+  eacute: 'é', egrave: 'è', ecirc: 'ê', iacute: 'í', oacute: 'ó', ocirc: 'ô', otilde: 'õ', uacute: 'ú', ccedil: 'ç',
+  Aacute: 'Á', Atilde: 'Ã', Acirc: 'Â', Eacute: 'É', Ecirc: 'Ê', Iacute: 'Í', Oacute: 'Ó', Ocirc: 'Ô', Otilde: 'Õ', Uacute: 'Ú', Ccedil: 'Ç' };
+const decode = (s) => String(s || '')
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+  .replace(/&([a-z]+);/gi, (m, n) => (n in ENT ? ENT[n] : ' '))
+  .replace(/\s+/g, ' ').trim();
 
 async function fetchText(url, tentativas = 3) {
   for (let i = 0; i < tentativas; i++) {
@@ -96,15 +103,15 @@ const FONTES = {
       const nome = String(p.name || '').trim(); if (!nome) return null;
       const preco = num(Array.isArray(p.offers) ? p.offers[0]?.price : p.offers?.price);
       // EAN real: parâmetro &ean= numa URL embebida (o JSON-LD não traz gtin13).
-      const ean = (html.match(/[?&]ean=(\d{8,14})/i)?.[1]) || null;
-      // categoria: breadcrumb no HTML (anchors), tirando "Início" e o nome do produto.
+      // No HTML o '&' vem como '&amp;' → o char antes de 'ean=' é ';'. Aceita ?, &, ;.
+      const ean = (html.match(/[?&;]ean=(\d{8,14})/i)?.[1]) || null;
+      // categoria: breadcrumb schema.org — nomes em <span itemprop="name">, tirando o "Página inicial".
       let niveis = [];
-      const bi = html.indexOf('product-breadcrumb');
+      const bi = html.search(/class="breadcrumbs"/);
       if (bi >= 0) {
-        niveis = [...html.slice(bi, bi + 4000).matchAll(/<a\b[^>]*>([^<]{1,60})<\/a>/gi)]
+        niveis = [...html.slice(bi, bi + 8000).matchAll(/itemprop="name"[^>]*>([^<]{1,80})<\/span>/gi)]
           .map((m) => decode(m[1])).filter(Boolean)
-          .filter((t) => !/^(in[ií]cio|home|continente)$/i.test(t));
-        if (niveis.length && niveis[niveis.length - 1].toLowerCase() === nome.toLowerCase()) niveis = niveis.slice(0, -1);
+          .filter((t) => !/^(p[aá]gina inicial|in[ií]cio|home)$/i.test(t));
       }
       return {
         ean, nome: nome.slice(0, 255), marca: ((typeof p.brand === 'object' ? p.brand?.name : p.brand) || null)?.toString().slice(0, 140) || null,
