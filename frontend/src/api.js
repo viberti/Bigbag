@@ -196,9 +196,10 @@ export async function infoProduto({ itemId, ean, skuId }) {
   return r.json(); // { ean, vlm, off, fonte, fotos, existe }
 }
 
-export async function analiseProduto({ itemId, ean, forcar }) {
+export async function analiseProduto({ itemId, ean, skuId, forcar }) {
   const qs = new URLSearchParams();
   if (itemId) qs.set('item_id', itemId);
+  else if (skuId) qs.set('sku_id', skuId);
   if (ean) qs.set('ean', ean);
   if (forcar) qs.set('forcar', '1');
   const r = await call(`/api/produto/analise?${qs}`);

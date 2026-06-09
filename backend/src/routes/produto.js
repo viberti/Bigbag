@@ -461,10 +461,11 @@ produtoRouter.get('/analise', requireAuth, async (req, res) => {
   try {
     const itemId = Number(req.query.item_id) || null;
     const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
+    const skuId = Number(req.query.sku_id) || null;
     const forcar = String(req.query.forcar || '') === '1';
-    if (!itemId && !eanQ) return res.status(400).json({ erro: 'item_id ou ean em falta' });
+    if (!itemId && !eanQ && !skuId) return res.status(400).json({ erro: 'item_id, sku_id ou ean em falta' });
 
-    const info = await consolidarProduto({ itemId, eanQ });
+    const info = await consolidarProduto({ itemId, eanQ, skuId });
     if (!info.existe) return res.status(404).json({ erro: 'Produto sem dados para analisar' });
     const ean = info.ean || null;
     // chave de cache: EAN (embalados) ou sku:<id> (frescos genéricos)

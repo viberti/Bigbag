@@ -1644,17 +1644,19 @@ function ProdutoInfoSheet({ item, onFechar }) {
     infoProduto({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
       .then(setInfo)
       .catch(() => setInfo({ erro: true }));
-    // análise/avaliação precisam de item ou EAN; para um genérico só-SKU (foto
-    // solta de fresco) não há — mostra-se só a nutrição típica, sem pendurar.
-    if (item.id || item.ean) {
-      analiseProduto({ itemId: item.id, ean: item.ean })
+    // a análise corre por item/EAN OU por SKU (fresco genérico, foto solta — o
+    // /analise gera o parecer da nutrição típica). A avaliação personalizada só
+    // por item/EAN (precisa do perfil ativo).
+    if (item.id || item.ean || item.sku_id) {
+      analiseProduto({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
         .then((r) => setAnalise(r.analise || { erro: true }))
         .catch(() => setAnalise({ erro: true }));
+    } else setAnalise({ erro: true });
+    if (item.id || item.ean) {
       avaliacaoPersonalizada({ itemId: item.id, ean: item.ean })
         .then((r) => setAval(r?.perfil ? r : null))
         .catch(() => setAval(null));
     } else {
-      setAnalise({ erro: true });
       setAval(null);
     }
   }, [item]);
