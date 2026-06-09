@@ -115,27 +115,35 @@ Regras: foca-te nos OBJETIVOS/restrições/nutrientes do perfil — não repitas
 
 // Avaliação personalizada do produto para um perfil (LLM).
 export async function avaliarParaPerfil(produto, resumo, { timeoutMs } = {}) {
-  const ctrl = new AbortController();
-  const to = setTimeout(() => ctrl.abort(), timeoutMs || 25000);
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
-      body: JSON.stringify({
-        model: config.openrouter.modelConsulta,
-        messages: [
-          { role: 'system', content: PROMPT_AVALIAR },
-          { role: 'user', content: 'PERFIL:\n' + JSON.stringify(resumo) + '\n\nPRODUTO:\n' + JSON.stringify(produto) },
-        ],
-        response_format: { type: 'json_object' },
-        usage: { include: true },
-      }),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
-    const data = await res.json();
-    return { avaliacao: parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}'), custo: Number(data.usage?.cost) || 0 };
-  } finally {
-    clearTimeout(to);
+  // Sem cache (corre a cada visualização) → tolera o JSON ocasionalmente truncado
+  // do LLM com 1 retry, para a avaliação não falhar por um soluço pontual.
+  let ultimoErro;
+  for (let tent = 0; tent < 2; tent++) {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), timeoutMs || 25000);
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
+        body: JSON.stringify({
+          model: config.openrouter.modelConsulta,
+          messages: [
+            { role: 'system', content: PROMPT_AVALIAR },
+            { role: 'user', content: 'PERFIL:\n' + JSON.stringify(resumo) + '\n\nPRODUTO:\n' + JSON.stringify(produto) },
+          ],
+          response_format: { type: 'json_object' },
+          usage: { include: true },
+        }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+      const data = await res.json();
+      return { avaliacao: parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}'), custo: Number(data.usage?.cost) || 0 };
+    } catch (e) {
+      ultimoErro = e; // ex.: JSON truncado → tenta mais uma vez
+    } finally {
+      clearTimeout(to);
+    }
   }
+  throw ultimoErro;
 }
