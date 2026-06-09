@@ -30,7 +30,9 @@ async function main() {
            AVG(i.preco_liquido) preco, COUNT(*) compras
       FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id
       LEFT JOIN sku_normalizado s ON s.id=i.sku_id
+      LEFT JOIN produto_generico pg ON pg.sku_id=i.sku_id
      WHERE COALESCE(l.cadeia,l.nome)='Continente' AND i.is_non_product=0 AND i.ean IS NULL
+       AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
        AND NOT EXISTS (SELECT 1 FROM produto_ean pe WHERE pe.item_id=i.id AND pe.ean IS NOT NULL)
      GROUP BY i.descricao_original ORDER BY i.descricao_original`);
 
