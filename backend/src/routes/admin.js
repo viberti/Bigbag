@@ -69,6 +69,10 @@ adminRouter.get('/itens', async (req, res) => {
     const ordenar = req.query.ordenar === 'loja'
       ? 'COALESCE(l.cadeia, l.nome) ASC, i.descricao_original ASC'
       : 'f.data_compra DESC, i.fatura_id DESC, i.id ASC';
+    // por defeito mostra só o RELEVANTE: itens com EAN ou que precisam de um.
+    // Esconde os que não têm EAN nem precisam (frescos, não-produtos, já resolvidos
+    // sem EAN na linha). todos=1 → mostra tudo.
+    const having = req.query.todos === '1' ? '' : 'HAVING (ean IS NOT NULL OR por_identificar = 1)';
     const [itens] = await getPool().query(
       `SELECT i.id, i.descricao_original, i.ean, i.linha_peso, i.quantidade,
               i.preco_unitario, i.preco_liquido, i.preco_por_base, i.peso_em_falta,
@@ -91,6 +95,7 @@ adminRouter.get('/itens', async (req, res) => {
          JOIN fatura f ON f.id = i.fatura_id
          JOIN loja l ON l.id = f.loja_id
         WHERE (? = '' OR i.descricao_original LIKE ? OR COALESCE(l.cadeia, l.nome) LIKE ?)
+        ${having}
         ORDER BY ${ordenar}
         LIMIT 600`,
       [q, like, like],

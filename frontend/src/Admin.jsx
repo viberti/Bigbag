@@ -1148,11 +1148,12 @@ function TabItens({ onAbrirNota }) {
   const [q, setQ] = useState('');
   const [busca, setBusca] = useState('');
   const [ordenar, setOrdenar] = useState('loja'); // loja (loja+alfabético) | recente
+  const [todos, setTodos] = useState(false); // false = só com EAN ou a precisar; true = tudo
   const [dados, setDados] = useState(null);
   useEffect(() => {
     setDados(null);
-    adm.listarItens(busca, ordenar).then((d) => setDados(d.itens || [])).catch(() => setDados([]));
-  }, [busca, ordenar]);
+    adm.listarItens(busca, ordenar, todos).then((d) => setDados(d.itens || [])).catch(() => setDados([]));
+  }, [busca, ordenar, todos]);
 
   const fmt = (v, d = 2) => (v == null ? '—' : Number(v).toFixed(d).replace('.', ','));
   const flag = (cond, label, cls) => (cond ? <span className={`adm-flag ${cls}`}>{label}</span> : null);
@@ -1172,7 +1173,10 @@ function TabItens({ onAbrirNota }) {
         <span className="adm-it-ord">ordenar:</span>
         <button className={ordenar === 'loja' ? 'on' : ''} onClick={() => setOrdenar('loja')}>loja A-Z</button>
         <button className={ordenar === 'recente' ? 'on' : ''} onClick={() => setOrdenar('recente')}>recente</button>
-        <span className="adm-sug-dica">o item tal como aparece no talão + tudo o que extraímos — para diagnosticar/corrigir</span>
+        <button className={todos ? 'on' : ''} onClick={() => setTodos((t) => !t)} title="incluir frescos, não-produtos e já resolvidos sem EAN">
+          {todos ? 'a ver todos' : 'ver todos'}
+        </button>
+        <span className="adm-sug-dica">{todos ? 'todos os itens' : 'só com EAN ou a precisar de identificação'} — o item como no talão + tudo o que extraímos</span>
       </div>
       {dados === null ? (
         <p className="adm-vazio">a carregar…</p>

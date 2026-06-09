@@ -30,8 +30,8 @@ export const fundirSkus = (de, para) => jsend('/api/admin/skus/merge', 'POST', {
 export const sugestoesMerge = (limiar) => jget(`/api/admin/sugestoes-merge?limiar=${limiar}`);
 export const autoMergeIdenticos = () => jsend('/api/admin/skus/auto-merge', 'POST', {});
 export const painel = () => jget('/api/admin/painel');
-export const listarItens = (q, ordenar) =>
-  jget(`/api/admin/itens?ordenar=${ordenar || 'recente'}${q ? '&q=' + encodeURIComponent(q) : ''}`);
+export const listarItens = (q, ordenar, todos) =>
+  jget(`/api/admin/itens?ordenar=${ordenar || 'recente'}${todos ? '&todos=1' : ''}${q ? '&q=' + encodeURIComponent(q) : ''}`);
 export const definirEanItem = (id, ean) => jsend(`/api/admin/itens/${id}/ean`, 'POST', { ean });
 export const atualizarItem = (id, dados) => jsend(`/api/admin/itens/${id}`, 'PATCH', dados);
 export const capturas = (q) => jget(`/api/admin/capturas${q ? '?q=' + encodeURIComponent(q) : ''}`);
