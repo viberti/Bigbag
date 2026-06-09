@@ -1167,16 +1167,29 @@ function TabItens({ onAbrirNota }) {
   const [ordenar, setOrdenar] = useState('loja'); // loja (loja+alfabético) | recente
   const [todos, setTodos] = useState(false); // false = só com EAN ou a precisar; true = tudo
   const [dados, setDados] = useState(null);
+  const [resumo, setResumo] = useState(null);
+  const carregarResumo = () => adm.itensResumo().then(setResumo).catch(() => setResumo(null));
   useEffect(() => {
     setDados(null);
     adm.listarItens(busca, ordenar, todos).then((d) => setDados(d.itens || [])).catch(() => setDados([]));
   }, [busca, ordenar, todos]);
+  useEffect(() => { carregarResumo(); }, []);
 
   const fmt = (v, d = 2) => (v == null ? '—' : Number(v).toFixed(d).replace('.', ','));
   const flag = (cond, label, cls) => (cond ? <span className={`adm-flag ${cls}`}>{label}</span> : null);
 
   return (
     <div className="adm-itens">
+      <div className="adm-cards adm-it-cards">
+        <div className="adm-card">
+          <span className="adm-card-n">{resumo ? resumo.eans : '—'}</span>
+          <span className="adm-card-l">EANs diferentes que temos</span>
+        </div>
+        <div className="adm-card">
+          <span className="adm-card-n adm-card-pend">{resumo ? resumo.por_identificar : '—'}</span>
+          <span className="adm-card-l">produtos sem EAN (a identificar)</span>
+        </div>
+      </div>
       <div className="adm-sug-top">
         <input
           className="adm-it-busca"
@@ -1240,7 +1253,7 @@ function TabItens({ onAbrirNota }) {
                       key={it.id}
                       it={it}
                       onAbrirNota={onAbrirNota}
-                      onPatch={(novo) => setDados((ds) => ds.map((x) => (x.id === it.id ? novo : x)))}
+                      onPatch={(novo) => { setDados((ds) => ds.map((x) => (x.id === it.id ? novo : x))); carregarResumo(); }}
                     />,
                   );
                 }

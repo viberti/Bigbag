@@ -126,6 +126,42 @@ adminRouter.get('/itens', async (req, res) => {
   }
 });
 
+// Resumo para os cartões da aba Itens: quantos EANs distintos temos (união da
+// identificação + linha do talão) e quantos produtos (distintos por loja+nome) que
+// deviam ter EAN ainda não têm (= a worklist "por identificar").
+adminRouter.get('/itens-resumo', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [[eans]] = await pool.query(
+      `SELECT COUNT(*) AS n FROM (
+         SELECT ean FROM produto_ean WHERE ean IS NOT NULL AND ean <> ''
+         UNION
+         SELECT ean FROM item WHERE ean IS NOT NULL AND ean <> ''
+       ) e`,
+    );
+    const [[pend]] = await pool.query(
+      `SELECT COUNT(*) AS n FROM (
+         SELECT 1 FROM item i
+           LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
+           JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
+          WHERE i.is_non_product = 0 AND i.ean IS NULL AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
+            AND NOT EXISTS (SELECT 1 FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
+                              JOIN fatura f2 ON f2.id = i2.fatura_id JOIN loja l2 ON l2.id = f2.loja_id
+                             WHERE (pe.ean IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.off_json IS NOT NULL OR pe.nutricao IS NOT NULL)
+                               AND i2.descricao_original = i.descricao_original
+                               AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
+            AND (SELECT COUNT(DISTINCT pn.ean) FROM produto_nome pn
+                  WHERE pn.nome = i.descricao_original AND pn.ean IS NOT NULL) <> 1
+          GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
+       ) t`,
+    );
+    res.json({ eans: eans.n, por_identificar: pend.n });
+  } catch (e) {
+    console.error('[admin/itens-resumo] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar resumo' });
+  }
+});
+
 // Define (ou limpa) o EAN de um item à mão, na aba Itens. EAN vazio → limpa.
 // EAN preenchido → valida o dígito verificador, grava em item.ean (autoritativo)
 // e enriquece a ficha (Open Food Facts → catálogo local), para o produto ganhar
