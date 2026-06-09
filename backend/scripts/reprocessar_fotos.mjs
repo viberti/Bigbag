@@ -17,8 +17,9 @@ const LIMITE = limArg ? Number(limArg.split('=')[1]) : Infinity;
 function limparVolume(q) {
   if (!q) return null;
   let s = String(q).replace(/℮/g, ' ');
-  s = s.replace(/\bc\s*l\s*e\b/gi, 'cl').replace(/\bm\s*l\s*e\b/gi, 'ml');
-  s = s.replace(/(\d)\s*(cl|ml|kg|g|l)\b/gi, (m, d, u) => `${d} ${u.toLowerCase()}`);
+  s = s.replace(/\bcle\b/gi, 'cl').replace(/\bmle\b/gi, 'ml');        // ℮ colado à unidade
+  s = s.replace(/(\d)\s*(cl|ml|kg|g|l)\b/gi, (m, d, u) => `${d} ${u.toLowerCase()}`); // espaço
+  s = s.replace(/\b(cl|ml|kg|g|l)\s+e\b/gi, '$1');                   // ℮ achatado a "e" após a unidade
   return s.replace(/\s+/g, ' ').trim() || null;
 }
 
