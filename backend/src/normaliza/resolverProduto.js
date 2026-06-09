@@ -11,6 +11,23 @@ const STOP = new Set(['de','da','do','e','com','sem','para','por','kg','kgs','g'
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const toks = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOP.has(t));
 
+// SABOR/VARIANTE: discriminador DURO — se o talão tem um sabor e o candidato tem
+// OUTRO sabor (nenhum em comum), são produtos diferentes (morango ≠ baunilha) e não
+// devem casar. "natural" (liso) também conflita com um sabor. Um sem sabor → não bloqueia.
+const SABORES = new Set([
+  'chocolate', 'choco', 'cacau', 'coco', 'baunilha', 'vanilla', 'morango', 'banana', 'limao',
+  'laranja', 'manga', 'ananas', 'pessego', 'caramelo', 'cafe', 'avela', 'avelas', 'amendoa', 'amendoas',
+  'menta', 'framboesa', 'mirtilo', 'mirtilos', 'frutos', 'vermelhos', 'tropical', 'natural',
+  'pera', 'maracuja', 'cereja', 'noz', 'nozes', 'canela', 'mel', 'pistacio', 'pistachio',
+]);
+const saboresDe = (s) => new Set(toks(s).filter((t) => SABORES.has(t)));
+function saborConflito(a, b) {
+  const sa = saboresDe(a), sb = saboresDe(b);
+  if (!sa.size || !sb.size) return false;      // um dos lados sem sabor → não bloqueia
+  for (const x of sa) if (sb.has(x)) return false; // partilham pelo menos um sabor → ok
+  return true;                                 // ambos têm sabor, nenhum em comum → conflito
+}
+
 // RARIDADE (IDF): cada palavra pesa pela sua raridade no catálogo. "mel" aparece em
 // centenas de produtos → pesa pouco; "rosmaninho" em poucos → pesa muito. Carrega
 // uma vez (cache no processo); a partir daí o match dá importância às palavras que
@@ -94,9 +111,10 @@ function bonusPreco(itPreco, candPreco) {
 //         combinada + confianca [0..1] + alternativas, ou null.
 export async function proporMesmaLoja(pool, item, fonte) {
   const cands = await candidatosCatalogo(pool, item, { fonte, portaMarca: false, limite: 30 });
-  const bons = cands.filter((c) => c.score >= 0.4);
-  if (!bons.length) return null;
   const descRaw = item.descricaoRaw || item.descricao;
+  // porta de sabor pelo nome DO TALÃO (o canónico pode ter perdido o sabor).
+  const bons = cands.filter((c) => c.score >= 0.4 && !saborConflito(descRaw, c.nome));
+  if (!bons.length) return null;
   const hay = new Set(toks(descRaw));
   // MARCAS nacionais CONFIRMADAS pelo talão: a marca de um candidato cujos tokens
   // aparecem TODOS no nome do talão (ex.: "carlsberg"). Se o talão confirma uma
@@ -210,6 +228,8 @@ export async function candidatosCatalogo(pool, item, opts = {}) {
     // PORTA do produto: o substantivo distintivo (sem a marca) tem de bater em ≥50%
     // do PESO — mata "requeijão→água", "mel rosmaninho→mel laranjeira", variantes erradas.
     if (produtoOverlap(item, melhor, m.marca, idf) < 0.5) return null;
+    // PORTA de sabor: morango ≠ baunilha → produtos diferentes, não casar.
+    if (saborConflito(item.descricao, melhor)) return null;
     // PORTA de preço: mata disparates (>5× fora) — ex.: "REQUEIJÃO €1,51/kg" → "QUEIJO
     // Serra Estrela €16,69/kg". Não desempata fino (isso erra a variante).
     if (precoDisparate(item.preco_por_base, m.ppb)) return null;
