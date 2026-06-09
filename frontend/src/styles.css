@@ -776,6 +776,12 @@ body { background: #0c1814; }
 .bb button.nota-item:first-child { border-top: none; }
 .bb button.nota-item.clic:hover .ni-nome { color: var(--accent); }
 .bb .info-generico { margin: 0 0 12px; font-size: 12.5px; color: var(--muted-bb); font-style: italic; }
+.bb .info-catalogo { margin: 0 0 14px; }
+.bb .info-cat-linha { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.bb .info-cat-marca { font-weight: 600; font-size: 15px; }
+.bb .info-cat-tam { font-size: 13px; color: var(--muted-bb); }
+.bb .info-cat-cat { font-size: 12.5px; color: var(--muted-bb); margin-top: 2px; }
+.bb .info-catalogo .info-generico { margin-top: 8px; }
 .bb .ni-nome { flex: 1; color: var(--text-bb); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bb .ni-preco { color: var(--muted-bb); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
 .bb .ni-ident { flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px;

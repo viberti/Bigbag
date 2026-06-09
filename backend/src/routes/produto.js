@@ -17,17 +17,48 @@ const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
 
 const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
 
-// Consulta um produto pelo EAN: nossa base → Open Food Facts (e GUARDA, item_id
-// NULL). Devolve { encontrado, fonte, nome }. Partilhado por /consultar e /foto.
+// Consulta o CATÁLOGO LOCAL (scrapes Auchan/Continente) por EAN: nome/marca/
+// categoria/tamanho — cobre o que o OFF não tem (cervejas, não-alimentares). Sem
+// nutrição (o catálogo não a tem). Prefere a linha COM marca.
+async function consultarCatalogo(ean) {
+  const [[c]] = await getPool().query(
+    `SELECT nome, marca, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria, formato AS quantidade, fonte
+       FROM catalogo_produto
+      WHERE ean = ? AND nome IS NOT NULL AND nome <> ''
+      ORDER BY (marca IS NOT NULL AND marca <> '') DESC, id LIMIT 1`,
+    [ean],
+  );
+  return c || null;
+}
+
+// Consulta um produto pelo EAN: nossa base → Open Food Facts → catálogo local (e
+// GUARDA, item_id NULL). Devolve { encontrado, fonte, nome }. Por /consultar e /foto.
 async function consultarOuGuardar(ean) {
   const [[ja]] = await getPool().query(
     `SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), nome) AS nome
-       FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL) ORDER BY id LIMIT 1`,
+       FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL OR fonte = 'catalogo') ORDER BY id LIMIT 1`,
     [ean],
   );
   if (ja) return { encontrado: true, fonte: 'base', nome: ja.nome || null };
   const off = await consultarOFF(ean);
-  if (!off) return { encontrado: false };
+  if (!off) {
+    // OFF não tem (típico em cervejas/álcool) → catálogo local Auchan/Continente.
+    const cat = await consultarCatalogo(ean);
+    if (!cat) return { encontrado: false };
+    try {
+      await getPool().query(
+        `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, fonte)
+           VALUES (?,NULL,NULL,?,?,?,?, 'catalogo')
+         ON DUPLICATE KEY UPDATE nome=COALESCE(produto_ean.nome, VALUES(nome)), marca=COALESCE(produto_ean.marca, VALUES(marca)),
+           quantidade=COALESCE(produto_ean.quantidade, VALUES(quantidade)), categoria=COALESCE(produto_ean.categoria, VALUES(categoria))`,
+        [ean, cat.nome, cat.marca, cat.quantidade, cat.categoria],
+      );
+      await guardarNomes(ean, null, [{ nome: cat.nome, origem: 'catalogo' }]);
+    } catch (e) {
+      console.error('[consultarOuGuardar] catálogo:', e.message);
+    }
+    return { encontrado: true, fonte: 'catalogo', nome: cat.nome || null };
+  }
   try {
     await getPool().query(
       `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, fonte, off_json)
@@ -99,6 +130,11 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
     vlm = fillGaps(vlm, parseJson(r.vlm_json));
     off = fillGaps(off, parseJson(r.off_json));
   }
+  // dados diretos da linha (ex.: vindos do catálogo Auchan/Continente, sem JSON) —
+  // nome/marca/categoria/tamanho para mostrar mesmo sem OFF/VLM (cervejas, etc.).
+  const base = rows.find((r) => r.nome || r.marca)
+    ? (() => { const r = rows.find((x) => x.nome || x.marca); return { nome: r.nome, marca: r.marca, quantidade: r.quantidade, categoria: r.categoria, fonte: r.fonte }; })()
+    : null;
   const [fotos] = ean
     ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? OR item_id = ? ORDER BY ordem, id', [ean, itemId])
     : itemId
@@ -112,8 +148,9 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   }
 
   const temGenericoNut = !!generico?.nutricao_100g;
-  const fonte = vlm && off ? 'ambos' : off ? 'off' : vlm ? 'vlm' : temGenericoNut ? 'generico' : null;
-  return { ean, vlm, off, generico, skuId, nome, fonte, fotos, existe: rows.length > 0 || temGenericoNut };
+  const fonte = vlm && off ? 'ambos' : off ? 'off' : vlm ? 'vlm'
+    : temGenericoNut ? 'generico' : base?.fonte === 'catalogo' ? 'catalogo' : null;
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;

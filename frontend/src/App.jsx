@@ -1682,6 +1682,16 @@ function ProdutoInfoSheet({ item, onFechar }) {
               {info.fonte === 'generico' && (
                 <p className="info-generico">Valores típicos do alimento (sem rótulo) — estimativa por 100 g.</p>
               )}
+              {info.fonte === 'catalogo' && info.base && (
+                <div className="info-catalogo">
+                  <div className="info-cat-linha">
+                    {info.base.marca && <span className="info-cat-marca">{info.base.marca}</span>}
+                    {info.base.quantidade && <span className="info-cat-tam">{info.base.quantidade}</span>}
+                  </div>
+                  {info.base.categoria && <div className="info-cat-cat">{info.base.categoria}</div>}
+                  <p className="info-generico">Do catálogo (Auchan · Continente) — sem tabela nutricional.</p>
+                </div>
+              )}
               <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g} />
               {info.fotos?.length > 0 && (
                 <div className="info-fotos">
