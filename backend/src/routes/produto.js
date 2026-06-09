@@ -435,6 +435,7 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
         JOIN fatura f ON f.id = i.fatura_id
         JOIN loja l ON l.id = f.loja_id
        WHERE i.is_non_product = 0
+         AND i.ean IS NULL
          AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
          -- identificado se QUALQUER compra com o mesmo nome E na mesma cadeia já tem
          -- EAN (identificar uma "Salada Gourmet" do Continente vale para todas as do

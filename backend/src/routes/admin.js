@@ -8,7 +8,7 @@ import { Router } from 'express';
 import { unlink } from 'node:fs/promises';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { similaridade } from '../normaliza/similaridade.js';
+import { similaridade, razaoCaractere } from '../normaliza/similaridade.js';
 import { mergeNomesIdenticos } from '../normaliza/matcher.js';
 import { pistaCirurgica, validarLinhas } from '../ingest/reconcile.js';
 import { reprocessarFatura } from '../ingest/reprocess.js';
@@ -58,6 +58,9 @@ adminRouter.use(requireAuth);
 
 const str = (v, max = 200) => (v == null ? null : String(v).trim().slice(0, max));
 const normNome = (s) => String(s || '').trim().toLowerCase();
+// peso/volume lido no nome ("330g", "475g"); fundir só se bater (OCR muda letras, não o pack).
+const tamanhoNome = (d) => { const m = String(d || '').match(/(\d+\s*[x*]\s*)?\d+[.,]?\d*\s*(kg|gr?s?|ml|cl|lt|l|un|dz)\b/i); return m ? m[0].replace(/\s+/g, '').toLowerCase() : null; };
+const mesmoTamanho = (a, b) => { const x = tamanhoNome(a), y = tamanhoNome(b); return !x || !y ? true : x === y; };
 
 // === Sugestões de nome canónico (a partir das variantes em produto_nome) ===
 // Lista as sugestões pendentes para o operador rever.
@@ -278,6 +281,26 @@ adminRouter.post('/match-eans/:id/aprovar', async (req, res) => {
     // (melhora o matching futuro). INSERT IGNORE evita duplicar.
     await pool.query('INSERT IGNORE INTO produto_nome (ean, sku_id, nome, origem) VALUES (?,?,?,?)',
       [ean, it?.sku_id || null, sug.descricao, 'talao']).catch(() => {});
+
+    // Propaga o EAN às compras do MESMO produto que diferem só por OCR (mesmo sku +
+    // cadeia + descrição muito parecida + mesmo tamanho) → a câmara não reaparece
+    // nessas (ex.: "CEREATS KELLOGGS" vs "CEREAIS KELLOGG S"). Grava em item.ean.
+    try {
+      if (it?.id && it?.sku_id) {
+        const [[ch]] = await pool.query(
+          'SELECT COALESCE(l.cadeia, l.nome) cadeia FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id WHERE i.id=? LIMIT 1', [it.id]);
+        const [sibs] = await pool.query(
+          `SELECT i.id, i.descricao_original d FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id
+            WHERE i.sku_id=? AND COALESCE(l.cadeia,l.nome)=? AND i.descricao_original<>? AND i.ean IS NULL
+              AND NOT EXISTS (SELECT 1 FROM produto_ean pe WHERE pe.item_id=i.id AND pe.ean IS NOT NULL)`,
+          [it.sku_id, ch?.cadeia || null, sug.descricao]);
+        for (const sb of sibs) {
+          if (mesmoTamanho(sug.descricao, sb.d) && razaoCaractere(sug.descricao, sb.d) >= 0.85) {
+            await pool.query('UPDATE item SET ean = ? WHERE id = ?', [ean, sb.id]);
+          }
+        }
+      }
+    } catch (e) { console.error('[aprovar] propagar ocr:', e.message); }
 
     await pool.query("UPDATE match_ean_sugestao SET estado = 'aprovado', ean = ?, decidido_em = NOW() WHERE id = ?", [ean, id]);
     res.json({ ok: true, ean, nome, com_nutricao: !!nutricao });
