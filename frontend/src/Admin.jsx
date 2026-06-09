@@ -44,6 +44,9 @@ export default function Admin() {
           <button className={aba === 'nomes' ? 'on' : ''} onClick={() => setAba('nomes')}>
             Nomes
           </button>
+          <button className={aba === 'eans' ? 'on' : ''} onClick={() => setAba('eans')}>
+            EANs
+          </button>
           <button className={aba === 'notas' ? 'on' : ''} onClick={() => setAba('notas')}>
             Notas
           </button>
@@ -76,6 +79,8 @@ export default function Admin() {
         <TabFusoes />
       ) : aba === 'nomes' ? (
         <TabNomes />
+      ) : aba === 'eans' ? (
+        <TabEans />
       ) : aba === 'revisao' ? (
         <TabRevisao />
       ) : aba === 'qualidade' ? (
@@ -789,6 +794,106 @@ function TabNomes() {
                 <button onClick={() => aplicar(s)} disabled={ocupado}>Aplicar</button>
                 <button className="adm-rej" onClick={() => rejeitar(s)} disabled={ocupado}>Rejeitar</button>
               </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Matching de EAN: o resolvedor propõe um EAN (do catálogo Auchan/Continente)
+// para cada nome de produto sem EAN; o operador aprova (→ ganha ficha+nutrição),
+// corrige (escolhe uma alternativa) ou rejeita.
+function TabEans() {
+  const [sugestoes, setSugestoes] = useState(null);
+  const [msg, setMsg] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+
+  const recarregar = () => adm.matchEans().then((r) => setSugestoes(r.sugestoes)).catch(() => setSugestoes([]));
+  useEffect(() => { recarregar(); }, []);
+
+  async function gerar() {
+    setOcupado(true);
+    setMsg('a procurar candidatos no catálogo…');
+    try {
+      const r = await adm.gerarMatchEans(60);
+      setMsg(`✓ ${r.novas} proposta(s) de ${r.analisados} produto(s) · ${r.sem_candidato} sem candidato`);
+      await recarregar();
+    } catch {
+      setMsg('falha a gerar');
+    } finally {
+      setOcupado(false);
+    }
+  }
+  async function aprovar(s, ean) {
+    setOcupado(true);
+    try {
+      const r = await adm.aprovarMatchEan(s.id, ean);
+      setMsg(`✓ "${s.descricao}" → EAN ${r.ean}${r.com_nutricao ? ' · com nutrição' : ''}`);
+      setSugestoes((l) => l.filter((x) => x.id !== s.id));
+    } catch {
+      setMsg('falha a aprovar');
+    } finally {
+      setOcupado(false);
+    }
+  }
+  async function rejeitar(s) {
+    setOcupado(true);
+    try {
+      await adm.rejeitarMatchEan(s.id);
+      setSugestoes((l) => l.filter((x) => x.id !== s.id));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  const banda = (c) => (c >= 0.8 ? 'forte' : c >= 0.6 ? 'media' : 'fraca');
+
+  return (
+    <div className="adm-fusoes">
+      <div className="adm-auto">
+        <button className="adm-auto-btn" onClick={gerar} disabled={ocupado}>
+          🔗 Gerar propostas de EAN
+        </button>
+        <span className="adm-sug-dica">procura cada produto SEM EAN no catálogo (Auchan · Continente) e propõe o código de barras. Tu confirmas; ao aprovar, o produto ganha a ficha (Nutri-Score / nutrição via Open Food Facts).</span>
+        {msg && <span className="adm-ok">{msg}</span>}
+      </div>
+      {sugestoes === null ? (
+        <p className="adm-vazio">a carregar…</p>
+      ) : sugestoes.length === 0 ? (
+        <p className="adm-vazio">Sem propostas pendentes. Carrega em "Gerar propostas de EAN". 👍</p>
+      ) : (
+        <ul className="adm-pares adm-eans">
+          {sugestoes.map((s) => (
+            <li key={s.id} className="adm-ean-li">
+              <div className="adm-ean-top">
+                <span className={`adm-ean-conf ${banda(s.confianca)}`}>{Math.round(s.confianca * 100)}%</span>
+                <span className="adm-ean-talao">{s.descricao}</span>
+                {s.compras > 1 && <span className="adm-ean-compras">{s.compras}×</span>}
+              </div>
+              <div className="adm-ean-cand">
+                <span className="adm-par-seta">→</span>
+                <b>{s.nome_cand}</b>
+                {s.marca && <span className="adm-ean-marca">{s.marca}</span>}
+                <code className="adm-ean-cod">{s.ean}</code>
+                <span className="adm-ean-fonte">{s.fonte}</span>
+              </div>
+              {s.alternativas?.length > 0 && (
+                <div className="adm-ean-alts">
+                  <span className="adm-ean-alts-lbl">ou:</span>
+                  {s.alternativas.map((a) => (
+                    <button key={a.ean} className="adm-ean-alt" disabled={ocupado}
+                      title={`usar este EAN (${a.ean})`} onClick={() => aprovar(s, a.ean)}>
+                      {a.nome} <small>{Math.round(a.score * 100)}%</small>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="adm-ean-acoes">
+                <button onClick={() => aprovar(s)} disabled={ocupado}>Aprovar</button>
+                <button className="adm-rej" onClick={() => rejeitar(s)} disabled={ocupado}>Rejeitar</button>
+              </div>
             </li>
           ))}
         </ul>

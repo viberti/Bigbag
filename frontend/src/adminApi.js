@@ -44,6 +44,12 @@ export const gerarNomes = () => jsend('/api/admin/nomes/gerar', 'POST', {});
 export const aplicarNome = (skuId) => jsend(`/api/admin/nomes/${skuId}/aplicar`, 'POST', {});
 export const rejeitarNome = (skuId) => jsend(`/api/admin/nomes/${skuId}/rejeitar`, 'POST', {});
 
+// Matching de EAN (nome do talão → catálogo)
+export const matchEans = () => jget('/api/admin/match-eans');
+export const gerarMatchEans = (limite = 60) => jsend('/api/admin/match-eans/gerar', 'POST', { limite });
+export const aprovarMatchEan = (id, ean) => jsend(`/api/admin/match-eans/${id}/aprovar`, 'POST', ean ? { ean } : {});
+export const rejeitarMatchEan = (id) => jsend(`/api/admin/match-eans/${id}/rejeitar`, 'POST', {});
+
 // Notas
 export const listarNotas = (status) => jget(`/api/admin/faturas?status=${status || 'all'}&limit=300`);
 export const carregarNota = (id) => jget(`/api/admin/faturas/${id}`);

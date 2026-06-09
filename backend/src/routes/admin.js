@@ -17,6 +17,8 @@ import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 import { marcaCompativel, precoPlausivel } from '../normaliza/validadores.js';
 import { ln } from '../normaliza/mestre.js';
 import { sugerirNomeCanonico } from '../ingest/produto.js';
+import { candidatosCatalogo } from '../normaliza/resolverProduto.js';
+import { mestrePorEan } from '../normaliza/mestreEan.js';
 
 export const adminRouter = Router();
 
@@ -131,6 +133,137 @@ adminRouter.post('/nomes/:skuId/rejeitar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/nomes/rejeitar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a rejeitar' });
+  }
+});
+
+// === Matching de EAN (nome do talão → catálogo Auchan/Continente) ===========
+// Worklist da aba "EANs": o resolvedor propõe um EAN por nome de produto; o
+// operador aprova (→ ganha EAN + ficha + nutrição) ou rejeita.
+
+// Lista as propostas pendentes (+ nº de compras que cada nome representa).
+adminRouter.get('/match-eans', async (req, res) => {
+  try {
+    const [rows] = await getPool().query(
+      `SELECT m.id, m.descricao, m.ean, m.nome_cand, m.marca, m.fonte, m.confianca, m.alternativas,
+              (SELECT COUNT(*) FROM item i WHERE i.descricao_original = m.descricao AND i.is_non_product = 0) AS compras
+         FROM match_ean_sugestao m
+        WHERE m.estado = 'pendente' ORDER BY m.confianca DESC, m.descricao`,
+    );
+    res.json({ sugestoes: rows.map((r) => ({
+      ...r,
+      confianca: Number(r.confianca),
+      alternativas: String(r.alternativas || '').split('||').filter(Boolean)
+        .map((a) => { const [ean, nome, score] = a.split('|'); return { ean, nome, score: Number(score) || 0 }; }),
+    })) });
+  } catch (e) {
+    console.error('[admin/match-eans] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar propostas' });
+  }
+});
+
+// Gera propostas (candidatos do catálogo, SEM LLM — o operador é o juiz). Corre
+// sobre nomes de produto AINDA sem EAN e sem proposta/rejeição, em lotes.
+adminRouter.post('/match-eans/gerar', async (req, res) => {
+  try {
+    const pool = getPool();
+    const limite = Math.min(Math.max(Number(req.body?.limite) || 60, 1), 200);
+    // produtos distintos comprados, sem EAN (nem na linha nem identificado) e sem
+    // proposta/rejeição já registada. Usa o nome canónico para pontuar se houver.
+    const [itens] = await pool.query(
+      `SELECT i.descricao_original AS d, MAX(s.nome_canonico) AS canon,
+              MAX((SELECT pe.marca FROM produto_ean pe WHERE pe.item_id = i.id AND pe.marca IS NOT NULL LIMIT 1)) AS marca
+         FROM item i
+         LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+        WHERE i.is_non_product = 0 AND i.ean IS NULL
+          AND NOT EXISTS (SELECT 1 FROM produto_ean pe WHERE pe.item_id = i.id AND pe.ean IS NOT NULL)
+          AND NOT EXISTS (SELECT 1 FROM match_ean_sugestao m WHERE m.descricao = i.descricao_original)
+        GROUP BY i.descricao_original
+        LIMIT ?`, [limite]);
+
+    let novas = 0, semCand = 0;
+    for (const it of itens) {
+      const cand = await candidatosCatalogo(pool, { descricao: it.canon || it.d, marca: it.marca });
+      const top = cand[0];
+      if (!top || top.score < 0.4) { semCand++; continue; }
+      const alt = cand.slice(1, 4).map((c) => `${c.ean}|${String(c.nome).slice(0, 80)}|${c.score.toFixed(2)}`).join('||');
+      await pool.query(
+        `INSERT INTO match_ean_sugestao (descricao, ean, nome_cand, marca, fonte, confianca, alternativas, estado)
+           VALUES (?,?,?,?,?,?,?,'pendente')
+         ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome_cand=VALUES(nome_cand), marca=VALUES(marca),
+           fonte=VALUES(fonte), confianca=VALUES(confianca), alternativas=VALUES(alternativas),
+           estado='pendente', decidido_em=NULL`,
+        [it.d, top.ean, String(top.nome).slice(0, 255), top.marca, top.fonte, top.score, alt],
+      );
+      novas++;
+    }
+    res.json({ novas, analisados: itens.length, sem_candidato: semCand });
+  } catch (e) {
+    console.error('[admin/match-eans/gerar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a gerar propostas' });
+  }
+});
+
+// Aprova uma proposta: o produto ganha o EAN escolhido + ficha (nutrição via OFF).
+// Aceita ?ean no body para CORRIGIR (operador escolhe uma alternativa).
+adminRouter.post('/match-eans/:id/aprovar', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = Number(req.params.id);
+    const [[sug]] = await pool.query("SELECT descricao, ean FROM match_ean_sugestao WHERE id = ? AND estado = 'pendente'", [id]);
+    if (!sug) return res.status(404).json({ erro: 'Proposta não encontrada' });
+    const ean = str(req.body?.ean, 20)?.replace(/\D/g, '') || sug.ean; // permite corrigir
+    if (!ean || ean.length < 8) return res.status(400).json({ erro: 'EAN inválido' });
+
+    // mestre por EAN: nomes + marca + categoria + nutrição (consulta OFF se preciso).
+    const mestre = await mestrePorEan(pool, ean);
+    const nome = (mestre?.nomes?.[0]) || sug.descricao;
+    const marca = mestre?.marca || null;
+    const categoria = mestre?.categoria || null;
+    const nutricao = mestre?.nutricao ? JSON.stringify(mestre.nutricao) : null;
+    const offJson = mestre?.off ? JSON.stringify(mestre.off) : null;
+
+    // item representativo (o mais recente com este nome, ainda sem EAN) para a ficha.
+    const [[it]] = await pool.query(
+      `SELECT i.id, i.sku_id FROM item i JOIN fatura f ON f.id = i.fatura_id
+        WHERE i.descricao_original = ? AND i.is_non_product = 0 AND i.ean IS NULL
+          AND NOT EXISTS (SELECT 1 FROM produto_ean pe WHERE pe.item_id = i.id AND pe.ean IS NOT NULL)
+        ORDER BY f.data_compra DESC, i.id DESC LIMIT 1`, [sug.descricao]);
+
+    // UPSERT da ficha (produto_ean é UNIQUE por ean → uma ficha por produto).
+    await pool.query(
+      `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, categoria, nutricao, fonte, off_json)
+         VALUES (?,?,?,?,?,?,?, 'match', ?)
+       ON DUPLICATE KEY UPDATE
+         item_id = COALESCE(produto_ean.item_id, VALUES(item_id)),
+         nome = COALESCE(produto_ean.nome, VALUES(nome)),
+         marca = COALESCE(produto_ean.marca, VALUES(marca)),
+         categoria = COALESCE(produto_ean.categoria, VALUES(categoria)),
+         nutricao = COALESCE(produto_ean.nutricao, VALUES(nutricao)),
+         off_json = COALESCE(produto_ean.off_json, VALUES(off_json))`,
+      [ean, it?.id || null, it?.sku_id || null, nome, marca, categoria, nutricao, offJson],
+    );
+
+    // ciclo virtuoso: o nome do talão passa a ser uma variante CONHECIDA deste EAN
+    // (melhora o matching futuro). INSERT IGNORE evita duplicar.
+    await pool.query('INSERT IGNORE INTO produto_nome (ean, sku_id, nome, origem) VALUES (?,?,?,?)',
+      [ean, it?.sku_id || null, sug.descricao, 'talao']).catch(() => {});
+
+    await pool.query("UPDATE match_ean_sugestao SET estado = 'aprovado', ean = ?, decidido_em = NOW() WHERE id = ?", [ean, id]);
+    res.json({ ok: true, ean, nome, com_nutricao: !!nutricao });
+  } catch (e) {
+    console.error('[admin/match-eans/aprovar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a aprovar' });
+  }
+});
+
+// Rejeita uma proposta (não reaparece).
+adminRouter.post('/match-eans/:id/rejeitar', async (req, res) => {
+  try {
+    await getPool().query("UPDATE match_ean_sugestao SET estado = 'rejeitado', decidido_em = NOW() WHERE id = ?", [Number(req.params.id)]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/match-eans/rejeitar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a rejeitar' });
   }
 });
