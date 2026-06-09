@@ -174,6 +174,30 @@ export async function caracterizarProdutoNome(nome, { timeoutMs } = {}) {
   }
 }
 
+// Garante a caracterização genérica (nutrição-por-NOME) de um SKU, com CACHE em
+// produto_generico: chama o LLM SÓ na 1.ª vez; nas seguintes devolve o que está
+// guardado. É a cache partilhada por SKU (o mesmo produto = uma entrada). Usada
+// pelo fluxo da foto/identificação para frescos sem EAN (ex.: "fraldinha").
+export async function garantirGenericoSku(pool, skuId, nome) {
+  if (!skuId) return null;
+  const [[g]] = await pool.query(
+    'SELECT tipo, alimento, categoria, nutricao FROM produto_generico WHERE sku_id = ?', [skuId]);
+  if (g) {
+    const nut = typeof g.nutricao === 'string' ? parseJsonLoose(g.nutricao) : g.nutricao;
+    return { tipo: g.tipo, alimento: g.alimento, categoria: g.categoria, nutricao_100g: nut || null, cacheada: true, custo: 0 };
+  }
+  if (!nome) return null;
+  const { dados, custo } = await caracterizarProdutoNome(nome);
+  const tipo = dados.tipo === 'fresco' ? 'fresco' : 'processado';
+  await pool.query(
+    `INSERT INTO produto_generico (sku_id, tipo, alimento, categoria, nutricao, modelo) VALUES (?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE tipo=VALUES(tipo), alimento=VALUES(alimento), categoria=VALUES(categoria), nutricao=VALUES(nutricao), modelo=VALUES(modelo)`,
+    [skuId, tipo, dados.alimento || null, dados.categoria || null,
+      dados.nutricao_100g ? JSON.stringify(dados.nutricao_100g) : null, config.openrouter.modelConsulta],
+  );
+  return { tipo, alimento: dados.alimento || null, categoria: dados.categoria || null, nutricao_100g: dados.nutricao_100g || null, cacheada: false, custo };
+}
+
 const PROMPT_NOME = `És um normalizador de nomes de produtos de supermercado. Recebes VÁRIAS variantes do nome do MESMO produto (de talões, rótulos e bases de dados — podem estar em línguas diferentes, em MAIÚSCULAS, abreviadas ou com códigos). Escolhe/compõe o MELHOR nome canónico em PORTUGUÊS. Devolve SÓ JSON: {"nome": string}.
 Regras:
 - Português (PT). Capitalização normal: Primeira Letra Maiúscula nas palavras principais (minúsculas em "de/da/do/com/e/para").

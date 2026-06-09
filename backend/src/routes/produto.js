@@ -9,7 +9,7 @@ import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
-import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome } from '../ingest/produto.js';
+import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { alertasDoPerfil, avaliarParaPerfil } from '../ingest/perfil.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
@@ -132,6 +132,46 @@ const receberFotos = (req, res, next) =>
     return res.status(400).json({ erro: msg });
   });
 
+const tokensNome = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((t) => t.length >= 3);
+
+// Resolve a nutrição GENÉRICA (por nome) para um produto SEM EAN lido numa foto
+// solta (câmara inteligente, sem compra). Camada PARTILHADA: 1) reusa um SKU já
+// conhecido que combine → cache (zero LLM); 2) senão caracteriza e, se for FRESCO,
+// cria uma entrada de catálogo (SKU canónico) para o conhecimento não se perder —
+// mesmo que ninguém o tenha comprado. Devolve o genérico + sku_id.
+async function resolverGenericoPorNome(pool, nome) {
+  const limpo = String(nome || '').trim();
+  const toks = tokensNome(limpo).filter((t) => t.length >= 4);
+  if (!toks.length) return null;
+  // 1) casar com SKU existente pelo token mais distintivo (reusa a cache)
+  const tok = toks.sort((a, b) => b.length - a.length)[0];
+  const [rows] = await pool.query('SELECT id, nome_canonico FROM sku_normalizado WHERE LOWER(nome_canonico) LIKE ? LIMIT 12', [`%${tok}%`]);
+  const alvo = new Set(toks);
+  let skuId = null, best = 0;
+  for (const r of rows) {
+    const ct = new Set(tokensNome(r.nome_canonico));
+    let hit = 0; for (const t of alvo) if (ct.has(t)) hit++;
+    const score = hit / alvo.size;
+    if (score > best && score >= 0.5) { best = score; skuId = r.id; }
+  }
+  if (skuId) {
+    const g = await garantirGenericoSku(pool, skuId, limpo);
+    return g ? { ...g, sku_id: skuId } : null;
+  }
+  // 2) sem SKU: caracteriza; se FRESCO, cria entrada de catálogo (não se perde)
+  const { dados, custo } = await caracterizarProdutoNome(limpo);
+  if (dados.tipo !== 'fresco') return { tipo: 'processado', alimento: dados.alimento || null, nutricao_100g: null, custo, sku_id: null };
+  const nomeCanon = (dados.alimento || limpo).replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 160);
+  const [ins] = await pool.query('INSERT INTO sku_normalizado (nome_canonico) VALUES (?)', [nomeCanon]);
+  await pool.query(
+    `INSERT INTO produto_generico (sku_id, tipo, alimento, categoria, nutricao, modelo) VALUES (?,?,?,?,?,?)`,
+    [ins.insertId, 'fresco', dados.alimento || null, dados.categoria || null,
+      dados.nutricao_100g ? JSON.stringify(dados.nutricao_100g) : null, config.openrouter.modelConsulta],
+  );
+  return { tipo: 'fresco', alimento: dados.alimento || null, categoria: dados.categoria || null, nutricao_100g: dados.nutricao_100g || null, custo, sku_id: ins.insertId, criado: true };
+}
+
 produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) => {
   try {
     const eanManual = String(req.body?.ean || '').replace(/\D/g, '') || null;
@@ -214,7 +254,23 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       ]);
     } catch (e) { console.error('[produto/identificar] nomes:', e.message); }
 
-    res.json({ ean, vlm, off, fonte, custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas, ean_rejeitado: eanRejeitado });
+    // Sem EAN nem nutrição do rótulo → cai para a NUTRIÇÃO-POR-NOME (frescos),
+    // com cache por SKU (chama o LLM só na 1.ª vez). Ex.: fotografar uma fraldinha.
+    let generico = null;
+    try {
+      if (!nutricao) {
+        let skuAlvo = skuId;
+        let nomeAlvo = vlm?.nome || nome || null;
+        if (itemId) {
+          const [[it]] = await getPool().query('SELECT i.sku_id, COALESCE(s.nome_canonico, i.descricao_original) AS n FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id WHERE i.id = ?', [itemId]);
+          skuAlvo = it?.sku_id || skuAlvo;
+          nomeAlvo = nomeAlvo || it?.n || null;
+        }
+        if (skuAlvo) generico = await garantirGenericoSku(getPool(), skuAlvo, nomeAlvo);
+      }
+    } catch (e) { console.error('[produto/identificar] generico:', e.message); }
+
+    res.json({ ean, vlm, off, generico, fonte: fonte || (generico?.nutricao_100g ? 'generico' : null), custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas, ean_rejeitado: eanRejeitado });
   } catch (e) {
     console.error('[produto/identificar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a identificar o produto' });
@@ -281,7 +337,13 @@ produtoRouter.post('/foto', requireAuth, upload.single('foto'), async (req, res)
       const r = await consultarOuGuardar(ean);
       return res.json({ tipo: 'produto', ean, ...r, lido: dados.nome || null });
     }
-    res.json({ tipo: 'produto', encontrado: false, nome: dados.nome || null, marca: dados.marca || null });
+    // Sem EAN: cair para a NUTRIÇÃO-POR-NOME (frescos sem código de barras, ex.:
+    // "fraldinha"). Reusa/enriquece o catálogo partilhado e nunca fica mudo.
+    const gen = dados.nome ? await resolverGenericoPorNome(getPool(), dados.nome).catch(() => null) : null;
+    if (gen?.nutricao_100g) {
+      return res.json({ tipo: 'produto', encontrado: true, fonte: 'generico', nome: dados.nome || gen.alimento || null, marca: dados.marca || null, sku_id: gen.sku_id, generico: gen });
+    }
+    res.json({ tipo: 'produto', encontrado: false, nome: dados.nome || null, marca: dados.marca || null, generico: gen || null });
   } catch (e) {
     console.error('[produto/foto] erro:', e.message);
     res.status(500).json({ erro: 'Falha a analisar a foto' });
