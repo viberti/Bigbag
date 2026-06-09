@@ -44,13 +44,20 @@ export async function renovarToken(refreshToken) {
 }
 
 // Cria um cliente com renovação automática do access token. country/language do config.
-export function criarCliente({ refreshToken = config.lidlplus.refreshToken, country = config.lidlplus.country, language = config.lidlplus.language } = {}) {
-  if (!refreshToken) throw new Error('Falta LIDLPLUS_REFRESH_TOKEN no .env');
+// `onRotate(novoRefreshToken)` é chamado quando o refresh token roda → persistir.
+export function criarCliente({ refreshToken = config.lidlplus.refreshToken, country = config.lidlplus.country, language = config.lidlplus.language, onRotate } = {}) {
+  if (!refreshToken) throw new Error('Falta o refresh token do Lidl Plus (LIDLPLUS_REFRESH_TOKEN no .env)');
   let sess = null;
   const C = country.toUpperCase();
 
   async function token() {
-    if (!sess || Date.now() >= sess.expiresAt - 30_000) sess = await renovarToken(sess?.refreshToken || refreshToken);
+    if (!sess || Date.now() >= sess.expiresAt - 30_000) {
+      const anterior = sess?.refreshToken || refreshToken;
+      sess = await renovarToken(anterior);
+      if (onRotate && sess.refreshToken && sess.refreshToken !== anterior) {
+        try { await onRotate(sess.refreshToken); } catch { /* não bloquear */ }
+      }
+    }
     return sess.token;
   }
   async function get(url) {

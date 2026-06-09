@@ -10,6 +10,8 @@
 // Usar primeiro --listar e --ticket <id> para CONFIRMAR os nomes dos campos reais
 // antes de finalizar o parser/ingestão.
 import { criarCliente, ticketParaFatura } from '../src/ingest/lidlplus.js';
+import { importarNovos } from '../src/ingest/lidlplus_sync.js';
+import { getPool } from '../src/db.js';
 
 const args = process.argv.slice(2);
 const tem = (f) => args.includes(f);
@@ -28,9 +30,18 @@ async function main() {
     return;
   }
 
-  const id = val('--ticket') || val('--parse') || val('--importar');
+  if (tem('--importar')) {
+    // Importa TODOS os talões novos (o token-store trata da rotação). Usa --limite N p/ teste.
+    const limite = Number(val('--limite') || 0);
+    const r = await importarNovos(getPool(), { limite });
+    console.log(`Talões: ${r.total} | novos: ${r.novosDetetados} | importados: ${r.importados.length}`);
+    for (const i of r.importados) console.log(`  ✓ ${i.id} → fatura #${i.fatura_id} (${i.n_itens} itens, ${i.data}, €${i.total})`);
+    process.exit(0);
+  }
+
+  const id = val('--ticket') || val('--parse');
   if (!id) {
-    console.error('Falta o id. Usa --listar, --ticket <id>, --parse <id> ou --importar <id>.');
+    console.error('Usa --listar, --ticket <id>, --parse <id> ou --importar [--limite N].');
     process.exit(1);
   }
   const ticket = await cli.obterTicket(id);
@@ -43,12 +54,6 @@ async function main() {
     console.log('\nfatura mapeada:');
     console.log(JSON.stringify({ ...fatura, itens: fatura.itens.slice(0, 8) }, null, 2));
     console.log(`\n${fatura.itens.length} itens | com EAN: ${fatura.itens.filter((i) => i.ean).length}`);
-  } else if (tem('--importar')) {
-    console.error('--importar ainda não implementado (falta confirmar o parser contra um talão real).');
-    process.exit(2);
   }
-
-  // se o refresh token rodou, avisa para atualizar o .env
-  if (cli.refreshTokenAtual) console.error(`\n[i] refresh token atual (atualiza o .env se mudou): ${cli.refreshTokenAtual.slice(0, 12)}…`);
 }
 main().catch((e) => { console.error('ERRO:', e.message); process.exit(1); });

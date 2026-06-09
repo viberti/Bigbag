@@ -52,6 +52,9 @@ export const config = {
     refreshToken: process.env.LIDLPLUS_REFRESH_TOKEN || '',
     country: process.env.LIDLPLUS_COUNTRY || 'PT',
     language: process.env.LIDLPLUS_LANGUAGE || 'pt',
+    // Onde guardar o refresh token ROTACIONADO (o módulo atualiza-o a cada uso).
+    // Prod: /var/lib/bigbag/lidlplus_token (chmod 600). Semente: LIDLPLUS_REFRESH_TOKEN.
+    tokenFile: process.env.LIDLPLUS_TOKEN_FILE || './.lidlplus_token',
   },
 };
 
