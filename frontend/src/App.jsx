@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
+import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
 import { t, detetarLocale } from './i18n.js';
@@ -202,11 +203,37 @@ function Chat({ onSair, nome }) {
   };
   const [porIdentAberto, setPorIdentAberto] = useState(false);
   const [porIdentLista, setPorIdentLista] = useState(null); // null=a carregar · []=vazio
+  // Capturas pendentes (item_id → {item_id, ean, nome, fotos[]}), persistidas em
+  // IndexedDB: scan de barcode + fotos por item, acumulam até "Enviar".
+  const [capturas, setCapturas] = useState({});
+  const [captItem, setCaptItem] = useState(null); // item aberto na folha de captura
+  const [enviandoCap, setEnviandoCap] = useState(null); // texto de progresso | null
   const abrirPorIdentificar = () => {
     setPorIdentAberto(true);
     setPorIdentLista(null);
     listarPorIdentificar().then(setPorIdentLista).catch(() => setPorIdentLista([]));
+    lerCapturas().then(setCapturas).catch(() => setCapturas({}));
   };
+  const aoGuardarCaptura = () => { lerCapturas().then(setCapturas).catch(() => {}); };
+  async function enviarCapturas() {
+    const lista = Object.values(capturas);
+    if (!lista.length || enviandoCap) return;
+    let ok = 0, falhou = 0;
+    for (let i = 0; i < lista.length; i++) {
+      const c = lista[i];
+      setEnviandoCap(`A enviar ${i + 1}/${lista.length}…`);
+      try {
+        const r = await identificarProduto({ ean: c.ean || undefined, itemId: c.item_id, fotos: c.fotos || [] });
+        if (r && !r.erro) { await removerCaptura(c.item_id); ok++; }
+        else falhou++;
+      } catch { falhou++; }
+    }
+    setEnviandoCap(null);
+    // recarrega da fonte de verdade: itens que ganharam EAN saem da lista
+    listarPorIdentificar().then(setPorIdentLista).catch(() => {});
+    lerCapturas().then(setCapturas).catch(() => {});
+    mostrarToast(`Enviados ${ok} produto${ok === 1 ? '' : 's'}${falhou ? `, ${falhou} falhou(aram)` : ''}.`);
+  }
   const [scannerAberto, setScannerAberto] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [toast, setToast] = useState('');
@@ -623,7 +650,22 @@ function Chat({ onSair, nome }) {
       <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} identificados={identificados} />
       <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} />
       <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
-      <PorIdentificarSheet aberto={porIdentAberto} itens={porIdentLista} onFechar={() => setPorIdentAberto(false)} onIdentificar={setIdentItem} identificados={identificados} />
+      <PorIdentificarSheet
+        aberto={porIdentAberto}
+        itens={porIdentLista}
+        onFechar={() => setPorIdentAberto(false)}
+        onCapturar={(it) => setCaptItem({ id: it.item_id, sku_id: it.sku_id, produto: it.produto })}
+        identificados={identificados}
+        capturas={capturas}
+        enviando={enviandoCap}
+        onEnviar={enviarCapturas}
+      />
+      <CapturaIdentSheet
+        item={captItem}
+        capturaExistente={captItem ? capturas[captItem.id] : null}
+        onGuardado={aoGuardarCaptura}
+        onFechar={() => setCaptItem(null)}
+      />
       <ScannerSheet
         aberto={scannerAberto}
         onFechar={() => setScannerAberto(false)}
@@ -1129,8 +1171,9 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
 
 // Produtos por identificar (precisam de fotos), agrupados por LOJA e ordenados por
 // nome dentro de cada loja. Cada produto tem a câmara para abrir a identificação.
-function PorIdentificarSheet({ aberto, itens, onFechar, onIdentificar, identificados }) {
+function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificados, capturas, enviando, onEnviar }) {
   const pendentes = itens ? itens.filter((it) => !identificados?.[it.item_id]) : null;
+  const nCap = capturas ? Object.keys(capturas).length : 0;
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
@@ -1142,7 +1185,7 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onIdentificar, identific
             <Ico name="close" size={18} />
           </button>
         </div>
-        <div className="notas-list">
+        <div className="notas-list pid-list">
           {pendentes === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : pendentes.length === 0 ? (
@@ -1161,23 +1204,200 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onIdentificar, identific
                     </div>,
                   );
                 }
+                const cap = capturas?.[it.item_id];
                 out.push(
-                  <div key={it.item_id} className="nota-item">
+                  <div key={it.item_id} className={`nota-item${cap ? ' pid-cap' : ''}`}>
                     <span className="ni-nome">{it.produto}</span>
+                    {cap && (
+                      <span className="pid-badge" title="capturado, por enviar">
+                        {cap.ean ? `#${cap.ean.slice(-4)}` : 'sem código'}{cap.fotos?.length ? ` · ${cap.fotos.length}📷` : ''}
+                      </span>
+                    )}
                     <button
                       type="button"
-                      className="ni-ident"
-                      onClick={() => onIdentificar({ id: it.item_id, sku_id: it.sku_id, produto: it.produto })}
-                      title="identificar (fotos do rótulo)"
-                      aria-label="identificar produto"
+                      className={`ni-ident${cap ? ' on' : ''}`}
+                      onClick={() => onCapturar({ item_id: it.item_id, sku_id: it.sku_id, produto: it.produto })}
+                      title={cap ? 'rever / refazer captura' : 'ler código de barras + fotos'}
+                      aria-label="capturar produto"
                     >
-                      <Ico name="camera" size={16} />
+                      <Ico name="escanear" size={17} />
                     </button>
                   </div>,
                 );
               }
               return out;
             })()
+          )}
+        </div>
+        {nCap > 0 && (
+          <div className="pid-enviar">
+            <button type="button" className="pid-enviar-btn" onClick={onEnviar} disabled={!!enviando}>
+              <Ico name="send" size={18} /> {enviando || `Enviar ${nCap} produto${nCap === 1 ? '' : 's'}`}
+            </button>
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+// Captura por item da lista "por identificar": lê o código de barras (scanner ao
+// vivo) + fotos opcionais do rótulo, e GUARDA localmente (IndexedDB). Acumula até
+// o "Enviar" da lista mandar tudo ao servidor. Reabrir um item já capturado mostra
+// o que tem (rever / refazer).
+function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
+  const videoRef = useRef(null);
+  const controlsRef = useRef(null);
+  const trackRef = useRef(null);
+  const fotoRef = useRef(null);
+  const [fase, setFase] = useState('scan'); // scan | fotos | erro
+  const [ean, setEan] = useState('');
+  const [fotos, setFotos] = useState([]);
+  const [manual, setManual] = useState('');
+  const [temLuz, setTemLuz] = useState(false);
+  const [luz, setLuz] = useState(false);
+
+  useEffect(() => {
+    if (!item) return;
+    if (capturaExistente) {
+      setEan(capturaExistente.ean || '');
+      setFotos(capturaExistente.fotos || []);
+      setFase('fotos'); // já tem dados → vai direto à revisão
+    } else {
+      setEan('');
+      setFotos([]);
+      setFase('scan');
+    }
+    setManual('');
+    setLuz(false);
+    setTemLuz(false);
+  }, [item]);
+
+  // scanner ao vivo só enquanto na fase 'scan'
+  useEffect(() => {
+    if (!item || fase !== 'scan') return undefined;
+    let controls;
+    let parado = false;
+    (async () => {
+      try {
+        const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+        const hints = new Map();
+        hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
+        hints.set(lib.DecodeHintType.TRY_HARDER, true);
+        const reader = new BrowserMultiFormatReader(hints);
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+          videoRef.current,
+          (result) => {
+            if (!result || parado) return;
+            const cod = result.getText().replace(/\D/g, '');
+            if (cod.length < 8) return;
+            parado = true;
+            controls?.stop();
+            try { navigator.vibrate?.(60); } catch { /* noop */ }
+            setEan(cod);
+            setFase('fotos');
+          },
+        );
+        controlsRef.current = controls;
+        const track = videoRef.current?.srcObject?.getVideoTracks?.()[0];
+        if (track) {
+          try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* noop */ }
+          const caps = track.getCapabilities?.() || {};
+          if (caps.torch) { trackRef.current = track; setTemLuz(true); }
+        }
+      } catch { setFase('erro'); }
+    })();
+    return () => { parado = true; controls?.stop(); controlsRef.current = null; trackRef.current = null; };
+  }, [item, fase]);
+
+  if (!item) return null;
+
+  async function alternarLuz() {
+    const tr = trackRef.current;
+    if (!tr) return;
+    const novo = !luz;
+    try { await tr.applyConstraints({ advanced: [{ torch: novo }] }); setLuz(novo); } catch { /* noop */ }
+  }
+
+  async function guardar() {
+    const e = String(ean || '').replace(/\D/g, '');
+    if (!e && !fotos.length) return;
+    try {
+      await guardarCaptura({ item_id: item.id, ean: e || null, nome: item.produto, fotos, ts: Date.now() });
+      onGuardado?.(item.id);
+    } catch { /* noop */ }
+    onFechar?.();
+  }
+
+  const podeGuardar = String(ean || '').replace(/\D/g, '').length >= 8 || fotos.length > 0;
+
+  return (
+    <>
+      <div className="scrim open" onClick={onFechar} />
+      <section className="sheet open" aria-label="Capturar produto">
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">Capturar produto</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar"><Ico name="close" size={18} /></button>
+        </div>
+        <div className="scan-body">
+          <div className="ident-prod">{item.produto}</div>
+          {fase === 'erro' ? (
+            <>
+              <p className="sheet-vazio">Não foi possível abrir a câmara. Escreve o código à mão ou segue só com fotos.</p>
+              <div className="scan-manual">
+                <input inputMode="numeric" placeholder="código (EAN)" value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
+                <button type="button" disabled={manual.length < 8} onClick={() => { setEan(manual); setFase('fotos'); }}>Usar</button>
+              </div>
+              <button type="button" className="scan-foto" onClick={() => { setEan(''); setFase('fotos'); }}>Continuar só com fotos</button>
+            </>
+          ) : fase === 'scan' ? (
+            <>
+              <div className="scan-cam">
+                <video ref={videoRef} className="scan-video" playsInline muted />
+                <div className="scan-mira" />
+                {temLuz && (
+                  <button type="button" className={`scan-luz ${luz ? 'on' : ''}`} onClick={alternarLuz} aria-label="lanterna"><Ico name="luz" size={20} /></button>
+                )}
+              </div>
+              <p className="scan-hint">Aponta ao código de barras · boa luz · mão estável.</p>
+              <div className="scan-manual">
+                <input inputMode="numeric" placeholder="ou escreve o código (EAN)" value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
+                <button type="button" disabled={manual.length < 8} onClick={() => { setEan(manual); setFase('fotos'); }}>Usar</button>
+              </div>
+              <button type="button" className="scan-foto" onClick={() => { setEan(''); setFase('fotos'); }}>Sem código de barras (só fotos)</button>
+            </>
+          ) : (
+            <>
+              <div className="capt-ean">
+                {ean ? <span><b>Código:</b> {ean}</span> : <span className="capt-semcod">Sem código de barras</span>}
+                <button type="button" className="capt-reler" onClick={() => setFase('scan')}>reler código</button>
+              </div>
+              <input
+                ref={fotoRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) setFotos((x) => (x.length >= MAX_FOTOS ? x : [...x, f])); e.target.value = ''; }}
+              />
+              <button type="button" className="ident-add" onClick={() => fotoRef.current?.click()} disabled={fotos.length >= MAX_FOTOS}>
+                <Ico name="camera" size={18} />{' '}
+                {fotos.length >= MAX_FOTOS ? `Máximo de ${MAX_FOTOS} fotos` : fotos.length ? `Adicionar mais uma · ${fotos.length}/${MAX_FOTOS}` : 'Adicionar foto (rótulo · ingredientes · validade)'}
+              </button>
+              {fotos.length > 0 && (
+                <div className="ident-fotos">
+                  {fotos.map((f, i) => (
+                    <span key={i} className="ident-thumb">
+                      <img src={URL.createObjectURL(f)} alt="" />
+                      <button type="button" onClick={() => setFotos((x) => x.filter((_, j) => j !== i))} aria-label="remover">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <button type="button" className="ident-go" onClick={guardar} disabled={!podeGuardar}>Guardar e voltar à lista</button>
+            </>
           )}
         </div>
       </section>

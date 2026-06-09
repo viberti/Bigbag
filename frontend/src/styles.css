@@ -793,6 +793,19 @@ body { background: #0c1814; }
 .bb .ni-ident { flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px;
   background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--muted-bb); cursor: pointer; }
 .bb .ni-ident:hover { color: var(--accent); border-color: var(--accent); }
+/* Captura por identificar: item já com barcode+fotos (por enviar) muda de cor */
+.bb .ni-ident.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.bb .pid-cap { background: linear-gradient(90deg, var(--accent-soft), transparent); border-radius: 8px; }
+.bb .pid-cap .ni-nome { color: var(--accent); font-weight: 600; }
+.bb .pid-badge { flex: 0 0 auto; font-size: 11.5px; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bb .pid-list { flex: 1 1 auto; }
+.bb .pid-enviar { flex: 0 0 auto; padding: 12px; border-top: 1px solid var(--line); }
+.bb .pid-enviar-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px; border-radius: 12px; border: none; background: var(--accent); color: #06231a; font-weight: 700; font-size: 15px; cursor: pointer; }
+.bb .pid-enviar-btn:disabled { opacity: .6; cursor: default; }
+.bb .capt-ean { display: flex; align-items: center; gap: 10px; margin: 12px 0 2px; font-size: 14px; color: var(--text-bb); }
+.bb .capt-semcod { color: var(--muted-bb); font-style: italic; }
+.bb .capt-reler { margin-left: auto; padding: 5px 11px; border-radius: 9px; border: 1px solid var(--line); background: none; color: var(--muted-bb); font-size: 12.5px; cursor: pointer; }
+.bb .capt-reler:hover { color: var(--accent); border-color: var(--accent); }
 
 /* Compras (redesign por loja) */
 .bb .sheet.cmp { overflow: hidden; }

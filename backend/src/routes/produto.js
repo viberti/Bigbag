@@ -271,6 +271,14 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       );
     } catch (e) { console.error('[produto/identificar] guardar:', e.message); }
 
+    // EAN escaneado/manual é autoritativo para a IDENTIDADE do item → grava em
+    // item.ean. Assim o item sai da worklist "por identificar" (que filtra
+    // ean IS NULL) e o EAN fica ligado à linha do talão.
+    if (itemId && ean) {
+      try { await getPool().query('UPDATE item SET ean = ? WHERE id = ?', [ean, itemId]); }
+      catch (e) { console.error('[produto/identificar] item.ean:', e.message); }
+    }
+
     // guarda todos os nomes vistos para este produto (matching / nome canónico)
     try {
       let descNota = null, nomeCanon = null, skuItem = skuId;
