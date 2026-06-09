@@ -180,7 +180,8 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
     // NOME (produto_generico), não do matching por EAN. Mesmo critério do /por-identificar.
     const [itens] = await pool.query(
       `SELECT i.descricao_original AS d, MAX(COALESCE(l.cadeia, l.nome)) AS cadeia,
-              MAX(s.nome_canonico) AS canon, AVG(i.preco_por_base) AS ppb, AVG(i.preco_liquido) AS preco,
+              MAX(s.nome_canonico) AS canon, AVG(i.preco_por_base) AS ppb,
+              AVG(i.preco_liquido / GREATEST(i.quantidade, 1)) AS preco,  -- € por UNIDADE (a qtd da linha não infla o preço)
               MAX((SELECT pe.marca FROM produto_ean pe WHERE pe.item_id = i.id AND pe.marca IS NOT NULL LIMIT 1)) AS marca
          FROM item i
          JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
