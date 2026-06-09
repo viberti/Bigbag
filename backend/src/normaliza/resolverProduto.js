@@ -83,16 +83,6 @@ function precoDisparate(itemPpb, candPpb) {
 // num item own-brand → penaliza). Validado a ~57% de precisão exata (teto 70%).
 const FAM_CONT = new Set(['continente', 'selecao', 'seleccao', 'equilibrio', 'bio', 'cozinha', 'kitchen']);
 const proxPreco = (a, b) => (a && b ? Math.abs(Math.log(a / b)) : 99);
-function bonusMarca(descRaw, marcaCand) {
-  const ownReceipt = /\bcnt\b|continente/i.test(descRaw || '');
-  const ownCand = /continente/.test(norm(marcaCand || ''));
-  const bm = toks(marcaCand).filter((t) => !FAM_CONT.has(t)); // tokens de marca NACIONAL
-  const hay = new Set(toks(descRaw));
-  if (bm.length > 0 && bm.some((t) => hay.has(t))) return 0.4;  // marca explícita do talão bate
-  if (ownReceipt && ownCand) return 0.35;                       // item own-brand → candidato Continente
-  if (ownReceipt && bm.length > 0) return -0.45;                // item own-brand → candidato é OUTRA marca
-  return 0;
-}
 function bonusPreco(itPreco, candPreco) {
   const p = proxPreco(itPreco, candPreco);
   // SÓ bónus (preço longe pode ser só outro tamanho de embalagem — não penaliza).
@@ -107,10 +97,28 @@ export async function proporMesmaLoja(pool, item, fonte) {
   const bons = cands.filter((c) => c.score >= 0.4);
   if (!bons.length) return null;
   const descRaw = item.descricaoRaw || item.descricao;
-  // RANKING: comida + marca + preço — o preço ajuda a escolher o TAMANHO certo
-  // (entre vários EANs do mesmo produto, o que tem o preço do que pagaste).
-  const total = (c) => c.score + bonusMarca(descRaw, c.marca) + bonusPreco(item.preco, c.preco);
-  const ranked = bons.map((c) => ({ c, t: total(c), base: c.score + bonusMarca(descRaw, c.marca) })).sort((a, b) => b.t - a.t);
+  const hay = new Set(toks(descRaw));
+  // MARCAS nacionais CONFIRMADAS pelo talão: a marca de um candidato cujos tokens
+  // aparecem TODOS no nome do talão (ex.: "carlsberg"). Se o talão confirma uma
+  // marca, candidatos de OUTRA marca nacional são produtos diferentes → penaliza.
+  const marcasConf = new Set();
+  for (const c of bons) {
+    const bm = toks(c.marca).filter((t) => !FAM_CONT.has(t));
+    if (bm.length && bm.every((t) => hay.has(t))) bm.forEach((t) => marcasConf.add(t));
+  }
+  const marcaCtx = (marcaCand) => {
+    const bm = toks(marcaCand).filter((t) => !FAM_CONT.has(t));
+    const ownCand = /continente/.test(norm(marcaCand || ''));
+    const ownReceipt = /\bcnt\b|continente/i.test(descRaw);
+    if (bm.length && bm.every((t) => hay.has(t))) return 0.5;                         // marca do candidato BATE no talão
+    if (marcasConf.size && bm.length && !bm.some((t) => marcasConf.has(t))) return -0.6; // talão confirma marca X → candidato marca Y ≠ → penaliza forte
+    if (ownReceipt && ownCand) return 0.35;                                           // item own-brand → candidato Continente
+    if (ownReceipt && bm.length) return -0.45;                                        // item own-brand → candidato outra marca
+    return 0;
+  };
+  // RANKING: comida + MARCA (manda sobre o preço) + preço (escolhe o tamanho certo).
+  const total = (c) => c.score + marcaCtx(c.marca) + bonusPreco(item.preco, c.preco);
+  const ranked = bons.map((c) => ({ c, t: total(c), base: c.score + marcaCtx(c.marca) })).sort((a, b) => b.t - a.t);
   const top = ranked[0];
   const dp = proxPreco(item.preco, top.c.preco);
   const precoBate = dp < 0.12;             // preço (≈tamanho) confirma
