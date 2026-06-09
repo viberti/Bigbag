@@ -1112,7 +1112,10 @@ function ItemRow({ it, onAbrirNota, onPatch }) {
   }
   return (
     <tr className={Number(it.por_identificar) ? 'adm-it-pend' : ''}>
-      <td className="adm-it-nome">{it.descricao_original}</td>
+      <td className="adm-it-nome">
+        {it.descricao_original}
+        {it.n_iguais > 1 && <span className="adm-it-mult" title={`${it.n_iguais} linhas iguais`}>×{it.n_iguais}</span>}
+      </td>
       <td>{it.loja}</td>
       <td>{dataCurta(it.data)}</td>
       <td>{fmt(it.quantidade, 3)}</td>

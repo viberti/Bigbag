@@ -100,7 +100,26 @@ adminRouter.get('/itens', async (req, res) => {
         LIMIT 600`,
       [q, like, like],
     );
-    res.json({ itens });
+    // Colapsa itens EXATAMENTE iguais (mesma extração: nome+loja+todos os campos,
+    // ignorando data/nota) numa só linha, com a contagem n_iguais. No modo "ver
+    // todos" não colapsa (acesso a cada linha individual para edição).
+    let lista = itens;
+    if (req.query.todos !== '1') {
+      const sig = (i) => [i.descricao_original, i.loja, i.ean, i.quantidade, i.preco_unitario,
+        i.preco_liquido, i.preco_por_base, i.taxa_iva, i.desconto_direto, i.is_clearance,
+        i.is_non_product, i.peso_em_falta, i.ppb_inferido, i.sku_id].join('');
+      const vistos = new Map();
+      lista = [];
+      for (const it of itens) {
+        const k = sig(it);
+        const ex = vistos.get(k);
+        if (ex) { ex.n_iguais += 1; continue; }
+        it.n_iguais = 1;
+        vistos.set(k, it);
+        lista.push(it);
+      }
+    }
+    res.json({ itens: lista });
   } catch (e) {
     console.error('[admin/itens] erro:', e.message);
     res.status(500).json({ erro: 'Falha a listar itens' });

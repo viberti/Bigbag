@@ -613,6 +613,7 @@ body {
 .adm-it-flags-edit { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
 .adm-it-flags-edit label { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .adm-it-acoes { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; white-space: nowrap; }
+.adm-it-mult { margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--muted); background: #2a3942; border-radius: 5px; padding: 1px 6px; white-space: nowrap; }
 .q-bom { color: var(--verde); }
 .q-medio { color: #e0b341; }
 .q-mau { color: #ff8a80; }
