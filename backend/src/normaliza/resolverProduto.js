@@ -116,9 +116,22 @@ export async function proporMesmaLoja(pool, item, fonte) {
     if (ownReceipt && bm.length) return -0.45;                                        // item own-brand → candidato outra marca
     return 0;
   };
-  // RANKING: comida + MARCA (manda sobre o preço) + preço (escolhe o tamanho certo).
-  const total = (c) => c.score + marcaCtx(c.marca) + bonusPreco(item.preco, c.preco);
-  const ranked = bons.map((c) => ({ c, t: total(c), base: c.score + marcaCtx(c.marca) })).sort((a, b) => b.t - a.t);
+  // DETALHE: tokens DISTINTIVOS do talão que o canónico deixou cair (ex.: "seia",
+  // "lagos", "lata") — comparação do nome COMPLETO sem stop words. Premeia o candidato
+  // que cobre estes detalhes (escolhe "Seia Lagos" vs "Seia Tavares"; "em Lata" vs
+  // garrafa). Ignora ruído do talão (cnt/emb/un) e tokens com dígitos (tamanho → preço).
+  const NOISE = new Set(['cnt', 'emb', 'und', 'uni', 'unid', 'embal', 'cont']);
+  const canonToks = new Set(toks(item.descricao));
+  const extras = [...new Set(toks(descRaw))].filter((t) => !canonToks.has(t) && !NOISE.has(t) && !/\d/.test(t));
+  const detalhe = (c) => {
+    if (!extras.length) return 0;
+    const cn = new Set(toks(c.nome));
+    let hit = 0; for (const t of extras) if (cn.has(t)) hit++;
+    return 0.3 * (hit / extras.length); // até +0.3 quando cobre os detalhes do talão
+  };
+  // RANKING: comida + MARCA (manda sobre o preço) + DETALHE (nome completo) + preço.
+  const total = (c) => c.score + marcaCtx(c.marca) + detalhe(c) + bonusPreco(item.preco, c.preco);
+  const ranked = bons.map((c) => ({ c, t: total(c), base: c.score + marcaCtx(c.marca) + detalhe(c) })).sort((a, b) => b.t - a.t);
   const top = ranked[0];
   const dp = proxPreco(item.preco, top.c.preco);
   const precoBate = dp < 0.12;             // preço (≈tamanho) confirma
