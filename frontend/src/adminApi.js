@@ -33,6 +33,7 @@ export const painel = () => jget('/api/admin/painel');
 export const listarItens = (q, ordenar) =>
   jget(`/api/admin/itens?ordenar=${ordenar || 'recente'}${q ? '&q=' + encodeURIComponent(q) : ''}`);
 export const definirEanItem = (id, ean) => jsend(`/api/admin/itens/${id}/ean`, 'POST', { ean });
+export const atualizarItem = (id, dados) => jsend(`/api/admin/itens/${id}`, 'PATCH', dados);
 export const capturas = (q) => jget(`/api/admin/capturas${q ? '?q=' + encodeURIComponent(q) : ''}`);
 export const mestres = () => jget('/api/admin/mestres');
 export const desligarMestre = (skuId) => jsend('/api/admin/mestres/desligar', 'POST', { skuId });
@@ -58,7 +59,6 @@ export const listarNotas = (status) => jget(`/api/admin/faturas?status=${status 
 export const carregarNota = (id) => jget(`/api/admin/faturas/${id}`);
 export const revisarNota = (id, veredicto, comentario) =>
   jsend(`/api/admin/faturas/${id}/revisao`, 'POST', { veredicto, comentario });
-export const atualizarItem = (id, quantidade) => jsend(`/api/admin/itens/${id}`, 'PATCH', { quantidade });
 export const reprocessarNota = (id) => jsend(`/api/admin/faturas/${id}/reprocessar`, 'POST', {});
 export const apagarNota = (id) => jsend(`/api/admin/faturas/${id}`, 'DELETE');
 

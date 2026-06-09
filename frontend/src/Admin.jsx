@@ -1052,6 +1052,94 @@ function EanEdit({ item, onSaved }) {
   );
 }
 
+// Linha da tabela de Itens: modo LEITURA (mostra tudo + flags + marca "por
+// identificar") e modo EDIÇÃO (inputs para os campos extraídos → PATCH). O EAN
+// edita-se na própria célula (com enriquecimento de ficha) em ambos os modos.
+function ItemRow({ it, onAbrirNota, onPatch }) {
+  const [edit, setEdit] = useState(false);
+  const [d, setD] = useState(it);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setD(it); }, [it.id]);
+  const fmt = (v, dec = 2) => (v == null || v === '' ? '—' : Number(v).toFixed(dec).replace('.', ','));
+  const set = (k) => (e) => setD((x) => ({ ...x, [k]: e.target.value }));
+  const setChk = (k) => (e) => setD((x) => ({ ...x, [k]: e.target.checked ? 1 : 0 }));
+  const flag = (cond, label, cls) => (Number(cond) ? <span className={`adm-flag ${cls}`}>{label}</span> : null);
+
+  async function salvar() {
+    setSaving(true);
+    try {
+      const campos = ['descricao_original', 'quantidade', 'preco_unitario', 'preco_liquido', 'preco_por_base', 'taxa_iva', 'desconto_direto', 'is_clearance', 'is_non_product', 'peso_em_falta', 'ppb_inferido'];
+      const body = {};
+      for (const c of campos) body[c] = d[c];
+      await adm.atualizarItem(it.id, body);
+      onPatch?.({ ...it, ...d });
+      setEdit(false);
+    } catch (e) {
+      alert('Falha ao guardar: ' + (e.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (edit) {
+    return (
+      <tr className="adm-it-edit">
+        <td><input className="adm-it-inp adm-it-inp-nome" value={d.descricao_original || ''} onChange={set('descricao_original')} /></td>
+        <td>{it.loja}</td>
+        <td>{dataCurta(it.data)}</td>
+        <td><input className="adm-it-inp num" value={d.quantidade ?? ''} onChange={set('quantidade')} /></td>
+        <td><input className="adm-it-inp num" value={d.preco_unitario ?? ''} onChange={set('preco_unitario')} /></td>
+        <td><input className="adm-it-inp num" value={d.preco_liquido ?? ''} onChange={set('preco_liquido')} /></td>
+        <td><input className="adm-it-inp num" value={d.preco_por_base ?? ''} onChange={set('preco_por_base')} /></td>
+        <td>{it.unidade_base || '—'}</td>
+        <td className="adm-it-peso">{it.linha_peso || '—'}</td>
+        <td className="adm-it-ean"><EanEdit item={it} onSaved={(ean) => onPatch?.({ ...it, ean })} /></td>
+        <td><input className="adm-it-inp num" value={d.taxa_iva ?? ''} onChange={set('taxa_iva')} placeholder="0.06" /></td>
+        <td><input className="adm-it-inp num" value={d.desconto_direto ?? ''} onChange={set('desconto_direto')} /></td>
+        <td>{it.nome_canonico || <em className="adm-it-semsku">sem SKU</em>}</td>
+        <td className="adm-it-flags adm-it-flags-edit">
+          <label><input type="checkbox" checked={!!Number(d.is_non_product)} onChange={setChk('is_non_product')} /> não-produto</label>
+          <label><input type="checkbox" checked={!!Number(d.is_clearance)} onChange={setChk('is_clearance')} /> liquidação</label>
+          <label><input type="checkbox" checked={!!Number(d.peso_em_falta)} onChange={setChk('peso_em_falta')} /> peso falta</label>
+          <label><input type="checkbox" checked={!!Number(d.ppb_inferido)} onChange={setChk('ppb_inferido')} /> ppb inf.</label>
+        </td>
+        <td className="adm-it-acoes">
+          <button className="adm-ean-ok" onClick={salvar} disabled={saving}>{saving ? '…' : '✓ guardar'}</button>
+          <button className="adm-link-min" onClick={() => { setD(it); setEdit(false); }}>cancelar</button>
+        </td>
+      </tr>
+    );
+  }
+  return (
+    <tr className={Number(it.por_identificar) ? 'adm-it-pend' : ''}>
+      <td className="adm-it-nome">{it.descricao_original}</td>
+      <td>{it.loja}</td>
+      <td>{dataCurta(it.data)}</td>
+      <td>{fmt(it.quantidade, 3)}</td>
+      <td>{it.preco_unitario == null ? '—' : eur(it.preco_unitario)}</td>
+      <td>{eur(it.preco_liquido)}</td>
+      <td>{it.preco_por_base == null ? '—' : fmt(it.preco_por_base, 2)}{it.ppb_inferido ? '*' : ''}</td>
+      <td>{it.unidade_base || '—'}</td>
+      <td className="adm-it-peso">{it.linha_peso || '—'}</td>
+      <td className="adm-it-ean"><EanEdit item={it} onSaved={(ean) => onPatch?.({ ...it, ean })} /></td>
+      <td>{it.taxa_iva == null ? '—' : `${Math.round(Number(it.taxa_iva) * 100)}%`}</td>
+      <td>{Number(it.desconto_direto) ? eur(it.desconto_direto) : '—'}</td>
+      <td>{it.nome_canonico || <em className="adm-it-semsku">sem SKU</em>}</td>
+      <td className="adm-it-flags">
+        {flag(it.por_identificar, 'por identificar', 'f-pend')}
+        {flag(it.is_non_product, 'não-produto', 'f-np')}
+        {flag(it.is_clearance, 'liquidação', 'f-cl')}
+        {flag(it.peso_em_falta, 'peso em falta', 'f-pf')}
+        {flag(it.ppb_inferido, 'ppb inferido', 'f-pi')}
+      </td>
+      <td className="adm-it-acoes">
+        <button className="adm-link-min" onClick={() => { setD(it); setEdit(true); }}>✎ editar</button>
+        <button className="adm-link-min" onClick={() => onAbrirNota(it.fatura_id)} title="abrir a nota (imagem + leitura)">{it.numero_fatura ? `#${it.numero_fatura}` : `nota ${it.fatura_id}`}</button>
+      </td>
+    </tr>
+  );
+}
+
 // Inspeção do item CRU: o nome como aparece no talão da loja + a loja + TODAS as
 // propriedades extraídas (qtd, preços, €/base, unidade, EAN, IVA, desconto, flags).
 // Busca por nome/loja; clicar na nota abre a imagem+leitura. Para o operador
@@ -1110,7 +1198,7 @@ function TabItens({ onAbrirNota }) {
                 <th>desc.</th>
                 <th>SKU canónico</th>
                 <th>flags</th>
-                <th>nota</th>
+                <th>ações</th>
               </tr>
             </thead>
             <tbody>
@@ -1127,34 +1215,12 @@ function TabItens({ onAbrirNota }) {
                     );
                   }
                   linhas.push(
-                    <tr key={it.id}>
-                      <td className="adm-it-nome">{it.descricao_original}</td>
-                  <td>{it.loja}</td>
-                  <td>{dataCurta(it.data)}</td>
-                  <td>{fmt(it.quantidade, 3)}</td>
-                  <td>{it.preco_unitario == null ? '—' : eur(it.preco_unitario)}</td>
-                  <td>{eur(it.preco_liquido)}</td>
-                  <td>{it.preco_por_base == null ? '—' : fmt(it.preco_por_base, 2)}{it.ppb_inferido ? '*' : ''}</td>
-                  <td>{it.unidade_base || '—'}</td>
-                  <td className="adm-it-peso">{it.linha_peso || '—'}</td>
-                  <td className="adm-it-ean">
-                    <EanEdit item={it} onSaved={(ean) => setDados((ds) => ds.map((x) => (x.id === it.id ? { ...x, ean } : x)))} />
-                  </td>
-                  <td>{it.taxa_iva == null ? '—' : `${Math.round(Number(it.taxa_iva) * 100)}%`}</td>
-                  <td>{Number(it.desconto_direto) ? eur(it.desconto_direto) : '—'}</td>
-                  <td>{it.nome_canonico || <em className="adm-it-semsku">sem SKU</em>}</td>
-                  <td className="adm-it-flags">
-                    {flag(it.is_non_product, 'não-produto', 'f-np')}
-                    {flag(it.is_clearance, 'liquidação', 'f-cl')}
-                    {flag(it.peso_em_falta, 'peso em falta', 'f-pf')}
-                    {flag(it.ppb_inferido, 'ppb inferido', 'f-pi')}
-                  </td>
-                  <td>
-                    <button className="adm-link-min" onClick={() => onAbrirNota(it.fatura_id)} title="abrir a nota (imagem + leitura)">
-                      {it.numero_fatura ? `#${it.numero_fatura}` : `nota ${it.fatura_id}`}
-                    </button>
-                  </td>
-                    </tr>,
+                    <ItemRow
+                      key={it.id}
+                      it={it}
+                      onAbrirNota={onAbrirNota}
+                      onPatch={(novo) => setDados((ds) => ds.map((x) => (x.id === it.id ? novo : x)))}
+                    />,
                   );
                 }
                 return linhas;
@@ -1607,7 +1673,7 @@ function TabNotas({ notaAlvo, onConsumir }) {
   async function salvarQtd(itemId, valor, atual) {
     const q = Number(String(valor).replace(',', '.'));
     if (!(q > 0) || q === Number(atual)) return;
-    const r = await adm.atualizarItem(itemId, q);
+    const r = await adm.atualizarItem(itemId, { quantidade: q });
     setDet((d) => ({
       ...d,
       itens: d.itens.map((it) => (it.id === itemId ? { ...it, quantidade: q, preco_por_base: r.preco_por_base } : it)),

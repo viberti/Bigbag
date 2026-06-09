@@ -74,9 +74,20 @@ adminRouter.get('/itens', async (req, res) => {
               i.preco_unitario, i.preco_liquido, i.preco_por_base, i.peso_em_falta,
               i.taxa_iva, i.ppb_inferido, i.is_clearance, i.desconto_direto, i.is_non_product,
               i.sku_id, s.nome_canonico, s.unidade_base,
-              i.fatura_id, COALESCE(l.cadeia, l.nome) AS loja, f.data_compra AS data, f.numero_fatura
+              i.fatura_id, COALESCE(l.cadeia, l.nome) AS loja, f.data_compra AS data, f.numero_fatura,
+              -- mesmo critério da worklist "por identificar" (embalado sem EAN, não-fresco, por resolver)
+              (i.is_non_product = 0 AND i.ean IS NULL AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
+                AND NOT EXISTS (SELECT 1 FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
+                                  JOIN fatura f2 ON f2.id = i2.fatura_id JOIN loja l2 ON l2.id = f2.loja_id
+                                 WHERE (pe.ean IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.off_json IS NOT NULL OR pe.nutricao IS NOT NULL)
+                                   AND i2.descricao_original = i.descricao_original
+                                   AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
+                AND (SELECT COUNT(DISTINCT pn.ean) FROM produto_nome pn
+                      WHERE pn.nome = i.descricao_original AND pn.ean IS NOT NULL) <> 1
+              ) AS por_identificar
          FROM item i
          LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+         LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
          JOIN fatura f ON f.id = i.fatura_id
          JOIN loja l ON l.id = f.loja_id
         WHERE (? = '' OR i.descricao_original LIKE ? OR COALESCE(l.cadeia, l.nome) LIKE ?)
@@ -112,6 +123,63 @@ adminRouter.post('/itens/:id/ean', async (req, res) => {
   } catch (e) {
     console.error('[admin/itens/ean] erro:', e.message);
     res.status(500).json({ erro: 'Falha a definir o EAN' });
+  }
+});
+
+// Editar os campos extraídos de um item à mão. Só os campos enviados são
+// atualizados; numéricos nuláveis aceitam vazio→NULL; os obrigatórios
+// (quantidade, preço pago) ignoram vazio. Se a QUANTIDADE muda e o preco_por_base
+// NÃO vem no corpo, recalcula-se ppb = preco_liquido/quantidade (preserva a edição
+// de quantidade da aba Notas). Usado pela aba Itens (todos os campos) e pela Notas
+// (só quantidade).
+adminRouter.patch('/itens/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ erro: 'id inválido' });
+    const b = req.body || {};
+    const sets = [], vals = [];
+    const num = (x) => Number(String(x).replace(',', '.'));
+    const NUM_NULAVEL = ['preco_unitario', 'preco_por_base', 'taxa_iva', 'desconto_direto'];
+    const NUM_OBRIG = ['quantidade', 'preco_liquido'];
+    const fin = {}; // valores numéricos finais (p/ o recálculo de ppb)
+    for (const c of [...NUM_NULAVEL, ...NUM_OBRIG]) {
+      if (!(c in b)) continue;
+      if (b[c] === '' || b[c] == null) {
+        if (NUM_OBRIG.includes(c)) continue; // obrigatório → não apaga
+        sets.push(`${c} = NULL`); fin[c] = null;
+        continue;
+      }
+      const v = num(b[c]);
+      if (!Number.isFinite(v)) return res.status(400).json({ erro: `${c} inválido` });
+      sets.push(`${c} = ?`); vals.push(v); fin[c] = v;
+    }
+    if ('descricao_original' in b) {
+      const s = String(b.descricao_original || '').trim().slice(0, 200);
+      if (!s) return res.status(400).json({ erro: 'descrição não pode ficar vazia' });
+      sets.push('descricao_original = ?'); vals.push(s);
+    }
+    for (const c of ['is_clearance', 'is_non_product', 'peso_em_falta', 'ppb_inferido']) {
+      if (c in b) { sets.push(`${c} = ?`); vals.push(b[c] ? 1 : 0); }
+    }
+    let ppbCalc;
+    if ('quantidade' in b && !('preco_por_base' in b) && Number.isFinite(fin.quantidade) && fin.quantidade > 0) {
+      let pl = fin.preco_liquido;
+      if (!Number.isFinite(pl)) {
+        const [[row]] = await getPool().query('SELECT preco_liquido FROM item WHERE id = ?', [id]);
+        pl = row?.preco_liquido;
+      }
+      if (pl != null) {
+        ppbCalc = Math.round((Number(pl) / fin.quantidade) * 10000) / 10000;
+        sets.push('preco_por_base = ?'); vals.push(ppbCalc);
+      }
+    }
+    if (!sets.length) return res.status(400).json({ erro: 'nada para atualizar' });
+    vals.push(id);
+    await getPool().query(`UPDATE item SET ${sets.join(', ')} WHERE id = ?`, vals);
+    res.json({ ok: true, preco_por_base: ppbCalc });
+  } catch (e) {
+    console.error('[admin/itens PATCH] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a atualizar o item' });
   }
 });
 
@@ -1043,25 +1111,6 @@ adminRouter.get('/qualidade-preco', async (req, res) => {
   } catch (e) {
     console.error('[admin/qualidade-preco] erro:', e.message);
     res.status(500).json({ erro: 'Falha a calcular qualidade de preço' });
-  }
-});
-
-// Editar a quantidade/peso de um item (na base do SKU: un/kg/L) e recalcular o
-// preco_por_base = preco_liquido / quantidade. É o que mantém a comparação de
-// preços correta quando a extração leu mal o peso.
-adminRouter.patch('/itens/:id', async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const q = Number(String(req.body?.quantidade ?? '').replace(',', '.'));
-    if (!Number.isFinite(q) || q <= 0) return res.status(400).json({ erro: 'quantidade inválida' });
-    const [[it]] = await getPool().query('SELECT preco_liquido FROM item WHERE id = ?', [id]);
-    if (!it) return res.status(404).json({ erro: 'Item não encontrado' });
-    const ppb = it.preco_liquido != null ? Math.round((Number(it.preco_liquido) / q) * 10000) / 10000 : null;
-    await getPool().query('UPDATE item SET quantidade = ?, preco_por_base = ? WHERE id = ?', [q, ppb, id]);
-    res.json({ ok: true, preco_por_base: ppb });
-  } catch (e) {
-    console.error('[admin/itens PATCH] erro:', e.message);
-    res.status(500).json({ erro: 'Falha a atualizar item' });
   }
 });
 

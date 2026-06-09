@@ -602,6 +602,17 @@ body {
 .adm-ean-msg { font-size: 11px; white-space: normal; max-width: 180px; }
 .adm-ean-msg.ok { color: #6fd49a; }
 .adm-ean-msg.err { color: #e08a8a; }
+/* marca "por identificar" + edição de linha */
+.adm-flag.f-pend { background: #3d2f5c; color: #cdb4ff; }
+.adm-it-pend td { background: rgba(176,144,255,.06); }
+.adm-it-pend td:first-child { box-shadow: inset 3px 0 0 #8b6fd4; }
+.adm-it-inp { width: 72px; padding: 4px 6px; border-radius: 6px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.adm-it-inp.num { width: 66px; text-align: right; }
+.adm-it-inp-nome { width: 210px; text-align: left; }
+.adm-it-edit td { background: #16222a; vertical-align: middle; }
+.adm-it-flags-edit { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
+.adm-it-flags-edit label { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.adm-it-acoes { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; white-space: nowrap; }
 .q-bom { color: var(--verde); }
 .q-medio { color: #e0b341; }
 .q-mau { color: #ff8a80; }
