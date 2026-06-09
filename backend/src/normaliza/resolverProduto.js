@@ -152,16 +152,17 @@ export async function candidatosCatalogo(pool, item, opts = {}) {
   const meta = new Map(); // ean → { marca, categoria_path, fontes:Set, ppb }
   for (const tok of chave) {
     const [rows] = await pool.query(
-      `SELECT ean, marca, categoria_path, fonte, preco_por_base, preco FROM catalogo_produto
+      `SELECT ean, marca, categoria_path, fonte, preco_por_base, preco, formato FROM catalogo_produto
          WHERE ean IS NOT NULL AND ean <> '' AND nome LIKE ?${fonteFiltro ? ' AND fonte = ?' : ''} LIMIT 40`,
       fonteFiltro ? [`%${tok}%`, fonteFiltro] : [`%${tok}%`]);
     for (const r of rows) {
-      if (!meta.has(r.ean)) meta.set(r.ean, { marca: r.marca, categoria_path: r.categoria_path, fontes: new Set(), ppb: r.preco_por_base, preco: r.preco });
+      if (!meta.has(r.ean)) meta.set(r.ean, { marca: r.marca, categoria_path: r.categoria_path, fontes: new Set(), ppb: r.preco_por_base, preco: r.preco, formato: r.formato });
       const m = meta.get(r.ean);
       m.fontes.add(r.fonte);
       if (!m.marca && r.marca) m.marca = r.marca;
       if (r.preco_por_base != null && (m.ppb == null || r.preco_por_base < m.ppb)) m.ppb = r.preco_por_base;
       if (r.preco != null && (m.preco == null || r.preco < m.preco)) m.preco = r.preco;
+      if (!m.formato && r.formato) m.formato = r.formato;
     }
   }
   if (!meta.size) return [];
@@ -185,7 +186,7 @@ export async function candidatosCatalogo(pool, item, opts = {}) {
     // GTINs reais nem têm nutrição no OFF; despriorizar para o GTIN real ganhar.
     const score = /^2/.test(ean) ? best * 0.6 : best;
     const fonte = [...m.fontes].join('+');
-    return { ean, nome: melhor, nomes: variantes, marca: m.marca, categoria_path: m.categoria_path, preco_por_base: m.ppb, preco: m.preco, fonte, origem: fonte, score };
+    return { ean, nome: melhor, nomes: variantes, marca: m.marca, categoria_path: m.categoria_path, preco_por_base: m.ppb, preco: m.preco, formato: m.formato, fonte, origem: fonte, score };
   }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, limite);
 }
 

@@ -879,6 +879,19 @@ function TabEans() {
                 <code className="adm-ean-cod">{s.ean}</code>
                 <span className="adm-ean-fonte">{s.fonte}</span>
               </div>
+              {(s.formato_pago || s.preco_pago != null || s.formato_cand || s.preco_cand != null) && (
+                <div className="adm-ean-metr">
+                  <span className="adm-ean-metr-lado">
+                    <i>talão</i> {s.formato_pago || '—'}{s.preco_pago != null ? ` · €${s.preco_pago.toFixed(2)}` : ''}
+                  </span>
+                  <span className="adm-ean-metr-vs">vs</span>
+                  <span className="adm-ean-metr-lado">
+                    <i>catálogo</i> {s.formato_cand || '—'}{s.preco_cand != null ? ` · €${s.preco_cand.toFixed(2)}` : ''}
+                  </span>
+                  {s.preco_pago != null && s.preco_cand != null
+                    && Math.abs(Math.log(s.preco_pago / s.preco_cand)) < 0.15 && <span className="adm-ean-metr-ok">💶 preço bate</span>}
+                </div>
+              )}
               {s.alternativas?.length > 0 && (
                 <div className="adm-ean-alts">
                   <span className="adm-ean-alts-lbl">ou:</span>

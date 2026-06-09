@@ -145,7 +145,8 @@ adminRouter.post('/nomes/:skuId/rejeitar', async (req, res) => {
 adminRouter.get('/match-eans', async (req, res) => {
   try {
     const [rows] = await getPool().query(
-      `SELECT m.id, m.descricao, m.ean, m.nome_cand, m.marca, m.fonte, m.confianca, m.alternativas,
+      `SELECT m.id, m.descricao, m.ean, m.nome_cand, m.marca, m.fonte, m.confianca,
+              m.preco_pago, m.preco_cand, m.formato_pago, m.formato_cand, m.alternativas,
               (SELECT COUNT(*) FROM item i WHERE i.descricao_original = m.descricao AND i.is_non_product = 0) AS compras
          FROM match_ean_sugestao m
         WHERE m.estado = 'pendente' ORDER BY m.confianca DESC, m.descricao`,
@@ -153,6 +154,8 @@ adminRouter.get('/match-eans', async (req, res) => {
     res.json({ sugestoes: rows.map((r) => ({
       ...r,
       confianca: Number(r.confianca),
+      preco_pago: r.preco_pago != null ? Number(r.preco_pago) : null,
+      preco_cand: r.preco_cand != null ? Number(r.preco_cand) : null,
       alternativas: String(r.alternativas || '').split('||').filter(Boolean)
         .map((a) => { const [ean, nome, score] = a.split('|'); return { ean, nome, score: Number(score) || 0 }; }),
     })) });
@@ -203,13 +206,19 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
       }
       if (!prop) { semCand++; continue; }
       const alt = (prop.alternativas || []).map((c) => `${c.ean}|${String(c.nome).slice(0, 80)}|${(c.score || 0).toFixed(2)}`).join('||');
+      // peso/volume lido no nome do talão (ex.: "175GR", "6*1L", "4X115G")
+      const mFmt = String(it.d).match(/(\d+\s*[x*]\s*)?\d+[.,]?\d*\s*(kg|gr?s?|m?l|cl|lt|un|dz)\b/i);
+      const fmtPago = mFmt ? mFmt[0].replace(/\s+/g, '').toLowerCase().slice(0, 40) : null;
       await pool.query(
-        `INSERT INTO match_ean_sugestao (descricao, ean, nome_cand, marca, fonte, confianca, alternativas, estado)
-           VALUES (?,?,?,?,?,?,?,'pendente')
+        `INSERT INTO match_ean_sugestao (descricao, ean, nome_cand, marca, fonte, confianca, preco_pago, preco_cand, formato_pago, formato_cand, alternativas, estado)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,'pendente')
          ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome_cand=VALUES(nome_cand), marca=VALUES(marca),
-           fonte=VALUES(fonte), confianca=VALUES(confianca), alternativas=VALUES(alternativas),
+           fonte=VALUES(fonte), confianca=VALUES(confianca), preco_pago=VALUES(preco_pago), preco_cand=VALUES(preco_cand),
+           formato_pago=VALUES(formato_pago), formato_cand=VALUES(formato_cand), alternativas=VALUES(alternativas),
            estado='pendente', decidido_em=NULL`,
-        [it.d, prop.ean, String(prop.nome).slice(0, 255), prop.marca, prop.fonte, prop.confianca, alt],
+        [it.d, prop.ean, String(prop.nome).slice(0, 255), prop.marca, prop.fonte, prop.confianca,
+          it.preco != null ? Number(it.preco).toFixed(2) : null, prop.preco != null ? Number(prop.preco).toFixed(2) : null,
+          fmtPago, prop.formato ? String(prop.formato).slice(0, 60) : null, alt],
       );
       novas++;
     }
