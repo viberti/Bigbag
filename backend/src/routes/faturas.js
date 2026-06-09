@@ -301,13 +301,12 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
     const [itens] = await getPool().query(
       `SELECT i.id, i.sku_id, COALESCE(s.nome_canonico, i.descricao_original) AS produto,
               i.quantidade, i.preco_liquido AS preco, s.unidade_base, i.preco_por_base,
-              COALESCE(i.ean, ident_s.ean, ident_d.ean) AS ean,
-              COALESCE(ident_s.marca, ident_d.marca) AS marca,
+              COALESCE(i.ean, ident.ean) AS ean,
+              ident.marca AS marca,
               pg.tipo AS tipo_alimento,
               (pg.nutricao IS NOT NULL) AS tem_generico,
               (
-                COALESCE(ident_s.tem_ficha, 0) = 1
-                OR COALESCE(ident_d.tem_ficha, 0) = 1
+                COALESCE(ident.tem_ficha, 0) = 1
                 OR pg.nutricao IS NOT NULL
                 OR EXISTS (SELECT 1 FROM produto_ean pe
                              WHERE pe.ean = i.ean
@@ -318,20 +317,6 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
          LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
          JOIN fatura f ON f.id = i.fatura_id
          JOIN loja l ON l.id = f.loja_id
-         -- ficha por (SKU + cadeia): junta variantes de OCR do nome (mesmo produto)
-         LEFT JOIN (
-           SELECT i2.sku_id AS sku, COALESCE(l2.cadeia, l2.nome) AS chain,
-                  MAX(pe.ean) AS ean,
-                  MAX(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca)) AS marca,
-                  MAX(pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL) AS tem_ficha
-             FROM produto_ean pe
-             JOIN item i2 ON i2.id = pe.item_id
-             JOIN fatura f2 ON f2.id = i2.fatura_id
-             JOIN loja l2 ON l2.id = f2.loja_id
-            WHERE pe.ean IS NOT NULL AND i2.sku_id IS NOT NULL
-            GROUP BY i2.sku_id, chain
-         ) ident_s ON ident_s.sku = i.sku_id AND ident_s.chain = COALESCE(l.cadeia, l.nome)
-         -- rede por (descrição + cadeia) para os poucos itens sem SKU
          LEFT JOIN (
            SELECT i2.descricao_original AS d, COALESCE(l2.cadeia, l2.nome) AS chain,
                   MAX(pe.ean) AS ean,
@@ -343,7 +328,7 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
              JOIN loja l2 ON l2.id = f2.loja_id
             WHERE pe.ean IS NOT NULL
             GROUP BY d, chain
-         ) ident_d ON ident_d.d = i.descricao_original AND ident_d.chain = COALESCE(l.cadeia, l.nome)
+         ) ident ON ident.d = i.descricao_original AND ident.chain = COALESCE(l.cadeia, l.nome)
         WHERE i.fatura_id = ? AND i.is_non_product = 0
         ORDER BY i.id`,
       [id],
