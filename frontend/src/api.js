@@ -189,8 +189,8 @@ export async function listarDespensa() {
   return produtos || [];
 }
 
-export async function infoProduto({ itemId, ean }) {
-  const qs = itemId ? `item_id=${itemId}` : `ean=${encodeURIComponent(ean)}`;
+export async function infoProduto({ itemId, ean, skuId }) {
+  const qs = itemId ? `item_id=${itemId}` : skuId ? `sku_id=${skuId}` : `ean=${encodeURIComponent(ean)}`;
   const r = await call(`/api/produto/info?${qs}`);
   if (!r.ok) throw new Error(`info ${r.status}`);
   return r.json(); // { ean, vlm, off, fonte, fotos, existe }

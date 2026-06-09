@@ -71,9 +71,9 @@ const fillGaps = (acc, src) => {
 
 // Consolida TUDO o que sabemos de um produto (por item da nota OU por EAN):
 // funde as várias linhas de produto_ean (vlm/off) e lista as fotos guardadas.
-async function consolidarProduto({ itemId, eanQ }) {
+async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   // dados do item: SKU (fallback genérico) + EAN do TALÃO (autoritativo).
-  let skuId = null, nome = null, itemEan = null;
+  let skuId = skuParam || null, nome = null, itemEan = null;
   if (itemId) {
     const [[it]] = await getPool().query(
       `SELECT i.sku_id, i.ean, COALESCE(s.nome_canonico, i.descricao_original) AS nome FROM item i
@@ -284,8 +284,9 @@ produtoRouter.get('/info', requireAuth, async (req, res) => {
   try {
     const itemId = Number(req.query.item_id) || null;
     const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
-    if (!itemId && !eanQ) return res.status(400).json({ erro: 'item_id ou ean em falta' });
-    res.json(await consolidarProduto({ itemId, eanQ }));
+    const skuId = Number(req.query.sku_id) || null;
+    if (!itemId && !eanQ && !skuId) return res.status(400).json({ erro: 'item_id, sku_id ou ean em falta' });
+    res.json(await consolidarProduto({ itemId, eanQ, skuId }));
   } catch (e) {
     console.error('[produto/info] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar info do produto' });

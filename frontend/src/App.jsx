@@ -543,7 +543,9 @@ function Chat({ onSair, nome }) {
                 if (r.tipo === 'talao') {
                   fatura(f, { dewarp: false, origem: 'foto' });
                 } else if (r.tipo === 'produto' && r.encontrado) {
-                  setInfoItem({ ean: r.ean, produto: r.nome || r.ean });
+                  // EAN → ficha por EAN; genérico (fresco sem código) → ficha por SKU
+                  if (r.ean) setInfoItem({ ean: r.ean, produto: r.nome || r.ean });
+                  else setInfoItem({ sku_id: r.sku_id, produto: r.nome || r.generico?.alimento || 'Produto' });
                 } else if (r.tipo === 'produto') {
                   mostrarToast(`Li "${r.nome || 'produto'}"${r.marca ? ` (${r.marca})` : ''}, mas sem dados completos. Aponta o código de barras para a ficha.`);
                 } else {
@@ -1639,15 +1641,22 @@ function ProdutoInfoSheet({ item, onFechar }) {
     setInfo(null);
     setAnalise(null);
     setAval(null);
-    infoProduto({ itemId: item.id, ean: item.ean })
+    infoProduto({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
       .then(setInfo)
       .catch(() => setInfo({ erro: true }));
-    analiseProduto({ itemId: item.id, ean: item.ean })
-      .then((r) => setAnalise(r.analise || { erro: true }))
-      .catch(() => setAnalise({ erro: true }));
-    avaliacaoPersonalizada({ itemId: item.id, ean: item.ean })
-      .then((r) => setAval(r?.perfil ? r : null))
-      .catch(() => setAval(null));
+    // análise/avaliação precisam de item ou EAN; para um genérico só-SKU (foto
+    // solta de fresco) não há — mostra-se só a nutrição típica, sem pendurar.
+    if (item.id || item.ean) {
+      analiseProduto({ itemId: item.id, ean: item.ean })
+        .then((r) => setAnalise(r.analise || { erro: true }))
+        .catch(() => setAnalise({ erro: true }));
+      avaliacaoPersonalizada({ itemId: item.id, ean: item.ean })
+        .then((r) => setAval(r?.perfil ? r : null))
+        .catch(() => setAval(null));
+    } else {
+      setAnalise({ erro: true });
+      setAval(null);
+    }
   }, [item]);
   if (!item) return null;
   return (
