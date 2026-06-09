@@ -11,6 +11,24 @@ const STOP = new Set(['de','da','do','e','com','sem','para','por','kg','kgs','g'
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const toks = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOP.has(t));
 
+// RARIDADE (IDF): cada palavra pesa pela sua raridade no catálogo. "mel" aparece em
+// centenas de produtos → pesa pouco; "rosmaninho" em poucos → pesa muito. Carrega
+// uma vez (cache no processo); a partir daí o match dá importância às palavras que
+// DISTINGUEM, não às da categoria que todos partilham.
+let _idf = null;
+async function carregarIdf(pool) {
+  if (_idf) return _idf;
+  const [rows] = await pool.query("SELECT nome FROM catalogo_produto WHERE nome IS NOT NULL AND nome <> ''");
+  const df = new Map();
+  for (const r of rows) for (const t of new Set(toks(r.nome))) df.set(t, (df.get(t) || 0) + 1);
+  const N = rows.length || 1;
+  const w = new Map();
+  for (const [t, d] of df) w.set(t, Math.log((N + 1) / (d + 1)));
+  _idf = { w, max: Math.log(N + 1) }; // palavra nunca vista → tão rara quanto possível
+  return _idf;
+}
+const peso = (idf, t) => (idf ? (idf.w.get(t) ?? idf.max) : 1);
+
 // Formatos compatíveis? (ex.: 330g vs 6x25g → incompatível). null = desconhecido (não penaliza).
 function formatoCompativel(a, b) {
   const fa = extrairFormato(a), fb = extrairFormato(b);
@@ -35,14 +53,16 @@ function marcaBate(item, marcaCand) {
 // (o substantivo: requeijão, mel, presunto) tem de bater. Sem isto, a marca/região
 // sozinha deixa passar "requeijão Serra Estrela" → "ÁGUA Serra Estrela". Devolve a
 // fração de tokens não-marca do talão que aparecem no candidato (0..1).
-function produtoOverlap(item, nomeCand, marcaCand) {
+function produtoOverlap(item, nomeCand, marcaCand, idf) {
   const brand = new Set(toks(marcaCand));
   const itemNB = [...new Set(toks(item.descricao))].filter((t) => !brand.has(t));
   if (!itemNB.length) return 0;
   const candNB = new Set(toks(nomeCand).filter((t) => !brand.has(t)));
-  let hit = 0;
-  for (const t of itemNB) if (candNB.has(t)) hit++;
-  return hit / itemNB.length;
+  // fração do PESO (raridade) dos tokens do talão que o candidato cobre. Partilhar só
+  // "mel" (comum) vale pouco; falhar "rosmaninho" (raro) deixa a fração bem abaixo de 0,5.
+  let num = 0, den = 0;
+  for (const t of itemNB) { const w = peso(idf, t); den += w; if (candNB.has(t)) num += w; }
+  return den ? num / den : 0;
 }
 
 // Peso do PREÇO (€/base): sinal mole e graduado, só quando ambos presentes. Cross-loja
@@ -55,13 +75,14 @@ function precoPeso(itemPpb, candPpb) {
   return -0.2;                            // muito longe → penaliza
 }
 
-function pontuar(item, cand) {
+function pontuar(item, cand, idf) {
   const qi = toks(`${item.descricao} ${item.marca || ''}`);
   const tc = new Set(toks(`${cand.nome} ${cand.marca || ''}`));
   if (!qi.length) return 0;
-  let hit = 0;
-  for (const t of qi) if (tc.has(t)) hit++;
-  let score = hit / qi.length;
+  // sobreposição ponderada pela raridade (palavras distintivas mandam na pontuação).
+  let num = 0, den = 0;
+  for (const t of qi) { const w = peso(idf, t); den += w; if (tc.has(t)) num += w; }
+  let score = den ? num / den : 0;
   // bónus de marca
   if (item.marca && tc.has(norm(item.marca).split(' ')[0])) score += 0.15;
   // formato
@@ -73,11 +94,12 @@ function pontuar(item, cand) {
 
 // ── Candidatos do catálogo local (só com EAN) ──────────────────────────────
 export async function candidatosCatalogo(pool, item, limite = 12) {
+  const idf = await carregarIdf(pool);
   const q = [...new Set(toks(`${item.descricao} ${item.marca || ''}`))];
   if (!q.length) return [];
-  // 1) Gera EANs candidatos: procura CADA token distintivo SEPARADAMENTE (evita que
-  // um token comum encha o LIMIT e corte o match específico — ex.: "frosties").
-  const chave = q.sort((a, b) => b.length - a.length).slice(0, 4);
+  // 1) Gera EANs candidatos: procura pelos tokens MAIS RAROS (não os mais longos) —
+  // é "rosmaninho"/"frosties" que traz os candidatos certos, não "mel"/"cereais".
+  const chave = q.sort((a, b) => peso(idf, b) - peso(idf, a)).slice(0, 4);
   const meta = new Map(); // ean → { marca, categoria_path, fontes:Set, ppb }
   for (const tok of chave) {
     const [rows] = await pool.query(
@@ -101,10 +123,10 @@ export async function candidatosCatalogo(pool, item, limite = 12) {
     if (!marcaBate(item, m.marca)) return null;
     const variantes = [...(nomes.get(ean) || [])];
     let melhor = variantes[0] || '', best = 0;
-    for (const n of variantes) { const s = pontuar(item, { nome: n, marca: m.marca }); if (s > best) { best = s; melhor = n; } }
-    // PORTA do produto: o substantivo (sem a marca) tem de bater em ≥50% — mata
-    // "requeijão→água", "mel→azeite", "presunto→chocolate" e variantes erradas.
-    if (produtoOverlap(item, melhor, m.marca) < 0.5) return null;
+    for (const n of variantes) { const s = pontuar(item, { nome: n, marca: m.marca }, idf); if (s > best) { best = s; melhor = n; } }
+    // PORTA do produto: o substantivo distintivo (sem a marca) tem de bater em ≥50%
+    // do PESO — mata "requeijão→água", "mel rosmaninho→mel laranjeira", variantes erradas.
+    if (produtoOverlap(item, melhor, m.marca, idf) < 0.5) return null;
     // EANs com prefixo "2" são códigos INTERNOS de loja (peso variável) — não são
     // GTINs reais nem têm nutrição no OFF; despriorizar para o GTIN real ganhar.
     let score = /^2/.test(ean) ? best * 0.6 : best;
