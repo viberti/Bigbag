@@ -16,8 +16,9 @@ import { recomputarPpbSku } from '../normaliza/ppb.js';
 import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 import { marcaCompativel, precoPlausivel } from '../normaliza/validadores.js';
 import { ln } from '../normaliza/mestre.js';
-import { sugerirNomeCanonico } from '../ingest/produto.js';
+import { sugerirNomeCanonico, eanValido } from '../ingest/produto.js';
 import { candidatosCatalogo, proporMesmaLoja } from '../normaliza/resolverProduto.js';
+import { consultarOuGuardar } from './produto.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
 
 export const adminRouter = Router();
@@ -87,6 +88,30 @@ adminRouter.get('/itens', async (req, res) => {
   } catch (e) {
     console.error('[admin/itens] erro:', e.message);
     res.status(500).json({ erro: 'Falha a listar itens' });
+  }
+});
+
+// Define (ou limpa) o EAN de um item à mão, na aba Itens. EAN vazio → limpa.
+// EAN preenchido → valida o dígito verificador, grava em item.ean (autoritativo)
+// e enriquece a ficha (Open Food Facts → catálogo local), para o produto ganhar
+// nome/nutrição e sair da worklist "por identificar".
+adminRouter.post('/itens/:id/ean', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ erro: 'id inválido' });
+    const ean = String(req.body?.ean || '').replace(/\D/g, '');
+    if (!ean) {
+      await getPool().query('UPDATE item SET ean = NULL WHERE id = ?', [id]);
+      return res.json({ ok: true, ean: null });
+    }
+    if (!eanValido(ean)) return res.status(400).json({ erro: 'EAN inválido (falha no dígito verificador)' });
+    await getPool().query('UPDATE item SET ean = ? WHERE id = ?', [ean, id]);
+    let ficha = null;
+    try { ficha = await consultarOuGuardar(ean); } catch (e) { console.error('[admin/itens/ean] ficha:', e.message); }
+    res.json({ ok: true, ean, ficha });
+  } catch (e) {
+    console.error('[admin/itens/ean] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a definir o EAN' });
   }
 });
 

@@ -1010,6 +1010,48 @@ function Conf({ v }) {
   return <span className={`adm-conf ${cls}`}>{v}</span>;
 }
 
+// Editor inline do EAN de um item: escrever/colar o código → ✓ grava (valida o
+// dígito verificador no servidor e enriquece a ficha por Open Food Facts/catálogo).
+// Vazio → limpa o EAN. Mostra o nome do produto encontrado como confirmação.
+function EanEdit({ item, onSaved }) {
+  const [v, setV] = useState(item.ean || '');
+  const [estado, setEstado] = useState(null); // null | 'gravando' | {ok,msg} | {erro}
+  useEffect(() => { setV(item.ean || ''); setEstado(null); }, [item.id]);
+  const mudou = v.trim() !== (item.ean || '');
+  async function gravar() {
+    setEstado('gravando');
+    try {
+      const r = await adm.definirEanItem(item.id, v.trim());
+      const msg = v.trim()
+        ? (r.ficha?.nome ? '✓ ' + r.ficha.nome : r.ficha?.encontrado ? '✓ guardado' : '✓ sem ficha (OFF/catálogo)')
+        : '✓ limpo';
+      setEstado({ ok: true, msg });
+      onSaved?.(r.ean || null);
+    } catch (e) {
+      setEstado({ erro: e.message || 'falha' });
+    }
+  }
+  return (
+    <span className="adm-ean-edit">
+      <input
+        inputMode="numeric"
+        value={v}
+        placeholder="—"
+        onChange={(e) => setV(e.target.value.replace(/\D/g, ''))}
+        onKeyDown={(e) => { if (e.key === 'Enter' && mudou) gravar(); }}
+      />
+      {mudou && (
+        <button className="adm-ean-ok" onClick={gravar} disabled={estado === 'gravando'} title="gravar EAN">
+          {estado === 'gravando' ? '…' : '✓'}
+        </button>
+      )}
+      {estado && estado !== 'gravando' && (
+        <span className={`adm-ean-msg ${estado.erro ? 'err' : 'ok'}`}>{estado.erro ? '✗ ' + estado.erro : estado.msg}</span>
+      )}
+    </span>
+  );
+}
+
 // Inspeção do item CRU: o nome como aparece no talão da loja + a loja + TODAS as
 // propriedades extraídas (qtd, preços, €/base, unidade, EAN, IVA, desconto, flags).
 // Busca por nome/loja; clicar na nota abre a imagem+leitura. Para o operador
@@ -1095,7 +1137,9 @@ function TabItens({ onAbrirNota }) {
                   <td>{it.preco_por_base == null ? '—' : fmt(it.preco_por_base, 2)}{it.ppb_inferido ? '*' : ''}</td>
                   <td>{it.unidade_base || '—'}</td>
                   <td className="adm-it-peso">{it.linha_peso || '—'}</td>
-                  <td className="adm-it-ean">{it.ean || '—'}</td>
+                  <td className="adm-it-ean">
+                    <EanEdit item={it} onSaved={(ean) => setDados((ds) => ds.map((x) => (x.id === it.id ? { ...x, ean } : x)))} />
+                  </td>
                   <td>{it.taxa_iva == null ? '—' : `${Math.round(Number(it.taxa_iva) * 100)}%`}</td>
                   <td>{Number(it.desconto_direto) ? eur(it.desconto_direto) : '—'}</td>
                   <td>{it.nome_canonico || <em className="adm-it-semsku">sem SKU</em>}</td>

@@ -33,7 +33,7 @@ async function consultarCatalogo(ean) {
 
 // Consulta um produto pelo EAN: nossa base → Open Food Facts → catálogo local (e
 // GUARDA, item_id NULL). Devolve { encontrado, fonte, nome }. Por /consultar e /foto.
-async function consultarOuGuardar(ean) {
+export async function consultarOuGuardar(ean) {
   const [[ja]] = await getPool().query(
     `SELECT COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), 'null'), nome) AS nome
        FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL OR fonte = 'catalogo') ORDER BY id LIMIT 1`,

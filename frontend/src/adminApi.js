@@ -32,6 +32,7 @@ export const autoMergeIdenticos = () => jsend('/api/admin/skus/auto-merge', 'POS
 export const painel = () => jget('/api/admin/painel');
 export const listarItens = (q, ordenar) =>
   jget(`/api/admin/itens?ordenar=${ordenar || 'recente'}${q ? '&q=' + encodeURIComponent(q) : ''}`);
+export const definirEanItem = (id, ean) => jsend(`/api/admin/itens/${id}/ean`, 'POST', { ean });
 export const capturas = (q) => jget(`/api/admin/capturas${q ? '?q=' + encodeURIComponent(q) : ''}`);
 export const mestres = () => jget('/api/admin/mestres');
 export const desligarMestre = (skuId) => jsend('/api/admin/mestres/desligar', 'POST', { skuId });
