@@ -23,11 +23,15 @@ const SABORES = new Set([
   'caju', 'macadamia', 'natas', 'gengibre', 'aveia', 'espelta',
 ]);
 const saboresDe = (s) => new Set(toks(s).filter((t) => SABORES.has(t)));
-function saborConflito(a, b) {
-  const sa = saboresDe(a), sb = saboresDe(b);
-  if (!sa.size || !sb.size) return false;      // um dos lados sem sabor → não bloqueia
-  for (const x of sa) if (sb.has(x)) return false; // partilham pelo menos um sabor → ok
-  return true;                                 // ambos têm sabor, nenhum em comum → conflito
+// Conflito de sabor (assimétrico): se o TALÃO traz um sabor, o candidato TEM de o ter.
+// "morango" exige "morango" no candidato — não casa com baunilha NEM com o liso/natural
+// (se for de um sabor, não é natural). Talão sem sabor → não bloqueia (pode estar omitido).
+function saborConflito(talao, cand) {
+  const st = saboresDe(talao);
+  if (!st.size) return false;                  // talão sem sabor → não bloqueia
+  const sc = saboresDe(cand);
+  for (const x of st) if (sc.has(x)) return false; // candidato tem o sabor do talão → ok
+  return true;                                 // talão tem sabor que o candidato não tem → conflito
 }
 
 // RARIDADE (IDF): cada palavra pesa pela sua raridade no catálogo. "mel" aparece em
