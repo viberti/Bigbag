@@ -11,7 +11,7 @@ async function main() {
   const pool = getPool();
   // metade COM EAN conhecido (validação), metade SEM (cobertura)
   const [comEan] = await pool.query(
-    `SELECT i.descricao_original d, pe.ean ean, pe.marca marca
+    `SELECT i.descricao_original d, MAX(pe.ean) ean, MAX(pe.marca) marca
        FROM item i JOIN produto_ean pe ON pe.item_id = i.id
       WHERE i.is_non_product=0 AND pe.ean IS NOT NULL
       GROUP BY i.descricao_original ORDER BY RAND() LIMIT ?`, [Math.ceil(N / 2)]);
