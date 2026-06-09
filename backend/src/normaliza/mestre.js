@@ -40,6 +40,10 @@ export function limparDescricao(d) {
     s = s.replace(/^\d+\s+/, ''); // prefixo de quantidade: "1 "
     s = s.replace(/^C\s+(?=[A-Z])/, ''); // "C " (código IVA) seguido de palavra
     s = s.replace(/\s+[AB]$/, ''); // sufixo de código IVA "A"/"B" (não unidades G/L)
+    // "UN"/"UNI"/"UNID"/"UND" SOLTO no fim = "vendido à unidade", não é o nome
+    // ("BURRATA SELEÇÃO UN" → "BURRATA SELEÇÃO"). NÃO remove se vier depois de um
+    // número (pack "6 UN"/"18UN"/"1DZ" — quantidade que distingue produtos).
+    s = s.replace(/\s+un(?:i|id|de|d)?\.?$/i, (m, off, str) => (/\d\s*$/.test(String(str).slice(0, off)) ? m : ''));
     s = s.replace(/\s+/g, ' ').trim();
     if (s === antes) break;
   }
