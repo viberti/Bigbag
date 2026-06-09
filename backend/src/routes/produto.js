@@ -399,17 +399,19 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
         JOIN loja l ON l.id = f.loja_id
        WHERE i.is_non_product = 0
          AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
-         -- identificado se QUALQUER compra com o mesmo nome E na mesma cadeia já tem
-         -- EAN (identificar uma "Salada Gourmet" do Continente vale para todas as do
-         -- Continente com esse nome; entre cadeias não — pode ser outra marca-própria).
+         -- identificado se QUALQUER compra do MESMO produto na MESMA cadeia já tem EAN.
+         -- "Mesmo produto" = mesmo SKU (junta variantes de OCR do nome, ex.: CEREATS
+         -- vs CEREAIS Frosties) OU mesma descrição (rede p/ os poucos itens sem SKU).
+         -- Entre cadeias não propaga — pode ser outra marca-própria.
          AND NOT EXISTS (
            SELECT 1 FROM produto_ean pe
              JOIN item i2 ON i2.id = pe.item_id
              JOIN fatura f2 ON f2.id = i2.fatura_id
              JOIN loja l2 ON l2.id = f2.loja_id
             WHERE pe.ean IS NOT NULL
-              AND i2.descricao_original = i.descricao_original
-              AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
+              AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome)
+              AND ((i.sku_id IS NOT NULL AND i2.sku_id = i.sku_id)
+                   OR i2.descricao_original = i.descricao_original))
        ORDER BY f.data_compra DESC, f.id DESC, i.id`);
     res.json({ itens });
   } catch (e) {
