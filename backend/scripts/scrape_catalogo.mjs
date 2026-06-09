@@ -6,6 +6,7 @@
 // Uso:
 //   node scripts/scrape_catalogo.mjs <fonte> [limite]
 //   AUCHAN_POOL=4 AUCHAN_DELAY=250 SO_NOVOS=1 node scripts/scrape_catalogo.mjs continente 30
+import { gunzipSync } from 'node:zlib';
 import { getPool } from '../src/db.js';
 import { extrairFormato, precoPorBase } from '../src/normaliza/formato.js';
 
@@ -40,6 +41,25 @@ async function fetchText(url, tentativas = 3) {
       if (r.status === 404) return null;
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return await r.text();
+    } catch (e) {
+      if (i === tentativas - 1) throw e;
+      await sleep(600 * (i + 1));
+    }
+  }
+}
+
+// Lê um sitemap (descomprime se vier gzipado — alguns sites, ex. Lidl, servem .gz).
+async function fetchSitemap(url, tentativas = 3) {
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 25000);
+      const r = await fetch(url, { headers: { 'User-Agent': UA } , signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      let buf = Buffer.from(await r.arrayBuffer());
+      if (buf[0] === 0x1f && buf[1] === 0x8b) buf = gunzipSync(buf); // magic gzip
+      return buf.toString('utf8');
     } catch (e) {
       if (i === tentativas - 1) throw e;
       await sleep(600 * (i + 1));
@@ -122,6 +142,29 @@ const FONTES = {
       };
     },
   },
+  // Lidl: catálogo online pequeno (~390) e SEM EAN. Útil só para dar nome/marca
+  // oficiais aos itens de talões DO Lidl (melhora normalização e matching).
+  lidl: {
+    sitemapIndex: 'https://www.lidl.pt/static/sitemap.xml',
+    sitemapMatch: /product_sitemap/i,
+    filtros: [],
+    skuDoUrl: (u) => u.match(/\/p(\d+)(?:$|[/?#])/)?.[1] || null,
+    extrair(url, html) {
+      const p = jsonLdProduct(html); if (!p) return null;
+      const nome = String(p.name || '').trim(); if (!nome) return null;
+      const preco = num(Array.isArray(p.offers) ? p.offers[0]?.price : p.offers?.price);
+      let niveis = [];
+      if (p.category) niveis = String(p.category).split(/[>/]/).map((s) => decode(s).trim()).filter(Boolean);
+      return {
+        ean: null, // o Lidl não publica EAN
+        nome: nome.slice(0, 255), marca: ((typeof p.brand === 'object' ? p.brand?.name : p.brand) || null)?.toString().slice(0, 140) || null,
+        ...niveisToCat(niveis.map((n) => n.slice(0, 90))),
+        preco, moeda: (Array.isArray(p.offers) ? p.offers[0]?.priceCurrency : p.offers?.priceCurrency) || 'EUR',
+        imagem_url: ((Array.isArray(p.image) ? p.image[0] : p.image) || null)?.toString().slice(0, 600) || null,
+        ...comporFormatoPreco(p, nome, preco),
+      };
+    },
+  },
 };
 
 async function upsert(pool, fonte, sku, url, f) {
@@ -144,10 +187,10 @@ async function main() {
   if (!cfg) { console.error(`fonte inválida. usa: ${Object.keys(FONTES).join(' | ')}`); process.exit(1); }
   const pool = getPool();
   console.log(`[${FONTE}] a ler sitemaps…`);
-  const idx = await fetchText(cfg.sitemapIndex);
+  const idx = await fetchSitemap(cfg.sitemapIndex);
   const sms = locs(idx).filter((u) => cfg.sitemapMatch.test(u));
   let urls = [];
-  for (const sm of sms) urls.push(...locs(await fetchText(sm)));
+  for (const sm of sms) urls.push(...locs(await fetchSitemap(sm)));
   const total = urls.length;
   if (cfg.filtros.length) urls = urls.filter((u) => cfg.filtros.some((f) => u.includes(f)));
   console.log(`[${FONTE}] sitemaps produto: ${sms.length} | URLs: ${total} (após filtro: ${urls.length})`);
