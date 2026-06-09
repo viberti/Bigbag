@@ -834,9 +834,10 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
   const [aberta, setAberta] = useState(null); // nota mostrada no detalhe (mantém-se no slide-out)
   const [detAberto, setDetAberto] = useState(false);
   const [detItens, setDetItens] = useState(null); // itens da nota aberta (null = a carregar)
+  const [filtroLoja, setFiltroLoja] = useState(null); // ícone de mercado: filtra os cartões
 
   useEffect(() => {
-    if (!aberto) setDetAberto(false);
+    if (!aberto) { setDetAberto(false); setFiltroLoja(null); }
   }, [aberto]);
 
   function abrirDetalhe(n) {
@@ -846,8 +847,12 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
     detalhesNota(n.id).then((d) => setDetItens(d.itens)).catch(() => setDetItens([]));
   }
 
+  // mercados distintos (para os ícones) e a lista filtrada pelo mercado escolhido.
+  const lojas = notas ? [...new Set(notas.map((n) => n.loja).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt')) : [];
+  const lista = notas && filtroLoja ? notas.filter((n) => n.loja === filtroLoja) : notas;
+
   const somaMes = (y, m) =>
-    notas.filter((n) => +String(n.data).slice(0, 4) === y && +String(n.data).slice(5, 7) === m).reduce((a, n) => a + Number(n.total || 0), 0);
+    lista.filter((n) => +String(n.data).slice(0, 4) === y && +String(n.data).slice(5, 7) === m).reduce((a, n) => a + Number(n.total || 0), 0);
 
   let resumo = null;
   if (notas && notas.length) {
@@ -885,17 +890,35 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
           </div>
         )}
 
+        {lojas.length > 1 && (
+          <div className="cmp-lojas">
+            {lojas.map((loja) => {
+              const tm = lojaTema(loja);
+              return (
+                <button key={loja} type="button" title={loja}
+                  className={`cmp-loja${filtroLoja === loja ? ' on' : ''}`} style={{ '--c': tm.c }}
+                  onClick={() => setFiltroLoja(filtroLoja === loja ? null : loja)}>
+                  <span className="cmp-loja-mono">{tm.mono}</span>
+                </button>
+              );
+            })}
+            {filtroLoja && (
+              <button type="button" className="cmp-loja-todos" onClick={() => setFiltroLoja(null)}>todos</button>
+            )}
+          </div>
+        )}
+
         <div className="cmp-list">
           {notas === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
-          ) : notas.length === 0 ? (
+          ) : lista.length === 0 ? (
             <p className="sheet-vazio">Ainda sem compras.</p>
           ) : (
             (() => {
-              const anoBase = +String(notas[0].data).slice(0, 4);
+              const anoBase = +String(lista[0].data).slice(0, 4);
               let lastY = null, lastM = null;
               const out = [];
-              for (const n of notas) {
+              for (const n of lista) {
                 const y = +String(n.data).slice(0, 4), m = +String(n.data).slice(5, 7);
                 if (y !== lastY || m !== lastM) {
                   out.push(
@@ -1032,7 +1055,30 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
 
 // Despensa: produtos que conhecemos (com EAN), por ordem de compra desc. Tocar
 // num produto abre a ficha completa (info + análise).
+// timestamp de uma data em vários formatos (ISO, DD/MM/AAAA) para ordenar; null→fim.
+function tsData(s) {
+  if (!s) return null;
+  const iso = String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
+  const br = String(s).match(/(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/);
+  if (br) { let y = +br[3]; if (y < 100) y += 2000; return Date.UTC(y, +br[2] - 1, +br[1]); }
+  const d = Date.parse(s);
+  return Number.isNaN(d) ? null : d;
+}
+
 function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
+  const [ordem, setOrdem] = useState('data'); // data | nome | validade
+  let lista = produtos;
+  if (produtos) {
+    lista = [...produtos];
+    if (ordem === 'nome') {
+      lista.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt', { sensitivity: 'base' }));
+    } else if (ordem === 'validade') {
+      lista.sort((a, b) => (tsData(a.validade) ?? Infinity) - (tsData(b.validade) ?? Infinity)); // a expirar primeiro
+    } else {
+      lista.sort((a, b) => (tsData(b.data) ?? -Infinity) - (tsData(a.data) ?? -Infinity)); // compra mais recente primeiro
+    }
+  }
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
@@ -1044,13 +1090,21 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
             <Ico name="close" size={18} />
           </button>
         </div>
+        {produtos && produtos.length > 0 && (
+          <div className="desp-ord">
+            <span className="desp-ord-k">Ordenar:</span>
+            {[['data', 'Compra'], ['nome', 'Nome'], ['validade', 'Validade']].map(([k, lbl]) => (
+              <button key={k} className={ordem === k ? 'on' : ''} onClick={() => setOrdem(k)}>{lbl}</button>
+            ))}
+          </div>
+        )}
         <div className="despensa-list">
           {produtos === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : produtos.length === 0 ? (
             <p className="sheet-vazio">Ainda sem produtos com código de barras. Use o ícone da câmara numa nota para identificar um produto.</p>
           ) : (
-            produtos.map((p) => (
+            lista.map((p) => (
               <button key={p.ean} type="button" className="desp-row" onClick={() => onInfo({ id: p.item_id, ean: p.ean, produto: p.nome })}>
                 <span className="desp-corpo">
                   <span className="desp-nome">{p.nome}</span>

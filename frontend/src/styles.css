@@ -816,6 +816,14 @@ body { background: #0c1814; }
 .bb .cmp-logo { position: relative; width: 50px; height: 50px; flex: 0 0 auto; border-radius: 14px; overflow: hidden; display: grid; place-items: center;
   background: #f6f8f7; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); }
 .bb .cmp-mono { font-weight: 800; font-size: 16px; letter-spacing: -.02em; color: var(--c); }
+/* Ícones de mercado (filtro) */
+.bb .cmp-lojas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.bb .cmp-loja { width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto; display: grid; place-items: center; cursor: pointer;
+  background: #f6f8f7; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); opacity: .55; transition: opacity .12s, transform .12s; }
+.bb .cmp-loja:hover { opacity: .85; }
+.bb .cmp-loja.on { opacity: 1; transform: translateY(-1px); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent); }
+.bb .cmp-loja-mono { font-weight: 800; font-size: 13px; letter-spacing: -.02em; color: var(--c); }
+.bb .cmp-loja-todos { margin-left: 4px; font-size: 12px; color: var(--muted-bb); background: none; border: none; cursor: pointer; text-decoration: underline; }
 .bb .cmp-ci { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .bb .cmp-nm { font-size: 17.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bb .cmp-dt { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--faint); font-weight: 600; }
@@ -922,6 +930,11 @@ body { background: #0c1814; }
   background: none; border: none; color: inherit; cursor: pointer; transition: .12s; font: inherit; }
 .bb .desp-row:hover { background: rgba(255,255,255,.035); }
 .bb .desp-row .ico { color: var(--muted-bb); flex: 0 0 auto; }
+/* Ordenar a despensa */
+.bb .desp-ord { display: flex; align-items: center; gap: 7px; padding: 9px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.bb .desp-ord-k { font-size: 12px; color: var(--muted-bb); }
+.bb .desp-ord button { font-size: 12.5px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted-bb); cursor: pointer; }
+.bb .desp-ord button.on { background: var(--verde-bb, #1f7a3f); border-color: transparent; color: #fff; }
 .bb .desp-corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
 .bb .desp-nome { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bb .desp-sub { color: var(--muted-bb); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
