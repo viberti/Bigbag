@@ -21,6 +21,8 @@ const SABORES = new Set([
   'pera', 'maracuja', 'cereja', 'ginja', 'ameixa', 'noz', 'nozes', 'canela', 'mel', 'pistacio', 'pistachio',
   'stracciatella', 'tiramisu', 'oreo', 'cookies', 'citrinos', 'roma', 'kiwi', 'uva', 'figo',
   'caju', 'macadamia', 'natas', 'gengibre', 'aveia', 'espelta',
+  // variantes de DIETA/TEOR/COMPOSIÇÃO — também discriminam (light ≠ normal, magro ≠ gordo)
+  'light', 'lite', 'magro', 'gordo', 'desnatado', 'integral', 'zero', 'diet', 'lactose', 'gluten', 'proteina',
 ]);
 const saboresDe = (s) => new Set(toks(s).filter((t) => SABORES.has(t)));
 // Conflito de sabor: se o TALÃO traz sabor(es), o candidato tem de ter EXATAMENTE os
