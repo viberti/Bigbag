@@ -17,7 +17,7 @@ import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 import { marcaCompativel, precoPlausivel } from '../normaliza/validadores.js';
 import { ln } from '../normaliza/mestre.js';
 import { sugerirNomeCanonico } from '../ingest/produto.js';
-import { candidatosCatalogo } from '../normaliza/resolverProduto.js';
+import { candidatosCatalogo, proporMesmaLoja } from '../normaliza/resolverProduto.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
 
 export const adminRouter = Router();
@@ -173,9 +173,11 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
     // exclui frescos (fruta/legume/carne): não têm GTIN real — a nutrição vem do
     // NOME (produto_generico), não do matching por EAN. Mesmo critério do /por-identificar.
     const [itens] = await pool.query(
-      `SELECT i.descricao_original AS d, MAX(s.nome_canonico) AS canon,
+      `SELECT i.descricao_original AS d, MAX(COALESCE(l.cadeia, l.nome)) AS cadeia,
+              MAX(s.nome_canonico) AS canon, AVG(i.preco_por_base) AS ppb, AVG(i.preco_liquido) AS preco,
               MAX((SELECT pe.marca FROM produto_ean pe WHERE pe.item_id = i.id AND pe.marca IS NOT NULL LIMIT 1)) AS marca
          FROM item i
+         JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
          LEFT JOIN sku_normalizado s ON s.id = i.sku_id
          LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
         WHERE i.is_non_product = 0 AND i.ean IS NULL
@@ -187,17 +189,27 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
 
     let novas = 0, semCand = 0;
     for (const it of itens) {
-      const cand = await candidatosCatalogo(pool, { descricao: it.canon || it.d, marca: it.marca });
-      const top = cand[0];
-      if (!top || top.score < 0.4) { semCand++; continue; }
-      const alt = cand.slice(1, 4).map((c) => `${c.ean}|${String(c.nome).slice(0, 80)}|${c.score.toFixed(2)}`).join('||');
+      let prop;
+      if (it.cadeia === 'Continente') {
+        // MESMA LOJA: comida + preço-embalagem + marca-própria (frescos já excluídos).
+        prop = await proporMesmaLoja(pool, {
+          descricao: it.canon || it.d, descricaoRaw: it.d, marca: it.marca, preco: it.preco, preco_por_base: it.ppb,
+        }, 'continente');
+      } else {
+        // Outras cadeias: porta de marca (cross-cadeia só com marca nacional explícita).
+        const cand = await candidatosCatalogo(pool, { descricao: it.canon || it.d, marca: it.marca, preco_por_base: it.ppb });
+        const top = cand[0];
+        if (top && top.score >= 0.4) prop = { ...top, confianca: top.score, alternativas: cand.slice(1, 4) };
+      }
+      if (!prop) { semCand++; continue; }
+      const alt = (prop.alternativas || []).map((c) => `${c.ean}|${String(c.nome).slice(0, 80)}|${(c.score || 0).toFixed(2)}`).join('||');
       await pool.query(
         `INSERT INTO match_ean_sugestao (descricao, ean, nome_cand, marca, fonte, confianca, alternativas, estado)
            VALUES (?,?,?,?,?,?,?,'pendente')
          ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome_cand=VALUES(nome_cand), marca=VALUES(marca),
            fonte=VALUES(fonte), confianca=VALUES(confianca), alternativas=VALUES(alternativas),
            estado='pendente', decidido_em=NULL`,
-        [it.d, top.ean, String(top.nome).slice(0, 255), top.marca, top.fonte, top.score, alt],
+        [it.d, prop.ean, String(prop.nome).slice(0, 255), prop.marca, prop.fonte, prop.confianca, alt],
       );
       novas++;
     }

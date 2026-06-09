@@ -76,6 +76,50 @@ function precoDisparate(itemPpb, candPpb) {
   return r > 5 || r < 0.2;
 }
 
+// ── Match MESMA-LOJA (ex.: Continente → catálogo Continente) ───────────────
+// Combina comida (rarity, do candidatosCatalogo) + PREÇO de embalagem (forte: na
+// mesma loja o preço pago ≈ preço do catálogo) + MARCA-PRÓPRIA (CNT/CONTINENTE →
+// catálogo de marca "Continente%"; marca nacional no talão → bónus; marca diferente
+// num item own-brand → penaliza). Validado a ~57% de precisão exata (teto 70%).
+const FAM_CONT = new Set(['continente', 'selecao', 'seleccao', 'equilibrio', 'bio', 'cozinha', 'kitchen']);
+const proxPreco = (a, b) => (a && b ? Math.abs(Math.log(a / b)) : 99);
+function bonusMarca(descRaw, marcaCand) {
+  const ownReceipt = /\bcnt\b|continente/i.test(descRaw || '');
+  const ownCand = /continente/.test(norm(marcaCand || ''));
+  const bm = toks(marcaCand).filter((t) => !FAM_CONT.has(t)); // tokens de marca NACIONAL
+  const hay = new Set(toks(descRaw));
+  if (bm.length > 0 && bm.some((t) => hay.has(t))) return 0.4;  // marca explícita do talão bate
+  if (ownReceipt && ownCand) return 0.35;                       // item own-brand → candidato Continente
+  if (ownReceipt && bm.length > 0) return -0.45;                // item own-brand → candidato é OUTRA marca
+  return 0;
+}
+function bonusPreco(itPreco, candPreco) {
+  const p = proxPreco(itPreco, candPreco);
+  // SÓ bónus (preço longe pode ser só outro tamanho de embalagem — não penaliza).
+  return p === 99 ? 0 : p < 0.1 ? 0.5 : p < 0.2 ? 0.3 : p < 0.4 ? 0.1 : 0;
+}
+
+// item: { descricao (p/ comida — usa canónico), descricaoRaw (p/ marca — nome do talão),
+//         preco (€ pago da embalagem), preco_por_base }. Devolve a melhor proposta
+//         combinada + confianca [0..1] + alternativas, ou null.
+export async function proporMesmaLoja(pool, item, fonte) {
+  const cands = await candidatosCatalogo(pool, item, { fonte, portaMarca: false, limite: 30 });
+  const bons = cands.filter((c) => c.score >= 0.4);
+  if (!bons.length) return null;
+  const descRaw = item.descricaoRaw || item.descricao;
+  const total = (c) => c.score + bonusMarca(descRaw, c.marca) + bonusPreco(item.preco, c.preco);
+  const ranked = bons.map((c) => ({ c, t: total(c) })).sort((a, b) => b.t - a.t);
+  const top = ranked[0];
+  const precoBate = proxPreco(item.preco, top.c.preco) < 0.15;
+  return {
+    ...top.c,
+    score: top.t,
+    confianca: Math.max(0, Math.min(1, top.t)),
+    preco_bate: precoBate,
+    alternativas: ranked.slice(1, 4).map((r) => r.c),
+  };
+}
+
 function pontuar(item, cand, idf) {
   const qi = toks(`${item.descricao} ${item.marca || ''}`);
   const tc = new Set(toks(`${cand.nome} ${cand.marca || ''}`));
