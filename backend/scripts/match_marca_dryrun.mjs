@@ -23,6 +23,7 @@ async function main() {
     `SELECT i.descricao_original d, MAX(s.nome_canonico) canon, MAX(pe.marca) marca,
             MAX(pe.ean) ean, AVG(i.preco_por_base) ppb
        FROM item i JOIN produto_ean pe ON pe.item_id=i.id
+       LEFT JOIN sku_normalizado s ON s.id=i.sku_id
       WHERE i.is_non_product=0 AND pe.ean IS NOT NULL
       GROUP BY i.descricao_original`);
 
