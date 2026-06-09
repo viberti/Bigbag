@@ -6,8 +6,8 @@ import { getPool } from '../src/db.js';
 const pool = getPool();
 const [rows] = await pool.query(`
   SELECT pe.ean, pe.item_id,
-         JSON_UNQUOTE(JSON_EXTRACT(pe.vlm_json,'$.nome')) AS vlm,
-         JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.nome')) AS off,
+         NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.vlm_json,'$.nome')), 'null') AS vlm,
+         NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.nome')), 'null') AS off,
          i.sku_id, i.descricao_original AS talao, s.nome_canonico AS canonico
     FROM produto_ean pe
     LEFT JOIN item i ON i.id = pe.item_id

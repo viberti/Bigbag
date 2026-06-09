@@ -320,7 +320,7 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
          LEFT JOIN (
            SELECT i2.descricao_original AS d, COALESCE(l2.cadeia, l2.nome) AS chain,
                   MAX(pe.ean) AS ean,
-                  MAX(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca)) AS marca,
+                  MAX(COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), 'null'), pe.marca)) AS marca,
                   MAX(pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL) AS tem_ficha
              FROM produto_ean pe
              JOIN item i2 ON i2.id = pe.item_id

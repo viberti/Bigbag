@@ -35,7 +35,7 @@ async function consultarCatalogo(ean) {
 // GUARDA, item_id NULL). Devolve { encontrado, fonte, nome }. Por /consultar e /foto.
 async function consultarOuGuardar(ean) {
   const [[ja]] = await getPool().query(
-    `SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), nome) AS nome
+    `SELECT COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), 'null'), nome) AS nome
        FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL OR fonte = 'catalogo') ORDER BY id LIMIT 1`,
     [ean],
   );
@@ -394,8 +394,8 @@ produtoRouter.get('/despensa', requireAuth, async (req, res) => {
   try {
     const [rows] = await getPool().query(`
       SELECT pe.ean, pe.item_id, pe.id AS pe_id,
-             COALESCE(s.nome_canonico, i.descricao_original, JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.nome')), pe.nome) AS nome,
-             COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) AS marca,
+             COALESCE(s.nome_canonico, i.descricao_original, NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.nome')), 'null'), pe.nome) AS nome,
+             COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), 'null'), pe.marca) AS marca,
              COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.vlm_json,'$.validade_iso')), 'null'), NULLIF(pe.validade, 'null')) AS validade,
              f.data_compra AS data,
              COALESCE(l.cadeia, l.nome) AS loja
