@@ -465,15 +465,18 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
        WHERE i.is_non_product = 0
          AND i.ean IS NULL
          AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
-         -- identificado se QUALQUER compra com o mesmo nome E na mesma cadeia já tem
-         -- EAN (identificar uma "Salada Gourmet" do Continente vale para todas as do
-         -- Continente com esse nome; entre cadeias não — pode ser outra marca-própria).
+         -- identificado se QUALQUER compra com o mesmo nome E na mesma cadeia já
+         -- ganhou EAN **ou uma ficha com dados** (foto/VLM ou OFF). Identificar uma
+         -- "Salada Gourmet" do Continente vale para todas as do Continente com esse
+         -- nome; entre cadeias não (pode ser outra marca-própria). A ficha por foto
+         -- (sem EAN — ex.: alperces desidratados a granel) também resolve: o produto
+         -- já tem nutrição/rótulo, não precisa de voltar à worklist.
          AND NOT EXISTS (
            SELECT 1 FROM produto_ean pe
              JOIN item i2 ON i2.id = pe.item_id
              JOIN fatura f2 ON f2.id = i2.fatura_id
              JOIN loja l2 ON l2.id = f2.loja_id
-            WHERE pe.ean IS NOT NULL
+            WHERE (pe.ean IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.off_json IS NOT NULL OR pe.nutricao IS NOT NULL)
               AND i2.descricao_original = i.descricao_original
               AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
        GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
