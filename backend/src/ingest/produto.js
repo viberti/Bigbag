@@ -150,28 +150,35 @@ Regras:
 // Classifica um produto pelo NOME (fresco vs. embalado) e, se fresco, devolve a
 // nutrição típica por 100 g (sem precisar de EAN nem rótulo).
 export async function caracterizarProdutoNome(nome, { timeoutMs } = {}) {
-  const ctrl = new AbortController();
-  const to = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
-      body: JSON.stringify({
-        model: config.openrouter.modelConsulta,
-        messages: [{ role: 'system', content: PROMPT_CARACT }, { role: 'user', content: `Produto: "${nome}"` }],
-        response_format: { type: 'json_object' },
-        usage: { include: true },
-      }),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
-    const data = await res.json();
-    const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
-    if (dados.tipo !== 'fresco') dados.nutricao_100g = null; // processado → nutrição vem do rótulo
-    return { dados, custo: Number(data.usage?.cost) || 0 };
-  } finally {
-    clearTimeout(to);
+  // 1 retry: o LLM às vezes devolve JSON truncado ("Unexpected end of JSON input").
+  let ultimoErro;
+  for (let tent = 0; tent < 2; tent++) {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
+        body: JSON.stringify({
+          model: config.openrouter.modelConsulta,
+          messages: [{ role: 'system', content: PROMPT_CARACT }, { role: 'user', content: `Produto: "${nome}"` }],
+          response_format: { type: 'json_object' },
+          usage: { include: true },
+        }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+      const data = await res.json();
+      const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
+      if (dados.tipo !== 'fresco') dados.nutricao_100g = null; // processado → nutrição vem do rótulo
+      return { dados, custo: Number(data.usage?.cost) || 0 };
+    } catch (e) {
+      ultimoErro = e;
+    } finally {
+      clearTimeout(to);
+    }
   }
+  throw ultimoErro;
 }
 
 // Garante a caracterização genérica (nutrição-por-NOME) de um SKU, com CACHE em
