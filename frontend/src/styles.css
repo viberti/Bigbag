@@ -515,6 +515,7 @@ body {
 .adm-ean-metr-lado i { color: var(--muted); font-style: normal; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-right: 3px; }
 .adm-ean-metr-vs { color: var(--muted); font-size: 11px; }
 .adm-ean-metr-ok { color: #58d68d; font-size: 11px; }
+.adm-ean-metr-warn { color: #e6b800; font-size: 11px; }
 .adm-ean-alts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 6px 0 0 48px; }
 .adm-ean-alts-lbl { color: var(--muted); font-size: 12px; }
 .adm-ean-alt { background: transparent !important; border: 1px solid #ffffff22 !important; color: var(--muted) !important; padding: 3px 9px !important; border-radius: 6px; font-size: 12px; cursor: pointer; }

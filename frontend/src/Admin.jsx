@@ -888,8 +888,11 @@ function TabEans() {
                   <span className="adm-ean-metr-lado">
                     <i>catálogo</i> {s.formato_cand || '—'}{s.preco_cand != null ? ` · €${s.preco_cand.toFixed(2)}` : ''}
                   </span>
-                  {s.preco_pago != null && s.preco_cand != null
-                    && Math.abs(Math.log(s.preco_pago / s.preco_cand)) < 0.15 && <span className="adm-ean-metr-ok">💶 preço bate</span>}
+                  {s.preco_pago != null && s.preco_cand != null && (
+                    Math.abs(Math.log(s.preco_pago / s.preco_cand)) < 0.12
+                      ? <span className="adm-ean-metr-ok">💶 preço bate</span>
+                      : <span className="adm-ean-metr-warn">⚠ tamanho?</span>
+                  )}
                 </div>
               )}
               {s.alternativas?.length > 0 && (

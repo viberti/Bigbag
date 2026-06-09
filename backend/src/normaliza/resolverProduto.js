@@ -107,14 +107,24 @@ export async function proporMesmaLoja(pool, item, fonte) {
   const bons = cands.filter((c) => c.score >= 0.4);
   if (!bons.length) return null;
   const descRaw = item.descricaoRaw || item.descricao;
+  // RANKING: comida + marca + preço — o preço ajuda a escolher o TAMANHO certo
+  // (entre vários EANs do mesmo produto, o que tem o preço do que pagaste).
   const total = (c) => c.score + bonusMarca(descRaw, c.marca) + bonusPreco(item.preco, c.preco);
-  const ranked = bons.map((c) => ({ c, t: total(c) })).sort((a, b) => b.t - a.t);
+  const ranked = bons.map((c) => ({ c, t: total(c), base: c.score + bonusMarca(descRaw, c.marca) })).sort((a, b) => b.t - a.t);
   const top = ranked[0];
-  const precoBate = proxPreco(item.preco, top.c.preco) < 0.15;
+  const dp = proxPreco(item.preco, top.c.preco);
+  const precoBate = dp < 0.12;             // preço (≈tamanho) confirma
+  const precoLonge = dp !== 99 && dp > 0.4; // preço claramente diferente → tamanho NÃO confirma
+  // CONFIANÇA: o nome+marca identificam o PRODUTO (base), mas só é ALTA se o TAMANHO
+  // confirmar (preço bate). Sem confirmação, trava em média/baixa — evita casar uma
+  // embalagem diferente que parece a mesma (ex.: 6×1L vs 1L avulso).
+  let conf = top.base;
+  if (precoBate) conf = Math.min(1, conf + 0.3);
+  else conf = Math.min(conf, precoLonge ? 0.5 : 0.7);
   return {
     ...top.c,
     score: top.t,
-    confianca: Math.max(0, Math.min(1, top.t)),
+    confianca: Math.max(0, Math.min(1, conf)),
     preco_bate: precoBate,
     alternativas: ranked.slice(1, 4).map((r) => r.c),
   };
