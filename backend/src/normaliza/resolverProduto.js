@@ -94,7 +94,11 @@ function pontuar(item, cand, idf) {
 }
 
 // ── Candidatos do catálogo local (só com EAN) ──────────────────────────────
-export async function candidatosCatalogo(pool, item, limite = 12) {
+// opts: { limite, fonte: filtra a uma fonte do catálogo (ex.: 'continente'),
+//         portaMarca: exige a marca do candidato no talão (default true — desligar
+//         no match MESMA-LOJA, onde a marca é implícita e o "CNT" não bate "Continente") }
+export async function candidatosCatalogo(pool, item, opts = {}) {
+  const { limite = 12, fonte: fonteFiltro = null, portaMarca = true } = opts;
   const idf = await carregarIdf(pool);
   const q = [...new Set(toks(`${item.descricao} ${item.marca || ''}`))];
   if (!q.length) return [];
@@ -105,7 +109,8 @@ export async function candidatosCatalogo(pool, item, limite = 12) {
   for (const tok of chave) {
     const [rows] = await pool.query(
       `SELECT ean, marca, categoria_path, fonte, preco_por_base FROM catalogo_produto
-         WHERE ean IS NOT NULL AND ean <> '' AND nome LIKE ? LIMIT 40`, [`%${tok}%`]);
+         WHERE ean IS NOT NULL AND ean <> '' AND nome LIKE ?${fonteFiltro ? ' AND fonte = ?' : ''} LIMIT 40`,
+      fonteFiltro ? [`%${tok}%`, fonteFiltro] : [`%${tok}%`]);
     for (const r of rows) {
       if (!meta.has(r.ean)) meta.set(r.ean, { marca: r.marca, categoria_path: r.categoria_path, fontes: new Set(), ppb: r.preco_por_base });
       const m = meta.get(r.ean);
@@ -120,8 +125,8 @@ export async function candidatosCatalogo(pool, item, limite = 12) {
   const nomes = await nomesPorEan(pool, [...meta.keys()]);
   return [...meta.entries()].map(([ean, m]) => {
     // PORTA: a marca do candidato tem de aparecer no talão — senão não arriscamos
-    // (é o que evita o "BIO MILHO DOCE" → Bonduelle, marca que o talão não traz).
-    if (!marcaBate(item, m.marca)) return null;
+    // (é o que evita o "BIO MILHO DOCE" → Bonduelle). Desligável no match mesma-loja.
+    if (portaMarca && !marcaBate(item, m.marca)) return null;
     const variantes = [...(nomes.get(ean) || [])];
     let melhor = variantes[0] || '', best = 0;
     for (const n of variantes) { const s = pontuar(item, { nome: n, marca: m.marca }, idf); if (s > best) { best = s; melhor = n; } }
