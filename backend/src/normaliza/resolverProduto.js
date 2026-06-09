@@ -63,8 +63,11 @@ export async function candidatosCatalogo(pool, item, limite = 12) {
     const variantes = [...(nomes.get(ean) || [])];
     let melhor = variantes[0] || '', best = 0;
     for (const n of variantes) { const s = pontuar(item, { nome: n, marca: m.marca }); if (s > best) { best = s; melhor = n; } }
+    // EANs com prefixo "2" são códigos INTERNOS de loja (peso variável) — não são
+    // GTINs reais nem têm nutrição no OFF; despriorizar para o GTIN real ganhar.
+    const score = /^2/.test(ean) ? best * 0.6 : best;
     const fonte = [...m.fontes].join('+');
-    return { ean, nome: melhor, nomes: variantes, marca: m.marca, categoria_path: m.categoria_path, fonte, origem: fonte, score: best };
+    return { ean, nome: melhor, nomes: variantes, marca: m.marca, categoria_path: m.categoria_path, fonte, origem: fonte, score };
   }).sort((a, b) => b.score - a.score).slice(0, limite);
 }
 

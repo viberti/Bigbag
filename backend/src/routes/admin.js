@@ -170,12 +170,16 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
     const limite = Math.min(Math.max(Number(req.body?.limite) || 60, 1), 200);
     // produtos distintos comprados, sem EAN (nem na linha nem identificado) e sem
     // proposta/rejeição já registada. Usa o nome canónico para pontuar se houver.
+    // exclui frescos (fruta/legume/carne): não têm GTIN real — a nutrição vem do
+    // NOME (produto_generico), não do matching por EAN. Mesmo critério do /por-identificar.
     const [itens] = await pool.query(
       `SELECT i.descricao_original AS d, MAX(s.nome_canonico) AS canon,
               MAX((SELECT pe.marca FROM produto_ean pe WHERE pe.item_id = i.id AND pe.marca IS NOT NULL LIMIT 1)) AS marca
          FROM item i
          LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+         LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
         WHERE i.is_non_product = 0 AND i.ean IS NULL
+          AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
           AND NOT EXISTS (SELECT 1 FROM produto_ean pe WHERE pe.item_id = i.id AND pe.ean IS NOT NULL)
           AND NOT EXISTS (SELECT 1 FROM match_ean_sugestao m WHERE m.descricao = i.descricao_original)
         GROUP BY i.descricao_original
