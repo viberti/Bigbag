@@ -479,22 +479,17 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
             WHERE (pe.ean IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.off_json IS NOT NULL OR pe.nutricao IS NOT NULL)
               AND i2.descricao_original = i.descricao_original
               AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
-         -- REUSO DE EAN ENTRE CADEIAS (marcas nacionais): se o MESMO produto canónico
-         -- (SKU) já tem ficha por EAN cuja MARCA aparece na descrição deste talão, é o
-         -- mesmo produto de marca nacional (ex.: "SERRAMEL" no talão do Lidl e do Aldi)
-         -- → reuso seguro, não vale a pena re-identificar. A exigência da marca-no-nome
-         -- evita o falso-positivo dos SKUs genéricos que agrupam marcas-PRÓPRIAS de
-         -- várias lojas (ex.: "Iogurte Grego Natural" Continente vs Lidl vs Mercadona —
-         -- produtos diferentes, sem marca nacional comum no nome → continuam na lista).
+         -- REUSO POR MESMO EAN (entre cadeias): se a descrição deste talão JÁ É um nome
+         -- conhecido de um EAN específico (produto_nome ligado a um EAN), é exatamente o
+         -- mesmo produto — não precisa de re-identificação. É o critério do MESMO EAN,
+         -- não da marca/SKU genérico: "CARLSBERG LATA" e "CARLSBERG TP" têm EANs
+         -- diferentes (cada um só resolve o seu), "MIMOSA AJUST" ≠ "MIMOSA LIGHT"; mas
+         -- "SERRAMEL ROSMANINHO" e "SERRAMEL MEL ROSMANINHO" partilham o EAN → ambos
+         -- resolvem. Nomes de talão diferem por cadeia → casamento exato é conservador.
          AND NOT EXISTS (
-           SELECT 1 FROM produto_ean pe
-             JOIN item i3 ON i3.id = pe.item_id
-            WHERE pe.ean IS NOT NULL
-              AND (pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.nutricao IS NOT NULL)
-              AND i.sku_id IS NOT NULL
-              AND i3.sku_id = i.sku_id
-              AND pe.marca IS NOT NULL AND CHAR_LENGTH(TRIM(pe.marca)) >= 3
-              AND i.descricao_original LIKE CONCAT('%', TRIM(pe.marca), '%'))
+           SELECT 1 FROM produto_nome pn
+            WHERE pn.ean IS NOT NULL
+              AND pn.nome = i.descricao_original)
        GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
        ORDER BY loja, produto`);
     res.json({ itens });
