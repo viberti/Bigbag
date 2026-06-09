@@ -31,6 +31,20 @@ function marcaBate(item, marcaCand) {
   return bm.every((t) => hay.has(t));
 }
 
+// PORTA do produto: tirando os tokens da MARCA dos dois lados, o que define a comida
+// (o substantivo: requeijão, mel, presunto) tem de bater. Sem isto, a marca/região
+// sozinha deixa passar "requeijão Serra Estrela" → "ÁGUA Serra Estrela". Devolve a
+// fração de tokens não-marca do talão que aparecem no candidato (0..1).
+function produtoOverlap(item, nomeCand, marcaCand) {
+  const brand = new Set(toks(marcaCand));
+  const itemNB = [...new Set(toks(item.descricao))].filter((t) => !brand.has(t));
+  if (!itemNB.length) return 0;
+  const candNB = new Set(toks(nomeCand).filter((t) => !brand.has(t)));
+  let hit = 0;
+  for (const t of itemNB) if (candNB.has(t)) hit++;
+  return hit / itemNB.length;
+}
+
 // Peso do PREÇO (€/base): sinal mole e graduado, só quando ambos presentes. Cross-loja
 // e cross-data → "igual" realista = "muito próximo". Próximo sobe a confiança; longe baixa.
 function precoPeso(itemPpb, candPpb) {
@@ -88,6 +102,9 @@ export async function candidatosCatalogo(pool, item, limite = 12) {
     const variantes = [...(nomes.get(ean) || [])];
     let melhor = variantes[0] || '', best = 0;
     for (const n of variantes) { const s = pontuar(item, { nome: n, marca: m.marca }); if (s > best) { best = s; melhor = n; } }
+    // PORTA do produto: o substantivo (sem a marca) tem de bater em ≥50% — mata
+    // "requeijão→água", "mel→azeite", "presunto→chocolate" e variantes erradas.
+    if (produtoOverlap(item, melhor, m.marca) < 0.5) return null;
     // EANs com prefixo "2" são códigos INTERNOS de loja (peso variável) — não são
     // GTINs reais nem têm nutrição no OFF; despriorizar para o GTIN real ganhar.
     let score = /^2/.test(ean) ? best * 0.6 : best;
