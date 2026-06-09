@@ -5,6 +5,7 @@
 // variantes: caixa vs barras, culinário vs leite — onde o token-overlap falha).
 import { chatCompletion } from '../openrouter.js';
 import { extrairFormato } from './formato.js';
+import { nomesPorEan } from './mestreEan.js';
 
 const STOP = new Set(['de','da','do','e','com','sem','para','por','kg','kgs','g','gr','grs','ml','cl','lt','l','un','und','unid','sabor','tipo','pack','x','the','of']);
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -39,21 +40,32 @@ function pontuar(item, cand) {
 export async function candidatosCatalogo(pool, item, limite = 12) {
   const q = [...new Set(toks(`${item.descricao} ${item.marca || ''}`))];
   if (!q.length) return [];
-  // Procura CADA token distintivo SEPARADAMENTE (os mais longos primeiro) e funde
-  // — evita que um token comum (ex.: "cereais") encha o LIMIT e corte o match
-  // específico (ex.: "frosties").
+  // 1) Gera EANs candidatos: procura CADA token distintivo SEPARADAMENTE (evita que
+  // um token comum encha o LIMIT e corte o match específico — ex.: "frosties").
   const chave = q.sort((a, b) => b.length - a.length).slice(0, 4);
-  const seen = new Map();
+  const meta = new Map(); // ean → { marca, categoria_path, fontes:Set }
   for (const tok of chave) {
     const [rows] = await pool.query(
-      `SELECT ean, nome, marca, categoria_path, fonte FROM catalogo_produto
+      `SELECT ean, marca, categoria_path, fonte FROM catalogo_produto
          WHERE ean IS NOT NULL AND ean <> '' AND nome LIKE ? LIMIT 40`, [`%${tok}%`]);
-    for (const r of rows) if (!seen.has(r.ean)) seen.set(r.ean, r);
+    for (const r of rows) {
+      if (!meta.has(r.ean)) meta.set(r.ean, { marca: r.marca, categoria_path: r.categoria_path, fontes: new Set() });
+      const m = meta.get(r.ean);
+      m.fontes.add(r.fonte);
+      if (!m.marca && r.marca) m.marca = r.marca;
+    }
   }
-  return [...seen.values()]
-    .map((r) => ({ ...r, origem: r.fonte, score: pontuar(item, r) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limite);
+  if (!meta.size) return [];
+  // 2) Mestre por EAN: busca TODAS as variantes de nome (Auchan+Continente+ident) de
+  // cada EAN e pontua contra a MELHOR variante → a tese (match contra todas as fontes).
+  const nomes = await nomesPorEan(pool, [...meta.keys()]);
+  return [...meta.entries()].map(([ean, m]) => {
+    const variantes = [...(nomes.get(ean) || [])];
+    let melhor = variantes[0] || '', best = 0;
+    for (const n of variantes) { const s = pontuar(item, { nome: n, marca: m.marca }); if (s > best) { best = s; melhor = n; } }
+    const fonte = [...m.fontes].join('+');
+    return { ean, nome: melhor, nomes: variantes, marca: m.marca, categoria_path: m.categoria_path, fonte, origem: fonte, score: best };
+  }).sort((a, b) => b.score - a.score).slice(0, limite);
 }
 
 // ── Candidatos do Open Food Facts (por nome) ───────────────────────────────
