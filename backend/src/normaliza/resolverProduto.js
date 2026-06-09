@@ -29,7 +29,7 @@ const saboresDe = (s) => new Set(toks(s).filter((t) => SABORES.has(t)));
 // mesmos — nem a menos ("coco" não casa com liso/natural), nem a MAIS ("coco" não casa
 // com "ananás e coco": o ananás não está no talão). Talão sem sabor → não bloqueia
 // (pode estar omitido). Morango ≠ baunilha, coco ≠ ananás+coco.
-function saborConflito(talao, cand) {
+export function saborConflito(talao, cand) {
   const st = saboresDe(talao);
   if (!st.size) return false;                  // talão sem sabor → não bloqueia
   const sc = saboresDe(cand);
@@ -43,7 +43,7 @@ function saborConflito(talao, cand) {
 // uma vez (cache no processo); a partir daí o match dá importância às palavras que
 // DISTINGUEM, não às da categoria que todos partilham.
 let _idf = null;
-async function carregarIdf(pool) {
+export async function carregarIdf(pool) {
   if (_idf) return _idf;
   const [rows] = await pool.query("SELECT nome FROM catalogo_produto WHERE nome IS NOT NULL AND nome <> ''");
   const df = new Map();
@@ -84,7 +84,7 @@ function marcaBate(item, marcaCand) {
 // mais — se a inicial não bate, dificilmente é o mesmo produto ("MEL ..." vs "Caderno").
 const pesoPos = (i) => (i === 0 ? 2.4 : i === 1 ? 1.6 : 1);
 
-function produtoOverlap(item, nomeCand, marcaCand, idf) {
+export function produtoOverlap(item, nomeCand, marcaCand, idf) {
   const brand = new Set(toks(marcaCand));
   const ordem = toks(item.descricao); // em ORDEM (para o peso de posição)
   const itemNB = [...new Set(ordem)].filter((t) => !brand.has(t));
