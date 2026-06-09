@@ -33,6 +33,7 @@ Thumbs.db
 *perfil*.txt
 docs/*Perfil*
 
-# Token rotativo do Lidl Plus (segredo, nunca versionar)
+# Token rotativo do Lidl Plus (segredo, nunca versionar) — só o FICHEIRO do token,
+# NÃO o módulo lidlplus_token.js. Padrão específico ao ficheiro com ponto inicial.
 .lidlplus_token
-*lidlplus_token*
+*/.lidlplus_token
