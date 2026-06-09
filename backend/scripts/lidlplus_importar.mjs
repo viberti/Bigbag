@@ -11,6 +11,7 @@
 // antes de finalizar o parser/ingestão.
 import { criarCliente, ticketParaFatura } from '../src/ingest/lidlplus.js';
 import { importarNovos } from '../src/ingest/lidlplus_sync.js';
+import { lerToken, guardarToken } from '../src/ingest/lidlplus_token.js';
 import { getPool } from '../src/db.js';
 
 const args = process.argv.slice(2);
@@ -18,7 +19,7 @@ const tem = (f) => args.includes(f);
 const val = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : null; };
 
 async function main() {
-  const cli = criarCliente();
+  const cli = criarCliente({ refreshToken: await lerToken(), onRotate: guardarToken });
 
   if (tem('--listar')) {
     const tickets = await cli.listarTickets();
