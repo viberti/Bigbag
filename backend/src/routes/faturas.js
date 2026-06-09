@@ -294,26 +294,41 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
       [id],
     );
     if (!nota) return res.status(404).json({ erro: 'Nota não encontrada' });
+    // A identificação (EAN/ficha) resolve-se por (descrição do talão + CADEIA), não por
+    // item_id: identificar UMA compra de "Salada Gourmet" no Continente vale para TODAS
+    // as compras Continente com o mesmo nome (mesmo produto). Entre cadeias não — pode
+    // ser marca-própria diferente. `ident` é a ficha por (descrição, cadeia).
     const [itens] = await getPool().query(
       `SELECT i.id, i.sku_id, COALESCE(s.nome_canonico, i.descricao_original) AS produto,
               i.quantidade, i.preco_liquido AS preco, s.unidade_base, i.preco_por_base,
-              COALESCE(i.ean, (SELECT pe.ean FROM produto_ean pe
-                WHERE pe.item_id = i.id AND pe.ean IS NOT NULL
-                ORDER BY pe.id DESC LIMIT 1)) AS ean,
-              (SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) FROM produto_ean pe
-                WHERE pe.item_id = i.id AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca) IS NOT NULL
-                ORDER BY pe.id DESC LIMIT 1) AS marca,
+              COALESCE(i.ean, ident.ean) AS ean,
+              ident.marca AS marca,
               pg.tipo AS tipo_alimento,
               (pg.nutricao IS NOT NULL) AS tem_generico,
               (
-                EXISTS (SELECT 1 FROM produto_ean pe
-                          WHERE (pe.ean = i.ean OR pe.item_id = i.id)
-                            AND (pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL))
+                COALESCE(ident.tem_ficha, 0) = 1
                 OR pg.nutricao IS NOT NULL
+                OR EXISTS (SELECT 1 FROM produto_ean pe
+                             WHERE pe.ean = i.ean
+                               AND (pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL))
               ) AS tem_dados
          FROM item i
          LEFT JOIN sku_normalizado s ON s.id = i.sku_id
          LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
+         JOIN fatura f ON f.id = i.fatura_id
+         JOIN loja l ON l.id = f.loja_id
+         LEFT JOIN (
+           SELECT i2.descricao_original AS d, COALESCE(l2.cadeia, l2.nome) AS chain,
+                  MAX(pe.ean) AS ean,
+                  MAX(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), pe.marca)) AS marca,
+                  MAX(pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL) AS tem_ficha
+             FROM produto_ean pe
+             JOIN item i2 ON i2.id = pe.item_id
+             JOIN fatura f2 ON f2.id = i2.fatura_id
+             JOIN loja l2 ON l2.id = f2.loja_id
+            WHERE pe.ean IS NOT NULL
+            GROUP BY d, chain
+         ) ident ON ident.d = i.descricao_original AND ident.chain = COALESCE(l.cadeia, l.nome)
         WHERE i.fatura_id = ? AND i.is_non_product = 0
         ORDER BY i.id`,
       [id],
