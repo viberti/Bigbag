@@ -1705,12 +1705,11 @@ function ProdutoInfoSheet({ item, onFechar }) {
       analiseProduto({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
         .then((r) => setAnalise(r.analise || { erro: true }))
         .catch(() => setAnalise({ erro: true }));
-    } else setAnalise({ erro: true });
-    if (item.id || item.ean) {
-      avaliacaoPersonalizada({ itemId: item.id, ean: item.ean })
+      avaliacaoPersonalizada({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
         .then((r) => setAval(r?.perfil ? r : null))
         .catch(() => setAval(null));
     } else {
+      setAnalise({ erro: true });
       setAval(null);
     }
   }, [item]);

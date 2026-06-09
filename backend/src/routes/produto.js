@@ -513,13 +513,14 @@ produtoRouter.get('/personalizado', requireAuth, async (req, res) => {
   try {
     const itemId = Number(req.query.item_id) || null;
     const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
-    if (!itemId && !eanQ) return res.status(400).json({ erro: 'item_id ou ean em falta' });
+    const skuId = Number(req.query.sku_id) || null;
+    if (!itemId && !eanQ && !skuId) return res.status(400).json({ erro: 'item_id, sku_id ou ean em falta' });
 
     const [[p]] = await getPool().query('SELECT id, nome, resumo FROM perfil_membro WHERE ativo = 1 LIMIT 1');
     if (!p) return res.json({ perfil: null });
     const resumo = typeof p.resumo === 'string' ? JSON.parse(p.resumo) : p.resumo;
 
-    const info = await consolidarProduto({ itemId, eanQ });
+    const info = await consolidarProduto({ itemId, eanQ, skuId });
     const produto = {
       nome: info.off?.nome || info.vlm?.nome || info.generico?.alimento || info.nome || null,
       categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,

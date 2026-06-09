@@ -152,8 +152,8 @@ export async function ativarPerfil(id) {
   if (!r.ok) throw new Error(`ativar ${r.status}`);
   return r.json();
 }
-export async function avaliacaoPersonalizada({ itemId, ean }) {
-  const qs = itemId ? `item_id=${itemId}` : `ean=${encodeURIComponent(ean)}`;
+export async function avaliacaoPersonalizada({ itemId, ean, skuId }) {
+  const qs = itemId ? `item_id=${itemId}` : skuId ? `sku_id=${skuId}` : `ean=${encodeURIComponent(ean)}`;
   const r = await call(`/api/produto/personalizado?${qs}`);
   if (!r.ok) throw new Error(`personalizado ${r.status}`);
   return r.json(); // { perfil, alertas, avaliacao }
