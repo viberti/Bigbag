@@ -358,6 +358,24 @@ produtoRouter.get('/consultar', requireAuth, async (req, res) => {
   }
 });
 
+// Consultar um produto pelo NOME (texto/voz), p/ frescos sem código de barras
+// (ex.: "figo", "fraldinha"). Resolve a nutrição-por-nome (cria/reusa o SKU) e
+// devolve o sku_id para abrir a ficha. Embalados → encontrado:false (pede rótulo/EAN).
+produtoRouter.get('/por-nome', requireAuth, async (req, res) => {
+  try {
+    const nome = String(req.query.nome || '').trim().slice(0, 120);
+    if (nome.length < 2) return res.status(400).json({ erro: 'Escreve o nome do produto' });
+    const gen = await resolverGenericoPorNome(getPool(), nome);
+    if (gen?.nutricao_100g && gen.sku_id) {
+      return res.json({ encontrado: true, sku_id: gen.sku_id, nome: gen.alimento || nome, tipo: gen.tipo });
+    }
+    res.json({ encontrado: false, tipo: gen?.tipo || null, nome: gen?.alimento || nome });
+  } catch (e) {
+    console.error('[produto/por-nome] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a consultar o produto por nome' });
+  }
+});
+
 // Câmara "inteligente": classifica a foto (talão/produto/outro). Se produto,
 // tenta o EAN (do rótulo ou via OFF por nome) e devolve o resultado da consulta.
 produtoRouter.post('/foto', requireAuth, upload.single('foto'), async (req, res) => {

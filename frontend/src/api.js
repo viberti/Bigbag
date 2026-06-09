@@ -182,6 +182,12 @@ export async function consultarProdutoEan(ean) {
   return r.json(); // { ean, encontrado, fonte, nome }
 }
 
+export async function consultarProdutoNome(nome) {
+  const r = await call(`/api/produto/por-nome?nome=${encodeURIComponent(nome)}`);
+  if (!r.ok) throw new Error(`por-nome ${r.status}`);
+  return r.json(); // { encontrado, sku_id, nome, tipo }
+}
+
 export async function listarDespensa() {
   const r = await call('/api/produto/despensa');
   if (!r.ok) throw new Error(`despensa ${r.status}`);

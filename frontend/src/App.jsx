@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -627,7 +627,7 @@ function Chat({ onSair, nome }) {
       <ScannerSheet
         aberto={scannerAberto}
         onFechar={() => setScannerAberto(false)}
-        onEncontrado={(p) => { setScannerAberto(false); setInfoItem({ ean: p.ean, produto: p.nome || p.ean }); }}
+        onEncontrado={(p) => { setScannerAberto(false); setInfoItem(p.sku_id ? { sku_id: p.sku_id, produto: p.nome } : { ean: p.ean, produto: p.nome || p.ean }); }}
       />
       <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
       {toast && <div className="toast" onClick={() => setToast('')}>{toast}</div>}
@@ -1332,6 +1332,23 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
   const [temLuz, setTemLuz] = useState(false);
   const [luz, setLuz] = useState(false);
   const [manual, setManual] = useState('');
+  const [nomeQ, setNomeQ] = useState('');
+
+  // Consulta por NOME (texto/voz): frescos sem código (figo, fraldinha). Abre a ficha
+  // pela nutrição-por-nome; embalados → mensagem a pedir o código/rótulo.
+  async function consultarNome(nome) {
+    const q = String(nome || '').trim();
+    if (q.length < 2) return;
+    setEan(null);
+    setFase('consulta');
+    try {
+      const r = await consultarProdutoNome(q);
+      if (r.encontrado && r.sku_id) onEncontrado({ sku_id: r.sku_id, nome: r.nome });
+      else setFase('embalado');
+    } catch {
+      setFase('embalado');
+    }
+  }
 
   // Foto do código (fallback): tenta descodificar a foto com zxing (exato) e, se
   // falhar, o VLM lê o número (validado pelo dígito verificador no backend).
@@ -1456,7 +1473,13 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
                   </button>
                 )}
                 {fase === 'foto' && <div className="scan-overlay">A ler a foto…</div>}
-                {fase === 'consulta' && <div className="scan-overlay">A consultar {ean}…</div>}
+                {fase === 'consulta' && <div className="scan-overlay">A consultar {ean || 'produto'}…</div>}
+                {fase === 'embalado' && (
+                  <div className="scan-overlay">
+                    <p>Parece um produto <b>embalado</b> — para a ficha, aponta o <b>código de barras</b> ou fotografa o rótulo. (A consulta por nome é para frescos: figo, fraldinha, courgette…)</p>
+                    <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>Voltar à câmara</button>
+                  </div>
+                )}
                 {fase === 'naoencontrado' && (
                   <div className="scan-overlay">
                     <p>Produto <b>{ean}</b> não encontrado — nem na nossa base nem no Open Food Facts.</p>
@@ -1478,6 +1501,12 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
               <div className="scan-manual">
                 <input inputMode="numeric" placeholder="ou escreve o código (EAN)" value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
                 <button type="button" disabled={manual.length < 8} onClick={() => consultarCod(manual)}>Consultar</button>
+              </div>
+              <div className="scan-manual">
+                <input placeholder="ou pelo nome (figo, fraldinha…)" value={nomeQ}
+                  onChange={(e) => setNomeQ(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') consultarNome(nomeQ); }} />
+                <button type="button" disabled={nomeQ.trim().length < 2} onClick={() => consultarNome(nomeQ)}>Consultar</button>
               </div>
             </>
           )}
