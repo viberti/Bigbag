@@ -50,6 +50,9 @@ export default function Admin() {
           <button className={aba === 'notas' ? 'on' : ''} onClick={() => setAba('notas')}>
             Notas
           </button>
+          <button className={aba === 'itens' ? 'on' : ''} onClick={() => setAba('itens')}>
+            Itens
+          </button>
           <button className={aba === 'revisao' ? 'on' : ''} onClick={() => setAba('revisao')}>
             Revisão
           </button>
@@ -81,6 +84,8 @@ export default function Admin() {
         <TabNomes />
       ) : aba === 'eans' ? (
         <TabEans />
+      ) : aba === 'itens' ? (
+        <TabItens onAbrirNota={abrirNota} />
       ) : aba === 'revisao' ? (
         <TabRevisao />
       ) : aba === 'qualidade' ? (
@@ -1003,6 +1008,100 @@ function Conf({ v }) {
   if (v == null) return <span className="adm-conf adm-conf-na">novo</span>;
   const cls = v < 50 ? 'adm-conf-ruim' : v < 70 ? 'adm-conf-medio' : 'adm-conf-bom';
   return <span className={`adm-conf ${cls}`}>{v}</span>;
+}
+
+// Inspeção do item CRU: o nome como aparece no talão da loja + a loja + TODAS as
+// propriedades extraídas (qtd, preços, €/base, unidade, EAN, IVA, desconto, flags).
+// Busca por nome/loja; clicar na nota abre a imagem+leitura. Para o operador
+// diagnosticar e corrigir problemas de extração.
+function TabItens({ onAbrirNota }) {
+  const [q, setQ] = useState('');
+  const [busca, setBusca] = useState('');
+  const [dados, setDados] = useState(null);
+  useEffect(() => {
+    setDados(null);
+    adm.listarItens(busca).then((d) => setDados(d.itens || [])).catch(() => setDados([]));
+  }, [busca]);
+
+  const fmt = (v, d = 2) => (v == null ? '—' : Number(v).toFixed(d).replace('.', ','));
+  const flag = (cond, label, cls) => (cond ? <span className={`adm-flag ${cls}`}>{label}</span> : null);
+
+  return (
+    <div className="adm-itens">
+      <div className="adm-sug-top">
+        <input
+          className="adm-it-busca"
+          placeholder="procurar por nome do talão ou loja…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') setBusca(q.trim()); }}
+        />
+        <button onClick={() => setBusca(q.trim())}>procurar</button>
+        {busca && <button onClick={() => { setQ(''); setBusca(''); }}>limpar</button>}
+        <span className="adm-sug-dica">o item tal como aparece no talão + tudo o que extraímos — para diagnosticar/corrigir</span>
+      </div>
+      {dados === null ? (
+        <p className="adm-vazio">a carregar…</p>
+      ) : dados.length === 0 ? (
+        <p className="adm-vazio">Nenhum item.</p>
+      ) : (
+        <div className="adm-itens-wrap">
+          <p className="adm-sug-dica">{dados.length} item(s){dados.length >= 600 ? ' · limite 600 — refina a busca' : ''}</p>
+          <table className="adm-tabela adm-itens-tab">
+            <thead>
+              <tr>
+                <th>nome no talão</th>
+                <th>loja</th>
+                <th>data</th>
+                <th>qtd</th>
+                <th>€/un</th>
+                <th>€ pago</th>
+                <th>€/base</th>
+                <th>unid</th>
+                <th>linha peso</th>
+                <th>EAN</th>
+                <th>IVA</th>
+                <th>desc.</th>
+                <th>SKU canónico</th>
+                <th>flags</th>
+                <th>nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dados.map((it) => (
+                <tr key={it.id}>
+                  <td className="adm-it-nome">{it.descricao_original}</td>
+                  <td>{it.loja}</td>
+                  <td>{dataCurta(it.data)}</td>
+                  <td>{fmt(it.quantidade, 3)}</td>
+                  <td>{it.preco_unitario == null ? '—' : eur(it.preco_unitario)}</td>
+                  <td>{eur(it.preco_liquido)}</td>
+                  <td>{it.preco_por_base == null ? '—' : fmt(it.preco_por_base, 2)}{it.ppb_inferido ? '*' : ''}</td>
+                  <td>{it.unidade_base || '—'}</td>
+                  <td className="adm-it-peso">{it.linha_peso || '—'}</td>
+                  <td className="adm-it-ean">{it.ean || '—'}</td>
+                  <td>{it.taxa_iva == null ? '—' : `${Math.round(Number(it.taxa_iva) * 100)}%`}</td>
+                  <td>{Number(it.desconto_direto) ? eur(it.desconto_direto) : '—'}</td>
+                  <td>{it.nome_canonico || <em className="adm-it-semsku">sem SKU</em>}</td>
+                  <td className="adm-it-flags">
+                    {flag(it.is_non_product, 'não-produto', 'f-np')}
+                    {flag(it.is_clearance, 'liquidação', 'f-cl')}
+                    {flag(it.peso_em_falta, 'peso em falta', 'f-pf')}
+                    {flag(it.ppb_inferido, 'ppb inferido', 'f-pi')}
+                  </td>
+                  <td>
+                    <button className="adm-link-min" onClick={() => onAbrirNota(it.fatura_id)} title="abrir a nota (imagem + leitura)">
+                      {it.numero_fatura ? `#${it.numero_fatura}` : `nota ${it.fatura_id}`}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function TabRevisao() {

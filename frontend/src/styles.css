@@ -578,6 +578,21 @@ body {
 .adm-tabela th { color: var(--muted); font-weight: 600; font-size: 12px; }
 .adm-tabela td { font-variant-numeric: tabular-nums; }
 .adm-tabela em { color: var(--muted); font-style: normal; font-size: 12px; }
+/* Aba Itens (inspeção do item cru do talão) */
+.adm-it-busca { flex: 1; min-width: 240px; padding: 8px 11px; border-radius: 8px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); font-size: 14px; }
+.adm-itens-wrap { overflow-x: auto; }
+.adm-itens-tab { white-space: nowrap; }
+.adm-itens-tab td { vertical-align: top; }
+.adm-it-nome { font-weight: 600; color: var(--texto); white-space: normal; max-width: 230px; }
+.adm-it-peso, .adm-it-ean { color: var(--muted); font-size: 12.5px; }
+.adm-it-semsku { color: #e08a8a; }
+.adm-it-flags { display: flex; flex-wrap: wrap; gap: 4px; white-space: normal; max-width: 170px; }
+.adm-flag { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
+.adm-flag.f-np { background: #5b2a2a; color: #ffb3b3; }
+.adm-flag.f-cl { background: #5a3a1a; color: #ffcf99; }
+.adm-flag.f-pf { background: #5a4a1a; color: #ffe699; }
+.adm-flag.f-pi { background: #23405a; color: #9fd0ff; }
+.adm-link-min { background: none; border: none; color: #7fb0ff; cursor: pointer; font: inherit; padding: 0; text-decoration: underline; white-space: nowrap; }
 .q-bom { color: var(--verde); }
 .q-medio { color: #e0b341; }
 .q-mau { color: #ff8a80; }

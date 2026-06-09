@@ -30,6 +30,7 @@ export const fundirSkus = (de, para) => jsend('/api/admin/skus/merge', 'POST', {
 export const sugestoesMerge = (limiar) => jget(`/api/admin/sugestoes-merge?limiar=${limiar}`);
 export const autoMergeIdenticos = () => jsend('/api/admin/skus/auto-merge', 'POST', {});
 export const painel = () => jget('/api/admin/painel');
+export const listarItens = (q) => jget(`/api/admin/itens${q ? '?q=' + encodeURIComponent(q) : ''}`);
 export const capturas = (q) => jget(`/api/admin/capturas${q ? '?q=' + encodeURIComponent(q) : ''}`);
 export const mestres = () => jget('/api/admin/mestres');
 export const desligarMestre = (skuId) => jsend('/api/admin/mestres/desligar', 'POST', { skuId });

@@ -56,6 +56,36 @@ adminRouter.post('/precos/reverter/:itemId', async (req, res) => {
 });
 adminRouter.use(requireAuth);
 
+// Inspeção do item CRU do talão: o nome como aparece na nota da loja + a loja +
+// TODAS as propriedades que extraímos (qtd, preços, €/base, unidade, EAN, flags…).
+// Para o operador diagnosticar e corrigir problemas de extração. Busca por
+// descrição ou loja; ordena pela mais recente.
+adminRouter.get('/itens', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const like = `%${q}%`;
+    const [itens] = await getPool().query(
+      `SELECT i.id, i.descricao_original, i.ean, i.linha_peso, i.quantidade,
+              i.preco_unitario, i.preco_liquido, i.preco_por_base, i.peso_em_falta,
+              i.taxa_iva, i.ppb_inferido, i.is_clearance, i.desconto_direto, i.is_non_product,
+              i.sku_id, s.nome_canonico, s.unidade_base,
+              i.fatura_id, COALESCE(l.cadeia, l.nome) AS loja, f.data_compra AS data, f.numero_fatura
+         FROM item i
+         LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+         JOIN fatura f ON f.id = i.fatura_id
+         JOIN loja l ON l.id = f.loja_id
+        WHERE (? = '' OR i.descricao_original LIKE ? OR COALESCE(l.cadeia, l.nome) LIKE ?)
+        ORDER BY f.data_compra DESC, i.fatura_id DESC, i.id ASC
+        LIMIT 600`,
+      [q, like, like],
+    );
+    res.json({ itens });
+  } catch (e) {
+    console.error('[admin/itens] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar itens' });
+  }
+});
+
 const str = (v, max = 200) => (v == null ? null : String(v).trim().slice(0, max));
 const normNome = (s) => String(s || '').trim().toLowerCase();
 // peso/volume lido no nome ("330g", "475g"); fundir só se bater (OCR muda letras, não o pack).
