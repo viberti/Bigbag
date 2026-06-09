@@ -480,18 +480,21 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
               AND i2.descricao_original = i.descricao_original
               AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
          -- REUSO DE EAN ENTRE CADEIAS (marcas nacionais): se o MESMO produto canónico
-         -- (SKU) já tem ficha por EAN noutra compra — em QUALQUER cadeia — não vale a
-         -- pena re-identificá-lo. Marcas próprias são exclusivas da cadeia (nunca
-         -- cruzam lojas), por isso um SKU com EAN visto em várias cadeias é, por
-         -- definição, marca nacional → reuso seguro. (Requer SKU específico; um SKU
-         -- demasiado genérico pode esconder a mais — corrige-se separando o SKU.)
+         -- (SKU) já tem ficha por EAN cuja MARCA aparece na descrição deste talão, é o
+         -- mesmo produto de marca nacional (ex.: "SERRAMEL" no talão do Lidl e do Aldi)
+         -- → reuso seguro, não vale a pena re-identificar. A exigência da marca-no-nome
+         -- evita o falso-positivo dos SKUs genéricos que agrupam marcas-PRÓPRIAS de
+         -- várias lojas (ex.: "Iogurte Grego Natural" Continente vs Lidl vs Mercadona —
+         -- produtos diferentes, sem marca nacional comum no nome → continuam na lista).
          AND NOT EXISTS (
            SELECT 1 FROM produto_ean pe
              JOIN item i3 ON i3.id = pe.item_id
             WHERE pe.ean IS NOT NULL
               AND (pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.nutricao IS NOT NULL)
               AND i.sku_id IS NOT NULL
-              AND i3.sku_id = i.sku_id)
+              AND i3.sku_id = i.sku_id
+              AND pe.marca IS NOT NULL AND CHAR_LENGTH(TRIM(pe.marca)) >= 3
+              AND i.descricao_original LIKE CONCAT('%', TRIM(pe.marca), '%'))
        GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
        ORDER BY loja, produto`);
     res.json({ itens });
