@@ -76,15 +76,20 @@ function marcaBate(item, marcaCand) {
 // (o substantivo: requeijão, mel, presunto) tem de bater. Sem isto, a marca/região
 // sozinha deixa passar "requeijão Serra Estrela" → "ÁGUA Serra Estrela". Devolve a
 // fração de tokens não-marca do talão que aparecem no candidato (0..1).
+// peso de POSIÇÃO: a 1ª/2ª palavra da descrição é o substantivo do produto e pesa
+// mais — se a inicial não bate, dificilmente é o mesmo produto ("MEL ..." vs "Caderno").
+const pesoPos = (i) => (i === 0 ? 2.4 : i === 1 ? 1.6 : 1);
+
 function produtoOverlap(item, nomeCand, marcaCand, idf) {
   const brand = new Set(toks(marcaCand));
-  const itemNB = [...new Set(toks(item.descricao))].filter((t) => !brand.has(t));
+  const ordem = toks(item.descricao); // em ORDEM (para o peso de posição)
+  const itemNB = [...new Set(ordem)].filter((t) => !brand.has(t));
   if (!itemNB.length) return 0;
   const candNB = new Set(toks(nomeCand).filter((t) => !brand.has(t)));
-  // fração do PESO (raridade) dos tokens do talão que o candidato cobre. Partilhar só
-  // "mel" (comum) vale pouco; falhar "rosmaninho" (raro) deixa a fração bem abaixo de 0,5.
+  // fração do PESO (raridade × posição) dos tokens do talão que o candidato cobre.
+  // Partilhar só "mel" (comum, mas inicial) vs falhar a inicial → fica abaixo de 0,5.
   let num = 0, den = 0;
-  for (const t of itemNB) { const w = peso(idf, t); den += w; if (candNB.has(t)) num += w; }
+  for (const t of itemNB) { const w = peso(idf, t) * pesoPos(ordem.indexOf(t)); den += w; if (candNB.has(t)) num += w; }
   return den ? num / den : 0;
 }
 
@@ -179,9 +184,9 @@ function pontuar(item, cand, idf) {
   const qi = toks(`${item.descricao} ${item.marca || ''}`);
   const tc = new Set(toks(`${cand.nome} ${cand.marca || ''}`));
   if (!qi.length) return 0;
-  // sobreposição ponderada pela raridade (palavras distintivas mandam na pontuação).
+  // sobreposição ponderada por raridade × POSIÇÃO (palavras iniciais = o substantivo).
   let num = 0, den = 0;
-  for (const t of qi) { const w = peso(idf, t); den += w; if (tc.has(t)) num += w; }
+  for (let i = 0; i < qi.length; i++) { const w = peso(idf, qi[i]) * pesoPos(i); den += w; if (tc.has(qi[i])) num += w; }
   let score = den ? num / den : 0;
   // bónus de marca
   if (item.marca && tc.has(norm(item.marca).split(' ')[0])) score += 0.15;
