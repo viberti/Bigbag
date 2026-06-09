@@ -15,10 +15,12 @@ const toks = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOP.has(
 // OUTRO sabor (nenhum em comum), são produtos diferentes (morango ≠ baunilha) e não
 // devem casar. "natural" (liso) também conflita com um sabor. Um sem sabor → não bloqueia.
 const SABORES = new Set([
-  'chocolate', 'choco', 'cacau', 'coco', 'baunilha', 'vanilla', 'morango', 'banana', 'limao',
-  'laranja', 'manga', 'ananas', 'pessego', 'caramelo', 'cafe', 'avela', 'avelas', 'amendoa', 'amendoas',
-  'menta', 'framboesa', 'mirtilo', 'mirtilos', 'frutos', 'vermelhos', 'tropical', 'natural',
-  'pera', 'maracuja', 'cereja', 'noz', 'nozes', 'canela', 'mel', 'pistacio', 'pistachio',
+  'chocolate', 'choco', 'cacau', 'coco', 'baunilha', 'vanilla', 'morango', 'banana', 'limao', 'lima',
+  'laranja', 'manga', 'ananas', 'abacaxi', 'pessego', 'caramelo', 'cafe', 'avela', 'avelas', 'amendoa', 'amendoas',
+  'menta', 'hortela', 'framboesa', 'mirtilo', 'mirtilos', 'frutos', 'vermelhos', 'silvestres', 'tropical', 'natural',
+  'pera', 'maracuja', 'cereja', 'ginja', 'ameixa', 'noz', 'nozes', 'canela', 'mel', 'pistacio', 'pistachio',
+  'stracciatella', 'tiramisu', 'oreo', 'cookies', 'citrinos', 'roma', 'kiwi', 'uva', 'figo',
+  'caju', 'macadamia', 'natas', 'gengibre', 'aveia', 'espelta',
 ]);
 const saboresDe = (s) => new Set(toks(s).filter((t) => SABORES.has(t)));
 function saborConflito(a, b) {
