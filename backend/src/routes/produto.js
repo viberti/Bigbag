@@ -479,17 +479,15 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
             WHERE (pe.ean IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.off_json IS NOT NULL OR pe.nutricao IS NOT NULL)
               AND i2.descricao_original = i.descricao_original
               AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
-         -- REUSO POR MESMO EAN (entre cadeias): se a descrição deste talão JÁ É um nome
-         -- conhecido de um EAN específico (produto_nome ligado a um EAN), é exatamente o
-         -- mesmo produto — não precisa de re-identificação. É o critério do MESMO EAN,
-         -- não da marca/SKU genérico: "CARLSBERG LATA" e "CARLSBERG TP" têm EANs
-         -- diferentes (cada um só resolve o seu), "MIMOSA AJUST" ≠ "MIMOSA LIGHT"; mas
-         -- "SERRAMEL ROSMANINHO" e "SERRAMEL MEL ROSMANINHO" partilham o EAN → ambos
-         -- resolvem. Nomes de talão diferem por cadeia → casamento exato é conservador.
-         AND NOT EXISTS (
-           SELECT 1 FROM produto_nome pn
-            WHERE pn.ean IS NOT NULL
-              AND pn.nome = i.descricao_original)
+         -- REUSO POR MESMO EAN: se a descrição deste talão é nome conhecido de UM ÚNICO
+         -- EAN (produto_nome), é esse produto sem ambiguidade → não re-identificar. Se o
+         -- mesmo nome se liga a VÁRIOS EANs (genérico/marca-própria de lojas diferentes,
+         -- ex.: "LEITE MEIO GORDO" ou "IOGURTE GREGO NATURAL" com EANs distintos por
+         -- cadeia) → ambíguo, FICA na lista. É o critério do mesmo EAN: "CARLSBERG LATA"
+         -- (1 EAN) e "...TP" (outro EAN) resolvem cada um o seu; "SERRAMEL ROSMANINHO" e
+         -- "SERRAMEL MEL ROSMANINHO" partilham o mesmo EAN.
+         AND (SELECT COUNT(DISTINCT pn.ean) FROM produto_nome pn
+               WHERE pn.nome = i.descricao_original AND pn.ean IS NOT NULL) <> 1
        GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
        ORDER BY loja, produto`);
     res.json({ itens });
