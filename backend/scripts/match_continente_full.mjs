@@ -27,7 +27,9 @@ function bonusMarca(descRaw, marcaCand) {
 function bonusPreco(itPreco, candPreco) {
   const p = prox(itPreco, candPreco);
   if (p === 99) return 0;
-  return p < 0.1 ? 0.5 : p < 0.2 ? 0.3 : p < 0.4 ? 0.1 : p > 0.6 ? -0.4 : 0;
+  // SÓ bónus: preço perto puxa para cima; preço longe NÃO penaliza (pode ser só
+  // outro tamanho de embalagem — ex.: 6×1L pago vs 1L listado no catálogo).
+  return p < 0.1 ? 0.5 : p < 0.2 ? 0.3 : p < 0.4 ? 0.1 : 0;
 }
 
 async function main() {
