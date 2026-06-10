@@ -149,6 +149,13 @@ async function main() {
   for (const r of nifsPT) planeia(`loja #${r.id} "${r.nome}": nif "${r.nif}" → "${String(r.nif).replace(/\D/g, '')}"`,
     'UPDATE loja SET nif = ? WHERE id = ?', [String(r.nif).replace(/\D/g, ''), r.id]);
 
+  // 11. produto_nome com EAN inválido → apaga (ean é NOT NULL; pior, o
+  // carimbar_ean voltaria a carimbar o EAN errado nos itens pelo nome)
+  const pnEans = await q('SELECT id, nome, ean FROM produto_nome');
+  for (const r of pnEans.filter((p) => !eanValido(p.ean)))
+    planeia(`produto_nome #${r.id} "${r.nome}": EAN ${r.ean} inválido → apaga a ligação`,
+      'DELETE FROM produto_nome WHERE id = ?', [r.id]);
+
   // ── Execução ────────────────────────────────────────────────────────────
   if (!acoes.length) { console.log('Nada a corrigir — base consistente. ✓'); await pool.end(); return; }
   console.log(`${APLICAR ? 'A APLICAR' : 'DRY-RUN'} — ${acoes.length} correções:\n`);
