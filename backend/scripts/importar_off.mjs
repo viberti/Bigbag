@@ -23,6 +23,9 @@ const MARCAS = new Set([
   'mercadona', 'hacendado', 'deliplus', 'bosque-verde', 'compy',
   'continente', 'continente-equilibrio', 'continente-seleccao', 'mythos',
   'pingo-doce', 'auchan', 'polegar', 'makro', 'aro',
+  // Intermarché (site = DataDome, mas as marcas próprias francesas estão muito bem no OFF)
+  'intermarche', 'paturages', 'chabrior', 'monique-ranou', 'saint-eloi', 'capitaine-cook',
+  'top-budget', 'itineraire-des-saveurs', 'fiorini', 'apta', 'elodie', 'pommette',
 ]);
 // pré-filtro barato por substring (evita JSON.parse de 4M de linhas).
 // 'portugal' SEM aspas: no dump vem "en:portugal" / "France,Portugal" — nunca
