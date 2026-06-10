@@ -1,0 +1,58 @@
+{
+  "tab": {
+    "expansao": "tablete",
+    "suporte": 4
+  },
+  "mant": {
+    "expansao": "manteiga",
+    "suporte": 3
+  },
+  "cnt": {
+    "expansao": "continente",
+    "suporte": 3
+  },
+  "lig": {
+    "expansao": "ligeiro",
+    "suporte": 2
+  },
+  "manj": {
+    "expansao": "manjericao",
+    "suporte": 2
+  },
+  "pap": {
+    "expansao": "papel",
+    "suporte": 2
+  },
+  "hig": {
+    "expansao": "higienico",
+    "suporte": 2
+  },
+  "mag": {
+    "expansao": "magro",
+    "suporte": 2
+  },
+  "espi": {
+    "expansao": "espinafres",
+    "suporte": 2
+  },
+  "limp": {
+    "expansao": "limpador",
+    "suporte": 2
+  },
+  "nacion": {
+    "expansao": "nacional",
+    "suporte": 2
+  },
+  "enriq": {
+    "expansao": "enriquecido",
+    "suporte": 2
+  },
+  "prepar": {
+    "expansao": "preparado",
+    "suporte": 2
+  },
+  "mozz": {
+    "expansao": "mozzarella",
+    "suporte": 2
+  }
+}
