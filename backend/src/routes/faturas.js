@@ -20,6 +20,7 @@ import { recomputarPpbFatura } from '../normaliza/ppb.js';
 import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 import { guardarMensagem } from '../historico.js';
 import { enriquecerEansFatura } from '../ingest/enriquecer.js';
+import { reconciliarListaComFatura } from '../ingest/reconciliarLista.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -179,6 +180,16 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     // os produtos ficam identificados e com ficha cheia, sem foto. Best-effort.
     await enriquecerEansFatura(getPool(), fatura_id).catch((e) => console.error('[faturas] enriquecer eans:', e.message));
 
+    // 4f) Reconcilia a LISTA DE COMPRAS partilhada: o que entrou nesta compra sai
+    // da lista (estado 'comprado'); o que falta comprar fica. Best-effort.
+    let listaRec = null;
+    try {
+      listaRec = await reconciliarListaComFatura(getPool(), fatura_id);
+      if (listaRec.comprados.length) console.log(`[faturas] lista: saíram ${listaRec.comprados.length} (${listaRec.comprados.join(', ')})`);
+    } catch (e) {
+      console.error('[faturas] reconciliar lista:', e.message);
+    }
+
     // Nome legível (canónico) por descrição, para o cartão mostrar o produto
     // limpo em vez do abreviado do talão. Best-effort.
     const canonPorDesc = {};
@@ -217,6 +228,8 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       linhas_inconsistentes: linhasInc,
       discrepancia: rec.discrepancia,
       convencao: rec.convencao,
+      lista_comprados: listaRec?.comprados || [],
+      lista_restantes: listaRec?.restantes ?? null,
       n_itens,
       itens: dados.itens.map((it) => ({
         descricao_original: it.descricao_original,

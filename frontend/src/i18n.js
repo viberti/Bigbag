@@ -67,6 +67,7 @@ const STRINGS = {
     'cart.total': 'Total estimado',
     'cart.addHint': 'Toque num produto para adicionar/remover do carrinho.',
     'cart.offline': 'Sem conexão — as alterações entram quando a rede voltar.',
+    'lista.reconciliada': '🛒 Saíram da lista (comprados): {nomes}. {n|item fica|itens ficam} para a próxima.',
     'cart.comprarEm': 'Comprar em:',
     'cart.mercTodas': 'melhor preço',
     'cart.addPh': 'Adicionar produto…',

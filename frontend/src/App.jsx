@@ -335,7 +335,14 @@ function Chat({ onSair, nome }) {
           tipo: 'resposta',
           texto: t('nota.duplicate', { loja: out.loja?.nome || out.loja?.cadeia, data: dataCurta(out.data_compra) }),
         });
-      else add({ lado: 'bot', tipo: 'compra', dados: out });
+      else {
+        add({ lado: 'bot', tipo: 'compra', dados: out });
+        // reconciliação da lista: o que entrou nesta compra saiu da lista
+        if (out.lista_comprados?.length) {
+          mostrarToast(t('lista.reconciliada', { nomes: out.lista_comprados.join(', '), n: out.lista_restantes ?? 0 }));
+          carregarLista();
+        }
+      }
     } catch {
       tiraPensar();
       add({ lado: 'bot', tipo: 'erro', texto: t('err.upload') });
