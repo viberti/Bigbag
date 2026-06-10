@@ -622,6 +622,12 @@ body {
 .q-mau { color: #ff8a80; }
 
 /* ═══════════ App do utilizador — redesign "BigBag" (handoff), tudo sob .bb ═══════════ */
+/* PWA mobile-first: esconder scrollbars (no telemóvel já são overlay; no desktop
+   apareciam barras que não existem no telefone). O scroll continua a funcionar
+   (roda/trackpad/toque). Scoped a .bb — NÃO afeta o /admin. */
+.bb, .bb * { scrollbar-width: none; -ms-overflow-style: none; }
+.bb ::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
 .bb {
   --panel: #1f2d27; --panel2: #27352e;
   --line: rgba(255,255,255,.07); --line2: rgba(255,255,255,.12);
