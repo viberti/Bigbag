@@ -12,6 +12,7 @@ import { config } from '../config.js';
 import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
+import { garantirFichaPT } from '../ingest/traduz.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -70,6 +71,8 @@ export async function consultarOuGuardar(ean) {
         off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
     );
     await guardarNomes(ean, null, [{ nome: off.nome, origem: 'off' }]);
+    // OFF pode vir noutra língua → traduz para PT em fundo (não atrasa a resposta)
+    garantirFichaPT(getPool(), ean).catch(() => {});
   } catch (e) {
     console.error('[consultarOuGuardar] guardar:', e.message);
   }
@@ -279,6 +282,8 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       try { await getPool().query('UPDATE item SET ean = ? WHERE id = ?', [ean, itemId]); }
       catch (e) { console.error('[produto/identificar] item.ean:', e.message); }
     }
+    // ficha pode ter vindo noutra língua (OFF) → traduz em fundo
+    if (ean) garantirFichaPT(getPool(), ean).catch(() => {});
 
     // guarda todos os nomes vistos para este produto (matching / nome canónico)
     try {

@@ -219,7 +219,7 @@ const STRINGS = {
     'ficha.analisando': 'analisando…',
     'ficha.semAnalise': 'Não foi possível analisar este produto.',
     'ficha.analiseCompleta': 'Análise completa',
-    'ficha.tabela': 'Tabela nutricional',
+    'ficha.verMenos': 'Ver menos',
     'ficha.ingredientes': 'Ingredientes',
     'ficha.aditivos': '{n|aditivo|aditivos}',
     'ficha.porqueSelos': 'Porquê dos selos',

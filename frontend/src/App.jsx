@@ -2633,6 +2633,7 @@ function RodapeFontes() {
 // Avaliação PERSONALIZADA do produto para o perfil ativo (no topo da ficha):
 // alertas determinísticos (alergias/evitar) + veredicto e parecer do LLM.
 function AvaliacaoPessoal({ aval }) {
+  const [mais, setMais] = useState(false); // análise completa aberta/fechada
   const v = aval.avaliacao || {};
   const cls = v.veredicto === 'evitar' ? 'evitar' : v.veredicto === 'atencao' ? 'atencao' : 'adequado';
   const rotulo = v.veredicto === 'evitar' ? 'Evitar' : v.veredicto === 'atencao' ? 'Atenção' : 'Adequado';
@@ -2649,17 +2650,21 @@ function AvaliacaoPessoal({ aval }) {
       )}
       {v.resumo && <p className="ap-resumo">{v.resumo}</p>}
       {(v.a_favor?.length > 0 || v.contra?.length > 0) && (
-        <details className="ap-mais">
-          <summary>{t('ficha.analiseCompleta')}</summary>
-          <div className="ap-listas">
-            {v.a_favor?.length > 0 && (
-              <ul className="ap-favor">{v.a_favor.map((x, i) => <li key={i}>{x}</li>)}</ul>
-            )}
-            {v.contra?.length > 0 && (
-              <ul className="ap-contra">{v.contra.map((x, i) => <li key={i}>{x}</li>)}</ul>
-            )}
-          </div>
-        </details>
+        !mais ? (
+          <button type="button" className="ap-toggle" onClick={() => setMais(true)}>▸ {t('ficha.analiseCompleta')}</button>
+        ) : (
+          <>
+            <div className="ap-listas">
+              {v.a_favor?.length > 0 && (
+                <ul className="ap-favor">{v.a_favor.map((x, i) => <li key={i}>{x}</li>)}</ul>
+              )}
+              {v.contra?.length > 0 && (
+                <ul className="ap-contra">{v.contra.map((x, i) => <li key={i}>{x}</li>)}</ul>
+              )}
+            </div>
+            <button type="button" className="ap-toggle" onClick={() => setMais(false)}>▴ {t('ficha.verMenos')}</button>
+          </>
+        )
       )}
     </div>
   );
@@ -2757,22 +2762,21 @@ function AnaliseProduto({ a, n, temPerfil }) {
   return (
     <div className="analise">
       {!temPerfil && a.parecer && <div className="an-hero"><p>{a.parecer}</p></div>}
-      {(ns || nova) && (
+      {ns && (
         <div className="an-badges">
-          {ns && <NutriSelo grau={ns} />}
-          {nova && <span className="nova">NOVA {nova}{a.nivel_processamento?.rotulo ? ` · ${a.nivel_processamento.rotulo}` : ''}</span>}
+          <NutriSelo grau={ns} />
         </div>
       )}
       <ReguasNutri n={n} />
-      {n && (
-        <details className="fx">
-          <summary>{t('ficha.tabela')}</summary>
-          <NutritionFacts n={n} />
-        </details>
-      )}
       {a.ingredientes?.length > 0 && (
         <details className="fx">
           <summary>{t('ficha.ingredientes')} · {a.ingredientes.length}{nAditivos ? ` (${t('ficha.aditivos', { n: nAditivos })})` : ''}</summary>
+          {nova && (
+            <p className="an-nova-l">
+              <span className="nova">NOVA {nova}{a.nivel_processamento?.rotulo ? ` · ${a.nivel_processamento.rotulo}` : ''}</span>
+              {a.nivel_processamento?.porque ? ` ${a.nivel_processamento.porque}` : ''}
+            </p>
+          )}
           <div className="an-ings">
             {a.ingredientes.map((ing, i) => (
               <div key={i} className="an-ing">
@@ -2798,29 +2802,26 @@ function AnaliseProduto({ a, n, temPerfil }) {
           )}
         </details>
       )}
-      {(a.resumo || a.nutriscore?.porque || a.nivel_processamento?.porque || (temPerfil && a.parecer) || a.destaques?.length > 0) && (
-        <details className="fx">
-          <summary>{t('ficha.porqueSelos')}</summary>
-          <div className="an-porques">
-            {a.resumo && <p>{a.resumo}</p>}
-            {temPerfil && a.parecer && <p><b>{t('ficha.parecer')}:</b> {a.parecer}</p>}
-            {a.nutriscore?.porque && <p><b>Nutri-Score:</b> {a.nutriscore.porque}</p>}
-            {a.nivel_processamento?.porque && <p><b>NOVA:</b> {a.nivel_processamento.porque}</p>}
-            {a.destaques?.length > 0 && (
-              <div className="an-destaques">
-                {a.destaques.map((d, i) => (
-                  <span key={i} className={`an-tag t-${d.tom || 'neutro'}`}>{d.texto}</span>
-                ))}
-              </div>
-            )}
-          </div>
-        </details>
-      )}
+      <details className="fx">
+        <summary>{t('ficha.porqueSelos')}</summary>
+        <div className="an-porques">
+          {a.resumo && <p>{a.resumo}</p>}
+          {temPerfil && a.parecer && <p><b>{t('ficha.parecer')}:</b> {a.parecer}</p>}
+          {a.nutriscore?.porque && <p><b>Nutri-Score:</b> {a.nutriscore.porque}</p>}
+          {a.destaques?.length > 0 && (
+            <div className="an-destaques">
+              {a.destaques.map((d, i) => (
+                <span key={i} className={`an-tag t-${d.tom || 'neutro'}`}>{d.texto}</span>
+              ))}
+            </div>
+          )}
+          <RodapeFontes />
+        </div>
+      </details>
       <details className="fx">
         <summary>{t('ficha.comoAvaliamos')}</summary>
         <ComoAvaliamos />
       </details>
-      <RodapeFontes />
     </div>
   );
 }

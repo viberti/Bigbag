@@ -1039,9 +1039,9 @@ body { background: #0c1814; }
 .bb .ap-alertas { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .bb .ap-alerta { font-size: 13.5px; font-weight: 700; color: #ff8b73; background: rgba(230,62,17,.14); border-radius: 9px; padding: 8px 10px; }
 .bb .ap-resumo { font-size: 16px; line-height: 1.6; margin: 0 0 8px; } /* herói da ficha: o texto pessoal não encolhe */
-.bb .ap-mais summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent); padding: 4px 0; list-style: none; }
-.bb .ap-mais summary::before { content: '▸ '; }
-.bb .ap-mais[open] summary::before { content: '▾ '; }
+.bb .ap-toggle { display: block; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent); padding: 4px 0; }
+.bb .an-nova-l { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--muted-bb); }
+.bb .an-nova-l .nova { margin-right: 6px; }
 /* ficha simplificada: parecer-herói (sem perfil), acordeões e réguas */
 .bb .an-hero { background: #1f3128; border: 1px solid var(--line2); border-left: 4px solid var(--accent); border-radius: 13px; padding: 12px 14px; margin: 0 0 12px; }
 .bb .an-hero p { margin: 0; font-size: 16px; line-height: 1.6; }
