@@ -24,10 +24,20 @@ export async function traduzirFichaPT(campos) {
   try { return JSON.parse(conteudo); } catch { return null; }
 }
 
+// Guarda anti re-tradução: o LLM corria a CADA chamada, mesmo com a ficha já em
+// PT (o "mudou" só era avaliado DEPOIS de pagar a chamada). Um EAN tentado uma
+// vez neste processo não volta a ir ao LLM — re-identificações e re-consultas
+// deixam de pagar tradução repetida. (Reinício do processo permite 1 nova
+// tentativa por EAN — desejável: a ficha pode ter mudado entretanto.)
+const _tentados = new Set();
+
 // Garante que a ficha de um EAN está em PT (fire-and-forget nos fluxos de consulta/
 // identificação; síncrono no backfill). Atualiza só se o LLM traduziu algo.
 export async function garantirFichaPT(pool, ean) {
   try {
+    if (_tentados.has(ean)) return false;
+    if (_tentados.size > 5000) _tentados.clear();
+    _tentados.add(ean);
     const [[r]] = await pool.query('SELECT nome, ingredientes, alergenios FROM produto_ean WHERE ean = ?', [ean]);
     if (!r || (!r.nome && !r.ingredientes && !r.alergenios)) return false;
     const t = await traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios });

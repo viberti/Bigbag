@@ -406,9 +406,18 @@ adminRouter.post('/nomes/gerar', async (req, res) => {
         WHERE NOT EXISTS (SELECT 1 FROM nome_sugestao ns WHERE ns.sku_id = s.id AND ns.estado = 'rejeitado')
         GROUP BY s.id, s.nome_canonico`,
     );
+    // Não re-pagar o LLM: salta SKUs com sugestão PENDENTE (à espera do operador)
+    // e APLICADAS cujas variantes não mudaram desde então (só variantes novas
+    // justificam re-sugerir). Rejeitados já saem na query acima.
+    const [jaSugeridos] = await getPool().query(
+      "SELECT sku_id, estado, variantes FROM nome_sugestao WHERE estado IN ('pendente','aplicado')",
+    );
+    const saltar = new Map(jaSugeridos.map((r) => [r.sku_id, r]));
     let novas = 0, custo = 0, erros = 0;
     for (const s of skus) {
       try {
+        const ja = saltar.get(s.id);
+        if (ja && (ja.estado === 'pendente' || ja.variantes === String(s.variantes || ''))) continue;
         const variantes = String(s.variantes || '').split('||');
         const { nome, custo: c } = await sugerirNomeCanonico(variantes);
         custo += c || 0;
