@@ -19,7 +19,9 @@ const ABREV = [
   ['CEREA', /\bCEREA(IS|TS)\b/gi, 'Cereais'],
   ['LOMB', /\bLOMB\b/gi, 'Lombinhos'],
   ['FRANG', /\bFRANG\b/gi, 'Frango'],
-  ['NAT', /\bNAT\b/gi, 'Natas'],
+  // AMBÍGUA: NAT = Natural (iogurte/queijo "NAT LIG") OU Natas ("NAT CULINÁRIA").
+  // Nas pistas vai com as duas hipóteses; na expansão determinística NÃO se expande.
+  ['NAT', /\bNAT\b/gi, 'Natural ou Natas (decide pelo contexto)', { ambigua: true }],
   ['CONSERVACAO', /\bCONSERVACA[OD]\b/gi, 'Conservação'],
   ['DESIDRAT', /\bDESIDRAT\b/gi, 'Desidratado'],
   ['SELECÇÃO', /\bSELECÇÃO\b/gi, 'Seleção'],
@@ -54,7 +56,10 @@ const TOKENS_CADEIA = /\b(CNT|CONTINENTE|PD|PINGO DOCE|MERC|MERCADONA|LIDL|ALDI)
 
 export function expandirAbreviaturas(desc) {
   let s = String(desc || '');
-  for (const [, re, exp] of ABREV) s = s.replace(re, exp);
+  for (const [, re, exp, opts] of ABREV) {
+    if (opts?.ambigua) continue; // ambígua não se expande às cegas
+    s = s.replace(re, exp);
+  }
   for (const [ab, v] of Object.entries(MINADAS)) {
     if (etiquetasCuradas.has(ab)) continue; // curada ganha à minada
     s = s.replace(new RegExp(`\\b${ab}\\b`, 'gi'), v.expansao);
