@@ -1055,7 +1055,7 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
               <>
                 <span className="cmp-pn">
                   <b>{it.produto}{marca && <em className="cmp-marca">{marca}</em>}</b>
-                  <span>{qtd} × {eur(unit)}</span>
+                  {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
                 </span>
                 <span className="cmp-pp">{eur(linha)}</span>
               </>
@@ -1075,7 +1075,7 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
               <div key={it.id} className="cmp-prow">
                 <span className="cmp-pn">
                   <b>{it.produto}</b>
-                  <span>{qtd} × {eur(unit)}</span>
+                  {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
                 </span>
                 <button
                   type="button"
