@@ -414,6 +414,48 @@ produtoRouter.post('/foto', requireAuth, upload.single('foto'), async (req, res)
   }
 });
 
+// BASE LOCAL (réplica no telefone): o conhecimento de produtos acumulado, para o
+// scan responder INSTANTÂNEO e OFFLINE. Duas camadas: (1) FICHAS ricas (produto_ean
+// + análise: nutrição/ingredientes/parecer) — pequenas, vão SEMPRE completas;
+// (2) CATÁLOGO nome→EAN (milhares, sem nutrição) — incremental por cursor de id,
+// em chunks. Cresce com o uso: cada consulta externa é persistida pelo
+// consultarOuGuardar → entra na próxima sincronização.
+produtoRouter.get('/base-local', requireAuth, async (req, res) => {
+  try {
+    const desdeId = Number(req.query.catalogo_desde_id) || 0;
+    const limite = Math.min(Math.max(Number(req.query.limite) || 5000, 100), 10000);
+    const [fichas] = await getPool().query(
+      `SELECT pe.ean,
+              MAX(pe.nome) AS nome, MAX(pe.marca) AS marca, MAX(pe.quantidade) AS quantidade,
+              MAX(pe.categoria) AS categoria, MAX(pe.ingredientes) AS ingredientes,
+              MAX(pe.alergenios) AS alergenios, MAX(CAST(pe.nutricao AS CHAR)) AS nutricao,
+              MAX(pe.fonte) AS fonte, MAX(CAST(pa.analise AS CHAR)) AS analise
+         FROM produto_ean pe
+         LEFT JOIN produto_analise pa ON pa.ean = pe.ean
+        WHERE pe.ean IS NOT NULL AND pe.ean <> ''
+        GROUP BY pe.ean`,
+    );
+    const [catalogo] = await getPool().query(
+      `SELECT id, ean, nome, marca, formato AS quantidade
+         FROM catalogo_produto
+        WHERE ean IS NOT NULL AND ean <> '' AND id > ?
+        ORDER BY id
+        LIMIT ?`,
+      [desdeId, limite],
+    );
+    const ultimo = catalogo.length ? catalogo[catalogo.length - 1].id : desdeId;
+    res.json({
+      fichas,
+      catalogo: catalogo.map(({ id, ...c }) => c),
+      catalogo_cursor: ultimo,
+      catalogo_fim: catalogo.length < limite,
+    });
+  } catch (e) {
+    console.error('[produto/base-local] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a sincronizar a base local' });
+  }
+});
+
 // "Despensa" da casa: os produtos que conhecemos (com EAN), por ordem de compra
 // (data) decrescente. Dedup por EAN, mantendo a compra mais recente.
 produtoRouter.get('/despensa', requireAuth, async (req, res) => {

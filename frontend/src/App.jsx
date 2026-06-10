@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
+import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
 import { track } from './telemetria.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
@@ -234,6 +235,7 @@ function Chat({ onSair, nome }) {
     // recarrega da fonte de verdade: itens que ganharam EAN saem da lista
     listarPorIdentificar().then((d) => { cacheListas.current.porIdent = d; setPorIdentLista(d); }).catch(() => {});
     lerCapturas().then(setCapturas).catch(() => {});
+    sincronizarBaseLocal({ forcar: true }); // as fichas novas entram já na base local
     mostrarToast(`Enviados ${ok} produto${ok === 1 ? '' : 's'}${falhou ? `, ${falhou} falhou(aram)` : ''}.`);
   }
   const [scannerAberto, setScannerAberto] = useState(false);
@@ -255,8 +257,10 @@ function Chat({ onSair, nome }) {
   const add = (m) => setMsgs((xs) => [...xs, { id: `${xs.length}-${m.tipo}`, hora: hora(), ...m }]);
   const tiraPensar = () => setMsgs((xs) => xs.filter((m) => m.tipo !== 'pensar'));
 
-  // Telemetria: marca o arranque da app (uma vez por visita).
-  useEffect(() => { track('app_abrir'); }, []);
+  // Telemetria: marca o arranque da app (uma vez por visita). E sincroniza a BASE
+  // LOCAL de produtos (fire-and-forget, auto-limitada a 1x/hora) — é o que torna o
+  // scan instantâneo/offline para produtos já conhecidos.
+  useEffect(() => { track('app_abrir'); sincronizarBaseLocal(); }, []);
 
   // Carregar a conversa anterior ao abrir (memória entre sessões).
   useEffect(() => {
@@ -560,6 +564,21 @@ function Chat({ onSair, nome }) {
               // senão, trata-se de um talão → fluxo normal de nota.
               const cod = await decodeEanDeImagem(f);
               if (cod) {
+                // LOCAL-FIRST: se o produto já está na base local, a ficha abre
+                // instantânea (e offline); a consulta ao servidor segue em fundo
+                // (acumula conhecimento p/ a próxima sincronização).
+                const local = await fichaLocal(cod).catch(() => null);
+                if (local) {
+                  setInfoItem({ ean: cod, produto: local.nome || cod, local });
+                  consultarProdutoEan(cod).catch(() => {});
+                  return;
+                }
+                const cat = await catalogoLocal(cod).catch(() => null);
+                if (cat) {
+                  setInfoItem({ ean: cod, produto: cat.nome || cod, local: { ...cat, soCatalogo: true } });
+                  consultarProdutoEan(cod).catch(() => {});
+                  return;
+                }
                 try {
                   const r = await consultarProdutoEan(cod);
                   if (r.encontrado) setInfoItem({ ean: r.ean, produto: r.nome || r.ean });
@@ -675,7 +694,7 @@ function Chat({ onSair, nome }) {
       <ScannerSheet
         aberto={scannerAberto}
         onFechar={() => setScannerAberto(false)}
-        onEncontrado={(p) => { setScannerAberto(false); setInfoItem(p.sku_id ? { sku_id: p.sku_id, produto: p.nome } : { ean: p.ean, produto: p.nome || p.ean }); }}
+        onEncontrado={(p) => { setScannerAberto(false); setInfoItem(p.sku_id ? { sku_id: p.sku_id, produto: p.nome } : { ean: p.ean, produto: p.nome || p.ean, local: p.local }); }}
       />
       <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
       {toast && <div className="toast" onClick={() => setToast('')}>{toast}</div>}
@@ -1754,6 +1773,20 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
     if (c.length < 8) return;
     setEan(c);
     setFase('consulta');
+    // LOCAL-FIRST: produto já na base local → ficha instantânea (e offline); a
+    // consulta ao servidor segue em fundo (acumula p/ a próxima sincronização).
+    const local = await fichaLocal(c).catch(() => null);
+    if (local) {
+      onEncontrado({ ean: c, nome: local.nome, local });
+      consultarProdutoEan(c).catch(() => {});
+      return;
+    }
+    const cat = await catalogoLocal(c).catch(() => null);
+    if (cat) {
+      onEncontrado({ ean: c, nome: cat.nome, local: { ...cat, soCatalogo: true } });
+      consultarProdutoEan(c).catch(() => {});
+      return;
+    }
     try {
       const r = await consultarProdutoEan(c);
       if (r.encontrado) onEncontrado({ ean: r.ean, nome: r.nome });
@@ -2086,25 +2119,40 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
 
 // Toda a info que TEMOS de um produto (item da nota que já tem EAN). Reusa o
 // display do resultado de identificação + mostra as fotos guardadas do produto.
+// Constrói o objeto de info da ficha a partir da BASE LOCAL (mesma forma do
+// consolidarProduto do servidor) — para a ficha abrir instantânea/offline.
+function infoDeLocal(l, ean) {
+  if (l.soCatalogo) {
+    return { ean, nome: l.nome, fonte: 'catalogo', vlm: null, off: null, fotos: [], existe: true, local: true,
+      base: { nome: l.nome, marca: l.marca, quantidade: l.quantidade, fonte: 'catalogo' } };
+  }
+  return { ean, nome: l.nome, fonte: l.fonte || 'off', vlm: null, base: null, fotos: [], existe: true, local: true,
+    off: { nome: l.nome, marca: l.marca, quantidade: l.quantidade, categoria: l.categoria,
+      ingredientes: l.ingredientes, alergenios: l.alergenios, nutricao_100g: l.nutricao_100g } };
+}
+
 function ProdutoInfoSheet({ item, onFechar }) {
   const [info, setInfo] = useState(null); // null = a carregar
   const [analise, setAnalise] = useState(null); // null = a carregar · {erro} em falha
   const [aval, setAval] = useState(null); // avaliação personalizada (perfil ativo)
   useEffect(() => {
     if (!item) return;
-    setInfo(null);
-    setAnalise(null);
+    // SEED da base local: mostra já o que temos no telefone (instantâneo/offline);
+    // a rede enriquece por trás e, se falhar, o local fica (não vira "erro").
+    const seed = item.local ? infoDeLocal(item.local, item.ean) : null;
+    setInfo(seed);
+    setAnalise(item.local?.analise || null);
     setAval(null);
     infoProduto({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
       .then(setInfo)
-      .catch(() => setInfo({ erro: true }));
+      .catch(() => setInfo((cur) => cur ?? { erro: true }));
     // a análise corre por item/EAN OU por SKU (fresco genérico, foto solta — o
     // /analise gera o parecer da nutrição típica). A avaliação personalizada só
     // por item/EAN (precisa do perfil ativo).
     if (item.id || item.ean || item.sku_id) {
       analiseProduto({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
         .then((r) => setAnalise(r.analise || { erro: true }))
-        .catch(() => setAnalise({ erro: true }));
+        .catch(() => setAnalise((cur) => cur ?? { erro: true }));
       avaliacaoPersonalizada({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
         .then((r) => setAval(r?.perfil ? r : null))
         .catch(() => setAval(null));
