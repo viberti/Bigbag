@@ -1019,7 +1019,25 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
   const tema = lojaTema(nota?.loja);
   const dia = nota ? String(nota.data).slice(8, 10) : '';
   const mes = nota ? +String(nota.data).slice(5, 7) : 1;
-  const nprod = itens ? itens.length : nota?.n_itens || 0;
+  // Agrega ocorrências do MESMO produto na nota (mesmo nome+marca+EAN+preço
+  // unitário) numa só linha, somando quantidade e total — algumas lojas (ex.:
+  // Mercadona) repetem o mesmo item em linhas separadas.
+  const itensAgg = (() => {
+    if (!Array.isArray(itens)) return itens;
+    const mapa = new Map();
+    const out = [];
+    for (const it of itens) {
+      const qtd = Number(it.quantidade) || 1;
+      const linha = Number(it.preco) || 0;
+      const unit = qtd ? linha / qtd : linha;
+      const key = [it.produto, it.ean || '', limparMarca(it.marca) || '', Math.round(unit * 100)].join('|');
+      const ex = mapa.get(key);
+      if (ex) { ex.quantidade += qtd; ex.preco += linha; }
+      else { const novo = { ...it, quantidade: qtd, preco: linha }; mapa.set(key, novo); out.push(novo); }
+    }
+    return out;
+  })();
+  const nprod = Array.isArray(itensAgg) ? itensAgg.length : nota?.n_itens || 0;
   return (
     <div className={`cmp-det ${aberto ? 'open' : ''}`} style={{ '--c': tema.c }} aria-hidden={!aberto}>
       <div className="cmp-dhead">
@@ -1039,10 +1057,10 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
       <div className="cmp-dlist">
         {itens === null ? (
           <p className="sheet-vazio">{t('chat.thinking')}</p>
-        ) : itens.length === 0 ? (
+        ) : itensAgg.length === 0 ? (
           <p className="sheet-vazio">Sem produtos.</p>
         ) : (
-          itens.map((it) => {
+          itensAgg.map((it) => {
             const qtd = Number(it.quantidade) || 1;
             const linha = Number(it.preco) || 0;
             const unit = qtd ? linha / qtd : linha;
