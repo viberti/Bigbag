@@ -36,14 +36,21 @@ for (const [skuId, taxas] of porSku) {
   for (const o of outliers) correcoes.push({ item: o.id, desc: o.descricao_original, de: o.taxa_iva, para: moda.taxa_iva, regra: 'maioria-sku' });
 }
 
-// Regra 2 — fresco a 23% → 6% (só os que a regra 1 não apanhou)
+// Regra 2 — fresco a 23%: SÓ RELATÓRIO. A evidência é fraca demais para corrigir
+// sozinha: o disparo depende do produto_generico.tipo, que tem erros (amêndoas,
+// feijão cozido, tomate em conserva e gelo estão marcados 'fresco' — são
+// processados, e o 23% impresso pode ser legítimo). O operador decide; quando o
+// caso é real (carne fresca), a regra 1 apanha-o assim que houver 2.ª compra.
 const ja = new Set(correcoes.map((c) => c.item));
 const [frescos] = await pool.query(`
   SELECT i.id, i.descricao_original, i.taxa_iva
     FROM item i JOIN produto_generico pg ON pg.sku_id = i.sku_id
    WHERE pg.tipo = 'fresco' AND i.taxa_iva = 0.23 AND i.is_non_product = 0`);
-for (const f of frescos) {
-  if (!ja.has(f.id)) correcoes.push({ item: f.id, desc: f.descricao_original, de: f.taxa_iva, para: 0.06, regra: 'fresco-23%' });
+const suspeitos = frescos.filter((f) => !ja.has(f.id));
+if (suspeitos.length) {
+  console.log(`Suspeitos (fresco a 23% — rever no admin; pode ser o IVA OU a classificação fresco/processado):`);
+  for (const f of suspeitos) console.log(`  ? item ${f.id} "${f.descricao_original}"`);
+  console.log('');
 }
 
 if (!correcoes.length) { console.log('IVA consistente — nada a corrigir. ✓'); await pool.end(); process.exit(0); }
