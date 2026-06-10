@@ -63,10 +63,10 @@ export async function consultarOuGuardar(ean) {
   }
   try {
     await getPool().query(
-      `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, fonte, off_json)
-         VALUES (?,NULL,NULL,?,?,?,?,?,?,?,?,?)
+      `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, nutricao_confirmada, fonte, off_json)
+         VALUES (?,NULL,NULL,?,?,?,?,?,?,?,1,?,?)
        ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
-         ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), fonte=VALUES(fonte), off_json=VALUES(off_json)`,
+         ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), nutricao_confirmada=1, fonte=VALUES(fonte), off_json=VALUES(off_json)`,
       [ean, tituloProduto(off.nome), tituloProduto(off.marca), off.quantidade, off.categoria, off.ingredientes, off.alergenios,
         off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
     );
@@ -154,7 +154,9 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   const temGenericoNut = !!generico?.nutricao_100g;
   const fonte = vlm && off ? 'ambos' : off ? 'off' : vlm ? 'vlm'
     : temGenericoNut ? 'generico' : base?.fonte === 'catalogo' ? 'catalogo' : null;
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, existe: rows.length > 0 || temGenericoNut };
+  // nutrição "por confirmar": lida só do rótulo por VLM (sem OFF a confirmar)
+  const nutricaoProvisoria = !off?.nutricao_100g && rows.some((r) => r.nutricao && r.nutricao_confirmada === 0);
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, nutricao_provisoria: nutricaoProvisoria, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;
@@ -263,15 +265,18 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       if (itemId) {
         await getPool().query('DELETE FROM produto_ean WHERE item_id = ? AND ean IS NULL', [itemId]);
       }
+      // nutrição lida SÓ pelo VLM (sem OFF) fica "por confirmar" — isolada até o
+      // operador rever (aba Fichas) ou uma fonte independente (OFF) confirmar.
+      const nutConfirmada = off ? 1 : nutricao ? 0 : 1;
       await getPool().query(
-        `INSERT INTO produto_ean (ean, sku_id, item_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, fonte, vlm_json, off_json)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        `INSERT INTO produto_ean (ean, sku_id, item_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, nutricao_confirmada, fonte, vlm_json, off_json)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE sku_id=COALESCE(VALUES(sku_id),sku_id), item_id=COALESCE(VALUES(item_id),item_id), nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade),
            categoria=VALUES(categoria), ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), validade=VALUES(validade),
-           nutricao=VALUES(nutricao), fonte=VALUES(fonte), vlm_json=VALUES(vlm_json), off_json=VALUES(off_json)`,
+           nutricao=VALUES(nutricao), nutricao_confirmada=VALUES(nutricao_confirmada), fonte=VALUES(fonte), vlm_json=VALUES(vlm_json), off_json=VALUES(off_json)`,
         [ean, skuId, itemId, tituloProduto(nome), tituloProduto(off?.marca || vlm?.marca), off?.quantidade || vlm?.quantidade || null, off?.categoria || vlm?.categoria || null,
           off?.ingredientes || vlm?.ingredientes || null, off?.alergenios || vlm?.alergenios || null, vlm?.validade || null,
-          nutricao ? JSON.stringify(nutricao) : null, fonte, vlm ? JSON.stringify(vlm) : null, off ? JSON.stringify(off) : null],
+          nutricao ? JSON.stringify(nutricao) : null, nutConfirmada, fonte, vlm ? JSON.stringify(vlm) : null, off ? JSON.stringify(off) : null],
       );
     } catch (e) { console.error('[produto/identificar] guardar:', e.message); }
 
@@ -435,6 +440,7 @@ produtoRouter.get('/base-local', requireAuth, async (req, res) => {
               MAX(pe.nome) AS nome, MAX(pe.marca) AS marca, MAX(pe.quantidade) AS quantidade,
               MAX(pe.categoria) AS categoria, MAX(pe.ingredientes) AS ingredientes,
               MAX(pe.alergenios) AS alergenios, MAX(CAST(pe.nutricao AS CHAR)) AS nutricao,
+              MIN(pe.nutricao_confirmada) AS nutricao_confirmada,
               MAX(pe.fonte) AS fonte, MAX(CAST(pa.analise AS CHAR)) AS analise
          FROM produto_ean pe
          LEFT JOIN produto_analise pa ON pa.ean = pe.ean
@@ -665,6 +671,7 @@ produtoRouter.post('/comparar', requireAuth, async (req, res) => {
         nova: info.off?.nova ?? null,
       };
       prod.dados_incompletos = !prod.nutricao_100g;
+      if (info.nutricao_provisoria) prod.nutricao_por_confirmar = true; // lida por IA, sem fonte independente
       prod.alertas = resumo ? alertasDoPerfil(prod, resumo) : [];
       produtos.push(prod);
     }

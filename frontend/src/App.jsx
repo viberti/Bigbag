@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -721,7 +721,11 @@ function Chat({ onSair, nome }) {
       <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
       {toast && <div className="toast" onClick={() => setToast('')}>{toast}</div>}
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} onIdentificado={marcarIdentificado} />
-      <ProdutoInfoSheet item={infoItem} onFechar={() => setInfoItem(null)} />
+      <ProdutoInfoSheet
+        item={infoItem}
+        onFechar={() => setInfoItem(null)}
+        onFotografar={(it) => { setInfoItem(null); setIdentItem({ id: it.id, sku_id: it.sku_id, produto: it.produto || '', ean: it.ean }); }}
+      />
     </div>
   );
 }
@@ -2262,7 +2266,7 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
   const [a, setA] = useState(false);
   const fotoRef = useRef(null);
   useEffect(() => {
-    setEan('');
+    setEan(item?.ean || ''); // vindo da ficha (fotografar rótulo), o EAN já vem preenchido
     setFotos([]);
     setRes(null);
     setA(false);
@@ -2354,11 +2358,12 @@ function infoDeLocal(l, ean) {
       base: { nome: l.nome, marca: l.marca, quantidade: l.quantidade, fonte: 'catalogo' } };
   }
   return { ean, nome: l.nome, fonte: l.fonte || 'off', vlm: null, base: null, fotos: [], existe: true, local: true,
+    nutricao_provisoria: l.nutricao_confirmada === 0,
     off: { nome: l.nome, marca: l.marca, quantidade: l.quantidade, categoria: l.categoria,
       ingredientes: l.ingredientes, alergenios: l.alergenios, nutricao_100g: l.nutricao_100g } };
 }
 
-function ProdutoInfoSheet({ item, onFechar }) {
+function ProdutoInfoSheet({ item, onFechar, onFotografar }) {
   const [info, setInfo] = useState(null); // null = a carregar
   const [analise, setAnalise] = useState(null); // null = a carregar · {erro} em falha
   const [aval, setAval] = useState(null); // avaliação personalizada (perfil ativo)
@@ -2458,7 +2463,12 @@ function ProdutoInfoSheet({ item, onFechar }) {
                   <p className="info-generico">{t('info.catalogo')}</p>
                 </div>
               )}
-              <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g} temPerfil={!!aval} />
+              {!(info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g) && onFotografar && (item.id || item.ean) && (
+                <button type="button" className="ident-add" onClick={() => onFotografar(item)}>
+                  <Ico name="camera" size={18} /> {t('ficha.fotografarNut')}
+                </button>
+              )}
+              <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g} temPerfil={!!aval} nutProvisoria={!!info.nutricao_provisoria} />
               {info.fotos?.length > 0 && (
                 <details className="fx">
                   <summary>{t('ficha.fotos')} · {info.fotos.length}</summary>
@@ -2767,7 +2777,7 @@ function ComoAvaliamos() {
 // Análise do produto, SIMPLIFICADA em 2 níveis: à vista só o que decide (parecer
 // como herói quando NÃO há perfil, selos nus, réguas com critério UE/FSA); o
 // detalhe (tabela, ingredientes, porquês, critérios, fotos) em acordeões.
-function AnaliseProduto({ a, n, temPerfil }) {
+function AnaliseProduto({ a, n, temPerfil, nutProvisoria }) {
   if (a === null) return <p className="sheet-vazio">{t('ficha.analisando')}</p>;
   if (a.erro) return <p className="sheet-vazio">{t('ficha.semAnalise')}</p>;
   const ns = a.nutriscore?.grau;
@@ -2781,6 +2791,7 @@ function AnaliseProduto({ a, n, temPerfil }) {
           <NutriSelo grau={ns} />
         </div>
       )}
+      {nutProvisoria && <p className="nut-prov">⚠ {t('ficha.nutProvisoria')}</p>}
       <ReguasNutri n={n} />
       {a.ingredientes?.length > 0 && (
         <details className="fx">
@@ -3000,6 +3011,33 @@ function ItemCarrinho({ it, onRemover }) {
 function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRemover, onAdicionar, onLimpar, onFechar }) {
   const [novo, setNovo] = useState('');
   const adicionar = () => { if (novo.trim()) { onAdicionar(novo); setNovo(''); } };
+  // ditar produtos por VOZ: gravar → /api/voz/lista extrai os nomes → adiciona todos
+  const [gravando, setGravando] = useState(false);
+  const [aOuvir, setAOuvir] = useState(false); // a processar o áudio
+  const mrRef = useRef(null);
+  async function alternarVoz() {
+    if (gravando) { mrRef.current?.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      const pedacos = [];
+      mr.ondataavailable = (e) => { if (e.data.size) pedacos.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((tr) => tr.stop());
+        setGravando(false);
+        setAOuvir(true);
+        try {
+          const blob = new Blob(pedacos, { type: mr.mimeType || 'audio/webm' });
+          const { produtos } = await vozParaLista(blob);
+          for (const p of produtos || []) onAdicionar(p);
+        } catch { /* falha de rede/áudio → nada a adicionar */ }
+        setAOuvir(false);
+      };
+      mrRef.current = mr;
+      mr.start();
+      setGravando(true);
+    } catch { /* sem microfone/permissão */ }
+  }
   const itens = carrinho.map((it) => ({ ...it, categoria: it.categoria || catPorNome?.[it.nome] }));
   const total = carrinho.reduce((s, it) => s + (Number(it.preco) || 0), 0);
   return (
@@ -3040,6 +3078,9 @@ function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRem
           />
           <button type="button" disabled={!novo.trim()} onClick={adicionar} aria-label={t('cart.add')}>
             <Ico name="plus" size={18} stroke={2.4} />
+          </button>
+          <button type="button" className={`voz${gravando ? ' rec' : ''}`} onClick={alternarVoz} disabled={aOuvir} aria-label={t('cart.voz')} title={t('cart.voz')}>
+            {aOuvir ? '…' : <Ico name={gravando ? 'stop' : 'mic'} size={18} />}
           </button>
         </div>
         <div className="cart-foot">

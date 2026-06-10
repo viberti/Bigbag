@@ -1121,7 +1121,16 @@ function FichaRow({ f, onPatch }) {
           {f.marca && <span className="adm-ficha-marca">{f.marca}</span>}
           {f.quantidade && <span className="adm-ficha-tam">{f.quantidade}</span>}
           <span className="adm-ficha-ean">{f.ean}</span>
+          {f.nutricao_confirmada === 0 && Object.keys(nut).length > 0 && (
+            <span className="adm-flag f-pf" title="nutrição lida do rótulo por IA, sem fonte independente">nutrição por confirmar</span>
+          )}
           <span className="adm-ficha-meta">{f.fonte || '—'} · {f.n_compras} compra(s)</span>
+          {f.nutricao_confirmada === 0 && Object.keys(nut).length > 0 && (
+            <button
+              className="adm-link-min"
+              onClick={async () => { await adm.atualizarFicha(f.ean, { nutricao_confirmada: 1 }); onPatch?.({ ...f, nutricao_confirmada: 1 }); }}
+            >✓ confirmar</button>
+          )}
           <button className="adm-link-min" onClick={abrir}>✎ editar</button>
         </div>
         {(f.categoria || f.alergenios) && (

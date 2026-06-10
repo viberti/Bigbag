@@ -18,7 +18,7 @@ export async function enriquecerEansFatura(pool, faturaId) {
         `INSERT INTO produto_ean (ean, item_id, fonte, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, off_json)
            VALUES (?,NULL,'off',?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
-           ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), off_json=VALUES(off_json)`,
+           ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), nutricao_confirmada=1, off_json=VALUES(off_json)`,
         [ean, tituloProduto(off.nome), tituloProduto(off.marca), off.quantidade, off.categoria, off.ingredientes, off.alergenios,
           off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, JSON.stringify(off)],
       );

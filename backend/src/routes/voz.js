@@ -10,6 +10,7 @@ import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { config } from '../config.js';
 import { transcrever, formatoDeMime } from '../transcricao.js';
+import { chatCompletion } from '../openrouter.js';
 import { responderPergunta } from '../consulta.js';
 import { carregarHistorico, guardarMensagem } from '../historico.js';
 import { carregarPerfil } from '../perfil.js';
@@ -42,5 +43,40 @@ vozRouter.post('/', requireAuth, upload.single('audio'), async (req, res) => {
   } catch (e) {
     console.error('[voz] erro:', e.message);
     res.status(502).json({ erro: 'Falha na consulta por voz', detalhe: e.message });
+  }
+});
+
+// Ditado da LISTA DE COMPRAS: áudio → nomes de produtos, direto (sem passar pela
+// cadeia de consulta). "bananas, leite e papel higiénico" → ["Bananas","Leite",
+// "Papel higiênico"]. O frontend adiciona cada um ao carrinho.
+vozRouter.post('/lista', requireAuth, upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Falta o arquivo "audio"' });
+    const mime = req.file.mimetype || 'audio/webm';
+    const conteudo = await chatCompletion({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'O áudio dita itens para uma lista de compras de supermercado (português). Extrai os PRODUTOS ditados e devolve SÓ JSON: {"produtos": ["..."]} — um elemento por produto, nome curto com a 1.ª letra maiúscula (ex.: "Bananas", "Papel higiênico"), sem quantidades nem comentários. Se não houver produtos no áudio, {"produtos": []}.',
+            },
+            { type: 'input_audio', input_audio: { data: req.file.buffer.toString('base64'), format: formatoDeMime(mime) } },
+          ],
+        },
+      ],
+      model: config.openrouter.sttModel || config.openrouter.model,
+      responseFormat: { type: 'json_object' },
+      timeoutMs: 25000,
+      contexto: 'voz-lista',
+    });
+    let produtos = [];
+    try { produtos = JSON.parse(conteudo)?.produtos || []; } catch { produtos = []; }
+    produtos = produtos.map((p) => String(p).trim()).filter(Boolean).slice(0, 20);
+    res.json({ produtos });
+  } catch (e) {
+    console.error('[voz/lista] erro:', e.message);
+    res.status(502).json({ erro: 'Falha a entender a lista', detalhe: e.message });
   }
 });

@@ -180,7 +180,7 @@ adminRouter.get('/fichas', async (req, res) => {
     const like = `%${q}%`;
     const [fichas] = await getPool().query(
       `SELECT pe.id, pe.ean, pe.nome, pe.marca, pe.quantidade, pe.categoria,
-              pe.ingredientes, pe.alergenios, pe.validade, CAST(pe.nutricao AS CHAR) AS nutricao, pe.fonte,
+              pe.ingredientes, pe.alergenios, pe.validade, CAST(pe.nutricao AS CHAR) AS nutricao, pe.nutricao_confirmada, pe.fonte,
               (SELECT COUNT(*) FROM item i WHERE i.ean = pe.ean) AS n_compras
          FROM produto_ean pe
         WHERE pe.ean IS NOT NULL AND pe.ean <> ''
@@ -220,6 +220,11 @@ adminRouter.patch('/fichas/:ean', async (req, res) => {
       }
       sets.push('nutricao = ?');
       vals.push(Object.keys(nut).length ? JSON.stringify(nut) : null);
+      sets.push('nutricao_confirmada = 1'); // o operador reviu → confirmada
+    }
+    if ('nutricao_confirmada' in b) { // botão "confirmar" sem editar valores
+      sets.push('nutricao_confirmada = ?');
+      vals.push(b.nutricao_confirmada ? 1 : 0);
     }
     if (!sets.length) return res.status(400).json({ erro: 'nada para atualizar' });
     vals.push(ean);

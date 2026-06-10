@@ -59,7 +59,8 @@ export async function sincronizarBaseLocal({ forcar = false } = {}) {
           ean: String(f.ean),
           nome: f.nome, marca: f.marca, quantidade: f.quantidade, categoria: f.categoria,
           ingredientes: f.ingredientes, alergenios: f.alergenios,
-          nutricao_100g: parse(f.nutricao), analise: parse(f.analise), fonte: f.fonte,
+          nutricao_100g: parse(f.nutricao), nutricao_confirmada: f.nutricao_confirmada,
+          analise: parse(f.analise), fonte: f.fonte,
         })));
       }
       await guardarLote('catalogo', (d.catalogo || []).map((c) => ({

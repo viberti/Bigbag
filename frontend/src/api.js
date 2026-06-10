@@ -235,6 +235,16 @@ export async function fotoProdutoUrl(id) {
   return URL.createObjectURL(await r.blob());
 }
 
+// Ditado da lista de compras: áudio → nomes de produtos (adicionar ao carrinho).
+export async function vozParaLista(blob) {
+  const fd = new FormData();
+  const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
+  fd.append('audio', blob, `lista.${ext}`);
+  const r = await call('/api/voz/lista', { method: 'POST', body: fd });
+  if (!r.ok) throw new Error(`voz-lista ${r.status}`);
+  return r.json(); // { produtos: [] }
+}
+
 export async function enviarVoz(blob) {
   const fd = new FormData();
   const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];

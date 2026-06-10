@@ -1041,6 +1041,9 @@ body { background: #0c1814; }
 .bb .ap-resumo { font-size: 16px; line-height: 1.6; margin: 0 0 8px; } /* herói da ficha: o texto pessoal não encolhe */
 .bb .ap-toggle { display: block; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent); padding: 4px 0; }
 .bb .an-nova-l { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--muted-bb); }
+.bb .nut-prov { margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #ffd98a; background: rgba(232,160,0,.12); border: 1px solid rgba(232,160,0,.35); border-radius: 9px; padding: 6px 10px; }
+.bb .cart-add .voz { width: 42px; flex: 0 0 auto; border-radius: 11px; border: 1px solid var(--line); background: rgba(255,255,255,.05); color: var(--muted-bb); display: grid; place-items: center; cursor: pointer; }
+.bb .cart-add .voz.rec { background: rgba(214,39,31,.2); border-color: #d6271f; color: #ff9d9d; }
 .bb .an-nova-l .nova { margin-right: 6px; }
 /* ficha simplificada: parecer-herói (sem perfil), acordeões e réguas */
 .bb .an-hero { background: #1f3128; border: 1px solid var(--line2); border-left: 4px solid var(--accent); border-radius: 13px; padding: 12px 14px; margin: 0 0 12px; }
