@@ -1110,19 +1110,21 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
     const temFicha = !!it.tem_dados || !!identificados?.[it.id] || it.tipo_alimento === 'fresco';
     const marca = limparMarca(it.marca) || null;
     const fmt = formatoProduto(it);
+    // sub-linha abaixo do nome: tamanho/formato + quantidade (quando há), juntos
+    const sub = [fmt, qtd !== 1 ? `${qtd} × ${eur(unit)}` : null].filter(Boolean).join(' · ');
     return temFicha ? (
       <button key={it.id} type="button" className="cmp-prow clic" onClick={() => onInfo({ id: it.id, ean: eanItem, produto: it.produto })}>
         <span className="cmp-pn">
-          <b>{it.produto}{marca && <em className="cmp-marca">{marca}</em>}{fmt && <em className="cmp-tam">{fmt}</em>}</b>
-          {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
+          <b>{it.produto}{marca && <em className="cmp-marca">{marca}</em>}</b>
+          {sub && <span>{sub}</span>}
         </span>
         <span className="cmp-pp">{eur(linha)}</span>
       </button>
     ) : (
       <div key={it.id} className="cmp-prow">
         <span className="cmp-pn">
-          <b>{it.produto}{fmt && <em className="cmp-tam">{fmt}</em>}</b>
-          {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
+          <b>{it.produto}</b>
+          {sub && <span>{sub}</span>}
         </span>
         <button type="button" className="cmp-pcam" onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })} title="identificar produto (fotos do rótulo)" aria-label="identificar produto">
           <Ico name="camera" size={16} />
