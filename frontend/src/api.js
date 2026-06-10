@@ -270,6 +270,28 @@ export async function limparListaCompras() {
   return r.json();
 }
 
+// Lista PESSOAL do membro (itens que só ele consome → "+" passa à lista da casa).
+export async function obterListaPessoal() {
+  const r = await call('/api/lista/pessoal');
+  if (!r.ok) throw new Error(`pessoal ${r.status}`);
+  const { itens } = await r.json();
+  return itens || [];
+}
+export async function adicionarListaPessoal(nome) {
+  const r = await call('/api/lista/pessoal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome }),
+  });
+  if (!r.ok) throw new Error(`pessoal add ${r.status}`);
+  return r.json();
+}
+export async function removerListaPessoal(id) {
+  const r = await call(`/api/lista/pessoal/${id}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`pessoal del ${r.status}`);
+  return r.json();
+}
+
 // Ditado da lista de compras: áudio → nomes de produtos (adicionar ao carrinho).
 export async function vozParaLista(blob) {
   const fd = new FormData();

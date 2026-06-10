@@ -70,6 +70,45 @@ listaRouter.get('/', async (req, res) => {
   }
 });
 
+// ── Lista PESSOAL do membro (ex.: itens que só a Sue consome) ────────────────
+// Fonte rápida para passar itens à lista da casa com um toque ("+").
+listaRouter.get('/pessoal', async (req, res) => {
+  try {
+    const [itens] = await getPool().query(
+      'SELECT id, nome FROM lista_pessoal WHERE utilizador = ? ORDER BY nome',
+      [req.user.id],
+    );
+    res.json({ itens });
+  } catch (e) {
+    console.error('[lista/pessoal] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar a lista pessoal' });
+  }
+});
+
+listaRouter.post('/pessoal', async (req, res) => {
+  try {
+    const nome = String(req.body?.nome || '').trim().slice(0, 160);
+    if (!nome) return res.status(400).json({ erro: 'nome em falta' });
+    await getPool().query('INSERT IGNORE INTO lista_pessoal (utilizador, nome) VALUES (?, ?)', [req.user.id, nome]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[lista/pessoal POST] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a adicionar' });
+  }
+});
+
+listaRouter.delete('/pessoal/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ erro: 'id inválido' });
+    await getPool().query('DELETE FROM lista_pessoal WHERE id = ? AND utilizador = ?', [id, req.user.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[lista/pessoal DELETE] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a remover' });
+  }
+});
+
 // Adicionar (dedup por nome, case-insensitive): se já está na lista, soma a
 // quantidade — duas pessoas a adicionar "Leite" não criam duplicados.
 listaRouter.post('/', async (req, res) => {

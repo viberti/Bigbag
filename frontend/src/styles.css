@@ -1296,6 +1296,10 @@ body { background: #0c1814; }
 .bb .ch-promo { color: var(--accent); }
 .bb .ch-vazio { color: var(--muted-bb); font-size: 13px; padding: 6px 0; }
 .bb .cart-empty { padding: 54px 24px; text-align: center; color: var(--muted-bb); font-size: 16px; line-height: 1.7; }
+/* lista pessoal: remover item (×) discreto antes do toggle */
+.bb .plista-x { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+  border: 1px solid var(--line); background: none; color: var(--faint); cursor: pointer; }
+.bb .plista-x:hover { color: #ff9d9d; border-color: rgba(224,92,92,.5); }
 /* lista partilhada: membro, riscado colorido, quantidade, mercado */
 .bb .cmembro { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center;
   font-size: 11px; font-weight: 800; color: #fff; }

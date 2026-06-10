@@ -55,6 +55,8 @@ const P = {
   comparar: `<path d="M12 3.5v15"/><path d="M8.5 20.5h7"/><path d="M5 6.5h14"/><path d="M5 6.5l-2.3 5.2M5 6.5l2.3 5.2"/><path d="M2.2 11.9a2.9 2.9 0 0 0 5.6 0"/><path d="M19 6.5l-2.3 5.2M19 6.5l2.3 5.2"/><path d="M16.2 11.9a2.9 2.9 0 0 0 5.6 0"/>`,
   // partilhar (nós ligados) — envio por WhatsApp de fichas/comparações.
   partilhar: `<circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="5.8" r="2.5"/><circle cx="17.5" cy="18.2" r="2.5"/><path d="M8.3 10.8l6.9-3.8M8.3 13.2l6.9 3.8"/>`,
+  // pessoa — lista individual do membro.
+  pessoa: `<circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>`,
   luz: `<path d="M13 2 5 13h6l-1 9 9-12h-6z"/>`,
   voltar: `<path d="M15 5l-7 7 7 7"/>`,
   scan: `<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8"/><path d="M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8"/><path d="M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16"/><path d="M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M4 12h16"/>`,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -499,6 +499,26 @@ function Chat({ onSair, nome }) {
     try { await limparListaCompras(); } catch { setListaOffline(true); }
   }
 
+  // ── Lista PESSOAL (itens que só este membro consome → "+" passa à da casa) ──
+  const [minhaAberta, setMinhaAberta] = useState(false);
+  const [minhaLista, setMinhaLista] = useState(null);
+  const abrirMinhaLista = () => {
+    setCarrinhoAberto(false);
+    setMinhaAberta(true);
+    obterListaPessoal().then(setMinhaLista).catch(() => setMinhaLista((x) => x ?? []));
+  };
+  async function adicionarMinha(nome) {
+    const n = String(nome || '').trim();
+    if (!n) return;
+    setMinhaLista((xs) => ((xs || []).some((i) => i.nome.toLowerCase() === n.toLowerCase()) ? xs : [...(xs || []), { id: `tmp${Date.now()}`, nome: n }]));
+    try { await adicionarListaPessoal(n); obterListaPessoal().then(setMinhaLista).catch(() => {}); } catch { /* offline → fica local até reabrir */ }
+  }
+  async function removerMinha(id) {
+    setMinhaLista((xs) => (xs || []).filter((i) => i.id !== id));
+    if (String(id).startsWith('tmp')) return;
+    try { await removerListaPessoal(id); } catch { /* noop */ }
+  }
+
   // Revalida os habituais: busca à rede e, em sucesso, atualiza estado + cache.
   // Em falha (offline), MANTÉM a cache — nunca branqueia a lista — e sinaliza.
   const revalidarHabituais = useCallback(async () => {
@@ -769,7 +789,17 @@ function Chat({ onSair, nome }) {
         onRemover={removerItemLista}
         onLimpar={limparCarrinho}
         onAbrirHabituais={abrirHabituais}
+        onAbrirMinha={abrirMinhaLista}
         onFechar={() => setCarrinhoAberto(false)}
+      />
+      <MinhaListaSheet
+        aberto={minhaAberta}
+        itens={minhaLista}
+        noCarrinho={noCarrinho}
+        onAlternar={alternarCarrinho}
+        onAdicionar={adicionarMinha}
+        onRemover={removerMinha}
+        onFechar={() => { setMinhaAberta(false); setCarrinhoAberto(true); }}
       />
       <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} identificados={identificados} />
       <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} />
@@ -978,6 +1008,70 @@ function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCar
         </div>
         <div className="sheet-f">
           <span>{t('habituais.footer', { n: cartCount })}</span> <span className="hint">{t('habituais.footerHint')}</span>
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Lista PESSOAL do membro (ex.: os itens da Sue): gere os seus itens e, com o
+// "+", passa-os à lista de compras DA CASA (mesma mecânica dos habituais).
+function MinhaListaSheet({ aberto, itens, noCarrinho, onAlternar, onAdicionar, onRemover, onFechar }) {
+  const [novo, setNovo] = useState('');
+  const adicionar = () => { if (novo.trim()) { onAdicionar(novo); setNovo(''); } };
+  const lista = itens ? [...itens].sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { sensitivity: 'base' })) : null;
+  return (
+    <>
+      <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('plista.title')}>
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">{t('plista.title')}</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar">
+            <Ico name="close" size={18} />
+          </button>
+        </div>
+        <div className="usual-list">
+          {lista === null ? (
+            <p className="sheet-vazio">{t('chat.thinking')}</p>
+          ) : lista.length === 0 ? (
+            <p className="sheet-vazio">{t('plista.vazia')}</p>
+          ) : (
+            lista.map((p) => {
+              const dentro = noCarrinho(p.nome);
+              return (
+                <div key={p.id} className={`urow ${dentro ? 'in' : ''}`} onClick={() => onAlternar(p.nome)}>
+                  <div className="uname">{p.nome}</div>
+                  <button
+                    type="button"
+                    className="plista-x"
+                    onClick={(e) => { e.stopPropagation(); onRemover(p.id); }}
+                    aria-label={t('plista.remover')}
+                    title={t('plista.remover')}
+                  >
+                    <Ico name="close" size={14} />
+                  </button>
+                  <div className="utoggle">
+                    <Ico name={dentro ? 'check' : 'plus'} size={18} stroke={2.4} />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="cart-add">
+          <input
+            placeholder={t('plista.addPh')}
+            value={novo}
+            onChange={(e) => setNovo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') adicionar(); }}
+          />
+          <button type="button" disabled={!novo.trim()} onClick={adicionar} aria-label={t('cart.add')}>
+            <Ico name="plus" size={18} stroke={2.4} />
+          </button>
+        </div>
+        <div className="sheet-f">
+          <span className="hint">{t('plista.dica')}</span>
         </div>
       </section>
     </>
@@ -3106,7 +3200,7 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd }) {
   );
 }
 
-function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onRemover, onLimpar, onAbrirHabituais, onFechar }) {
+function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onRemover, onLimpar, onAbrirHabituais, onAbrirMinha, onFechar }) {
   const [novo, setNovo] = useState('');
   const adicionar = () => { if (novo.trim()) { onAdicionar(novo); setNovo(''); } };
   // ditar produtos por VOZ: gravar → /api/voz/lista extrai os nomes → adiciona todos
@@ -3193,6 +3287,9 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
         <div className="cart-add">
           <button type="button" className="voz" onClick={onAbrirHabituais} aria-label={t('habituais.title')} title={t('habituais.title')}>
             <Ico name="usual" size={18} />
+          </button>
+          <button type="button" className="voz" onClick={onAbrirMinha} aria-label={t('plista.title')} title={t('plista.title')}>
+            <Ico name="pessoa" size={18} />
           </button>
           <input
             placeholder={t('cart.addPh')}
