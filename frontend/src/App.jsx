@@ -2444,13 +2444,16 @@ function ProdutoInfoSheet({ item, onFechar }) {
                   <p className="info-generico">{t('info.catalogo')}</p>
                 </div>
               )}
-              <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g} />
+              <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g} temPerfil={!!aval} />
               {info.fotos?.length > 0 && (
-                <div className="info-fotos">
-                  {info.fotos.map((f) => (
-                    <AuthImg key={f.id} id={f.id} />
-                  ))}
-                </div>
+                <details className="fx">
+                  <summary>{t('ficha.fotos')} · {info.fotos.length}</summary>
+                  <div className="info-fotos">
+                    {info.fotos.map((f) => (
+                      <AuthImg key={f.id} id={f.id} />
+                    ))}
+                  </div>
+                </details>
               )}
               <details className="info-bruto">
                 <summary>Dados em bruto (VLM · Open Food Facts)</summary>
@@ -2646,99 +2649,177 @@ function AvaliacaoPessoal({ aval }) {
       )}
       {v.resumo && <p className="ap-resumo">{v.resumo}</p>}
       {(v.a_favor?.length > 0 || v.contra?.length > 0) && (
-        <div className="ap-listas">
-          {v.a_favor?.length > 0 && (
-            <ul className="ap-favor">{v.a_favor.map((x, i) => <li key={i}>{x}</li>)}</ul>
-          )}
-          {v.contra?.length > 0 && (
-            <ul className="ap-contra">{v.contra.map((x, i) => <li key={i}>{x}</li>)}</ul>
-          )}
-        </div>
+        <details className="ap-mais">
+          <summary>{t('ficha.analiseCompleta')}</summary>
+          <div className="ap-listas">
+            {v.a_favor?.length > 0 && (
+              <ul className="ap-favor">{v.a_favor.map((x, i) => <li key={i}>{x}</li>)}</ul>
+            )}
+            {v.contra?.length > 0 && (
+              <ul className="ap-contra">{v.contra.map((x, i) => <li key={i}>{x}</li>)}</ul>
+            )}
+          </div>
+        </details>
       )}
     </div>
   );
 }
 
-// Análise factual (não clínica) do produto: avisos, Nutri-Score + NOVA, semáforo,
-// tabela, parecer (LLM), destaques, aditivos e ingredientes explicados.
-function AnaliseProduto({ a, n }) {
-  if (a === null) return <p className="sheet-vazio">a analisar…</p>;
-  if (a.erro) return <p className="sheet-vazio">Não foi possível analisar este produto.</p>;
+// RÉGUAS com critério europeu: por nutriente, o valor do produto posicionado nas
+// faixas oficiais — alegações da UE (Reg. 1924/2006: "sem/baixo/fonte/alto") nas
+// pontas boas + semáforo UK FSA no "alto". Diz o veredicto, não só o número.
+// Faixas: [limite_superior, chave_i18n_da_banda, nível]. Proteína avalia-se pelo
+// % da energia (regra da UE), calculado de g + kcal.
+const BANDAS_NUTRI = [
+  { key: 'acucares', rotulo: 'nutri.acucares', faixas: [[0.5, 'banda.sem', 'otimo'], [5, 'banda.baixo', 'bom'], [22.5, 'banda.moderado', 'medio'], [Infinity, 'banda.alto', 'mau']] },
+  { key: 'gordura', rotulo: 'nutri.gordura', faixas: [[0.5, 'banda.sem', 'otimo'], [3, 'banda.baixo', 'bom'], [17.5, 'banda.moderado', 'medio'], [Infinity, 'banda.alto', 'mau']] },
+  { key: 'gordura_saturada', rotulo: 'nutri.saturados', faixas: [[0.1, 'banda.sem', 'otimo'], [1.5, 'banda.baixo', 'bom'], [5, 'banda.moderado', 'medio'], [Infinity, 'banda.alto', 'mau']] },
+  { key: 'sal', rotulo: 'nutri.sal', faixas: [[0.1, 'banda.muitoBaixo', 'otimo'], [0.3, 'banda.baixo', 'bom'], [1.5, 'banda.moderado', 'medio'], [Infinity, 'banda.alto', 'mau']] },
+  { key: 'fibra', rotulo: 'nutri.fibra', faixas: [[3, 'banda.baixo', 'medio'], [6, 'banda.fonte', 'bom'], [Infinity, 'banda.alto', 'otimo']] },
+];
+const BANDAS_PROTEINA = { faixas: [[12, 'banda.baixo', 'medio'], [20, 'banda.fonte', 'bom'], [Infinity, 'banda.alto', 'otimo']] };
+const bandaDe = (faixas, v) => {
+  for (let i = 0; i < faixas.length; i++) if (v <= faixas[i][0]) return { banda: faixas[i][1], nivel: faixas[i][2], idx: i };
+  return null;
+};
+const fmtG = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+
+function Regua({ rotulo, valorTxt, faixas, v }) {
+  const b = bandaDe(faixas, v);
+  if (!b) return null;
+  return (
+    <div className="regua">
+      <span className="rg-rotulo">{rotulo}</span>
+      <span className="rg-val">{valorTxt}</span>
+      <span className="rg-bar">
+        {faixas.map((f, i) => (
+          <span key={i} className={`rg-seg nvbg-${f[2]}${i === b.idx ? ' on' : ''}`} />
+        ))}
+      </span>
+      <span className={`rg-chip nv-${b.nivel}`}>{t(b.banda)}</span>
+    </div>
+  );
+}
+
+function ReguasNutri({ n }) {
+  if (!n) return null;
+  const linhas = BANDAS_NUTRI.filter((c) => n[c.key] != null);
+  const temProt = n.proteina != null && n.energia_kcal > 0;
+  if (!linhas.length && !temProt) return null;
+  return (
+    <div className="reguas">
+      {linhas.map((c) => (
+        <Regua key={c.key} rotulo={t(c.rotulo)} valorTxt={`${fmtG(n[c.key])} g`} faixas={c.faixas} v={Number(n[c.key])} />
+      ))}
+      {temProt && (
+        <Regua rotulo={t('nutri.proteina')} valorTxt={`${fmtG(n.proteina)} g`} faixas={BANDAS_PROTEINA.faixas} v={(n.proteina * 4 / n.energia_kcal) * 100} />
+      )}
+    </div>
+  );
+}
+
+// Legenda das faixas (acordeão "Como avaliamos") — o critério por extenso + fontes.
+function ComoAvaliamos() {
+  return (
+    <div className="como">
+      {BANDAS_NUTRI.map((c) => (
+        <div key={c.key} className="como-l">
+          <b>{t(c.rotulo)}</b>
+          {c.faixas.map((f, i) => (
+            <span key={i} className={`rg-chip nv-${f[2]}`}>
+              {f[0] === Infinity ? `>${c.faixas[i - 1][0]}` : `≤${String(f[0]).replace('.', ',')}`} g · {t(f[1])}
+            </span>
+          ))}
+        </div>
+      ))}
+      <div className="como-l">
+        <b>{t('nutri.proteina')}</b>
+        {BANDAS_PROTEINA.faixas.map((f, i) => (
+          <span key={i} className={`rg-chip nv-${f[2]}`}>
+            {f[0] === Infinity ? `>${BANDAS_PROTEINA.faixas[i - 1][0]}` : `≤${f[0]}`}% energia · {t(f[1])}
+          </span>
+        ))}
+      </div>
+      <p className="como-fontes">{t('ficha.criterios')}</p>
+    </div>
+  );
+}
+
+// Análise do produto, SIMPLIFICADA em 2 níveis: à vista só o que decide (parecer
+// como herói quando NÃO há perfil, selos nus, réguas com critério UE/FSA); o
+// detalhe (tabela, ingredientes, porquês, critérios, fotos) em acordeões.
+function AnaliseProduto({ a, n, temPerfil }) {
+  if (a === null) return <p className="sheet-vazio">{t('ficha.analisando')}</p>;
+  if (a.erro) return <p className="sheet-vazio">{t('ficha.semAnalise')}</p>;
   const ns = a.nutriscore?.grau;
   const nova = a.nivel_processamento?.nova;
-  const aditivos = (a.ingredientes || []).filter((i) => i.e_numero);
+  const nAditivos = (a.ingredientes || []).filter((i) => i.e_numero).length;
   return (
     <div className="analise">
-      <FaixaAvisos n={n} alergenios={a.alergenios} />
-      {a.resumo && <p className="an-resumo">{a.resumo}</p>}
+      {!temPerfil && a.parecer && <div className="an-hero"><p>{a.parecer}</p></div>}
       {(ns || nova) && (
         <div className="an-badges">
           {ns && <NutriSelo grau={ns} />}
           {nova && <span className="nova">NOVA {nova}{a.nivel_processamento?.rotulo ? ` · ${a.nivel_processamento.rotulo}` : ''}</span>}
         </div>
       )}
-      <SemaforoNutri n={n} />
-      <NutritionFacts n={n} />
-      {a.parecer && (
-        <div className="an-parecer">
-          <h4>Parecer</h4>
-          <p>{a.parecer}</p>
-        </div>
-      )}
-      {(a.nutriscore?.porque || a.nivel_processamento?.porque) && (
-        <div className="an-porques">
-          {a.nutriscore?.porque && <p><b>Nutri-Score:</b> {a.nutriscore.porque}</p>}
-          {a.nivel_processamento?.porque && <p><b>Processamento:</b> {a.nivel_processamento.porque}</p>}
-        </div>
-      )}
-      {a.destaques?.length > 0 && (
-        <div className="an-destaques">
-          {a.destaques.map((d, i) => (
-            <span key={i} className={`an-tag t-${d.tom || 'neutro'}`}>{d.texto}</span>
-          ))}
-        </div>
-      )}
-      {aditivos.length > 0 && (
-        <div className="an-aditivos">
-          <h4>Aditivos · {aditivos.length}</h4>
-          {aditivos.map((i, idx) => (
-            <div key={idx} className="adt-item">
-              {i.e_numero && <span className="adt-e">{i.e_numero}</span>}
-              <span className="adt-corpo">
-                <span className="adt-nome">{i.nome}</span>
-                {i.funcao && <span className="adt-f">{i.funcao}</span>}
-                {i.nota && <span className="adt-nota">{i.nota}</span>}
-              </span>
-            </div>
-          ))}
-        </div>
+      <ReguasNutri n={n} />
+      {n && (
+        <details className="fx">
+          <summary>{t('ficha.tabela')}</summary>
+          <NutritionFacts n={n} />
+        </details>
       )}
       {a.ingredientes?.length > 0 && (
-        <div className="an-ings">
-          <h4>Ingredientes · {a.ingredientes.length}</h4>
-          {a.ingredientes.map((ing, i) => (
-            <div key={i} className="an-ing">
-              <div className="an-ing-h">
-                <span className="an-ing-nome">{ing.nome}</span>
-                {ing.e_numero && <span className="an-e">{ing.e_numero}</span>}
-                {ing.tipo && <span className="an-tipo">{ing.tipo}</span>}
-              </div>
-              {ing.funcao && (
-                <div className="an-ing-f">
-                  {ing.funcao}
-                  {ing.origem ? ` · origem: ${ing.origem}` : ''}
+        <details className="fx">
+          <summary>{t('ficha.ingredientes')} · {a.ingredientes.length}{nAditivos ? ` (${t('ficha.aditivos', { n: nAditivos })})` : ''}</summary>
+          <div className="an-ings">
+            {a.ingredientes.map((ing, i) => (
+              <div key={i} className="an-ing">
+                <div className="an-ing-h">
+                  <span className="an-ing-nome">{ing.nome}</span>
+                  {ing.e_numero && <span className="an-e">{ing.e_numero}</span>}
+                  {ing.tipo && <span className="an-tipo">{ing.tipo}</span>}
                 </div>
-              )}
-              {ing.nota && <div className="an-ing-nota">{ing.nota}</div>}
+                {ing.funcao && (
+                  <div className="an-ing-f">
+                    {ing.funcao}
+                    {ing.origem ? ` · origem: ${ing.origem}` : ''}
+                  </div>
+                )}
+                {ing.nota && <div className="an-ing-nota">{ing.nota}</div>}
+              </div>
+            ))}
+          </div>
+          {a.alergenios?.length > 0 && (
+            <div className="an-alerg">
+              <b>Alergénios:</b> {a.alergenios.join(', ')}
             </div>
-          ))}
-        </div>
+          )}
+        </details>
       )}
-      {a.alergenios?.length > 0 && (
-        <div className="an-alerg">
-          <b>Alergénios:</b> {a.alergenios.join(', ')}
-        </div>
+      {(a.resumo || a.nutriscore?.porque || a.nivel_processamento?.porque || (temPerfil && a.parecer) || a.destaques?.length > 0) && (
+        <details className="fx">
+          <summary>{t('ficha.porqueSelos')}</summary>
+          <div className="an-porques">
+            {a.resumo && <p>{a.resumo}</p>}
+            {temPerfil && a.parecer && <p><b>{t('ficha.parecer')}:</b> {a.parecer}</p>}
+            {a.nutriscore?.porque && <p><b>Nutri-Score:</b> {a.nutriscore.porque}</p>}
+            {a.nivel_processamento?.porque && <p><b>NOVA:</b> {a.nivel_processamento.porque}</p>}
+            {a.destaques?.length > 0 && (
+              <div className="an-destaques">
+                {a.destaques.map((d, i) => (
+                  <span key={i} className={`an-tag t-${d.tom || 'neutro'}`}>{d.texto}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </details>
       )}
+      <details className="fx">
+        <summary>{t('ficha.comoAvaliamos')}</summary>
+        <ComoAvaliamos />
+      </details>
       <RodapeFontes />
     </div>
   );
