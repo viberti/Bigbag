@@ -10,16 +10,21 @@ import { eanValido } from './produto.js';
 async function upsertLoja(conn, loja) {
   const cadeia = loja?.cadeia || 'Desconhecida';
   const nome = loja?.nome || cadeia;
-  const nif = loja?.nif || null;
+  // O VLM lê o NIF ora "501591109" ora "PT501591109" → só os dígitos contam,
+  // senão a mesma loja entra duplicada.
+  const nif = loja?.nif ? String(loja.nif).replace(/\D/g, '') || null : null;
   const localizacao = loja?.localizacao || null;
   const tipo = classificarLoja({ cadeia, nome });
 
   if (nif) {
-    const [found] = await conn.query('SELECT id FROM loja WHERE nif = ?', [nif]);
+    const [found] = await conn.query("SELECT id FROM loja WHERE REPLACE(COALESCE(nif,''),'PT','') = ?", [nif]);
     if (found.length) return found[0].id;
-  } else {
-    const [found] = await conn.query('SELECT id FROM loja WHERE cadeia = ? AND nome = ? LIMIT 1', [cadeia, nome]);
-    if (found.length) return found[0].id;
+  }
+  // Cair sempre para cadeia+nome: um NIF mal lido pelo VLM não pode criar loja nova.
+  const [found] = await conn.query('SELECT id, nif FROM loja WHERE cadeia = ? AND nome = ? LIMIT 1', [cadeia, nome]);
+  if (found.length) {
+    if (nif && !found[0].nif) await conn.query('UPDATE loja SET nif = ? WHERE id = ?', [nif, found[0].id]);
+    return found[0].id;
   }
   const [r] = await conn.query(
     'INSERT INTO loja (cadeia, tipo, nome, nif, localizacao) VALUES (?,?,?,?,?)',

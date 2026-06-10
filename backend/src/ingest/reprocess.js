@@ -89,6 +89,16 @@ export async function reprocessarFatura(pool, faturaId) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    // Os itens vão ser substituídos: soltar as referências (ficha/fotos por item)
+    // antes de apagar, senão ficam a apontar para ids que já não existem.
+    await conn.query(
+      'UPDATE produto_ean SET item_id = NULL WHERE item_id IN (SELECT id FROM (SELECT id FROM item WHERE fatura_id = ?) t)',
+      [faturaId],
+    );
+    await conn.query(
+      'UPDATE produto_foto SET item_id = NULL WHERE item_id IN (SELECT id FROM (SELECT id FROM item WHERE fatura_id = ?) t)',
+      [faturaId],
+    );
     await conn.query('DELETE FROM item WHERE fatura_id = ?', [faturaId]);
     for (const it of itens) {
       const eanItem = it.ean ? String(it.ean).replace(/\D/g, '') : null;

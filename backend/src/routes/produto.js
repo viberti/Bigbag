@@ -36,6 +36,9 @@ async function consultarCatalogo(ean) {
 // Consulta um produto pelo EAN: nossa base → Open Food Facts → catálogo local (e
 // GUARDA, item_id NULL). Devolve { encontrado, fonte, nome }. Por /consultar e /foto.
 export async function consultarOuGuardar(ean) {
+  // Guarda central: um EAN com dígito verificador errado (VLM/foto mal lida)
+  // nunca pode entrar na base como chave — envenenava o catálogo e a base local.
+  if (!eanValido(ean)) return { encontrado: false, ean_invalido: true };
   const [[ja]] = await getPool().query(
     `SELECT COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), 'null'), nome) AS nome
        FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL OR fonte = 'catalogo') ORDER BY id LIMIT 1`,
