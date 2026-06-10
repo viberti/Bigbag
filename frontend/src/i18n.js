@@ -138,7 +138,6 @@ const STRINGS = {
     'cmp.title': 'Minhas compras',
     'cmp.esteMes': 'Este mês',
     'cmp.gasto': 'Gasto · {mes}',
-    'cmp.vsPeriodo': 'vs mesmo período',
     'cmp.nCompras': '{n|compra|compras}',
     'cmp.todos': 'todos',
     'cmp.semCompras': 'Ainda sem compras.',

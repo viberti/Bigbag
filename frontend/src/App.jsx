@@ -967,7 +967,7 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
               <span className="cmp-v eur">{eur(resumo.gasto)}</span>
               {resumo.pct != null && (
                 <span className={`cmp-pct ${resumo.pct > 0 ? 'sobe' : 'desce'}`}>
-                  {resumo.pct > 0 ? '▲' : resumo.pct < 0 ? '▼' : '='} {Math.abs(resumo.pct)}% {t('cmp.vsPeriodo')}
+                  {resumo.pct > 0 ? '▲' : resumo.pct < 0 ? '▼' : '='} {Math.abs(resumo.pct)}%
                 </span>
               )}
             </div>
