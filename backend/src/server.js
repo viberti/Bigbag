@@ -11,10 +11,31 @@ import { explorarRouter } from './routes/explorar.js';
 import { produtoRouter } from './routes/produto.js';
 import { perfilRouter } from './routes/perfil.js';
 import { requireAuth } from './auth.js';
+import { telemetriaApi, registarEvento } from './telemetria.js';
 
 const app = express();
 
 app.use(express.json());
+
+// Telemetria de uso: regista (no fim) cada pedido /api que casou rota. Não bloqueia.
+app.use(telemetriaApi);
+
+// Eventos de uso só-frontend (ações que não tocam noutro endpoint: trocar de vista,
+// abrir menu, carrinho…). Em lote, fire-and-forget. Só QUAL ação, nunca o conteúdo.
+app.post('/api/telemetria', requireAuth, (req, res) => {
+  const eventos = Array.isArray(req.body?.eventos) ? req.body.eventos.slice(0, 50) : [];
+  for (const e of eventos) {
+    if (!e?.evento) continue;
+    registarEvento({
+      fonte: 'ui',
+      utilizador: req.user.id,
+      sessao: e.sessao || null,
+      evento: e.evento,
+      props: e.props && typeof e.props === 'object' ? e.props : null,
+    });
+  }
+  res.json({ ok: true, n: eventos.length });
+});
 
 // Smoke test — usado para validar o deploy (systemd + Apache + HTTPS).
 // Público de propósito: não toca na BD nem na chave OpenRouter.

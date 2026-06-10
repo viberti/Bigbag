@@ -162,6 +162,37 @@ adminRouter.get('/itens-resumo', async (req, res) => {
   }
 });
 
+// Mapa de USO: por funcionalidade (evento) → nº de usos, última vez, utilizadores.
+// Mostra o que é central e o que ninguém usa (candidato a remover). Janela opcional
+// em dias (?dias=30); sem janela = tudo.
+adminRouter.get('/uso', async (req, res) => {
+  try {
+    const pool = getPool();
+    const dias = Number(req.query.dias) || 0;
+    const filtro = dias > 0 ? 'WHERE criado_em >= (NOW() - INTERVAL ? DAY)' : '';
+    const args = dias > 0 ? [dias] : [];
+    const [eventos] = await pool.query(
+      `SELECT fonte, evento, COUNT(*) AS n, MAX(criado_em) AS ultima,
+              GROUP_CONCAT(DISTINCT utilizador ORDER BY utilizador SEPARATOR ', ') AS users
+         FROM evento_uso ${filtro}
+        GROUP BY fonte, evento
+        ORDER BY n DESC
+        LIMIT 400`,
+      args,
+    );
+    const [[resumo]] = await pool.query(
+      `SELECT COUNT(*) AS total, MIN(criado_em) AS desde,
+              COUNT(DISTINCT utilizador) AS n_users, COUNT(DISTINCT sessao) AS n_sessoes
+         FROM evento_uso ${filtro}`,
+      args,
+    );
+    res.json({ eventos, resumo, dias });
+  } catch (e) {
+    console.error('[admin/uso] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar uso' });
+  }
+});
+
 // Define (ou limpa) o EAN de um item à mão, na aba Itens. EAN vazio → limpa.
 // EAN preenchido → valida o dígito verificador, grava em item.ean (autoritativo)
 // e enriquece a ficha (Open Food Facts → catálogo local), para o produto ganhar

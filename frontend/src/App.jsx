@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
+import { track } from './telemetria.js';
 import { digitalizar, detectarPapel } from './scanner.js';
 import { MARK, ICON } from './marca.js';
 import { t, detetarLocale } from './i18n.js';
@@ -258,6 +259,9 @@ function Chat({ onSair, nome }) {
   const add = (m) => setMsgs((xs) => [...xs, { id: `${xs.length}-${m.tipo}`, hora: hora(), ...m }]);
   const tiraPensar = () => setMsgs((xs) => xs.filter((m) => m.tipo !== 'pensar'));
 
+  // Telemetria: marca o arranque da app (uma vez por visita).
+  useEffect(() => { track('app_abrir'); }, []);
+
   // Carregar a conversa anterior ao abrir (memória entre sessões).
   useEffect(() => {
     carregarConversa()
@@ -435,6 +439,7 @@ function Chat({ onSair, nome }) {
     setHabituaisAberto(false);
     setCarrinhoAberto(true);
     revalidarHabituais();
+    track('carrinho_abrir');
   }
   function novaConversa() {
     setMsgs([{ id: 'intro', lado: 'bot', tipo: 'resposta', texto: t('chat.intro', { nome }), hora: hora() }]);
@@ -505,13 +510,13 @@ function Chat({ onSair, nome }) {
           <button type="button" className="round" onClick={() => fotoRef.current?.click()} disabled={ocupado} aria-label="tirar foto">
             <Ico name="camera" size={21} />
           </button>
-          <button type="button" className="round" onClick={() => setMenuAberto(true)} disabled={ocupado} aria-label="mais opções">
+          <button type="button" className="round" onClick={() => { setMenuAberto(true); track('menu_abrir'); }} disabled={ocupado} aria-label="mais opções">
             <Ico name="more" size={21} />
           </button>
           <button type="button" className="round" onClick={abrirNotas} disabled={ocupado} aria-label="as minhas compras">
             <Ico name="notas" size={21} />
           </button>
-          <button type="button" className="round scan" onClick={() => setScannerAberto(true)} disabled={ocupado} aria-label="consultar produto (código de barras)">
+          <button type="button" className="round scan" onClick={() => { setScannerAberto(true); track('scanner_abrir'); }} disabled={ocupado} aria-label="consultar produto (código de barras)">
             <Ico name="barras" size={21} />
           </button>
           <span className="ia-sp" />
@@ -1122,11 +1127,11 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
       </div>
       {Array.isArray(itensAgg) && itensAgg.length > 0 && (
         <div className="cmp-vistas">
-          <button type="button" className={vista === 'original' ? 'on' : ''} onClick={() => setVista('original')} title="ordem da nota">
+          <button type="button" className={vista === 'original' ? 'on' : ''} onClick={() => { setVista('original'); track('compra_vista', { vista: 'original' }); }} title="ordem da nota">
             <Ico name="receipt" size={15} /> Nota
           </button>
-          <button type="button" className={vista === 'alfa' ? 'on' : ''} onClick={() => setVista('alfa')} title="alfabética">A→Z</button>
-          <button type="button" className={vista === 'categoria' ? 'on' : ''} onClick={() => setVista('categoria')} title="por categoria">
+          <button type="button" className={vista === 'alfa' ? 'on' : ''} onClick={() => { setVista('alfa'); track('compra_vista', { vista: 'alfa' }); }} title="alfabética">A→Z</button>
+          <button type="button" className={vista === 'categoria' ? 'on' : ''} onClick={() => { setVista('categoria'); track('compra_vista', { vista: 'categoria' }); }} title="por categoria">
             <Ico name="usual" size={15} /> Categorias
           </button>
         </div>

@@ -65,6 +65,9 @@ export default function Admin() {
           <button className={aba === 'saude' ? 'on' : ''} onClick={() => setAba('saude')}>
             Saúde
           </button>
+          <button className={aba === 'uso' ? 'on' : ''} onClick={() => setAba('uso')}>
+            Uso
+          </button>
         </nav>
         <a className="adm-link" href="/">
           ← app
@@ -94,6 +97,8 @@ export default function Admin() {
         <TabPrecos />
       ) : aba === 'saude' ? (
         <TabSaude />
+      ) : aba === 'uso' ? (
+        <TabUso />
       ) : (
         <TabNotas notaAlvo={notaAlvo} onConsumir={() => setNotaAlvo(null)} />
       )}
@@ -1008,6 +1013,59 @@ function Conf({ v }) {
   if (v == null) return <span className="adm-conf adm-conf-na">novo</span>;
   const cls = v < 50 ? 'adm-conf-ruim' : v < 70 ? 'adm-conf-medio' : 'adm-conf-bom';
   return <span className={`adm-conf ${cls}`}>{v}</span>;
+}
+
+// Mapa de USO (telemetria self-hosted): que funcionalidades são usadas, quantas
+// vezes, última vez e por quem. Mostra o que é central e o que ninguém usa. 'api' =
+// endpoint tocado; 'ui' = ação só-frontend (trocar de vista, abrir menu/carrinho).
+function TabUso() {
+  const [dias, setDias] = useState(30);
+  const [dados, setDados] = useState(null);
+  useEffect(() => {
+    setDados(null);
+    adm.uso(dias).then(setDados).catch(() => setDados({ eventos: [], resumo: {} }));
+  }, [dias]);
+
+  const r = dados?.resumo || {};
+  const evs = dados?.eventos || [];
+  return (
+    <div className="adm-itens">
+      <div className="adm-cards adm-it-cards">
+        <div className="adm-card"><span className="adm-card-n">{r.total ?? '—'}</span><span className="adm-card-l">eventos</span></div>
+        <div className="adm-card"><span className="adm-card-n">{r.n_sessoes ?? '—'}</span><span className="adm-card-l">sessões (visitas)</span></div>
+        <div className="adm-card"><span className="adm-card-n">{r.n_users ?? '—'}</span><span className="adm-card-l">utilizadores</span></div>
+      </div>
+      <div className="adm-sug-top">
+        <span className="adm-it-ord">janela:</span>
+        {[7, 30, 0].map((d) => (
+          <button key={d} className={dias === d ? 'on' : ''} onClick={() => setDias(d)}>{d === 0 ? 'tudo' : `${d} dias`}</button>
+        ))}
+        <span className="adm-sug-dica">funcionalidade → usos · última vez · quem · ('api' = endpoint, 'ui' = ação só-frontend)</span>
+      </div>
+      {dados === null ? (
+        <p className="adm-vazio">a carregar…</p>
+      ) : evs.length === 0 ? (
+        <p className="adm-vazio">Ainda sem eventos nesta janela.</p>
+      ) : (
+        <div className="adm-itens-wrap">
+          <table className="adm-tabela">
+            <thead><tr><th>fonte</th><th>funcionalidade (evento)</th><th>usos</th><th>última vez</th><th>utilizadores</th></tr></thead>
+            <tbody>
+              {evs.map((e, i) => (
+                <tr key={i}>
+                  <td><span className={`adm-flag ${e.fonte === 'api' ? 'f-pi' : 'f-pend'}`}>{e.fonte}</span></td>
+                  <td className="adm-it-nome">{e.evento}</td>
+                  <td>{e.n}</td>
+                  <td>{dataCurta(e.ultima)} {String(e.ultima || '').slice(11, 16)}</td>
+                  <td className="adm-it-peso">{e.users || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Editor inline do EAN de um item: escrever/colar o código → ✓ grava (valida o
