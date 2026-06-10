@@ -342,6 +342,10 @@ function Chat({ onSair, nome }) {
           mostrarToast(t('lista.reconciliada', { nomes: out.lista_comprados.join(', '), n: out.lista_restantes ?? 0 }));
           carregarLista();
         }
+        // verificação de nomes: a 2.ª leitura + catálogo corrigiram leituras erradas
+        if (out.nomes_corrigidos?.length) {
+          mostrarToast(t('nota.nomesCorrigidos', { n: out.nomes_corrigidos.length, nomes: out.nomes_corrigidos.map((c) => c.para).join(', ') }));
+        }
       }
     } catch {
       tiraPensar();

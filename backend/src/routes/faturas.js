@@ -21,6 +21,7 @@ import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 import { guardarMensagem } from '../historico.js';
 import { enriquecerEansFatura } from '../ingest/enriquecer.js';
 import { reconciliarListaComFatura } from '../ingest/reconciliarLista.js';
+import { verificarNomesFatura } from '../ingest/verificarNomes.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -152,6 +153,19 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       console.error('[faturas] canonicalização:', e.message),
     );
 
+    // 4b-bis) Verificação de NOMES (o único campo sem checksum): suspeitos
+    // (nome nunca visto + sem hit no catálogo/produto_nome) → 2.ª opinião VLM
+    // dirigida → voto a 3 (leitura1 × leitura2 × catálogo). Corrige sozinho
+    // quando duas fontes concordam; divergência fica registada. Best-effort.
+    let verificacao = null;
+    try {
+      verificacao = await verificarNomesFatura(getPool(), fatura_id);
+      if (verificacao?.corrigidos?.length)
+        console.log(`[faturas] nomes corrigidos: ${verificacao.corrigidos.map((c) => `"${c.de}"→"${c.para}"`).join(', ')}`);
+    } catch (e) {
+      console.error('[faturas] verificar nomes:', e.message);
+    }
+
     // 4c) Recomputa o preco_por_base respeitando o unidade_base AUTORITATIVO do
     // SKU (agora resolvido) — garante que todos os itens do mesmo produto
     // comparam na mesma base (café sempre €/kg, ovos €/ovo). Best-effort.
@@ -230,6 +244,7 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
       convencao: rec.convencao,
       lista_comprados: listaRec?.comprados || [],
       lista_restantes: listaRec?.restantes ?? null,
+      nomes_corrigidos: verificacao?.corrigidos || [],
       n_itens,
       itens: dados.itens.map((it) => ({
         descricao_original: it.descricao_original,
