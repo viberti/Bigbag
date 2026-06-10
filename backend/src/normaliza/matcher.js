@@ -15,6 +15,7 @@ import { canonicalizar as canonicalizarLLM, confirmarMesmoProduto } from './cano
 import { melhorCandidato, normalizarNome } from './similaridade.js';
 import { limparDescricao } from './mestre.js';
 import { buscarCatalogo } from './resolverProduto.js';
+import { marcaDeterministica } from './marca.js';
 
 const formatoProximo = (a, b) => {
   if (a == null || b == null) return a == null && b == null;
@@ -69,7 +70,12 @@ export async function resolverSku(
     // "BANANA" cobrem dezenas) → a pista seria arbitrária; melhor nenhuma.
     if (b && b.margem >= 0.05) pistaCatalogo = b;
   } catch { /* sem catálogo → segue sem pista */ }
-  const c = await canonicalizar(desc, { cadeia, pistaCatalogo });
+  // Marca DETERMINÍSTICA antes do LLM (marcador de cadeia / gazetteer do catálogo):
+  // quando bate, ganha ao palpite — e a proveniência fica registada (marca_origem).
+  let marcaDet = null;
+  try { marcaDet = await marcaDeterministica(db, descRaw); } catch { /* segue p/ LLM */ }
+  const c = await canonicalizar(desc, { cadeia, pistaCatalogo, marcaDetetada: marcaDet?.marca });
+  if (marcaDet) c.marca = marcaDet.marca;
   if (!c || (c.confianca != null && c.confianca < limiarRevisao)) {
     return { sku_id: null, via: 'revisao', canonical: c || null };
   }
@@ -114,8 +120,8 @@ export async function resolverSku(
 
   if (!sku_id) {
     const [r] = await db.query(
-      'INSERT INTO sku_normalizado (nome_canonico, marca, categoria, unidade_base, formato_valor) VALUES (?,?,?,?,?)',
-      [c.nome_canonico, c.marca, c.categoria, unidade_base, formato_valor],
+      'INSERT INTO sku_normalizado (nome_canonico, marca, marca_origem, categoria, unidade_base, formato_valor) VALUES (?,?,?,?,?,?)',
+      [c.nome_canonico, c.marca, c.marca ? (marcaDet?.origem || 'llm') : null, c.categoria, unidade_base, formato_valor],
     );
     sku_id = r.insertId;
     via = 'novo';

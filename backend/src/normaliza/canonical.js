@@ -81,7 +81,7 @@ export async function confirmarMesmoProduto(nomeA, nomeB, { model, timeoutMs } =
   }
 }
 
-export async function canonicalizar(descricao, { model, timeoutMs, cadeia, pistaCatalogo } = {}) {
+export async function canonicalizar(descricao, { model, timeoutMs, cadeia, pistaCatalogo, marcaDetetada } = {}) {
   // Contexto da loja: o modelo desambigua muito melhor abreviaturas/marcas quando
   // sabe que cadeia gerou o talão (ex.: insígnias e estilos próprios do Lidl vs Continente).
   const ctx = cadeia ? `\nContexto: este item vem de um talão do(a) ${cadeia} — usa as abreviaturas e marcas próprias dessa cadeia para desambiguar.` : '';
@@ -95,6 +95,9 @@ export async function canonicalizar(descricao, { model, timeoutMs, cadeia, pista
   // loja — ancora a expansão das abreviaturas no produto que de facto existe.
   if (pistaCatalogo?.nome) {
     pistas += `\nProduto PROVÁVEL no catálogo (match determinístico do nome do talão): "${pistaCatalogo.nome}"${pistaCatalogo.marca ? ` (marca ${pistaCatalogo.marca})` : ''}. Se a descrição encaixar neste produto, usa-o para expandir o nome — mas o nome_canonico continua SEM marca e SEM formato; se NÃO encaixar, ignora a pista.`;
+  }
+  if (marcaDetetada) {
+    pistas += `\nMarca DETETADA deterministicamente no nome do talão: "${marcaDetetada}" — usa exatamente esta no campo "marca" (e não a incluas no nome_canonico).`;
   }
   const pedir = () =>
     chatCompletion({
