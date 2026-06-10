@@ -904,7 +904,7 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
   const [filtroLoja, setFiltroLoja] = useState(null); // ícone de mercado: filtra os cartões
 
   useEffect(() => {
-    if (!aberto) { setDetAberto(false); setFiltroLoja(null); }
+    if (!aberto) { setDetAberto(false); setFiltroLoja(null); setAberta(null); } // sair da tela limpa o "visto"
   }, [aberto]);
 
   function abrirDetalhe(n) {
@@ -1000,7 +1000,7 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
                 }
                 const tema = lojaTema(n.loja);
                 out.push(
-                  <button key={n.id} type="button" className="cmp-card" style={{ '--c': tema.c }} onClick={() => abrirDetalhe(n)}>
+                  <button key={n.id} type="button" className={`cmp-card${aberta?.id === n.id ? ' visto' : ''}`} style={{ '--c': tema.c }} onClick={() => abrirDetalhe(n)}>
                     <span className="cmp-logo"><span className="cmp-mono">{tema.mono}</span></span>
                     <span className="cmp-ci">
                       <span className="cmp-nm">{n.loja}</span>

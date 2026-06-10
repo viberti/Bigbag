@@ -883,6 +883,10 @@ body { background: #0c1814; }
 .bb .cmp-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, #2ec46e); }
 .bb .cmp-card:hover { background: #1f3128; border-color: var(--line2); }
 .bb .cmp-card:active { transform: scale(.985); }
+/* "acabei de ver esta" — marca o cartão da compra cujo detalhe acabou de ser
+   visto, para não perder o sítio na lista. Limpa ao sair da tela / abrir outra. */
+.bb .cmp-card.visto { background: #21372b; border-color: color-mix(in srgb, var(--c) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent); }
 .bb .cmp-logo { position: relative; width: 50px; height: 50px; flex: 0 0 auto; border-radius: 14px; overflow: hidden; display: grid; place-items: center;
   background: #f6f8f7; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); }
 .bb .cmp-mono { font-weight: 800; font-size: 16px; letter-spacing: -.02em; color: var(--c); }
