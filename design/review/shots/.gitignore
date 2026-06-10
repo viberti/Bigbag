@@ -1,0 +1,5 @@
+# Screenshots do handoff contêm dados pessoais (compras/preços/perfil) — não versionar.
+*.png
+*.jpg
+*.jpeg
+*.webp
