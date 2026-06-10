@@ -1013,9 +1013,35 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
   );
 }
 
+// Categorias de alto nível para a vista "por categoria" do detalhe da nota.
+// Mapeia a categoria existente (frescos do `produto_generico` + OFF, PT+EN, suja)
+// para ~10 grupos. v1 "começa com o que temos"; evoluirá para categoria por SKU.
+const normCat = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const GRUPOS_CAT = [
+  { id: 'frutas', label: 'Frutas e Vegetais', ic: '🍎', t: ['fruta', 'fruit', 'legume', 'vegetal', 'vegetable', 'verdura', 'hortic', 'hortofrut', 'salada', 'cogumelo'] },
+  { id: 'carne', label: 'Carne e Charcutaria', ic: '🥩', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru'] },
+  { id: 'peixe', label: 'Peixe e Marisco', ic: '🐟', t: ['peixe', 'fish', 'marisco', 'seafood', 'bacalhau', 'atum', 'tuna', 'salmao', 'salmon', 'pescado'] },
+  { id: 'lacticinios', label: 'Laticínios e Ovos', ic: '🥛', t: ['laticinio', 'lacteo', 'lacte', 'dair', 'leite', 'milk', 'queijo', 'cheese', 'iogurte', 'yogurt', 'yoghurt', 'manteiga', 'butter', 'nata', 'ovo', 'egg', 'requeijao', 'kefir', 'skyr'] },
+  { id: 'padaria', label: 'Padaria e Cereais', ic: '🥖', t: ['cereai', 'cereal', 'breakfast', 'pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'tosta', 'wrap', 'croissant', 'muesli', 'granola'] },
+  { id: 'bebidas', label: 'Bebidas', ic: '🥤', t: ['bebida', 'beverage', 'drink', 'agua', 'water', 'sumo', 'juice', 'refrigerante', 'soda', 'cerveja', 'beer', 'vinho', 'wine', 'cafe', 'coffee', 'cha', 'tea', 'alcool', 'alcohol'] },
+  { id: 'doces', label: 'Doces e Snacks', ic: '🍫', t: ['chocolate', 'doce', 'sweet', 'guloseima', 'candy', 'gelado', 'ice cream', 'snack', 'bolacha', 'biscuit', 'biscoito', 'cookie', 'sobremesa', 'dessert', 'mel', 'honey', 'compota', 'marmelada', 'jam'] },
+  { id: 'congelados', label: 'Congelados', ic: '❄️', t: ['congelado', 'frozen', 'ultracongelado'] },
+  { id: 'higiene', label: 'Higiene e Limpeza', ic: '🧼', t: ['higiene', 'hygiene', 'limpeza', 'cleaning', 'nao alimentar', 'detergente', 'detergent', 'papel', 'paper', 'cosmetic', 'sabonete', 'champo'] },
+  { id: 'mercearia', label: 'Mercearia', ic: '🛒', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar'] },
+];
+const CAT_OUTROS = { id: 'outros', label: 'Outros', ic: '⋯' };
+function categoriaAlto(cat) {
+  const s = normCat(cat);
+  if (!s) return CAT_OUTROS;
+  for (const g of GRUPOS_CAT) if (g.t.some((term) => s.includes(term))) return g;
+  return CAT_OUTROS;
+}
+
 // Detalhe de uma compra (slide-in): cabeçalho da loja + produtos + total. Tocar
-// num produto abre a ficha (ou a identificação, se ainda for preciso).
+// num produto abre a ficha (ou a identificação, se ainda for preciso). Três vistas:
+// original (ordem da nota), A→Z, e por categoria (agrupada).
 function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, onIdentificar }) {
+  const [vista, setVista] = useState('original'); // original | alfa | categoria
   const tema = lojaTema(nota?.loja);
   const dia = nota ? String(nota.data).slice(8, 10) : '';
   const mes = nota ? +String(nota.data).slice(5, 7) : 1;
@@ -1038,6 +1064,39 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
     return out;
   })();
   const nprod = Array.isArray(itensAgg) ? itensAgg.length : nota?.n_itens || 0;
+
+  // uma linha de produto (clicável → ficha; ou com botão de identificar)
+  const linhaProduto = (it) => {
+    const qtd = Number(it.quantidade) || 1;
+    const linha = Number(it.preco) || 0;
+    const unit = qtd ? linha / qtd : linha;
+    const eanItem = it.ean || identificados?.[it.id] || null;
+    const temFicha = !!it.tem_dados || !!identificados?.[it.id] || it.tipo_alimento === 'fresco';
+    const marca = limparMarca(it.marca) || null;
+    return temFicha ? (
+      <button key={it.id} type="button" className="cmp-prow clic" onClick={() => onInfo({ id: it.id, ean: eanItem, produto: it.produto })}>
+        <span className="cmp-pn">
+          <b>{it.produto}{marca && <em className="cmp-marca">{marca}</em>}</b>
+          {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
+        </span>
+        <span className="cmp-pp">{eur(linha)}</span>
+      </button>
+    ) : (
+      <div key={it.id} className="cmp-prow">
+        <span className="cmp-pn">
+          <b>{it.produto}</b>
+          {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
+        </span>
+        <button type="button" className="cmp-pcam" onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })} title="identificar produto (fotos do rótulo)" aria-label="identificar produto">
+          <Ico name="camera" size={16} />
+        </button>
+        <span className="cmp-pp">{eur(linha)}</span>
+      </div>
+    );
+  };
+  const porNome = (a, b) => String(a.produto).localeCompare(String(b.produto), 'pt');
+  const ordemGrupo = (id) => { const i = GRUPOS_CAT.findIndex((x) => x.id === id); return i < 0 ? 99 : i; };
+
   return (
     <div className={`cmp-det ${aberto ? 'open' : ''}`} style={{ '--c': tema.c }} aria-hidden={!aberto}>
       <div className="cmp-dhead">
@@ -1054,60 +1113,44 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
           )}
         </span>
       </div>
+      {Array.isArray(itensAgg) && itensAgg.length > 0 && (
+        <div className="cmp-vistas">
+          <button type="button" className={vista === 'original' ? 'on' : ''} onClick={() => setVista('original')} title="ordem da nota">
+            <Ico name="receipt" size={15} /> Nota
+          </button>
+          <button type="button" className={vista === 'alfa' ? 'on' : ''} onClick={() => setVista('alfa')} title="alfabética">A→Z</button>
+          <button type="button" className={vista === 'categoria' ? 'on' : ''} onClick={() => setVista('categoria')} title="por categoria">
+            <Ico name="usual" size={15} /> Categorias
+          </button>
+        </div>
+      )}
       <div className="cmp-dlist">
         {itens === null ? (
           <p className="sheet-vazio">{t('chat.thinking')}</p>
         ) : itensAgg.length === 0 ? (
           <p className="sheet-vazio">Sem produtos.</p>
+        ) : vista === 'categoria' ? (
+          (() => {
+            const grupos = new Map();
+            for (const it of itensAgg) {
+              const g = categoriaAlto(it.categoria);
+              if (!grupos.has(g.id)) grupos.set(g.id, { g, lista: [] });
+              grupos.get(g.id).lista.push(it);
+            }
+            return [...grupos.values()]
+              .sort((a, b) => ordemGrupo(a.g.id) - ordemGrupo(b.g.id))
+              .map(({ g, lista }) => (
+                <div key={g.id} className="cmp-cat">
+                  <div className="cmp-cat-h">
+                    <span className="cmp-cat-ic">{g.ic}</span> {g.label}
+                    <span className="cmp-cat-n">{lista.length}</span>
+                  </div>
+                  {[...lista].sort(porNome).map(linhaProduto)}
+                </div>
+              ));
+          })()
         ) : (
-          itensAgg.map((it) => {
-            const qtd = Number(it.quantidade) || 1;
-            const linha = Number(it.preco) || 0;
-            const unit = qtd ? linha / qtd : linha;
-            const eanItem = it.ean || identificados?.[it.id] || null;
-            // Tem ficha (clicável) só quando há DADOS (OFF/VLM/genérico) ou foi
-            // identificado nesta sessão. EAN sem dados → câmara (fotografar p/ enriquecer).
-            const temFicha = !!it.tem_dados || !!identificados?.[it.id] || it.tipo_alimento === 'fresco';
-            const marca = limparMarca(it.marca) || null;
-            const linhaInner = (
-              <>
-                <span className="cmp-pn">
-                  <b>{it.produto}{marca && <em className="cmp-marca">{marca}</em>}</b>
-                  {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
-                </span>
-                <span className="cmp-pp">{eur(linha)}</span>
-              </>
-            );
-            // Tem ficha → linha clicável abre a ficha. Precisa de identificação →
-            // botão de câmara à direita (não pode ser botão dentro de botão).
-            return temFicha ? (
-              <button
-                key={it.id}
-                type="button"
-                className="cmp-prow clic"
-                onClick={() => onInfo({ id: it.id, ean: eanItem, produto: it.produto })}
-              >
-                {linhaInner}
-              </button>
-            ) : (
-              <div key={it.id} className="cmp-prow">
-                <span className="cmp-pn">
-                  <b>{it.produto}</b>
-                  {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
-                </span>
-                <button
-                  type="button"
-                  className="cmp-pcam"
-                  onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })}
-                  title="identificar produto (fotos do rótulo)"
-                  aria-label="identificar produto"
-                >
-                  <Ico name="camera" size={16} />
-                </button>
-                <span className="cmp-pp">{eur(linha)}</span>
-              </div>
-            );
-          })
+          (vista === 'alfa' ? [...itensAgg].sort(porNome) : itensAgg).map(linhaProduto)
         )}
       </div>
       <div className="cmp-dfoot">

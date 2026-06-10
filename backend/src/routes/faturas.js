@@ -304,6 +304,9 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
               COALESCE(i.ean, ident.ean) AS ean,
               ident.marca AS marca,
               pg.tipo AS tipo_alimento,
+              COALESCE(pg.categoria, (SELECT pe2.categoria FROM produto_ean pe2
+                 WHERE pe2.ean = COALESCE(i.ean, ident.ean) AND pe2.categoria IS NOT NULL AND pe2.categoria <> ''
+                 ORDER BY pe2.id LIMIT 1)) AS categoria,
               (pg.nutricao IS NOT NULL) AS tem_generico,
               (
                 COALESCE(ident.tem_ficha, 0) = 1
