@@ -3,6 +3,7 @@
 // agrupa o mesmo produto entre lojas), mais marca/categoria/unidade à parte.
 // Texto-only (barato). Isolado para ser injetável/stubável nos testes.
 import { chatCompletion } from '../openrouter.js';
+import { expansoesPara } from './abreviaturas.js';
 
 const PROMPT = `És um normalizador de produtos de supermercado português.
 Dada a descrição de um item de talão (com abreviaturas e, às vezes, erros de
@@ -84,9 +85,15 @@ export async function canonicalizar(descricao, { model, timeoutMs, cadeia } = {}
   // Contexto da loja: o modelo desambigua muito melhor abreviaturas/marcas quando
   // sabe que cadeia gerou o talão (ex.: insígnias e estilos próprios do Lidl vs Continente).
   const ctx = cadeia ? `\nContexto: este item vem de um talão do(a) ${cadeia} — usa as abreviaturas e marcas próprias dessa cadeia para desambiguar.` : '';
+  // Pistas DIRIGIDAS do dicionário de abreviaturas (curadas + minadas dos pares
+  // validados): só as presentes NESTA descrição — ancoram o LLM e reduzem variantes.
+  const exps = expansoesPara(descricao);
+  const pistas = exps.length
+    ? `\nPistas (dicionário aprendido das identificações reais): ${exps.map((e) => `${e.abrev}=${e.expansao}`).join(', ')}.`
+    : '';
   const pedir = () =>
     chatCompletion({
-      messages: [{ role: 'user', content: `${PROMPT}${ctx}\n\nDescrição: ${descricao}` }],
+      messages: [{ role: 'user', content: `${PROMPT}${ctx}${pistas}\n\nDescrição: ${descricao}` }],
       model,
       timeoutMs,
       responseFormat: { type: 'json_object' },
