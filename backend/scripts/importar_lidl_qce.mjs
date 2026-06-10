@@ -20,8 +20,8 @@ for await (const l of rl) {
   for (const ean of o.eans || []) {
     try {
       await pool.query(
-        `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, marca, formato, scraped_at)
-           VALUES ('lidl-fr', ?, ?, ?, ?, ?, NOW())
+        `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, marca, formato, url, scraped_at)
+           VALUES ('lidl-fr', ?, ?, ?, ?, ?, 'qce:PUB-715161', NOW())
          ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome=VALUES(nome), marca=VALUES(marca), formato=VALUES(formato), scraped_at=NOW()`,
         [ean, ean, tituloProduto(o.nome).slice(0, 255), o.marca ? tituloProduto(o.marca).slice(0, 140) : null, o.formato?.slice(0, 40) || null],
       );
