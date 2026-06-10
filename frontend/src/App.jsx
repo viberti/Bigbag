@@ -1036,6 +1036,13 @@ function categoriaAlto(cat) {
   for (const g of GRUPOS_CAT) if (g.t.some((term) => s.includes(term))) return g;
   return CAT_OUTROS;
 }
+// Grupo de um item: tenta pela categoria; se "Outros", tenta pelo NOME do produto
+// (apanha "Ovos", "Sumo…", "Banana" quando a categoria está má/ausente — melhora a
+// cobertura v1 até termos categoria limpa por SKU).
+function grupoProduto(categoria, nome) {
+  const g = categoriaAlto(categoria);
+  return g.id === 'outros' ? categoriaAlto(nome) : g;
+}
 
 // Detalhe de uma compra (slide-in): cabeçalho da loja + produtos + total. Tocar
 // num produto abre a ficha (ou a identificação, se ainda for preciso). Três vistas:
@@ -1133,7 +1140,7 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
           (() => {
             const grupos = new Map();
             for (const it of itensAgg) {
-              const g = categoriaAlto(it.categoria);
+              const g = grupoProduto(it.categoria, it.produto);
               if (!grupos.has(g.id)) grupos.set(g.id, { g, lista: [] });
               grupos.get(g.id).lista.push(it);
             }
