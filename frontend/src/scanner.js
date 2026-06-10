@@ -54,8 +54,10 @@ function carregarOpenCV() {
 function ficheiroParaImagem(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
+    // revogar logo após o load: a imagem já está descodificada (o canvas desenha-a
+    // na mesma) e o blob-URL deixa de prender o ficheiro em memória.
+    img.onload = () => { URL.revokeObjectURL(img.src); resolve(img); };
+    img.onerror = (e) => { URL.revokeObjectURL(img.src); reject(e); };
     img.src = URL.createObjectURL(file);
   });
 }

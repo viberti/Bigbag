@@ -16,6 +16,26 @@ export async function registarEvento({ fonte = 'ui', utilizador = null, sessao =
   }
 }
 
+// Grava VÁRIOS eventos num só INSERT (o lote do frontend chega com até 50).
+export async function registarEventos(eventos) {
+  const linhas = (eventos || []).filter((e) => e?.evento);
+  if (!linhas.length) return;
+  try {
+    await getPool().query(
+      'INSERT INTO evento_uso (fonte, utilizador, sessao, evento, props) VALUES ?',
+      [linhas.map((e) => [
+        e.fonte || 'ui',
+        e.utilizador || null,
+        e.sessao ? String(e.sessao).slice(0, 40) : null,
+        String(e.evento).slice(0, 120),
+        e.props && typeof e.props === 'object' ? JSON.stringify(e.props) : null,
+      ])],
+    );
+  } catch (e) {
+    console.error('[telemetria] lote:', e.message);
+  }
+}
+
 // Rotas a NÃO registar (ruído / recursão / pings).
 const IGNORAR = new Set(['/api/telemetria', '/api/me', '/api/historico', '/health']);
 

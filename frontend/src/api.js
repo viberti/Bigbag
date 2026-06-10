@@ -170,7 +170,10 @@ export async function lerEanFoto(file) {
 
 export async function fotoInteligente(file) {
   const fd = new FormData();
-  fd.append('foto', file);
+  // Era a ÚNICA via que enviava a foto ORIGINAL (5–12 MB) — só para classificar.
+  // 1600px preserva a leitura do código de barras pelo VLM (mesmo perfil do ler-ean);
+  // se for talão, o fluxo volta a enviar o ORIGINAL via enviarFatura (que redimensiona).
+  fd.append('foto', await redimensionarImagem(file, { maxLargura: 1600, qualidade: 0.85 }));
   const r = await call('/api/produto/foto', { method: 'POST', body: fd });
   if (!r.ok) throw new Error(`foto ${r.status}`);
   return r.json(); // { tipo, ean?, encontrado?, nome?, marca?, lido? }

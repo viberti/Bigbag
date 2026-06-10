@@ -188,25 +188,23 @@ function Chat({ onSair, nome }) {
   const marcarIdentificado = (itemId, ean) => {
     if (itemId && ean) setIdentificados((m) => ({ ...m, [itemId]: ean }));
   };
-  const abrirNotas = () => {
-    setNotasAberto(true);
-    setNotasLista(null);
-    listarNotas().then(setNotasLista).catch(() => setNotasLista([]));
+  // stale-while-revalidate: ao reabrir uma folha, mostra LOGO a última versão (sem
+  // "a pensar…") e atualiza por trás. Cache de sessão, em memória (some no reload).
+  const cacheListas = useRef({});
+  const abrirComCache = (chave, setAberto, setDados, buscar, fallback) => {
+    setAberto(true);
+    setDados(cacheListas.current[chave] ?? null);
+    buscar()
+      .then((d) => { cacheListas.current[chave] = d; setDados(d); })
+      .catch(() => { if (cacheListas.current[chave] == null) setDados(fallback); });
   };
+  const abrirNotas = () => abrirComCache('notas', setNotasAberto, setNotasLista, listarNotas, []);
   const [despensaAberto, setDespensaAberto] = useState(false);
   const [despensaLista, setDespensaLista] = useState(null); // null=a carregar · []=vazio
-  const abrirDespensa = () => {
-    setDespensaAberto(true);
-    setDespensaLista(null);
-    listarDespensa().then(setDespensaLista).catch(() => setDespensaLista([]));
-  };
+  const abrirDespensa = () => abrirComCache('despensa', setDespensaAberto, setDespensaLista, listarDespensa, []);
   const [gastosAberto, setGastosAberto] = useState(false);
   const [gastosDados, setGastosDados] = useState(null); // null=a carregar · {erro} em falha
-  const abrirGastos = () => {
-    setGastosAberto(true);
-    setGastosDados(null);
-    resumoGastos().then(setGastosDados).catch(() => setGastosDados({ erro: true }));
-  };
+  const abrirGastos = () => abrirComCache('gastos', setGastosAberto, setGastosDados, resumoGastos, { erro: true });
   const [porIdentAberto, setPorIdentAberto] = useState(false);
   const [porIdentLista, setPorIdentLista] = useState(null); // null=a carregar · []=vazio
   // Capturas pendentes (item_id → {item_id, ean, nome, fotos[]}), persistidas em
@@ -215,9 +213,7 @@ function Chat({ onSair, nome }) {
   const [captItem, setCaptItem] = useState(null); // item aberto na folha de captura
   const [enviandoCap, setEnviandoCap] = useState(null); // texto de progresso | null
   const abrirPorIdentificar = () => {
-    setPorIdentAberto(true);
-    setPorIdentLista(null);
-    listarPorIdentificar().then(setPorIdentLista).catch(() => setPorIdentLista([]));
+    abrirComCache('porIdent', setPorIdentAberto, setPorIdentLista, listarPorIdentificar, []);
     lerCapturas().then(setCapturas).catch(() => setCapturas({}));
   };
   const aoGuardarCaptura = () => { lerCapturas().then(setCapturas).catch(() => {}); };
@@ -236,7 +232,7 @@ function Chat({ onSair, nome }) {
     }
     setEnviandoCap(null);
     // recarrega da fonte de verdade: itens que ganharam EAN saem da lista
-    listarPorIdentificar().then(setPorIdentLista).catch(() => {});
+    listarPorIdentificar().then((d) => { cacheListas.current.porIdent = d; setPorIdentLista(d); }).catch(() => {});
     lerCapturas().then(setCapturas).catch(() => {});
     mostrarToast(`Enviados ${ok} produto${ok === 1 ? '' : 's'}${falhou ? `, ${falhou} falhou(aram)` : ''}.`);
   }
@@ -1023,10 +1019,10 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
 // para ~10 grupos. v1 "começa com o que temos"; evoluirá para categoria por SKU.
 const normCat = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const GRUPOS_CAT = [
-  { id: 'frutas', label: 'Frutas e Vegetais', ic: '🍎', t: ['fruta', 'fruit', 'legume', 'vegetal', 'vegetable', 'verdura', 'hortic', 'hortofrut', 'salada', 'cogumelo'] },
-  { id: 'carne', label: 'Carne e Charcutaria', ic: '🥩', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru'] },
+  { id: 'frutas', label: 'Frutas e Vegetais', ic: '🍎', t: ['fruta', 'fruit', 'legume', 'vegetal', 'vegetable', 'verdura', 'hortic', 'hortofrut', 'salada', 'cogumelo', 'meloa', 'melao', 'melancia', 'salsa'] },
+  { id: 'carne', label: 'Carne e Charcutaria', ic: '🥩', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'salam', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru'] },
   { id: 'peixe', label: 'Peixe e Marisco', ic: '🐟', t: ['peixe', 'fish', 'marisco', 'seafood', 'bacalhau', 'atum', 'tuna', 'salmao', 'salmon', 'pescado'] },
-  { id: 'lacticinios', label: 'Laticínios e Ovos', ic: '🥛', t: ['laticinio', 'lacteo', 'lacte', 'dair', 'leite', 'milk', 'queijo', 'cheese', 'iogurte', 'yogurt', 'yoghurt', 'manteiga', 'butter', 'nata', 'ovo', 'egg', 'requeijao', 'kefir', 'skyr'] },
+  { id: 'lacticinios', label: 'Laticínios e Ovos', ic: '🥛', t: ['laticinio', 'lacteo', 'lacte', 'dair', 'leite', 'milk', 'queijo', 'cheese', 'iogurte', 'yogurt', 'yoghurt', 'manteiga', 'butter', 'nata', 'ovo', 'ovos', 'egg', 'eggs', 'requeijao', 'kefir', 'skyr'] },
   { id: 'padaria', label: 'Padaria e Cereais', ic: '🥖', t: ['cereai', 'cereal', 'breakfast', 'pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'tosta', 'wrap', 'croissant', 'muesli', 'granola'] },
   { id: 'bebidas', label: 'Bebidas', ic: '🥤', t: ['bebida', 'beverage', 'drink', 'agua', 'water', 'sumo', 'juice', 'refrigerante', 'soda', 'cerveja', 'beer', 'vinho', 'wine', 'cafe', 'coffee', 'cha', 'tea', 'alcool', 'alcohol'] },
   { id: 'doces', label: 'Doces e Snacks', ic: '🍫', t: ['chocolate', 'doce', 'sweet', 'guloseima', 'candy', 'gelado', 'ice cream', 'snack', 'bolacha', 'biscuit', 'biscoito', 'cookie', 'sobremesa', 'dessert', 'mel', 'honey', 'compota', 'marmelada', 'jam'] },
@@ -1035,10 +1031,22 @@ const GRUPOS_CAT = [
   { id: 'mercearia', label: 'Mercearia', ic: '🛒', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar'] },
 ];
 const CAT_OUTROS = { id: 'outros', label: 'Outros', ic: '⋯' };
+// Match por INÍCIO de palavra, não substring ("VERMELHA" continha "mel" → Doces;
+// "CHAMPO" continha "cha" → Bebidas). Termos curtos (≤3) exigem a palavra inteira;
+// os longos podem ser prefixo ("cereai" apanha "cereais"). Regexes cacheadas.
+const _catRe = new Map();
+function catTermRe(term) {
+  let re = _catRe.get(term);
+  if (!re) {
+    re = new RegExp(`(^|[^a-z0-9])${term}${term.length <= 3 ? '(?![a-z0-9])' : ''}`);
+    _catRe.set(term, re);
+  }
+  return re;
+}
 function categoriaAlto(cat) {
   const s = normCat(cat);
   if (!s) return CAT_OUTROS;
-  for (const g of GRUPOS_CAT) if (g.t.some((term) => s.includes(term))) return g;
+  for (const g of GRUPOS_CAT) if (g.t.some((term) => catTermRe(term).test(s))) return g;
   return CAT_OUTROS;
 }
 // Grupo de um item: tenta pela categoria; se "Outros", tenta pelo NOME do produto
@@ -1362,6 +1370,25 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificado
   );
 }
 
+// Object URLs estáveis para miniaturas: 1 URL por ficheiro (não por render — antes
+// cada re-render criava blob-URLs novos para todas as fotos, nunca libertados =
+// fuga de memória no telemóvel). Revoga os removidos e tudo ao desmontar.
+function useObjectUrls(files) {
+  const ref = useRef(new Map());
+  const lista = files || [];
+  const urls = lista.map((f) => {
+    let u = ref.current.get(f);
+    if (!u) { u = URL.createObjectURL(f); ref.current.set(f, u); }
+    return u;
+  });
+  useEffect(() => {
+    const atuais = new Set(lista);
+    for (const [f, u] of ref.current) if (!atuais.has(f)) { URL.revokeObjectURL(u); ref.current.delete(f); }
+  });
+  useEffect(() => () => { for (const u of ref.current.values()) URL.revokeObjectURL(u); ref.current.clear(); }, []);
+  return urls;
+}
+
 // Captura por item da lista "por identificar": lê o código de barras (scanner ao
 // vivo) + fotos opcionais do rótulo, e GUARDA localmente (IndexedDB). Acumula até
 // o "Enviar" da lista mandar tudo ao servidor. Reabrir um item já capturado mostra
@@ -1374,6 +1401,7 @@ function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
   const [fase, setFase] = useState('scan'); // scan | fotos | erro
   const [ean, setEan] = useState('');
   const [fotos, setFotos] = useState([]);
+  const fotoUrls = useObjectUrls(fotos);
   const [manual, setManual] = useState('');
   const [temLuz, setTemLuz] = useState(false);
   const [luz, setLuz] = useState(false);
@@ -1511,7 +1539,7 @@ function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
                 <div className="ident-fotos">
                   {fotos.map((f, i) => (
                     <span key={i} className="ident-thumb">
-                      <img src={URL.createObjectURL(f)} alt="" />
+                      <img src={fotoUrls[i]} alt="" />
                       <button type="button" onClick={() => setFotos((x) => x.filter((_, j) => j !== i))} aria-label="remover">×</button>
                     </span>
                   ))}
@@ -1969,6 +1997,7 @@ const MAX_FOTOS = 10;
 function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
   const [ean, setEan] = useState('');
   const [fotos, setFotos] = useState([]);
+  const fotoUrls = useObjectUrls(fotos);
   const [res, setRes] = useState(null);
   const [a, setA] = useState(false);
   const fotoRef = useRef(null);
@@ -2039,7 +2068,7 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
             <div className="ident-fotos">
               {fotos.map((f, i) => (
                 <span key={i} className="ident-thumb">
-                  <img src={URL.createObjectURL(f)} alt="" />
+                  <img src={fotoUrls[i]} alt="" />
                   <button type="button" onClick={() => setFotos((x) => x.filter((_, j) => j !== i))} aria-label="remover">×</button>
                 </span>
               ))}
