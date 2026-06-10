@@ -127,9 +127,21 @@ descrição), deriva-se `€/base = preço / tamanho do pacote`. Recupera packs 
 fixo (ex.: mirtilo 500 g → 10,30 €/kg) **sem** fabricar €/kg para itens pesados ao
 balcão (banana, carne — esses ficam `peso_em_falta`).
 
-### Camada 2 — Canonicalização por LLM (`canonical.js`)
+### Camada 2 — Canonicalização por LLM (`canonical.js`) + pré-passos determinísticos (v2, 2026-06-10)
 Texto-only (barato). Devolve `{ nome_canonico (sem marca/formato), marca,
-categoria, unidade_base, confianca }`. Guarda-corpos no prompt:
+categoria, unidade_base, confianca }`. **Antes do LLM correm três passos
+determinísticos** (Fase A da `Analise_Fontes_Normalizacao.md`):
+1. **Motor de busca interno** (`buscarCatalogo`, `resolverProduto.js`): o nome do
+   talão procurado no catálogo (46,6k, incl. PD/Lidl sem EAN) por prefixo+IDF+gate
+   de sabor+formato+prior da mesma cadeia → o produto real provável entra no prompt
+   como pista (só com margem ≥0,05 sobre o 2.º nome distinto — genéricos ficam sem pista).
+2. **Dicionário de abreviaturas** (`abreviaturas.js`): curadas + minadas dos pares
+   validados (`minar_abreviaturas.mjs`) → pistas dirigidas (só as presentes na
+   descrição); ambíguas (NAT=Natural|Natas) vão com as duas hipóteses.
+3. **Marca determinística** (`marca.js`): marcador de cadeia (CNT/PD/ARO…) ou
+   gazetteer (~3,5k marcas, blocklist+IDF contra falsos "Grainha"/"Pato") — quando
+   bate, GANHA ao palpite do LLM e a proveniência fica em `sku.marca_origem`.
+Guarda-corpos no prompt:
 - **unidade_base por regra** (peso→kg, líquido→L, contado→un; na dúvida sólido a
   peso → kg);
 - expande abreviaturas (`BOL`→Bolacha, `QJ`→Queijo, `M/G`→Meio-Gordo…);
@@ -141,7 +153,10 @@ categoria, unidade_base, confianca }`. Guarda-corpos no prompt:
 Cascata determinística com **um** passo LLM opcional:
 1. **alias exato** (cache) → instantâneo;
 2. **canonicalizar** (Camada 2, com contexto da cadeia);
-3. **candidatos** = SKUs com **a mesma marca + a mesma unidade** + formato compatível;
+3. **candidatos** = SKUs com **a mesma marca + a mesma unidade** + formato compatível
+   + **sem conflito de facetas** (`facetas.js`, v2: sabor/teor/dieta multilingue —
+   morango≠baunilha, magro≠meio-gordo excluem POR REGRA; faceta **ausente** num dos
+   lados nunca auto-casa: desce à banda do juiz — política do ausente, Taxonomia §11.3);
 4. **similaridade** de nome = **Dice sobre tokens normalizados** (acentos/maiúsculas
    fora, stopwords removidas) + reforço de subconjunto;
 5. **limiares**: ≥ 0,85 → match automático; 0,6–0,85 → **juiz LLM** confirma;

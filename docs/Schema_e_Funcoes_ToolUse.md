@@ -32,6 +32,10 @@ CREATE TABLE sku_normalizado (
   id            BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   nome_canonico VARCHAR(160) NOT NULL,           -- 'Bolacha Digestive de Aveia'
   marca         VARCHAR(80),                     -- 'Continente', 'Mimosa', null se desconhecida
+  -- proveniência da marca (migração 036): marcador (CNT/PD/ARO no talão) |
+  -- gazetteer (marca impressa, dicionário do catálogo) | catalogo | ean | prior |
+  -- llm (palpite) | manual. NULL = pré-036. Marca lida ≠ marca adivinhada.
+  marca_origem  VARCHAR(12),
   categoria     VARCHAR(80),                     -- 'Mercearia Doce', 'Laticínios'...
   -- unidade-base para comparação de preço (ver nota de design sobre quantidades).
   -- DECIDIDA determinística-primeiro: se a descrição traz peso/volume EXPLÍCITO
@@ -149,6 +153,13 @@ CREATE TABLE produto_ean (
   nome          VARCHAR(200),
   marca         VARCHAR(120),
   quantidade    VARCHAR(60),                 -- peso/volume líquido (ex.: "500 g")
+  -- conteúdo da embalagem ESTRUTURADO (migração 035; parseado de `quantidade`
+  -- por normaliza/conteudo.js): um EAN implica embalagem fixa → o conteúdo é
+  -- propriedade do PRODUTO e entra na cadeia do ppb (linha_peso → conteúdo da
+  -- ficha via item.ean → formato do SKU → peso_em_falta).
+  conteudo_valor   DECIMAL(10,3),            -- 1.000 (kg), 0.500 (kg), 18 (un)
+  conteudo_unidade ENUM('kg','L','un'),
+  conteudo_pack    SMALLINT,                 -- nº de unidades do multipack (4×125g → 4)
   categoria     VARCHAR(120),
   ingredientes  TEXT,
   alergenios    TEXT,

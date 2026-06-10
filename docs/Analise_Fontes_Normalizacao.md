@@ -142,7 +142,9 @@ acrescenta pares).
 
 ## 4. Plano consolidado (prioridades)
 
-### Fase A — determinístico, baixo custo, alto valor
+### Fase A — determinístico, baixo custo, alto valor — **✅ IMPLEMENTADA (2026-06-10)**
+
+Estado da implementação: A1 (migração 035, `conteudo.js`, cadeia no `ppb.js`, backfill: 105/113 fichas parseadas, 25 SKUs com unidade corrigida, ~50 itens recuperaram €/base; ovos sem EAN ficam para C3) · A2 (`buscarCatalogo` em `resolverProduto.js` + pista no prompt; formato só compara quando explícito nos 2 lados; margem vs 2.º nome distinto descarta pistas genéricas) · A3 (`abreviaturas.js` evoluído: curadas+minadas — 14 aprendidas dos 561 pares, `minar_abreviaturas.mjs` re-corre com o crescimento; NAT marcada ambígua) · A4 (migração 036 `marca_origem`, `marca.js`: marcadores + gazetteer c/ blocklist+IDF) · A5 (`corrigir_iva.mjs`: 29 taxas corrigidas por maioria; regra fresco-23% despromovida a relatório — o `produto_generico` tem erros de classificação; 2 checks novos no diagnóstico) · A6 (`facetas.js`: sabor/teor/dieta multilingue, `compararFacetas` conflito|ausente|igual; gate no `resolverSku` — conflito exclui por regra, ausente nunca auto-match; `saborConflito` re-exportado p/ os consumidores antigos) · A7 (categories_tags/food_groups/labels no off_json).
 
 | # | Proposta | Notas |
 |---|---|---|
