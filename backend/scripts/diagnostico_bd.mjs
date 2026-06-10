@@ -99,12 +99,15 @@ await check('quantidade inválida (<=0)',
 await check('preço negativo (fora de desconto/clearance)',
   'SELECT id, descricao_original, preco_liquido FROM item WHERE preco_liquido < 0 AND is_clearance=0',
   [], { amostra: (r) => `item ${r.id} "${r.descricao_original}" €${r.preco_liquido}` });
-await check('ppb incoerente p/ unidade UN (|ppb×qtd − preço| > 0,05, sem inferido)',
-  `SELECT i.id, i.descricao_original, i.quantidade, i.preco_liquido, i.preco_por_base
+// ppb para UN pode ser por-peça-dentro-do-pacote (€/un real via formato: 16 crepes,
+// 18 ovos) ou por kg/L do pacote fixo — ambos coerentes se ppb×formato×qtd ≈ preço.
+await check('ppb incoerente p/ unidade UN (nem ppb×qtd nem ppb×formato×qtd batem no preço)',
+  `SELECT i.id, i.descricao_original, i.quantidade, i.preco_liquido, i.preco_por_base, s.formato_valor
      FROM item i JOIN sku_normalizado s ON s.id=i.sku_id
     WHERE s.unidade_base='un' AND i.preco_por_base IS NOT NULL AND i.ppb_inferido=0 AND i.quantidade>0
-      AND ABS(i.preco_por_base*i.quantidade - i.preco_liquido) > 0.05`,
-  [], { amostra: (r) => `item ${r.id} "${r.descricao_original}" ${r.quantidade}×ppb ${r.preco_por_base} ≠ €${r.preco_liquido}`, max: 5 });
+      AND ABS(i.preco_por_base*i.quantidade - i.preco_liquido) > 0.05
+      AND (s.formato_valor IS NULL OR ABS(i.preco_por_base*s.formato_valor*i.quantidade - i.preco_liquido) > 0.05)`,
+  [], { amostra: (r) => `item ${r.id} "${r.descricao_original}" ${r.quantidade}×ppb ${r.preco_por_base} (formato ${r.formato_valor}) ≠ €${r.preco_liquido}`, max: 5 });
 await check('peso_em_falta=1 MAS com preco_por_base (contraditório)',
   'SELECT id, descricao_original FROM item WHERE peso_em_falta=1 AND preco_por_base IS NOT NULL',
   [], { amostra: (r) => `item ${r.id} "${r.descricao_original}"` });

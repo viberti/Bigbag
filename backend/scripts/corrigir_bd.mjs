@@ -123,7 +123,28 @@ async function main() {
       'DELETE FROM loja WHERE id IN (?)', [apagar]);
   }
 
-  // 10. NIFs com prefixo PT → só dígitos
+  // 9b. Lojas duplicadas pelo MESMO NIF (só difere o formato/prefixo PT ou o nome
+  // lido — ex.: "Modelo Continente Hipermercados" vs "CONTINENTE BRAGA NOVA ARCADA").
+  // Mantém o id mais baixo mas adota o nome mais específico (≠ nome da empresa-mãe).
+  const jaFundidas = new Set(dups.flatMap((g) => g.ids.split(',').map(Number).filter((id) => id !== g.manter)));
+  const dupsNif = await q(`
+    SELECT MIN(id) AS manter, GROUP_CONCAT(id ORDER BY id) AS ids, GROUP_CONCAT(nome ORDER BY id SEPARATOR ' | ') AS nomes
+    FROM loja WHERE nif IS NOT NULL AND nif <> ''
+    GROUP BY REPLACE(UPPER(nif), 'PT', '') HAVING COUNT(*) > 1`);
+  for (const g of dupsNif) {
+    const apagar = g.ids.split(',').map(Number).filter((id) => id !== g.manter && !jaFundidas.has(id));
+    if (!apagar.length) continue;
+    planeia(`lojas com o MESMO NIF (${g.nomes}; ids ${g.ids}): faturas → #${g.manter}`,
+      'UPDATE fatura SET loja_id = ? WHERE loja_id IN (?)', [g.manter, apagar]);
+    planeia(`  └ apaga lojas ${apagar.join(', ')}`, 'DELETE FROM loja WHERE id IN (?)', [apagar]);
+    const nomes = g.nomes.split(' | ');
+    const especifico = nomes.find((n) => !/hipermercados|supermercados|s\.?a\.?$|lda/i.test(n));
+    if (especifico && especifico !== nomes[0])
+      planeia(`  └ loja #${g.manter} adota o nome específico "${especifico}"`,
+        'UPDATE loja SET nome = ? WHERE id = ?', [especifico, g.manter]);
+  }
+
+  // 10. NIFs com prefixo PT → só dígitos (depois das fusões, para não colidir no UNIQUE)
   const nifsPT = await q("SELECT id, nome, nif FROM loja WHERE nif REGEXP '[^0-9]'");
   for (const r of nifsPT) planeia(`loja #${r.id} "${r.nome}": nif "${r.nif}" → "${String(r.nif).replace(/\D/g, '')}"`,
     'UPDATE loja SET nif = ? WHERE id = ?', [String(r.nif).replace(/\D/g, ''), r.id]);
