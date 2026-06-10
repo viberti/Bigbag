@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -53,6 +53,11 @@ const limparMarca = (s) => {
   const reais = partes.filter((p) => !MARCAS_HOLDING.has(p.toLowerCase()));
   return capMarca((reais[0] || partes[0] || '').trim());
 };
+
+// Cor de cada membro da família (risco na lista de compras, badges). Quem riscou
+// um item vê-se pela cor — útil quando os dois compram em simultâneo.
+const CORES_MEMBRO = { sue: '#e05c5c', gustavo: '#4a90e2' };
+const corMembro = (u) => CORES_MEMBRO[String(u || '').toLowerCase()] || '#9aa8b0';
 
 // Partilha por WhatsApp (método padrão de envio): abre o wa.me com o texto
 // pré-preenchido — o utilizador escolhe o contacto no WhatsApp. Só texto
@@ -177,14 +182,13 @@ function Chat({ onSair, nome }) {
   const [aGravar, setAGravar] = useState(false);
   const [camAberta, setCamAberta] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
-  // Lista de compras (carrinho), persistida no aparelho. Itens: { nome, feito }.
-  const [carrinho, setCarrinho] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('bigbag_carrinho') || '[]');
-    } catch {
-      return [];
-    }
-  });
+  // Lista de compras PARTILHADA da família (servidor = fonte de verdade).
+  // Sincroniza por polling curto enquanto a folha está aberta; alterações são
+  // otimistas; adicionar OFFLINE vai para uma fila (localStorage) e segue depois.
+  const [lista, setLista] = useState(null); // null = a carregar
+  const [listaLojas, setListaLojas] = useState([]);
+  const [mercadoSel, setMercadoSel] = useState(''); // '' = todas as lojas
+  const [listaOffline, setListaOffline] = useState(false);
   const [habituaisAberto, setHabituaisAberto] = useState(false);
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
   const [notasAberto, setNotasAberto] = useState(false);
@@ -402,25 +406,91 @@ function Chat({ onSair, nome }) {
     setAGravar(false);
   }
 
-  // Persiste o carrinho no aparelho a cada alteração.
-  useEffect(() => {
-    localStorage.setItem('bigbag_carrinho', JSON.stringify(carrinho));
-  }, [carrinho]);
+  // ── Lista partilhada: leitura + mutadores otimistas ─────────────────────────
+  const eu = sessao?.user?.id || '';
+  const outboxLista = () => { try { return JSON.parse(localStorage.getItem('bb_lista_outbox') || '[]'); } catch { return []; } };
+  const gravarOutboxLista = (arr) => localStorage.setItem('bb_lista_outbox', JSON.stringify(arr));
 
-  const noCarrinho = (n) => carrinho.some((i) => i.nome === n);
-  const alternarCarrinho = (n, categoria, preco) =>
-    setCarrinho((c) => (c.some((i) => i.nome === n) ? c.filter((i) => i.nome !== n) : [...c, { nome: n, categoria, preco, feito: false }]));
-  const removerDoCarrinho = (n) => setCarrinho((c) => c.filter((i) => i.nome !== n));
-  const limparCarrinho = () => setCarrinho([]);
-  // Adicionar produto À MÃO (pode não estar nos habituais): só-adiciona (não toggle),
-  // dedup por nome (case-insensitive); categoria/preço vêm dos habituais se o nome bater.
-  const adicionarAoCarrinho = (n) => {
+  const carregarLista = useCallback(async (mercado = mercadoSel) => {
+    // 1) despachar adições feitas offline (fila), pela ordem
+    let fila = outboxLista();
+    while (fila.length) {
+      try {
+        await adicionarListaItem(fila[0]);
+        fila = fila.slice(1);
+        gravarOutboxLista(fila);
+      } catch { break; }
+    }
+    // 2) migração única do carrinho local antigo (pré-lista-partilhada)
+    try {
+      const antigos = JSON.parse(localStorage.getItem('bigbag_carrinho') || '[]');
+      if (antigos.length) {
+        for (const a of antigos) await adicionarListaItem({ nome: a.nome, categoria: a.categoria });
+        localStorage.removeItem('bigbag_carrinho');
+      }
+    } catch { /* sem rede → fica para a próxima */ }
+    try {
+      const d = await obterLista(mercado);
+      setLista(d.itens || []);
+      setListaLojas(d.lojas || []);
+      setListaOffline(false);
+    } catch {
+      setListaOffline(true);
+      setLista((x) => x ?? []);
+    }
+  }, [mercadoSel]);
+
+  // polling enquanto a folha está aberta (a "sincronização em tempo real" p/ 2 pessoas)
+  useEffect(() => {
+    if (!carrinhoAberto) return undefined;
+    carregarLista();
+    const id = setInterval(() => carregarLista(), 4000);
+    const vis = () => { if (!document.hidden) carregarLista(); };
+    document.addEventListener('visibilitychange', vis);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis); };
+  }, [carrinhoAberto, carregarLista]);
+
+  // carrega 1x no arranque (badge do cabeçalho)
+  useEffect(() => { carregarLista(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const noCarrinho = (n) => (lista || []).some((i) => i.nome.toLowerCase() === String(n).toLowerCase());
+  async function adicionarAoCarrinho(n, categoria, quantidade = 1) {
     const nome = String(n || '').trim();
-    if (!nome) return;
-    setCarrinho((c) => (c.some((i) => i.nome.toLowerCase() === nome.toLowerCase())
-      ? c
-      : [...c, { nome, categoria: catPorNome[nome], preco: undefined, feito: false }]));
+    if (!nome || noCarrinho(nome)) return;
+    const cat = categoria || catPorNome[nome] || null;
+    setLista((xs) => [...(xs || []), { id: `tmp${Date.now()}`, nome, quantidade, categoria: cat, estado: 'ativo', adicionado_por: eu, melhor_preco: null }]);
+    try {
+      await adicionarListaItem({ nome, quantidade, categoria: cat });
+      carregarLista();
+    } catch {
+      gravarOutboxLista([...outboxLista(), { nome, quantidade, categoria: cat }]); // offline → segue depois
+      setListaOffline(true);
+    }
+  }
+  const alternarCarrinho = (n, categoria) => {
+    const it = (lista || []).find((i) => i.nome.toLowerCase() === String(n).toLowerCase());
+    if (it) removerItemLista(it.id);
+    else adicionarAoCarrinho(n, categoria);
   };
+  async function marcarItemLista(id, marcado) {
+    setLista((xs) => (xs || []).map((i) => (i.id === id ? { ...i, estado: marcado ? 'carrinho' : 'ativo', marcado_por: marcado ? eu : null } : i)));
+    if (String(id).startsWith('tmp')) return;
+    try { await atualizarListaItem(id, { marcado }); } catch { setListaOffline(true); }
+  }
+  async function qtdItemLista(id, quantidade) {
+    setLista((xs) => (xs || []).map((i) => (i.id === id ? { ...i, quantidade } : i)));
+    if (String(id).startsWith('tmp')) return;
+    try { await atualizarListaItem(id, { quantidade }); } catch { setListaOffline(true); }
+  }
+  async function removerItemLista(id) {
+    setLista((xs) => (xs || []).filter((i) => i.id !== id));
+    if (String(id).startsWith('tmp')) return;
+    try { await removerListaItem(id); } catch { setListaOffline(true); }
+  }
+  async function limparCarrinho() {
+    setLista([]);
+    try { await limparListaCompras(); } catch { setListaOffline(true); }
+  }
 
   // Revalida os habituais: busca à rede e, em sucesso, atualiza estado + cache.
   // Em falha (offline), MANTÉM a cache — nunca branqueia a lista — e sinaliza.
@@ -482,12 +552,9 @@ function Chat({ onSair, nome }) {
         <button className="ibtn" onClick={novaConversa} title={t('chat.newConv')} aria-label={t('chat.newConv')}>
           <Ico name="sync" size={21} />
         </button>
-        <button className="ibtn" onClick={abrirHabituais} title={t('habituais.title')} aria-label={t('habituais.title')}>
-          <Ico name="usual" size={21} />
-        </button>
         <button className="ibtn" onClick={abrirCarrinho} title={t('cart.title')} aria-label={t('cart.title')}>
           <Ico name="cart" size={21} />
-          {carrinho.length > 0 && <span className="badge">{carrinho.length}</span>}
+          {(lista?.length || 0) > 0 && <span className="badge">{lista.length}</span>}
         </button>
       </header>
 
@@ -677,20 +744,24 @@ function Chat({ onSair, nome }) {
         produtos={habituaisLista}
         offline={habituaisOffline}
         dataCache={dataHora(habituaisTs)}
-        cartCount={carrinho.length}
+        cartCount={lista?.length || 0}
         noCarrinho={noCarrinho}
         onAlternar={alternarCarrinho}
-        onFechar={() => setHabituaisAberto(false)}
+        onFechar={() => { setHabituaisAberto(false); setCarrinhoAberto(true); }}
       />
       <CarrinhoSheet
         aberto={carrinhoAberto}
-        carrinho={carrinho}
-        catPorNome={catPorNome}
-        offline={habituaisOffline}
-        dataCache={dataHora(habituaisTs)}
-        onRemover={removerDoCarrinho}
+        itens={lista}
+        lojas={listaLojas}
+        mercado={mercadoSel}
+        onMercado={setMercadoSel}
+        offline={listaOffline}
         onAdicionar={adicionarAoCarrinho}
+        onMarcar={marcarItemLista}
+        onQtd={qtdItemLista}
+        onRemover={removerItemLista}
         onLimpar={limparCarrinho}
+        onAbrirHabituais={abrirHabituais}
         onFechar={() => setCarrinhoAberto(false)}
       />
       <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} identificados={identificados} />
@@ -2917,8 +2988,10 @@ function TabNut({ n }) {
   );
 }
 
-// Linha do carrinho: arrasta para a DIREITA para apagar (revela 🗑).
-function ItemCarrinho({ it, onRemover }) {
+// Linha da lista partilhada: TOQUE risca/desrisca ("no carrinho", com a cor de
+// quem riscou); arrasta para a DIREITA para remover; − / + altera a quantidade;
+// mostra quem adicionou (inicial colorida) e o melhor preço recente (e onde).
+function ItemCarrinho({ it, onRemover, onMarcar, onQtd }) {
   const [dx, setDx] = useState(0);
   const [hist, setHist] = useState(null); // null = fechado; array = aberto
   const [carregando, setCarregando] = useState(false);
@@ -2954,22 +3027,41 @@ function ItemCarrinho({ it, onRemover }) {
   function end() {
     const r = g.current;
     r.mov = false;
-    if (r.horiz && r.dx > 90) onRemover(it.nome);
+    if (r.horiz && r.dx > 90) onRemover(it.id);
     setDx(0);
   }
+  const riscado = it.estado === 'carrinho';
+  const preco = it.preco_mercado ?? it.melhor_preco;
   return (
     <div className="crow-li">
       <div className="crow-bg">
         <Ico name="close" size={18} />
       </div>
       <div
-        className="crow"
+        className={`crow${riscado ? ' riscado' : ''}`}
         style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
         onTouchStart={start}
         onTouchMove={move}
         onTouchEnd={end}
+        onClick={() => onMarcar(it.id, !riscado)}
       >
-        <span className="cn">{it.nome}</span>
+        <span className="cmembro" style={{ background: corMembro(it.adicionado_por) }} title={it.adicionado_por}>
+          {(it.adicionado_por || '?')[0].toUpperCase()}
+        </span>
+        <span className="cnwrap">
+          <span className="cn" style={riscado ? { textDecorationColor: corMembro(it.marcado_por) } : undefined}>
+            {it.nome}{it.quantidade > 1 ? ` ×${it.quantidade}` : ''}
+          </span>
+          {preco != null && (
+            <span className="csub">
+              {eur(preco)}{it.quantidade > 1 ? ` · ${eur(preco * it.quantidade)}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}
+            </span>
+          )}
+        </span>
+        <span className="cqtd" onClick={(e) => e.stopPropagation()}>
+          <button type="button" onClick={() => onQtd(it.id, Math.max(1, (it.quantidade || 1) - 1))} aria-label="-">−</button>
+          <button type="button" onClick={() => onQtd(it.id, (it.quantidade || 1) + 1)} aria-label="+">+</button>
+        </span>
         <button
           type="button"
           className={`cp-hist ${hist ? 'on' : ''}`}
@@ -2978,7 +3070,6 @@ function ItemCarrinho({ it, onRemover }) {
         >
           <Ico name="receipt" size={15} />
         </button>
-        {it.preco != null && <span className="cp">{eur(it.preco)}</span>}
       </div>
       {hist && (
         <div className="crow-hist">
@@ -3008,7 +3099,7 @@ function ItemCarrinho({ it, onRemover }) {
   );
 }
 
-function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRemover, onAdicionar, onLimpar, onFechar }) {
+function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onRemover, onLimpar, onAbrirHabituais, onFechar }) {
   const [novo, setNovo] = useState('');
   const adicionar = () => { if (novo.trim()) { onAdicionar(novo); setNovo(''); } };
   // ditar produtos por VOZ: gravar → /api/voz/lista extrai os nomes → adiciona todos
@@ -3038,8 +3129,15 @@ function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRem
       setGravando(true);
     } catch { /* sem microfone/permissão */ }
   }
-  const itens = carrinho.map((it) => ({ ...it, categoria: it.categoria || catPorNome?.[it.nome] }));
-  const total = carrinho.reduce((s, it) => s + (Number(it.preco) || 0), 0);
+  const lista = itens || [];
+  // total estimado: melhor preço conhecido (ou o do mercado escolhido) × quantidade
+  const total = lista.reduce((s, it) => s + (Number(it.preco_mercado ?? it.melhor_preco) || 0) * (it.quantidade || 1), 0);
+  function textoLista() {
+    const L = [`🛒 *${t('cart.title')}* · BigBag`];
+    for (const it of lista) L.push(`${it.estado === 'carrinho' ? '✓' : '•'} ${it.nome}${it.quantidade > 1 ? ` ×${it.quantidade}` : ''}`);
+    if (total > 0) L.push('', `${t('cart.total')}: ${eur(total)}${mercado ? ` (${mercado})` : ''}`);
+    return L.join('\n');
+  }
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
@@ -3049,27 +3147,46 @@ function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRem
             <Ico name="cart" size={20} />
           </span>
           <span className="t">{t('cart.sheetTitle')}</span>
-          {carrinho.length > 0 && <span className="cart-count">{t('cart.left', { n: carrinho.length })}</span>}
+          {lista.length > 0 && <span className="cart-count">{t('cart.left', { n: lista.length })}</span>}
+          {lista.length > 0 && (
+            <button className="sheet-x" onClick={() => { partilharWhatsApp(textoLista()); track('partilhar', { tipo: 'lista' }); }} aria-label={t('share.whatsapp')} title={t('share.whatsapp')}>
+              <Ico name="partilhar" size={18} />
+            </button>
+          )}
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
         </div>
-        {offline && <p className="sheet-offline">{t('habituais.offline', { data: dataCache })}</p>}
-        {carrinho.length === 0 ? (
+        {offline && <p className="sheet-offline">{t('cart.offline')}</p>}
+        {(lojas?.length || 0) > 1 && (
+          <div className="cart-mercados">
+            <span className="cm-k">{t('cart.comprarEm')}</span>
+            <button type="button" className={!mercado ? 'on' : ''} onClick={() => onMercado('')}>{t('cart.mercTodas')}</button>
+            {lojas.map((l) => (
+              <button key={l} type="button" className={mercado === l ? 'on' : ''} onClick={() => onMercado(l)}>{l}</button>
+            ))}
+          </div>
+        )}
+        {itens === null ? (
+          <div className="cart-empty">{t('chat.thinking')}</div>
+        ) : lista.length === 0 ? (
           <div className="cart-empty">{t('cart.empty')}</div>
         ) : (
           <div className="cart-list">
-            {agruparPorSecao(itens).map(([sec, lista]) => (
+            {agruparPorSecao(lista).map(([sec, grupo]) => (
               <div key={sec}>
                 <div className="cart-cat">{sec}</div>
-                {lista.map((it) => (
-                  <ItemCarrinho key={it.nome} it={it} onRemover={onRemover} />
+                {grupo.map((it) => (
+                  <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} />
                 ))}
               </div>
             ))}
           </div>
         )}
         <div className="cart-add">
+          <button type="button" className="voz" onClick={onAbrirHabituais} aria-label={t('habituais.title')} title={t('habituais.title')}>
+            <Ico name="usual" size={18} />
+          </button>
           <input
             placeholder={t('cart.addPh')}
             value={novo}
@@ -3085,10 +3202,10 @@ function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRem
         </div>
         <div className="cart-foot">
           <div className="cart-total">
-            <span>{t('cart.total')}</span>
+            <span>{t('cart.total')}{mercado ? ` · ${mercado}` : ''}</span>
             <b>{eur(total)}</b>
           </div>
-          <button className="cart-clear" onClick={onLimpar} disabled={!carrinho.length}>
+          <button className="cart-clear" onClick={onLimpar} disabled={!lista.length}>
             {t('cart.clear')}
           </button>
         </div>

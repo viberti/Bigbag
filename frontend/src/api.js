@@ -235,6 +235,41 @@ export async function fotoProdutoUrl(id) {
   return URL.createObjectURL(await r.blob());
 }
 
+// Lista de compras PARTILHADA da família (servidor = fonte de verdade).
+export async function obterLista(mercado) {
+  const r = await call(`/api/lista${mercado ? `?mercado=${encodeURIComponent(mercado)}` : ''}`);
+  if (!r.ok) throw new Error(`lista ${r.status}`);
+  return r.json(); // { itens, lojas, mercado }
+}
+export async function adicionarListaItem({ nome, quantidade, categoria, somar }) {
+  const r = await call('/api/lista', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome, quantidade, categoria, somar }),
+  });
+  if (!r.ok) throw new Error(`lista add ${r.status}`);
+  return r.json();
+}
+export async function atualizarListaItem(id, dados) {
+  const r = await call(`/api/lista/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dados),
+  });
+  if (!r.ok) throw new Error(`lista patch ${r.status}`);
+  return r.json();
+}
+export async function removerListaItem(id) {
+  const r = await call(`/api/lista/${id}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`lista del ${r.status}`);
+  return r.json();
+}
+export async function limparListaCompras() {
+  const r = await call('/api/lista/limpar', { method: 'POST' });
+  if (!r.ok) throw new Error(`lista limpar ${r.status}`);
+  return r.json();
+}
+
 // Ditado da lista de compras: áudio → nomes de produtos (adicionar ao carrinho).
 export async function vozParaLista(blob) {
   const fd = new FormData();

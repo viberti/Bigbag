@@ -10,6 +10,7 @@ import { adminRouter } from './routes/admin.js';
 import { explorarRouter } from './routes/explorar.js';
 import { produtoRouter } from './routes/produto.js';
 import { perfilRouter } from './routes/perfil.js';
+import { listaRouter } from './routes/lista.js';
 import { requireAuth } from './auth.js';
 import { telemetriaApi, registarEventos } from './telemetria.js';
 
@@ -130,6 +131,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/explorar', explorarRouter);
 app.use('/api/produto', produtoRouter);
 app.use('/api/perfil', perfilRouter);
+app.use('/api/lista', listaRouter);
 
 const server = app.listen(config.port, () => {
   console.log(`[bigbag-backend] a escutar na porta ${config.port} (${config.nodeEnv})`);
