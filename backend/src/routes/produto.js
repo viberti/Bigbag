@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { writeFile, mkdir } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
@@ -635,6 +635,23 @@ produtoRouter.get('/personalizado', requireAuth, async (req, res) => {
     };
 
     const alertas = alertasDoPerfil(produto, resumo);
+
+    // CACHE da avaliação LLM (o maior custo recorrente: corria a cada abertura da
+    // ficha). Chave perfil+produto; invalidação por HASH do input — editar o
+    // perfil ou a nutrição muda o hash e re-gera. Alertas ficam determinísticos
+    // (calculados sempre, acima). ?forcar=1 ignora a cache.
+    const chaveProd = info.ean || (info.skuId ? `sku:${info.skuId}` : null);
+    const chaveCache = chaveProd ? `perfil:${p.id}:${chaveProd}`.slice(0, 64) : null;
+    const hash = createHash('sha1').update(JSON.stringify([produto, resumo])).digest('hex').slice(0, 16);
+    const forcar = String(req.query.forcar || '') === '1';
+    if (chaveCache && !forcar) {
+      const [[c]] = await getPool().query('SELECT analise FROM produto_analise WHERE ean = ?', [chaveCache]);
+      const j = c?.analise ? parseJson(c.analise) : null;
+      if (j?.hash === hash && j.avaliacao) {
+        return res.json({ perfil: p.nome, alertas, avaliacao: j.avaliacao, custo: 0, cacheada: true });
+      }
+    }
+
     let avaliacao = null, custo = 0;
     try {
       const r = await avaliarParaPerfil(produto, resumo);
@@ -642,6 +659,12 @@ produtoRouter.get('/personalizado', requireAuth, async (req, res) => {
       custo = r.custo;
     } catch (e) {
       console.error('[produto/personalizado] avaliar:', e.message);
+    }
+    if (chaveCache && avaliacao) {
+      await getPool()
+        .query('INSERT INTO produto_analise (ean, analise, modelo) VALUES (?,?,?) ON DUPLICATE KEY UPDATE analise=VALUES(analise), modelo=VALUES(modelo), criado_em=CURRENT_TIMESTAMP',
+          [chaveCache, JSON.stringify({ avaliacao, hash }), 'modelConsulta'])
+        .catch((e) => console.error('[produto/personalizado] cache:', e.message));
     }
     res.json({ perfil: p.nome, alertas, avaliacao, custo });
   } catch (e) {
