@@ -32,6 +32,16 @@
   code{ background:#0b120f; border:1px solid var(--line); border-radius:5px; padding:0 5px; font-size:12.5px; color:#bcd; }
   .how{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:8px 0 0; color:var(--mut); }
   .how b{ color:var(--txt); }
+  /* mapa de navegação */
+  .navmap{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+  .navroot{ font-size:17px; font-weight:700; color:var(--acc); margin-bottom:6px; }
+  .navgrp{ margin:14px 0 0; }
+  .navh{ font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); font-weight:700; margin-bottom:6px; }
+  .navrow{ padding:6px 0 6px 16px; border-left:2px solid #2a3b33; margin-left:4px; }
+  .navrow b{ color:var(--txt); }
+  .navnote{ margin-top:14px; font-size:13px; color:#bfe6cf; background:#163524; border:1px solid #1f7a4d55; border-radius:9px; padding:9px 11px; }
+  .forwho{ background:#15233a; border:1px solid #2a4a7a55; border-radius:12px; padding:14px 16px; margin:8px 0 0; color:#bcd; }
+  .forwho b{ color:#dfeaff; }
 </style>
 </head>
 <body>
@@ -42,8 +52,45 @@
   <div class="how">
     <b>Como completar os snapshots:</b> larga as imagens na pasta <code>shots/</code> com o nome indicado em cada cartão (ex.: <code>shots/03-compras.png</code>). A app móvel fica melhor com screenshots reais do telemóvel; os ecrãs de <code>/admin</code> e <code>/explorar</code> podem ser capturados no browser desktop. Depois é só zipar a pasta <code>design/review/</code> e entregar.
   </div>
+  <div class="forwho">
+    <b>Para o designer — como rever:</b> este documento é o <b>inventário + mapa de fluxos + estados</b>. Para avaliar <b>usabilidade</b> a sério, usa a <b>app real no telemóvel</b> (pede o acesso) — transições, alvos de toque e tempos de resposta não se veem em prints. Para registar <b>correções</b>, o ideal é um quadro <b>FigJam/Figma</b>: importa os screenshots como frames, segue o mapa de navegação abaixo e cola sugestões. (Em alternativa, comenta num doc partilhado.)
+  </div>
 </header>
 <div class="wrap">
+
+<!-- ================= MAPA DE NAVEGAÇÃO ================= -->
+<div class="sec">
+  <h2>Mapa de navegação · PWA</h2>
+  <p class="sub">Como o utilizador se move entre ecrãs. Quase tudo são <b>folhas deslizantes</b> (bottom sheets) sobre o chat, com gesto de fechar/voltar.</p>
+</div>
+<div class="navmap">
+  <div class="navroot">🏠 Chat (home) <span class="tag">/ · ponto de entrada</span></div>
+
+  <div class="navgrp">
+    <div class="navh">Cabeçalho</div>
+    <div class="navrow">↻ Sincronizar &nbsp;·&nbsp; ✨ Lista mágica (habituais) &nbsp;·&nbsp; 🛒 <b>Carrinho</b> → Lista de compras (agrupada por categoria)</div>
+  </div>
+
+  <div class="navgrp">
+    <div class="navh">Rodapé (5 ações)</div>
+    <div class="navrow">📷 <b>Câmara inteligente</b> → se for código de barras → <b>Ficha do produto</b>; se for talão → ingestão (volta ao chat)</div>
+    <div class="navrow">⋯ <b>Menu</b> → (ver grupo abaixo)</div>
+    <div class="navrow">🧾 <b>Notas</b> → <b>As minhas compras</b> → tocar cartão → <b>Detalhe da compra</b> (3 vistas: Nota · A→Z · Categorias) → tocar produto → <b>Ficha do produto</b> &nbsp;/&nbsp; (ícone câmara) → <b>Identificar produto</b></div>
+    <div class="navrow">▮▮ <b>Scanner</b> → barras ao vivo / foto / EAN manual / por nome → <b>Ficha do produto</b></div>
+    <div class="navrow">🎙️ <b>Voz</b> → resposta do assistente no chat</div>
+  </div>
+
+  <div class="navgrp">
+    <div class="navh">Menu (⋯)</div>
+    <div class="navrow">Digitalizar documento · Galeria · Arquivo/PDF → ingestão de talão (volta ao chat)</div>
+    <div class="navrow">✨ <b>Perfil nutricional</b> (por membro do agregado)</div>
+    <div class="navrow">▦ <b>A minha despensa</b> → tocar produto → <b>Ficha do produto</b></div>
+    <div class="navrow">€ <b>Os meus gastos</b> → tocar um mês → compras desse mês</div>
+    <div class="navrow">▣ <b>Produtos por identificar</b> → ícone barcode num item → <b>Captura</b> (scan + fotos, acumula offline) → "Enviar N produtos"</div>
+  </div>
+
+  <div class="navnote">A <b>Ficha do produto</b> é o <b>destino comum</b> — chega-se lá pelas Compras, Despensa, Scanner e Câmara. Os fluxos de <b>captura/identificação</b> e <b>ingestão de talão</b> são os mais críticos para a usabilidade (câmara + passos). 👁 Avaliar: clareza dos pontos de entrada (5 no rodapé + 7 no menu), profundidade das folhas (até 3 níveis), e os caminhos de volta.</div>
+</div>
 
 <!-- ================= SUPERFÍCIE 1: PWA ================= -->
 <div class="sec">
