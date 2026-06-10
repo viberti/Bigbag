@@ -37,8 +37,10 @@ let _gaz = null;
 export async function carregarGazetteer(pool) {
   if (_gaz) return _gaz;
   const [rows] = await pool.query(`
-    SELECT DISTINCT marca FROM catalogo_produto WHERE marca IS NOT NULL AND marca <> ''
-    UNION SELECT DISTINCT marca FROM produto_ean WHERE marca IS NOT NULL AND marca <> ''`);
+    SELECT DISTINCT CONVERT(marca USING utf8mb4) COLLATE utf8mb4_unicode_ci AS marca
+      FROM catalogo_produto WHERE marca IS NOT NULL AND marca <> ''
+    UNION SELECT DISTINCT CONVERT(marca USING utf8mb4) COLLATE utf8mb4_unicode_ci
+      FROM produto_ean WHERE marca IS NOT NULL AND marca <> ''`);
   _gaz = new Map();
   for (const { marca } of rows) {
     const k = norm(marca);
