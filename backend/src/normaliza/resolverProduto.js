@@ -12,32 +12,12 @@ const STOP = new Set(['de','da','do','e','com','sem','para','por','kg','kgs','g'
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const toks = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOP.has(t));
 
-// SABOR/VARIANTE: discriminador DURO — se o talão tem um sabor e o candidato tem
-// OUTRO sabor (nenhum em comum), são produtos diferentes (morango ≠ baunilha) e não
-// devem casar. "natural" (liso) também conflita com um sabor. Um sem sabor → não bloqueia.
-const SABORES = new Set([
-  'chocolate', 'choco', 'cacau', 'coco', 'baunilha', 'vanilla', 'morango', 'banana', 'limao', 'lima',
-  'laranja', 'manga', 'ananas', 'abacaxi', 'pessego', 'caramelo', 'cafe', 'avela', 'avelas', 'amendoa', 'amendoas',
-  'menta', 'hortela', 'framboesa', 'mirtilo', 'mirtilos', 'frutos', 'vermelhos', 'silvestres', 'tropical', 'natural',
-  'pera', 'maracuja', 'cereja', 'ginja', 'ameixa', 'noz', 'nozes', 'canela', 'mel', 'pistacio', 'pistachio',
-  'stracciatella', 'tiramisu', 'oreo', 'cookies', 'citrinos', 'roma', 'kiwi', 'uva', 'figo',
-  'caju', 'macadamia', 'natas', 'gengibre', 'aveia', 'espelta',
-  // variantes de DIETA/TEOR/COMPOSIÇÃO — também discriminam (light ≠ normal, magro ≠ gordo)
-  'light', 'lite', 'magro', 'gordo', 'desnatado', 'integral', 'zero', 'diet', 'lactose', 'gluten', 'proteina',
-]);
-const saboresDe = (s) => new Set(toks(s).filter((t) => SABORES.has(t)));
-// Conflito de sabor: se o TALÃO traz sabor(es), o candidato tem de ter EXATAMENTE os
-// mesmos — nem a menos ("coco" não casa com liso/natural), nem a MAIS ("coco" não casa
-// com "ananás e coco": o ananás não está no talão). Talão sem sabor → não bloqueia
-// (pode estar omitido). Morango ≠ baunilha, coco ≠ ananás+coco.
-export function saborConflito(talao, cand) {
-  const st = saboresDe(talao);
-  if (!st.size) return false;                  // talão sem sabor → não bloqueia
-  const sc = saboresDe(cand);
-  if (st.size !== sc.size) return true;         // nº de sabores diferente → conflito
-  for (const x of st) if (!sc.has(x)) return true; // algum sabor do talão falta no candidato
-  return false;                                // conjuntos de sabor iguais → ok
-}
+// SABOR/TEOR/DIETA: discriminadores DUROS — vocabulário ÚNICO e multilingue em
+// facetas.js (A6): morango=fresa=strawberry; magro≠meio-gordo; "natural" é valor.
+// Semântica mantida: talão com facetas → o candidato tem de ter EXATAMENTE as
+// mesmas; talão sem facetas → não bloqueia. Re-exportado para os consumidores.
+import { saborConflito } from './facetas.js';
+export { saborConflito };
 
 // RARIDADE (IDF): cada palavra pesa pela sua raridade no catálogo. "mel" aparece em
 // centenas de produtos → pesa pouco; "rosmaninho" em poucos → pesa muito. Carrega

@@ -16,6 +16,7 @@ import { melhorCandidato, normalizarNome } from './similaridade.js';
 import { limparDescricao } from './mestre.js';
 import { buscarCatalogo } from './resolverProduto.js';
 import { marcaDeterministica } from './marca.js';
+import { compararFacetas } from './facetas.js';
 
 const formatoProximo = (a, b) => {
   if (a == null || b == null) return a == null && b == null;
@@ -91,7 +92,13 @@ export async function resolverSku(
     'SELECT id, nome_canonico, formato_valor FROM sku_normalizado WHERE (marca <=> ?) AND unidade_base = ?',
     [c.marca, unidade_base],
   );
-  const compat = cands.filter((s) => formatoProximo(s.formato_valor, formato_valor));
+  // GATE de facetas (A6): sabor/teor/dieta em CONFLITO = produtos diferentes —
+  // o Dice tratava "morango" como token qualquer e auto-fundia "Grego Natural
+  // Magro" com "Grego Natural" a 0,857. Conflito → candidato fora, por regra.
+  const fonteFacetas = `${desc} ${c.nome_canonico}`;
+  const compat = cands.filter(
+    (s) => formatoProximo(s.formato_valor, formato_valor) && compararFacetas(fonteFacetas, s.nome_canonico) !== 'conflito',
+  );
   let { candidato, score } = melhorCandidato(c.nome_canonico, compat);
   // Dedup de nome EXATO: o nome_canonico é livre de formato, logo dois SKUs com
   // o mesmo nome (mesma marca/unidade) SÃO o mesmo produto — reutiliza, mesmo
@@ -103,6 +110,12 @@ export async function resolverSku(
       candidato = exato;
       score = 1;
     }
+  }
+
+  // Política do AUSENTE (Taxonomia §11.3): o candidato declara uma faceta que a
+  // fonte omite (ou vice-versa) → nunca auto-match; baixa para a banda do juiz.
+  if (candidato && score >= limiarAuto && compararFacetas(fonteFacetas, candidato.nome_canonico) === 'ausente') {
+    score = Math.max(limiarRevisao, limiarAuto - 0.01);
   }
 
   let sku_id = null;
