@@ -27,10 +27,11 @@ const MARCAS = new Set([
   'intermarche', 'paturages', 'chabrior', 'monique-ranou', 'saint-eloi', 'capitaine-cook',
   'top-budget', 'itineraire-des-saveurs', 'fiorini', 'apta', 'elodie', 'pommette',
 ]);
-// pré-filtro barato por substring (evita JSON.parse de 4M de linhas).
-// 'portugal' SEM aspas: no dump vem "en:portugal" / "France,Portugal" — nunca
-// com aspas coladas. As marcas vêm como tags exatas → com aspas dos dois lados.
-const AGULHAS = ['portugal', ...[...MARCAS].map((m) => `"${m}"`)];
+// pré-filtro barato (evita JSON.parse de 4M de linhas): UMA regex compilada com
+// alternação — toLowerCase+50×includes por linha punha o processo a 100% de CPU
+// durante horas no host partilhado. 'portugal' sem aspas (no dump vem
+// "en:portugal"/"France,Portugal"); marcas como tags exatas, com aspas.
+const RE_AGULHAS = new RegExp(`portugal|${[...MARCAS].map((m) => `"${m}"`).join('|')}`, 'i');
 
 const num = (v) => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
 const corta = (s, n) => (s ? String(s).slice(0, n) : null);
@@ -49,8 +50,7 @@ async function main() {
     if (TESTE && linhas > TESTE) break;
     if (linhas % 500000 === 0) console.log(`  …${(linhas / 1e6).toFixed(1)}M linhas, ${aceites} aceites (${Math.round((Date.now() - t0) / 1000)}s)`);
     // pré-filtro textual barato; só depois JSON.parse
-    const lower = linha.toLowerCase();
-    if (!AGULHAS.some((a) => lower.includes(a))) continue;
+    if (!RE_AGULHAS.test(linha)) continue;
     let p;
     try { p = JSON.parse(linha); } catch { continue; }
     const ean = String(p.code || '').replace(/\D/g, '');
