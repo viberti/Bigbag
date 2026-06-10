@@ -14,6 +14,7 @@ import { extrairFormato } from './formato.js';
 import { canonicalizar as canonicalizarLLM, confirmarMesmoProduto } from './canonical.js';
 import { melhorCandidato, normalizarNome } from './similaridade.js';
 import { limparDescricao } from './mestre.js';
+import { buscarCatalogo } from './resolverProduto.js';
 
 const formatoProximo = (a, b) => {
   if (a == null || b == null) return a == null && b == null;
@@ -59,8 +60,11 @@ export async function resolverSku(
   const [al] = await db.query('SELECT sku_id, confianca FROM sku_alias WHERE descricao_original = ?', [desc]);
   if (al.length) return { sku_id: al[0].sku_id, via: 'alias', confianca: al[0].confianca };
 
-  // 2) canonicalizar (com contexto da cadeia, se conhecido)
-  const c = await canonicalizar(desc, { cadeia });
+  // 2) canonicalizar (com contexto da cadeia + pista do motor de busca interno:
+  // o produto real provável no catálogo — determinístico, ancora o LLM)
+  let pistaCatalogo = null;
+  try { pistaCatalogo = await buscarCatalogo(db, desc, { cadeia, limiar: 0.62 }); } catch { /* sem catálogo → segue sem pista */ }
+  const c = await canonicalizar(desc, { cadeia, pistaCatalogo });
   if (!c || (c.confianca != null && c.confianca < limiarRevisao)) {
     return { sku_id: null, via: 'revisao', canonical: c || null };
   }

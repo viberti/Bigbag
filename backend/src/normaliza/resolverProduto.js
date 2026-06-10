@@ -6,6 +6,7 @@
 import { chatCompletion } from '../openrouter.js';
 import { extrairFormato } from './formato.js';
 import { nomesPorEan } from './mestreEan.js';
+import { expandirAbreviaturas } from './abreviaturas.js';
 
 const STOP = new Set(['de','da','do','e','com','sem','para','por','kg','kgs','g','gr','grs','ml','cl','lt','l','un','und','unid','sabor','tipo','pack','x','the','of']);
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -254,6 +255,70 @@ export async function candidatosCatalogo(pool, item, opts = {}) {
     const fonte = [...m.fontes].join('+');
     return { ean, nome: melhor, nomes: variantes, marca: m.marca, categoria_path: m.categoria_path, preco_por_base: m.ppb, preco: m.preco, formato: m.formato, fonte, origem: fonte, score };
   }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, limite);
+}
+
+// ── A2: BUSCA no catálogo para CANONICALIZAÇÃO (Analise_Fontes §3.4) ────────
+// Transforma o nome abreviado do talão no nome REAL do catálogo, como um motor
+// de busca: tokens expandidos (dicionário de abreviaturas) + PREFIXO
+// (BOL→Bolachas, LIG→Ligeiro) + raridade (IDF) + gate de sabor + formato como
+// desempate + prior da MESMA cadeia. Inclui as fontes SEM EAN (Pingo Doce/Lidl)
+// — o objetivo é o nome/marca/categoria, não o EAN (esse é o candidatosCatalogo,
+// calibrado à parte para a aba EANs). "com/sem" NÃO são ruído aqui (negação que
+// define o produto: com côdea ≠ sem côdea).
+const STOPB = new Set([...STOP].filter((t) => t !== 'com' && t !== 'sem'));
+const toksB = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOPB.has(t) && !/^\d+$/.test(t));
+
+let _catMem = null;
+async function catalogoEmMemoria(pool) {
+  if (_catMem) return _catMem;
+  const [rows] = await pool.query("SELECT nome, marca, categoria_path, ean, fonte FROM catalogo_produto WHERE nome IS NOT NULL AND nome <> ''");
+  _catMem = rows.map((r) => ({ ...r, t: toksB(`${r.nome} ${r.marca || ''}`) }));
+  return _catMem;
+}
+
+const FONTE_POR_CADEIA = { 'continente': 'continente', 'pingo doce': 'pingodoce', 'auchan': 'auchan', 'lidl': 'lidl' };
+
+// Cobertura ponderada (raridade × posição) com PREFIXO. Exportada p/ testes.
+export function pontuarBusca(q, candToks, idf) {
+  let num = 0, den = 0;
+  for (let i = 0; i < q.length; i++) {
+    const t = q[i];
+    const w = peso(idf, t) * pesoPos(i);
+    den += w;
+    if (candToks.includes(t)) num += w;
+    else if (t.length >= 3 && candToks.some((c) => c.startsWith(t))) num += 0.85 * w; // BOL→bolachas
+    else if (t.length >= 5 && candToks.some((c) => c.length >= 4 && t.startsWith(c)))
+      num += 0.6 * w; // talão por extenso, catálogo abreviado (raro)
+  }
+  return den ? num / den : 0;
+}
+
+// Devolve o melhor candidato { nome, marca, categoria_path, ean?, fonte, score,
+// margem } ou null. `cadeia` dá prior à fonte da mesma loja (marca-própria).
+export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } = {}) {
+  const idf = await carregarIdf(pool);
+  const cat = await catalogoEmMemoria(pool);
+  const desc = expandirAbreviaturas(descricao);
+  const q = toksB(desc);
+  if (!q.length) return null;
+  const fontePref = FONTE_POR_CADEIA[norm(cadeia || '')] || null;
+  let top = null, segundo = 0;
+  for (const r of cat) {
+    let s = pontuarBusca(q, r.t, idf);
+    if (s < 0.45) continue;
+    if (saborConflito(desc, r.nome)) continue; // morango ≠ baunilha (gate duro)
+    const fc = formatoCompativel(descricao, r.nome);
+    if (fc === true) s += 0.08; else if (fc === false) s -= 0.3; // formato desempata
+    if (fontePref && r.fonte === fontePref) s += 0.12; // prior da mesma cadeia
+    if (!top || s > top.s) { segundo = top ? top.s : 0; top = { r, s }; }
+    else if (s > segundo) segundo = s;
+  }
+  if (!top || top.s < limiar) return null;
+  return {
+    nome: top.r.nome, marca: top.r.marca || null, categoria_path: top.r.categoria_path || null,
+    ean: top.r.ean || null, fonte: top.r.fonte,
+    score: Math.round(Math.min(1, top.s) * 100) / 100, margem: Math.round((top.s - segundo) * 100) / 100,
+  };
 }
 
 // ── Candidatos do Open Food Facts (por nome) ───────────────────────────────

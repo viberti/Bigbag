@@ -81,16 +81,21 @@ export async function confirmarMesmoProduto(nomeA, nomeB, { model, timeoutMs } =
   }
 }
 
-export async function canonicalizar(descricao, { model, timeoutMs, cadeia } = {}) {
+export async function canonicalizar(descricao, { model, timeoutMs, cadeia, pistaCatalogo } = {}) {
   // Contexto da loja: o modelo desambigua muito melhor abreviaturas/marcas quando
   // sabe que cadeia gerou o talão (ex.: insígnias e estilos próprios do Lidl vs Continente).
   const ctx = cadeia ? `\nContexto: este item vem de um talão do(a) ${cadeia} — usa as abreviaturas e marcas próprias dessa cadeia para desambiguar.` : '';
   // Pistas DIRIGIDAS do dicionário de abreviaturas (curadas + minadas dos pares
   // validados): só as presentes NESTA descrição — ancoram o LLM e reduzem variantes.
   const exps = expansoesPara(descricao);
-  const pistas = exps.length
+  let pistas = exps.length
     ? `\nPistas (dicionário aprendido das identificações reais): ${exps.map((e) => `${e.abrev}=${e.expansao}`).join(', ')}.`
     : '';
+  // Pista do MOTOR DE BUSCA interno (A2): o produto real provável no catálogo da
+  // loja — ancora a expansão das abreviaturas no produto que de facto existe.
+  if (pistaCatalogo?.nome) {
+    pistas += `\nProduto PROVÁVEL no catálogo (match determinístico do nome do talão): "${pistaCatalogo.nome}"${pistaCatalogo.marca ? ` (marca ${pistaCatalogo.marca})` : ''}. Se a descrição encaixar neste produto, usa-o para expandir o nome — mas o nome_canonico continua SEM marca e SEM formato; se NÃO encaixar, ignora a pista.`;
+  }
   const pedir = () =>
     chatCompletion({
       messages: [{ role: 'user', content: `${PROMPT}${ctx}${pistas}\n\nDescrição: ${descricao}` }],
