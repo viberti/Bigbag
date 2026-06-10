@@ -66,6 +66,8 @@ const STRINGS = {
     'cart.left': '{n|item|itens}',
     'cart.total': 'Total estimado',
     'cart.addHint': 'Toque num produto para adicionar/remover do carrinho.',
+    'cart.addPh': 'Adicionar produto (mesmo fora dos habituais)…',
+    'cart.add': 'Adicionar',
     'cart.hist': 'histórico de compras',
     'cart.histLoad': 'carregando…',
     'cart.histEmpty': 'Sem preço por unidade (€/kg) registrado para comparar.',

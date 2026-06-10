@@ -412,6 +412,15 @@ function Chat({ onSair, nome }) {
     setCarrinho((c) => (c.some((i) => i.nome === n) ? c.filter((i) => i.nome !== n) : [...c, { nome: n, categoria, preco, feito: false }]));
   const removerDoCarrinho = (n) => setCarrinho((c) => c.filter((i) => i.nome !== n));
   const limparCarrinho = () => setCarrinho([]);
+  // Adicionar produto À MÃO (pode não estar nos habituais): só-adiciona (não toggle),
+  // dedup por nome (case-insensitive); categoria/preço vêm dos habituais se o nome bater.
+  const adicionarAoCarrinho = (n) => {
+    const nome = String(n || '').trim();
+    if (!nome) return;
+    setCarrinho((c) => (c.some((i) => i.nome.toLowerCase() === nome.toLowerCase())
+      ? c
+      : [...c, { nome, categoria: catPorNome[nome], preco: undefined, feito: false }]));
+  };
 
   // Revalida os habituais: busca à rede e, em sucesso, atualiza estado + cache.
   // Em falha (offline), MANTÉM a cache — nunca branqueia a lista — e sinaliza.
@@ -680,6 +689,7 @@ function Chat({ onSair, nome }) {
         offline={habituaisOffline}
         dataCache={dataHora(habituaisTs)}
         onRemover={removerDoCarrinho}
+        onAdicionar={adicionarAoCarrinho}
         onLimpar={limparCarrinho}
         onFechar={() => setCarrinhoAberto(false)}
       />
@@ -845,6 +855,10 @@ function CartaoCompra({ d }) {
 
 // ── Folhas (bottom sheets) ───────────────────────────────────────────────────
 function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCarrinho, onAlternar, onFechar }) {
+  // ordem ALFABÉTICA (pedido do dono): mais fácil de varrer do que por nº de compras
+  const lista = produtos
+    ? [...produtos].sort((a, b) => String(a.produto).localeCompare(String(b.produto), 'pt', { sensitivity: 'base' }))
+    : null;
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
@@ -858,12 +872,12 @@ function HabituaisSheet({ aberto, produtos, offline, dataCache, cartCount, noCar
         </div>
         {offline && <p className="sheet-offline">{t('habituais.offline', { data: dataCache })}</p>}
         <div className="usual-list">
-          {produtos === null ? (
+          {lista === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
-          ) : produtos.length === 0 ? (
+          ) : lista.length === 0 ? (
             <p className="sheet-vazio">{t('habituais.empty')}</p>
           ) : (
-            produtos.map((p) => {
+            lista.map((p) => {
               const dentro = noCarrinho(p.produto);
               return (
                 <div
@@ -2983,7 +2997,9 @@ function ItemCarrinho({ it, onRemover }) {
   );
 }
 
-function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRemover, onLimpar, onFechar }) {
+function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRemover, onAdicionar, onLimpar, onFechar }) {
+  const [novo, setNovo] = useState('');
+  const adicionar = () => { if (novo.trim()) { onAdicionar(novo); setNovo(''); } };
   const itens = carrinho.map((it) => ({ ...it, categoria: it.categoria || catPorNome?.[it.nome] }));
   const total = carrinho.reduce((s, it) => s + (Number(it.preco) || 0), 0);
   return (
@@ -3015,6 +3031,17 @@ function CarrinhoSheet({ aberto, carrinho, catPorNome, offline, dataCache, onRem
             ))}
           </div>
         )}
+        <div className="cart-add">
+          <input
+            placeholder={t('cart.addPh')}
+            value={novo}
+            onChange={(e) => setNovo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') adicionar(); }}
+          />
+          <button type="button" disabled={!novo.trim()} onClick={adicionar} aria-label={t('cart.add')}>
+            <Ico name="plus" size={18} stroke={2.4} />
+          </button>
+        </div>
         <div className="cart-foot">
           <div className="cart-total">
             <span>{t('cart.total')}</span>

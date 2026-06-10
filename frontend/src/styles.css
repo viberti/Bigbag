@@ -1293,6 +1293,11 @@ body { background: #0c1814; }
 .bb .ch-promo { color: var(--accent); }
 .bb .ch-vazio { color: var(--muted-bb); font-size: 13px; padding: 6px 0; }
 .bb .cart-empty { padding: 54px 24px; text-align: center; color: var(--muted-bb); font-size: 16px; line-height: 1.7; }
+/* adicionar produto à mão (pode não estar nos habituais) */
+.bb .cart-add { display: flex; gap: 8px; padding: 10px 18px 0; flex: 0 0 auto; }
+.bb .cart-add input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text-bb); font-size: 14.5px; }
+.bb .cart-add button { flex: 0 0 auto; width: 42px; border-radius: 11px; border: none; background: var(--accent); color: #06231a; display: grid; place-items: center; cursor: pointer; }
+.bb .cart-add button:disabled { opacity: .45; }
 .bb .cart-foot { padding: 15px 18px 18px; border-top: 1px solid var(--line); flex: 0 0 auto; }
 .bb .cart-total { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 13px; font-size: 15px; color: var(--muted-bb); font-weight: 600; }
 .bb .cart-total b { font-size: 24px; color: var(--txt); font-weight: 800; font-variant-numeric: tabular-nums; }
