@@ -24,8 +24,10 @@ const MARCAS = new Set([
   'continente', 'continente-equilibrio', 'continente-seleccao', 'mythos',
   'pingo-doce', 'auchan', 'polegar', 'makro', 'aro',
 ]);
-// pré-filtro barato por substring (evita JSON.parse de 4M de linhas)
-const AGULHAS = ['portugal', ...MARCAS].map((m) => `"${m}`);
+// pré-filtro barato por substring (evita JSON.parse de 4M de linhas).
+// 'portugal' SEM aspas: no dump vem "en:portugal" / "France,Portugal" — nunca
+// com aspas coladas. As marcas vêm como tags exatas → com aspas dos dois lados.
+const AGULHAS = ['portugal', ...[...MARCAS].map((m) => `"${m}"`)];
 
 const num = (v) => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
 const corta = (s, n) => (s ? String(s).slice(0, n) : null);
