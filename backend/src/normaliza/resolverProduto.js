@@ -16,7 +16,7 @@ const toks = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOP.has(
 // facetas.js (A6): morango=fresa=strawberry; magro≠meio-gordo; "natural" é valor.
 // Semântica mantida: talão com facetas → o candidato tem de ter EXATAMENTE as
 // mesmas; talão sem facetas → não bloqueia. Re-exportado para os consumidores.
-import { saborConflito } from './facetas.js';
+import { saborConflito, compararFacetas } from './facetas.js';
 export { saborConflito };
 
 // RARIDADE (IDF): cada palavra pesa pela sua raridade no catálogo. "mel" aparece em
@@ -301,7 +301,10 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } =
   for (const r of cat) {
     let s = pontuarBusca(q, r.t, idf);
     if (s < 0.45) continue;
-    if (saborConflito(desc, r.nome)) continue; // morango ≠ baunilha (gate duro)
+    // Só CONFLITO bloqueia (morango ≠ baunilha); faceta AUSENTE passa — o talão
+    // abrevia ("NAT") e não dá para expandir deterministicamente; a margem e o
+    // LLM (que recebe a pista com instrução de a rejeitar se não encaixar) decidem.
+    if (compararFacetas(desc, r.nome) === 'conflito') continue;
     const fc = formatoBusca(descricao, r.nome);
     if (fc === true) s += 0.08; else if (fc === false) s -= 0.3; // formato desempata
     if (fontePref && r.fonte === fontePref) s += 0.12; // prior da mesma cadeia
