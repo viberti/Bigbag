@@ -209,6 +209,9 @@ const STRINGS = {
     'comp.nova': 'Nova comparação',
     'comp.placeholderEan': 'ou digite o código (EAN)',
     'comp.add': 'Adicionar',
+    // partilha (WhatsApp = método padrão)
+    'share.whatsapp': 'Compartilhar no WhatsApp',
+    'share.por100': 'Por 100 g',
     'info.title': 'Informação do produto',
     'info.generico': 'Valores típicos do alimento (sem rótulo) — estimativa por 100 g.',
     'info.catalogo': 'Do catálogo (Auchan · Continente) — sem tabela nutricional.',

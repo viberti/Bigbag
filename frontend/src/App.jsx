@@ -54,6 +54,13 @@ const limparMarca = (s) => {
   return capMarca((reais[0] || partes[0] || '').trim());
 };
 
+// Partilha por WhatsApp (método padrão de envio): abre o wa.me com o texto
+// pré-preenchido — o utilizador escolhe o contacto no WhatsApp. Só texto
+// (limitação do link); usa *negrito* e emojis, que o WhatsApp formata.
+function partilharWhatsApp(texto) {
+  window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
+}
+
 // Tenta descodificar um código de barras (EAN/UPC) de uma imagem (zxing). Devolve
 // os dígitos ou null. Usado para distinguir "foto de produto" de "foto de talão".
 async function decodeEanDeImagem(file) {
@@ -1821,6 +1828,21 @@ function CompararSheet({ aberto, onFechar }) {
   const nomeDe = (ean) => res?.produtos?.find((p) => p.ean === ean)?.nome || itens.find((x) => x.ean === ean)?.nome || ean;
   const medalha = (pos) => (pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`);
 
+  // texto da comparação para o WhatsApp (negrito *…* do próprio WhatsApp)
+  function textoPartilha() {
+    const L = [`⚖️ *${t('comp.title')}* · BigBag`];
+    if (res.perfil) L.push(`✨ ${t('comp.paraPerfil', { nome: res.perfil })}`);
+    if (res.resumo) L.push('', res.resumo);
+    L.push('');
+    for (const r of res.ranking || []) {
+      L.push(`${medalha(r.posicao)} *${nomeDe(String(r.ean))}* — ${r.veredicto}`);
+      if (r.motivo) L.push(`${r.motivo}`);
+      if (r.alertas?.length) L.push(`⚠ ${r.alertas.join(' · ')}`);
+      L.push('');
+    }
+    return L.join('\n').trim();
+  }
+
   return (
     <>
       <div className="scrim open" onClick={onFechar} />
@@ -1854,6 +1876,9 @@ function CompararSheet({ aberto, onFechar }) {
                   )}
                 </div>
               ))}
+              <button type="button" className="comp-share" onClick={() => { partilharWhatsApp(textoPartilha()); track('partilhar', { tipo: 'comparacao' }); }}>
+                <Ico name="partilhar" size={18} /> {t('share.whatsapp')}
+              </button>
               <button type="button" className="ident-go" onClick={() => { setRes(null); setItens([]); setFase('scan'); }}>{t('comp.nova')}</button>
             </div>
           ) : (
@@ -2350,6 +2375,37 @@ function ProdutoInfoSheet({ item, onFechar }) {
     }
   }, [item]);
   if (!item) return null;
+
+  // texto da ficha para o WhatsApp: nome+marca+tamanho, selos, nutrição-chave,
+  // parecer factual, e a avaliação do perfil se houver. (Os nomes de produtos
+  // ficam como vêm do mercado — regra do projeto.)
+  function textoFicha() {
+    const nome = info?.off?.nome || info?.vlm?.nome || item.produto || '';
+    const marca = limparMarca(info?.off?.marca || info?.vlm?.marca || info?.base?.marca);
+    const tam = info?.off?.quantidade || info?.vlm?.quantidade || info?.base?.quantidade;
+    const n = info?.off?.nutricao_100g || info?.vlm?.nutricao_100g || info?.generico?.nutricao_100g;
+    const L = [`🛒 *${nome}*${marca ? ` · ${marca}` : ''}${tam ? ` · ${tam}` : ''}`];
+    const selos = [];
+    if (analise?.nutriscore?.grau) selos.push(`Nutri-Score ${analise.nutriscore.grau}`);
+    if (analise?.nivel_processamento?.nova) selos.push(`NOVA ${analise.nivel_processamento.nova}`);
+    if (selos.length) L.push(selos.join(' · '));
+    if (n) {
+      const f = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+      const partes = [];
+      if (n.energia_kcal != null) partes.push(`${Math.round(n.energia_kcal)} kcal`);
+      if (n.gordura != null) partes.push(`gordura ${f(n.gordura)} g`);
+      if (n.acucares != null) partes.push(`açúcares ${f(n.acucares)} g`);
+      if (n.sal != null) partes.push(`sal ${f(n.sal)} g`);
+      if (n.proteina != null) partes.push(`proteína ${f(n.proteina)} g`);
+      if (partes.length) L.push(`${t('share.por100')}: ${partes.join(' · ')}`);
+    }
+    if (analise?.parecer) L.push('', analise.parecer);
+    if (aval?.perfil && aval?.avaliacao?.resumo) L.push('', `✨ *${t('comp.paraPerfil', { nome: aval.perfil })}:* ${aval.avaliacao.resumo}`);
+    if (aval?.alertas?.length) L.push(`⚠ ${aval.alertas.join(' · ')}`);
+    L.push('', '— BigBag');
+    return L.join('\n');
+  }
+
   return (
     <>
       <div className="scrim open" onClick={onFechar} />
@@ -2357,6 +2413,11 @@ function ProdutoInfoSheet({ item, onFechar }) {
         <div className="sheet-h">
           <Mark size={30} chip />
           <span className="t">{t('info.title')}</span>
+          {info && !info.erro && (
+            <button className="sheet-x" onClick={() => { partilharWhatsApp(textoFicha()); track('partilhar', { tipo: 'ficha' }); }} aria-label={t('share.whatsapp')} title={t('share.whatsapp')}>
+              <Ico name="partilhar" size={18} />
+            </button>
+          )}
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>

@@ -892,6 +892,10 @@ body { background: #0c1814; }
 .bb .comp-pt { font-size: 12.5px; line-height: 1.4; }
 .bb .comp-pt.ok { color: #8fd9ae; }
 .bb .comp-pt.mau { color: #ffc1a1; }
+/* partilhar no WhatsApp (verde WhatsApp, distinto do accent) */
+.bb .comp-share { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px;
+  border: 1px solid rgba(37,211,102,.45); background: rgba(37,211,102,.14); color: #6fe39a; font-weight: 700; font-size: 14.5px; cursor: pointer; }
+.bb .comp-share:active { transform: scale(.985); }
 
 /* Compras (redesign por loja) */
 .bb .sheet.cmp { overflow: hidden; }
