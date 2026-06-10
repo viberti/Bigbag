@@ -872,6 +872,10 @@ body { background: #0c1814; }
 .bb .cmp-k { font-size: 11.5px; color: var(--faint); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bb .cmp-v { font-size: 18px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .bb .cmp-v.eur { color: #46d488; }
+/* % vs o mesmo período do mês anterior (sob o gasto do mês) */
+.bb .cmp-pct { font-size: 10.5px; font-weight: 700; margin-top: 1px; white-space: nowrap; }
+.bb .cmp-pct.sobe { color: #e08a8a; }
+.bb .cmp-pct.desce { color: #46d488; }
 .bb .cmp-list { flex: 1; overflow-y: auto; min-height: 0; padding: 6px 14px 30px; }
 .bb .cmp-mes { display: flex; align-items: center; gap: 12px; padding: 18px 4px 11px; }
 .bb .cmp-mes b { font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted-bb); }

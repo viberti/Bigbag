@@ -924,8 +924,19 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
   let resumo = null;
   if (notas && notas.length) {
     const y = +String(notas[0].data).slice(0, 4), m = +String(notas[0].data).slice(5, 7);
+    const soma = (arr) => arr.reduce((a, n) => a + Number(n.total || 0), 0);
     const doMes = notas.filter((n) => +String(n.data).slice(0, 4) === y && +String(n.data).slice(5, 7) === m);
-    resumo = { mes: m, n: doMes.length, gasto: doMes.reduce((a, n) => a + Number(n.total || 0), 0), lojas: new Set(doMes.map((n) => n.loja)).size };
+    // mês anterior (gasto total) + comparação de PERÍODO HOMÓLOGO: o mês atual só
+    // tem compras até hoje, por isso o % compara com o anterior ATÉ AO MESMO DIA.
+    const pa = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
+    const doAnterior = notas.filter((n) => +String(n.data).slice(0, 4) === pa.y && +String(n.data).slice(5, 7) === pa.m);
+    const hoje = new Date();
+    const mesCorrente = y === hoje.getFullYear() && m === hoje.getMonth() + 1;
+    const diaCorte = mesCorrente ? hoje.getDate() : 31; // mês fechado → compara inteiro
+    const anteriorMesmoPeriodo = soma(doAnterior.filter((n) => +String(n.data).slice(8, 10) <= diaCorte));
+    const gasto = soma(doMes);
+    const pct = anteriorMesmoPeriodo > 0 ? Math.round(((gasto - anteriorMesmoPeriodo) / anteriorMesmoPeriodo) * 100) : null;
+    resumo = { mes: m, n: doMes.length, gasto, mesAnterior: pa.m, gastoAnterior: soma(doAnterior), pct };
   }
 
   return (
@@ -949,10 +960,15 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
             <div className="cmp-s">
               <span className="cmp-k">{t('cmp.gasto', { mes: MESES[resumo.mes - 1].toLowerCase() })}</span>
               <span className="cmp-v eur">{eur(resumo.gasto)}</span>
+              {resumo.pct != null && (
+                <span className={`cmp-pct ${resumo.pct > 0 ? 'sobe' : 'desce'}`}>
+                  {resumo.pct > 0 ? '▲' : resumo.pct < 0 ? '▼' : '='} {Math.abs(resumo.pct)}% {t('cmp.vsPeriodo')}
+                </span>
+              )}
             </div>
             <div className="cmp-s">
-              <span className="cmp-k">{t('cmp.lojas')}</span>
-              <span className="cmp-v">{resumo.lojas}</span>
+              <span className="cmp-k">{t('gastos.mesAnterior', { mes: MESES[resumo.mesAnterior - 1].toLowerCase() })}</span>
+              <span className="cmp-v">{eur(resumo.gastoAnterior)}</span>
             </div>
           </div>
         )}
