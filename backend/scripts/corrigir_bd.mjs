@@ -65,13 +65,13 @@ async function main() {
   for (const r of peSkuOrfao) planeia(`produto_ean #${r.id} "${r.nome || r.ean}": sku ${r.sku_id} não existe → sku_id NULL`,
     'UPDATE produto_ean SET sku_id = NULL WHERE id = ?', [r.id]);
 
-  // 4. produto_analise de SKU inexistente (chave "sku:<id>")
+  // 4. produto_analise de SKU inexistente (a chave PK `ean` guarda EAN ou "sku:<id>")
   const paOrfas = await q(`
-    SELECT pa.id, pa.chave FROM produto_analise pa
-    LEFT JOIN sku_normalizado s ON pa.chave = CONCAT('sku:', s.id)
-    WHERE pa.chave LIKE 'sku:%' AND s.id IS NULL`);
-  for (const r of paOrfas) planeia(`produto_analise #${r.id} (${r.chave}): sku não existe → apaga (cache)`,
-    'DELETE FROM produto_analise WHERE id = ?', [r.id]);
+    SELECT pa.ean AS chave FROM produto_analise pa
+    LEFT JOIN sku_normalizado s ON pa.ean = CONCAT('sku:', s.id)
+    WHERE pa.ean LIKE 'sku:%' AND s.id IS NULL`);
+  for (const r of paOrfas) planeia(`produto_analise (${r.chave}): sku não existe → apaga (cache)`,
+    'DELETE FROM produto_analise WHERE ean = ?', [r.chave]);
 
   // 5. produto_foto de item inexistente
   const pfOrfas = await q(
