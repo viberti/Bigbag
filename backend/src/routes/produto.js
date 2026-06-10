@@ -11,6 +11,7 @@ import { getPool } from '../db.js';
 import { config } from '../config.js';
 import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
+import { tituloProduto } from '../normaliza/titulo.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -51,7 +52,7 @@ export async function consultarOuGuardar(ean) {
            VALUES (?,NULL,NULL,?,?,?,?, 'catalogo')
          ON DUPLICATE KEY UPDATE nome=COALESCE(produto_ean.nome, VALUES(nome)), marca=COALESCE(produto_ean.marca, VALUES(marca)),
            quantidade=COALESCE(produto_ean.quantidade, VALUES(quantidade)), categoria=COALESCE(produto_ean.categoria, VALUES(categoria))`,
-        [ean, cat.nome, cat.marca, cat.quantidade, cat.categoria],
+        [ean, tituloProduto(cat.nome), tituloProduto(cat.marca), cat.quantidade, cat.categoria],
       );
       await guardarNomes(ean, null, [{ nome: cat.nome, origem: 'catalogo' }]);
     } catch (e) {
@@ -65,7 +66,7 @@ export async function consultarOuGuardar(ean) {
          VALUES (?,NULL,NULL,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
          ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), fonte=VALUES(fonte), off_json=VALUES(off_json)`,
-      [ean, off.nome, off.marca, off.quantidade, off.categoria, off.ingredientes, off.alergenios,
+      [ean, tituloProduto(off.nome), tituloProduto(off.marca), off.quantidade, off.categoria, off.ingredientes, off.alergenios,
         off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
     );
     await guardarNomes(ean, null, [{ nome: off.nome, origem: 'off' }]);
@@ -265,7 +266,7 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
          ON DUPLICATE KEY UPDATE sku_id=COALESCE(VALUES(sku_id),sku_id), item_id=COALESCE(VALUES(item_id),item_id), nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade),
            categoria=VALUES(categoria), ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), validade=VALUES(validade),
            nutricao=VALUES(nutricao), fonte=VALUES(fonte), vlm_json=VALUES(vlm_json), off_json=VALUES(off_json)`,
-        [ean, skuId, itemId, nome, off?.marca || vlm?.marca || null, off?.quantidade || vlm?.quantidade || null, off?.categoria || vlm?.categoria || null,
+        [ean, skuId, itemId, tituloProduto(nome), tituloProduto(off?.marca || vlm?.marca), off?.quantidade || vlm?.quantidade || null, off?.categoria || vlm?.categoria || null,
           off?.ingredientes || vlm?.ingredientes || null, off?.alergenios || vlm?.alergenios || null, vlm?.validade || null,
           nutricao ? JSON.stringify(nutricao) : null, fonte, vlm ? JSON.stringify(vlm) : null, off ? JSON.stringify(off) : null],
       );

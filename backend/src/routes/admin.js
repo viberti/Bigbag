@@ -20,6 +20,7 @@ import { sugerirNomeCanonico, eanValido } from '../ingest/produto.js';
 import { candidatosCatalogo, proporMesmaLoja } from '../normaliza/resolverProduto.js';
 import { consultarOuGuardar } from './produto.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
+import { tituloProduto } from '../normaliza/titulo.js';
 
 export const adminRouter = Router();
 
@@ -586,7 +587,7 @@ adminRouter.post('/match-eans/:id/aprovar', async (req, res) => {
          categoria = COALESCE(produto_ean.categoria, VALUES(categoria)),
          nutricao = COALESCE(produto_ean.nutricao, VALUES(nutricao)),
          off_json = COALESCE(produto_ean.off_json, VALUES(off_json))`,
-      [ean, it?.id || null, it?.sku_id || null, nome, marca, categoria, nutricao, offJson],
+      [ean, it?.id || null, it?.sku_id || null, tituloProduto(nome), tituloProduto(marca), categoria, nutricao, offJson],
     );
 
     // ciclo virtuoso: o nome do talão passa a ser uma variante CONHECIDA deste EAN

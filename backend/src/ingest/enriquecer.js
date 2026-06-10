@@ -3,6 +3,7 @@
 // como produto_ean autónomo (item_id NULL) → a ficha fica cheia, sem foto.
 // Partilhado pela rota de faturas e pelo importador do Lidl Plus.
 import { consultarOFF } from './produto.js';
+import { tituloProduto } from '../normaliza/titulo.js';
 
 export async function enriquecerEansFatura(pool, faturaId) {
   const [eans] = await pool.query('SELECT DISTINCT ean FROM item WHERE fatura_id = ? AND ean IS NOT NULL', [faturaId]);
@@ -17,7 +18,7 @@ export async function enriquecerEansFatura(pool, faturaId) {
            VALUES (?,NULL,'off',?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
            ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), off_json=VALUES(off_json)`,
-        [ean, off.nome, off.marca, off.quantidade, off.categoria, off.ingredientes, off.alergenios,
+        [ean, tituloProduto(off.nome), tituloProduto(off.marca), off.quantidade, off.categoria, off.ingredientes, off.alergenios,
           off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, JSON.stringify(off)],
       );
     } catch (e) {

@@ -9,6 +9,7 @@
 import { gunzipSync } from 'node:zlib';
 import { getPool } from '../src/db.js';
 import { extrairFormato, precoPorBase } from '../src/normaliza/formato.js';
+import { tituloProduto } from '../src/normaliza/titulo.js';
 
 // NB: sem acentos — o Continente devolve HTTP 400 se o User-Agent tiver chars não-ASCII.
 const UA = 'Mozilla/5.0 (compatible; BigbagBot/0.1; +catalogo pessoal)';
@@ -200,7 +201,7 @@ async function upsert(pool, fonte, sku, url, f) {
        categoria=VALUES(categoria), cat_n1=VALUES(cat_n1), cat_n2=VALUES(cat_n2), cat_n3=VALUES(cat_n3), cat_n4=VALUES(cat_n4),
        formato=VALUES(formato), unidade_base=VALUES(unidade_base), formato_valor=VALUES(formato_valor), preco=VALUES(preco),
        moeda=VALUES(moeda), preco_por_base=VALUES(preco_por_base), url=VALUES(url), imagem_url=VALUES(imagem_url), scraped_at=NOW()`,
-    [fonte, sku, f.ean, f.nome, f.marca, f.categoria_path, f.categoria, f.cat_n1, f.cat_n2, f.cat_n3, f.cat_n4,
+    [fonte, sku, f.ean, tituloProduto(f.nome), tituloProduto(f.marca), f.categoria_path, f.categoria, f.cat_n1, f.cat_n2, f.cat_n3, f.cat_n4,
       f.formato, f.unidade_base, f.formato_valor, f.preco, f.moeda, f.preco_por_base, url, f.imagem_url],
   );
 }
