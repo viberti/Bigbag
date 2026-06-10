@@ -407,7 +407,7 @@ function Chat({ onSair, nome }) {
   }
 
   // ── Lista partilhada: leitura + mutadores otimistas ─────────────────────────
-  const eu = sessao?.user?.id || '';
+  const eu = String(nome || '').toLowerCase(); // user id (a prop `nome` é o id capitalizado)
   const outboxLista = () => { try { return JSON.parse(localStorage.getItem('bb_lista_outbox') || '[]'); } catch { return []; } };
   const gravarOutboxLista = (arr) => localStorage.setItem('bb_lista_outbox', JSON.stringify(arr));
 
