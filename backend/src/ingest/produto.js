@@ -4,6 +4,7 @@
 // comparar (ambiente de teste). Ver docs/Visao_Conselheiro_Saude_Alimentar.md.
 import { config } from '../config.js';
 import { parseJsonLoose } from './extract.js';
+import { getPool } from '../db.js';
 
 const PROMPT = `És um extrator de RÓTULOS de produtos de supermercado. Vês uma ou mais fotos do MESMO produto, possivelmente de FACES DIFERENTES (frente, verso, lista de ingredientes, tabela nutricional, código de barras, fundo/aba com a validade). COMBINA a informação de todas as fotos. Descobre o MÁXIMO possível e devolve SÓ um objeto JSON, sem texto à volta:
 {
@@ -321,9 +322,24 @@ export function eanValido(cod) {
 }
 
 // Consulta o Open Food Facts pelo EAN (dados autoritativos do produto exato).
+// 1.º o EXTRATO LOCAL do dump (off_produto, migração 038 — Lidl/Aldi/PT em massa):
+// instantâneo, offline, sem rate-limit; só depois a API.
 export async function consultarOFF(ean) {
   const cod = String(ean || '').replace(/\D/g, '');
   if (cod.length < 8) return null;
+  try {
+    const [[l]] = await getPool().query('SELECT * FROM off_produto WHERE ean = ?', [cod]);
+    if (l) {
+      const j = (v) => (v == null ? null : typeof v === 'string' ? JSON.parse(v) : v);
+      return {
+        nome: l.nome_pt || l.nome, marca: l.marca, quantidade: l.quantidade,
+        categoria: l.categoria, ingredientes: l.ingredientes, alergenios: l.alergenios,
+        categorias_tags: j(l.categorias_tags), grupos_alimento: j(l.grupos_alimento), labels: j(l.labels),
+        nutriscore: l.nutriscore || null, nova: l.nova ?? null, imagem: null,
+        nutricao_100g: j(l.nutricao) || {},
+      };
+    }
+  } catch { /* tabela ainda não existe / erro → cai para a API */ }
   try {
     const u = `https://world.openfoodfacts.org/api/v2/product/${cod}?fields=product_name,brands,quantity,categories,categories_tags,food_groups_tags,labels_tags,ingredients_text,allergens,nutriscore_grade,nova_group,nutriments,image_url`;
     const r = await fetch(u, { headers: { 'User-Agent': 'Bigbag/0.1 (laboratorio pessoal)' } });
