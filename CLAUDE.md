@@ -88,8 +88,9 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 3. ~~**Autenticação**~~ **FECHADA (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL`. As rotas exigem sessão (portão temporário até o OAuth ficar ativo).
 
 ## Internacionalização (i18n) — base PT-BR, código localizável
-- **Idioma base: português do Brasil (PT-BR)**, tratando o usuário por "você". Mas **nunca hardcodar texto visível** ao usuário — codificar de forma a permitir tradução fácil.
-- **Frontend:** todo o texto da UI passa por `frontend/src/i18n.js` via `t('chave', vars)` (interpolação `{var}`, plural `{n|sing|plur}`, deteção do idioma do browser). **Traduzir = adicionar um dicionário** de idioma; os componentes não mudam.
+- **Idioma base: português do Brasil (PT-BR)**, tratando o usuário por "você". Mas **nunca hardcodar texto visível** ao usuário — codificar de forma a permitir tradução fácil. Aplica-se a **TODO o texto enviado ao usuário**, incluindo o **gerado por LLM** (análise/parecer/avaliação — os prompts pedem explicitamente PT-BR + "você").
+- **Nomes de produtos NUNCA se traduzem** (decisão do dono, 2026-06-10): usam-se **como vêm dos mercados** (PT-PT), para não causar confusão. Os prompts que geram texto dizem-no explicitamente.
+- **Frontend:** todo o texto da UI passa por `frontend/src/i18n.js` via `t('chave', vars)` (interpolação `{var}`, plural `{n|sing|plur}`, deteção do idioma do browser). **Traduzir = adicionar um dicionário** de idioma; os componentes não mudam. **Varredura de conformidade 2026-06-10 (v0.0.97.0):** lusismos do dicionário pt-BR corrigidos + ~110 strings hardcoded das folhas principais (compras/detalhe/categorias, despensa, gastos, por-identificar, captura, scanner, ident/info, menu, toasts) extraídas para `t()`. **Pendente menor:** PerfilSheet, ResultadoIdent (corpo da ficha) e aria-labels avulsos. O `/admin` (operador=dono) está **fora do âmbito** i18n.
 - **Backend (respostas do assistente):** o idioma está centralizado no system prompt (`consulta.js`); pode passar a locale-driven quando houver 2.º idioma.
 - **Exceções (não são UI, ficam como dados):** prompts internos de extração de nota e os nomes de produtos canónicos (vêm de notas de supermercados de Portugal).
 

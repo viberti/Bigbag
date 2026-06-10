@@ -224,7 +224,7 @@ function Chat({ onSair, nome }) {
     let ok = 0, falhou = 0;
     for (let i = 0; i < lista.length; i++) {
       const c = lista[i];
-      setEnviandoCap(`A enviar ${i + 1}/${lista.length}…`);
+      setEnviandoCap(t('pid.enviando', { i: i + 1, n: lista.length }));
       try {
         const r = await identificarProduto({ ean: c.ean || undefined, itemId: c.item_id, fotos: c.fotos || [] });
         if (r && !r.erro) { await removerCaptura(c.item_id); ok++; }
@@ -236,7 +236,7 @@ function Chat({ onSair, nome }) {
     listarPorIdentificar().then((d) => { cacheListas.current.porIdent = d; setPorIdentLista(d); }).catch(() => {});
     lerCapturas().then(setCapturas).catch(() => {});
     sincronizarBaseLocal({ forcar: true }); // as fichas novas entram já na base local
-    mostrarToast(`Enviados ${ok} produto${ok === 1 ? '' : 's'}${falhou ? `, ${falhou} falhou(aram)` : ''}.`);
+    mostrarToast(t('toast.enviados', { n: ok }) + (falhou ? t('toast.falharam', { n: falhou }) : '') + '.');
   }
   const [scannerAberto, setScannerAberto] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
@@ -582,14 +582,14 @@ function Chat({ onSair, nome }) {
                 try {
                   const r = await consultarProdutoEan(cod);
                   if (r.encontrado) setInfoItem({ ean: r.ean, produto: r.nome || r.ean });
-                  else mostrarToast(`Produto ${cod} não está na base nem no Open Food Facts.`);
+                  else mostrarToast(t('toast.naoNaBase', { cod }));
                 } catch {
-                  mostrarToast('Falha a consultar o produto.');
+                  mostrarToast(t('toast.falhaConsulta'));
                 }
                 return;
               }
               // 3.º comportamento: sem código → classificar (talão / produto / outro)
-              mostrarToast('a analisar a foto…');
+              mostrarToast(t('toast.analisando'));
               try {
                 const r = await fotoInteligente(f);
                 if (r.tipo === 'talao') {
@@ -599,9 +599,9 @@ function Chat({ onSair, nome }) {
                   if (r.ean) setInfoItem({ ean: r.ean, produto: r.nome || r.ean });
                   else setInfoItem({ sku_id: r.sku_id, produto: r.nome || r.generico?.alimento || 'Produto' });
                 } else if (r.tipo === 'produto') {
-                  mostrarToast(`Li "${r.nome || 'produto'}"${r.marca ? ` (${r.marca})` : ''}, mas sem dados completos. Aponta o código de barras para a ficha.`);
+                  mostrarToast(t('toast.liSemDados', { nome: r.nome || 'produto', marca: r.marca ? ` (${r.marca})` : '' }));
                 } else {
-                  mostrarToast('Não reconheci a imagem. Tenta o código de barras ou um talão.');
+                  mostrarToast(t('toast.naoReconheci'));
                 }
               } catch {
                 fatura(f, { dewarp: false, origem: 'foto' }); // em falha, assume talão
@@ -631,10 +631,10 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}><Ico name="galeria" size={18} /> {t('cap.gallery')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
-            <button onClick={() => { setMenuAberto(false); setPerfilAberto(true); }}><Ico name="spark" size={18} /> Perfil nutricional</button>
-            <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> A minha despensa</button>
-            <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> Os meus gastos</button>
-            <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> Produtos por identificar</button>
+            <button onClick={() => { setMenuAberto(false); setPerfilAberto(true); }}><Ico name="spark" size={18} /> {t('menu.perfil')}</button>
+            <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> {t('menu.despensa')}</button>
+            <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> {t('menu.gastos')}</button>
+            <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> {t('menu.porident')}</button>
           </div>
         </>
       )}
@@ -931,10 +931,10 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
-      <section className={`sheet ${aberto ? 'open' : ''} cmp`} aria-label="As minhas compras">
+      <section className={`sheet ${aberto ? 'open' : ''} cmp`} aria-label={t('cmp.title')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">As minhas compras</span>
+          <span className="t">{t('cmp.title')}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
@@ -943,15 +943,15 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
         {resumo && (
           <div className="cmp-sum">
             <div className="cmp-s">
-              <span className="cmp-k">Este mês</span>
-              <span className="cmp-v">{resumo.n} {resumo.n === 1 ? 'compra' : 'compras'}</span>
+              <span className="cmp-k">{t('cmp.esteMes')}</span>
+              <span className="cmp-v">{t('cmp.nCompras', { n: resumo.n })}</span>
             </div>
             <div className="cmp-s">
-              <span className="cmp-k">Gasto · {MESES[resumo.mes - 1].toLowerCase()}</span>
+              <span className="cmp-k">{t('cmp.gasto', { mes: MESES[resumo.mes - 1].toLowerCase() })}</span>
               <span className="cmp-v eur">{eur(resumo.gasto)}</span>
             </div>
             <div className="cmp-s">
-              <span className="cmp-k">Lojas</span>
+              <span className="cmp-k">{t('cmp.lojas')}</span>
               <span className="cmp-v">{resumo.lojas}</span>
             </div>
           </div>
@@ -970,7 +970,7 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
               );
             })}
             {filtroLoja && (
-              <button type="button" className="cmp-loja-todos" onClick={() => setFiltroLoja(null)}>todos</button>
+              <button type="button" className="cmp-loja-todos" onClick={() => setFiltroLoja(null)}>{t('cmp.todos')}</button>
             )}
           </div>
         )}
@@ -979,7 +979,7 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
           {notas === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : lista.length === 0 ? (
-            <p className="sheet-vazio">Ainda sem compras.</p>
+            <p className="sheet-vazio">{t('cmp.semCompras')}</p>
           ) : (
             (() => {
               const anoBase = +String(lista[0].data).slice(0, 4);
@@ -1006,7 +1006,7 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
                       <span className="cmp-nm">{n.loja}</span>
                       <span className="cmp-dt">
                         <span className="cmp-tag">{String(n.data).slice(8, 10)} {MESES[m - 1].slice(0, 3).toLowerCase()}</span>
-                        {n.n_itens} {n.n_itens === 1 ? 'item' : 'itens'}
+                        {t('cmp.nItens', { n: n.n_itens })}
                       </span>
                     </span>
                     <span className="cmp-cr"><span className="cmp-pr">{eur(n.total)}</span></span>
@@ -1153,7 +1153,7 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
           <b>{it.produto}</b>
           {sub && <span>{sub}</span>}
         </span>
-        <button type="button" className="cmp-pcam" onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })} title="identificar produto (fotos do rótulo)" aria-label="identificar produto">
+        <button type="button" className="cmp-pcam" onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })} title={t('cmp.identTitle')} aria-label={t('cmp.identTitle')}>
           <Ico name="camera" size={16} />
         </button>
         <span className="cmp-pp">{eur(linha)}</span>
@@ -1174,19 +1174,19 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
           <span className="cmp-dnm">{nota?.loja}</span>
           {nota && (
             <span className="cmp-ddt">
-              {dia} de {MESES[mes - 1]} · {nota.n_itens} {nota.n_itens === 1 ? 'item' : 'itens'}
+              {dia} de {MESES[mes - 1]} · {t('cmp.nItens', { n: nota.n_itens })}
             </span>
           )}
         </span>
       </div>
       {Array.isArray(itensAgg) && itensAgg.length > 0 && (
         <div className="cmp-vistas">
-          <button type="button" className={vista === 'original' ? 'on' : ''} onClick={() => { setVista('original'); track('compra_vista', { vista: 'original' }); }} title="ordem da nota">
-            <Ico name="receipt" size={15} /> Nota
+          <button type="button" className={vista === 'original' ? 'on' : ''} onClick={() => { setVista('original'); track('compra_vista', { vista: 'original' }); }} title={t('cmp.vNotaT')}>
+            <Ico name="receipt" size={15} /> {t('cmp.vNota')}
           </button>
-          <button type="button" className={vista === 'alfa' ? 'on' : ''} onClick={() => { setVista('alfa'); track('compra_vista', { vista: 'alfa' }); }} title="alfabética">A→Z</button>
-          <button type="button" className={vista === 'categoria' ? 'on' : ''} onClick={() => { setVista('categoria'); track('compra_vista', { vista: 'categoria' }); }} title="por categoria">
-            <Ico name="usual" size={15} /> Categorias
+          <button type="button" className={vista === 'alfa' ? 'on' : ''} onClick={() => { setVista('alfa'); track('compra_vista', { vista: 'alfa' }); }} title={t('cmp.vAzT')}>A→Z</button>
+          <button type="button" className={vista === 'categoria' ? 'on' : ''} onClick={() => { setVista('categoria'); track('compra_vista', { vista: 'categoria' }); }} title={t('cmp.vCatT')}>
+            <Ico name="usual" size={15} /> {t('cmp.vCat')}
           </button>
         </div>
       )}
@@ -1194,7 +1194,7 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
         {itens === null ? (
           <p className="sheet-vazio">{t('chat.thinking')}</p>
         ) : itensAgg.length === 0 ? (
-          <p className="sheet-vazio">Sem produtos.</p>
+          <p className="sheet-vazio">{t('cmp.semProdutos')}</p>
         ) : vista === 'categoria' ? (
           (() => {
             const grupos = new Map();
@@ -1208,7 +1208,7 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
               .map(({ g, lista }) => (
                 <div key={g.id} className="cmp-cat">
                   <div className="cmp-cat-h">
-                    <span className="cmp-cat-ic">{g.ic}</span> {g.label}
+                    <span className="cmp-cat-ic">{g.ic}</span> {t(`cat.${g.id}`)}
                     <span className="cmp-cat-n">{lista.length}</span>
                   </div>
                   {[...lista].sort(porNome).map(linhaProduto)}
@@ -1220,7 +1220,7 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
         )}
       </div>
       <div className="cmp-dfoot">
-        <span className="cmp-dlab">{nprod} {nprod === 1 ? 'produto' : 'produtos'}</span>
+        <span className="cmp-dlab">{t('cmp.nProdutos', { n: nprod })}</span>
         <span className="cmp-dtot">{nota ? eur(nota.total) : ''}</span>
       </div>
     </div>
@@ -1256,18 +1256,18 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
-      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label="A minha despensa">
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('desp.title')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">A minha despensa</span>
+          <span className="t">{t('desp.title')}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
         </div>
         {produtos && produtos.length > 0 && (
           <div className="desp-ord">
-            <span className="desp-ord-k">Ordenar:</span>
-            {[['data', 'Compra'], ['nome', 'Nome'], ['validade', 'Validade']].map(([k, lbl]) => (
+            <span className="desp-ord-k">{t('desp.ordenar')}</span>
+            {[['data', t('desp.ordData')], ['nome', t('desp.ordNome')], ['validade', t('desp.ordVal')]].map(([k, lbl]) => (
               <button key={k} className={ordem === k ? 'on' : ''} onClick={() => setOrdem(k)}>{lbl}</button>
             ))}
           </div>
@@ -1276,7 +1276,7 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
           {produtos === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : produtos.length === 0 ? (
-            <p className="sheet-vazio">Ainda sem produtos com código de barras. Use o ícone da câmara numa nota para identificar um produto.</p>
+            <p className="sheet-vazio">{t('desp.vazio')}</p>
           ) : (
             lista.map((p) => (
               <button key={p.ean} type="button" className="desp-row" onClick={() => onInfo({ id: p.item_id, ean: p.ean, produto: p.nome })}>
@@ -1291,7 +1291,7 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
                     return partes.length ? <span className="desp-sub">{partes.join(' · ')}</span> : null;
                   })()}
                 </span>
-                {p.validade && <span className="desp-val">Val. {fmtValidade(p.validade)}</span>}
+                {p.validade && <span className="desp-val">{t('desp.val', { data: fmtValidade(p.validade) })}</span>}
               </button>
             ))
           )}
@@ -1318,10 +1318,10 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificado
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
-      <section className={`sheet ${aberto ? 'open' : ''} cmp`} aria-label="Produtos por identificar">
+      <section className={`sheet ${aberto ? 'open' : ''} cmp`} aria-label={t('menu.porident')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">Por identificar{pendentes?.length ? ` · ${pendentes.length}` : ''}</span>
+          <span className="t">{t('pid.title')}{pendentes?.length ? ` · ${pendentes.length}` : ''}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
@@ -1330,7 +1330,7 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificado
           {pendentes === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : pendentes.length === 0 ? (
-            <p className="sheet-vazio">Tudo identificado 🎉</p>
+            <p className="sheet-vazio">{t('pid.tudo')}</p>
           ) : (
             grupos.map((g) => {
               const tema = lojaTema(g.loja);
@@ -1340,7 +1340,7 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificado
                     <span className="cmp-logo"><span className="cmp-mono">{tema.mono}</span></span>
                     <span className="pid-cab-i">
                       <span className="cmp-nm">{g.loja}</span>
-                      <span className="pid-cab-n">{g.itens.length} por identificar</span>
+                      <span className="pid-cab-n">{t('pid.nPorIdent', { n: g.itens.length })}</span>
                     </span>
                   </div>
                   <div className="pid-card">
@@ -1353,8 +1353,8 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificado
                             <b>{it.produto}</b>
                             {mostraNota && <span className="pid-nota">{it.descricao}</span>}
                             {cap && (
-                              <span className="pid-badge" title="capturado, por enviar">
-                                {cap.ean ? `#${cap.ean.slice(-4)}` : 'sem código'}{cap.fotos?.length ? ` · ${cap.fotos.length}📷` : ''}
+                              <span className="pid-badge" title={t('pid.badgeTitle')}>
+                                {cap.ean ? `#${cap.ean.slice(-4)}` : t('pid.semCod')}{cap.fotos?.length ? ` · ${cap.fotos.length}📷` : ''}
                               </span>
                             )}
                           </span>
@@ -1363,8 +1363,8 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificado
                             type="button"
                             className={`ni-ident${cap ? ' on' : ''}`}
                             onClick={() => onCapturar({ item_id: it.item_id, sku_id: it.sku_id, produto: it.produto })}
-                            title={cap ? 'rever / refazer captura' : 'ler código de barras + fotos'}
-                            aria-label="capturar produto"
+                            title={cap ? t('pid.rever') : t('pid.capturar')}
+                            aria-label={t('pid.capturar')}
                           >
                             <Ico name="escanear" size={17} />
                           </button>
@@ -1380,7 +1380,7 @@ function PorIdentificarSheet({ aberto, itens, onFechar, onCapturar, identificado
         {nCap > 0 && (
           <div className="pid-enviar">
             <button type="button" className="pid-enviar-btn" onClick={onEnviar} disabled={!!enviando}>
-              <Ico name="send" size={18} /> {enviando || `Enviar ${nCap} produto${nCap === 1 ? '' : 's'}`}
+              <Ico name="send" size={18} /> {enviando || t('pid.enviarN', { n: nCap })}
             </button>
           </div>
         )}
@@ -1503,22 +1503,22 @@ function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
   return (
     <>
       <div className="scrim open" onClick={onFechar} />
-      <section className="sheet open" aria-label="Capturar produto">
+      <section className="sheet open" aria-label={t('capt.title')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">Capturar produto</span>
+          <span className="t">{t('capt.title')}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar"><Ico name="close" size={18} /></button>
         </div>
         <div className="scan-body">
           <div className="ident-prod">{item.produto}</div>
           {fase === 'erro' ? (
             <>
-              <p className="sheet-vazio">Não foi possível abrir a câmara. Escreve o código à mão ou segue só com fotos.</p>
+              <p className="sheet-vazio">{t('capt.semCamera')}</p>
               <div className="scan-manual">
-                <input inputMode="numeric" placeholder="código (EAN)" value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
-                <button type="button" disabled={manual.length < 8} onClick={() => { setEan(manual); setFase('fotos'); }}>Usar</button>
+                <input inputMode="numeric" placeholder={t('capt.codigoPh')} value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
+                <button type="button" disabled={manual.length < 8} onClick={() => { setEan(manual); setFase('fotos'); }}>{t('capt.usar')}</button>
               </div>
-              <button type="button" className="scan-foto" onClick={() => { setEan(''); setFase('fotos'); }}>Continuar só com fotos</button>
+              <button type="button" className="scan-foto" onClick={() => { setEan(''); setFase('fotos'); }}>{t('capt.soFotos')}</button>
             </>
           ) : fase === 'scan' ? (
             <>
@@ -1529,18 +1529,18 @@ function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
                   <button type="button" className={`scan-luz ${luz ? 'on' : ''}`} onClick={alternarLuz} aria-label="lanterna"><Ico name="luz" size={20} /></button>
                 )}
               </div>
-              <p className="scan-hint">Aponta ao código de barras · boa luz · mão estável.</p>
+              <p className="scan-hint">{t('capt.aponte')}</p>
               <div className="scan-manual">
-                <input inputMode="numeric" placeholder="ou escreve o código (EAN)" value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
-                <button type="button" disabled={manual.length < 8} onClick={() => { setEan(manual); setFase('fotos'); }}>Usar</button>
+                <input inputMode="numeric" placeholder={t('scanner.placeholderEan')} value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
+                <button type="button" disabled={manual.length < 8} onClick={() => { setEan(manual); setFase('fotos'); }}>{t('capt.usar')}</button>
               </div>
-              <button type="button" className="scan-foto" onClick={() => { setEan(''); setFase('fotos'); }}>Sem código de barras (só fotos)</button>
+              <button type="button" className="scan-foto" onClick={() => { setEan(''); setFase('fotos'); }}>{t('capt.semCodBtn')}</button>
             </>
           ) : (
             <>
               <div className="capt-ean">
-                {ean ? <span><b>Código:</b> {ean}</span> : <span className="capt-semcod">Sem código de barras</span>}
-                <button type="button" className="capt-reler" onClick={() => setFase('scan')}>reler código</button>
+                {ean ? <span><b>{t('capt.codigo')}</b> {ean}</span> : <span className="capt-semcod">{t('capt.semCodigo')}</span>}
+                <button type="button" className="capt-reler" onClick={() => setFase('scan')}>{t('capt.reler')}</button>
               </div>
               <input
                 ref={fotoRef}
@@ -1552,7 +1552,7 @@ function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
               />
               <button type="button" className="ident-add" onClick={() => fotoRef.current?.click()} disabled={fotos.length >= MAX_FOTOS}>
                 <Ico name="camera" size={18} />{' '}
-                {fotos.length >= MAX_FOTOS ? `Máximo de ${MAX_FOTOS} fotos` : fotos.length ? `Adicionar mais uma · ${fotos.length}/${MAX_FOTOS}` : 'Adicionar foto (rótulo · ingredientes · validade)'}
+                {fotos.length >= MAX_FOTOS ? t('capt.maxFotos', { n: MAX_FOTOS }) : fotos.length ? t('capt.maisFoto', { i: fotos.length, n: MAX_FOTOS }) : t('capt.addFoto')}
               </button>
               {fotos.length > 0 && (
                 <div className="ident-fotos">
@@ -1564,7 +1564,7 @@ function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
                   ))}
                 </div>
               )}
-              <button type="button" className="ident-go" onClick={guardar} disabled={!podeGuardar}>Guardar e voltar à lista</button>
+              <button type="button" className="ident-go" onClick={guardar} disabled={!podeGuardar}>{t('capt.salvar')}</button>
             </>
           )}
         </div>
@@ -1592,10 +1592,10 @@ function GastosSheet({ aberto, dados, onFechar }) {
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
-      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label="Os meus gastos">
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('gastos.title')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">Os meus gastos</span>
+          <span className="t">{t('gastos.title')}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
@@ -1604,7 +1604,7 @@ function GastosSheet({ aberto, dados, onFechar }) {
           {d === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : d.erro ? (
-            <p className="sheet-vazio">Falha a carregar os gastos.</p>
+            <p className="sheet-vazio">{t('gastos.falha')}</p>
           ) : (
             <>
               <div className="g-cards">
@@ -1613,26 +1613,26 @@ function GastosSheet({ aberto, dados, onFechar }) {
                   className={`g-card destaque clic ${selecionado(d.atual.ano, d.atual.mes) ? 'sel' : ''}`}
                   onClick={() => abrirMes(d.atual.ano, d.atual.mes)}
                 >
-                  <span className="g-lbl">Este mês · {nomeMes(d.atual.mes)}</span>
+                  <span className="g-lbl">{t('gastos.esteMes', { mes: nomeMes(d.atual.mes) })}</span>
                   <span className="g-val">{eur(d.atual.total)}</span>
-                  <span className="g-sub">{d.atual.n} {d.atual.n === 1 ? 'compra' : 'compras'} ›</span>
+                  <span className="g-sub">{t('cmp.nCompras', { n: d.atual.n })} ›</span>
                 </button>
                 <button
                   type="button"
                   className={`g-card clic ${selecionado(d.anterior.ano, d.anterior.mes) ? 'sel' : ''}`}
                   onClick={() => abrirMes(d.anterior.ano, d.anterior.mes)}
                 >
-                  <span className="g-lbl">Mês anterior · {nomeMes(d.anterior.mes)}</span>
+                  <span className="g-lbl">{t('gastos.mesAnterior', { mes: nomeMes(d.anterior.mes) })}</span>
                   <span className="g-val">{eur(d.anterior.total)}</span>
-                  <span className="g-sub">{d.anterior.n} {d.anterior.n === 1 ? 'compra' : 'compras'} ›</span>
+                  <span className="g-sub">{t('cmp.nCompras', { n: d.anterior.n })} ›</span>
                 </button>
                 <div className="g-card">
-                  <span className="g-lbl">Média mensal</span>
+                  <span className="g-lbl">{t('gastos.media')}</span>
                   <span className="g-val">{eur(d.media)}</span>
-                  <span className="g-sub">{d.serie.length} {d.serie.length === 1 ? 'mês' : 'meses'}</span>
+                  <span className="g-sub">{t('gastos.nMeses', { n: d.serie.length })}</span>
                 </div>
                 <div className="g-card">
-                  <span className="g-lbl">vs. mês anterior</span>
+                  <span className="g-lbl">{t('gastos.vs')}</span>
                   {d.variacao == null ? (
                     <span className="g-val">—</span>
                   ) : (
@@ -1640,23 +1640,23 @@ function GastosSheet({ aberto, dados, onFechar }) {
                       {d.variacao > 0 ? '▲' : '▼'} {Math.abs(d.variacao)}%
                     </span>
                   )}
-                  <span className="g-sub">{d.variacao == null ? 'sem referência' : d.variacao > 0 ? 'gastou mais' : 'gastou menos'}</span>
+                  <span className="g-sub">{d.variacao == null ? t('gastos.semRef') : d.variacao > 0 ? t('gastos.mais') : t('gastos.menos')}</span>
                 </div>
               </div>
 
               {mesSel && (
                 <div className="g-compras">
-                  <div className="g-bloco-t">Compras de {nomeMes(mesSel.mes)} {mesSel.ano}</div>
+                  <div className="g-bloco-t">{t('gastos.comprasDe', { mes: nomeMes(mesSel.mes), ano: mesSel.ano })}</div>
                   {comprasMes === null ? (
                     <p className="sheet-vazio">{t('chat.thinking')}</p>
                   ) : comprasMes.length === 0 ? (
-                    <p className="g-vazio">Sem compras neste mês.</p>
+                    <p className="g-vazio">{t('gastos.semMes')}</p>
                   ) : (
                     comprasMes.map((n) => (
                       <div key={n.id} className="g-compra">
                         <span className="g-compra-d">{String(n.data).slice(8, 10)}</span>
                         <span className="g-compra-l">{n.loja}</span>
-                        <span className="g-compra-i">{n.n_itens} itens</span>
+                        <span className="g-compra-i">{t('cmp.nItens', { n: n.n_itens })}</span>
                         <span className="g-compra-v">{eur(n.total)}</span>
                       </div>
                     ))
@@ -1666,7 +1666,7 @@ function GastosSheet({ aberto, dados, onFechar }) {
 
               {d.serie?.length > 1 && (
                 <div className="g-graf">
-                  <div className="g-bloco-t">Por mês</div>
+                  <div className="g-bloco-t">{t('gastos.porMes')}</div>
                   <div className="g-barras">
                     {(() => {
                       const max = Math.max(...d.serie.map((s) => Number(s.total)), 1);
@@ -1684,7 +1684,7 @@ function GastosSheet({ aberto, dados, onFechar }) {
 
               {d.por_loja?.length > 0 && (
                 <div className="g-lojas">
-                  <div className="g-bloco-t">Onde gastou este mês</div>
+                  <div className="g-bloco-t">{t('gastos.onde')}</div>
                   {(() => {
                     const max = Math.max(...d.por_loja.map((l) => Number(l.total)), 1);
                     return d.por_loja.map((l) => (
@@ -1698,7 +1698,7 @@ function GastosSheet({ aberto, dados, onFechar }) {
                 </div>
               )}
 
-              <p className="g-total">Total registado: <b>{eur(d.total_geral)}</b></p>
+              <p className="g-total">{t('gastos.total')} <b>{eur(d.total_geral)}</b></p>
             </>
           )}
         </div>
@@ -1854,17 +1854,17 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
   return (
     <>
       <div className="scrim open" onClick={onFechar} />
-      <section className="sheet open" aria-label="Consultar produto">
+      <section className="sheet open" aria-label={t('scanner.title')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">Consultar produto</span>
+          <span className="t">{t('scanner.title')}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
         </div>
         <div className="scan-body">
           {fase === 'erro' ? (
-            <p className="sheet-vazio">Não foi possível abrir a câmara. Verifica as permissões.</p>
+            <p className="sheet-vazio">{t('scanner.semCamera')}</p>
           ) : (
             <>
               <div className="scan-cam">
@@ -1875,41 +1875,41 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
                     <Ico name="luz" size={20} />
                   </button>
                 )}
-                {fase === 'foto' && <div className="scan-overlay">A ler a foto…</div>}
-                {fase === 'consulta' && <div className="scan-overlay">A consultar {ean || 'produto'}…</div>}
+                {fase === 'foto' && <div className="scan-overlay">{t('scanner.lendoFoto')}</div>}
+                {fase === 'consulta' && <div className="scan-overlay">{t('scanner.consultando', { q: ean || 'produto' })}</div>}
                 {fase === 'embalado' && (
                   <div className="scan-overlay">
-                    <p>Parece um produto <b>embalado</b> — para a ficha, aponta o <b>código de barras</b> ou fotografa o rótulo. (A consulta por nome é para frescos: figo, fraldinha, courgette…)</p>
-                    <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>Voltar à câmara</button>
+                    <p>{t('scanner.embalado')}</p>
+                    <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>{t('scanner.voltarCamera')}</button>
                   </div>
                 )}
                 {fase === 'naoencontrado' && (
                   <div className="scan-overlay">
-                    <p>Produto <b>{ean}</b> não encontrado — nem na nossa base nem no Open Food Facts.</p>
-                    <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>Ler outro código</button>
+                    <p>{t('scanner.naoEncontrado', { ean })}</p>
+                    <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>{t('scanner.lerOutro')}</button>
                   </div>
                 )}
                 {fase === 'semcodigo' && (
                   <div className="scan-overlay">
-                    <p>Não consegui ler o código nesta foto. Tenta de novo, mais perto e com boa luz.</p>
-                    <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>Voltar à câmara</button>
+                    <p>{t('scanner.semCodigo')}</p>
+                    <button className="scan-retry" onClick={() => setTentativa((x) => x + 1)}>{t('scanner.voltarCamera')}</button>
                   </div>
                 )}
               </div>
-              <p className="scan-hint">Aproxima até o código preencher a moldura · boa luz · mão estável.</p>
+              <p className="scan-hint">{t('scanner.aproxime')}</p>
               <input ref={fotoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { lerFoto(e.target.files?.[0]); e.target.value = ''; }} />
               <button type="button" className="scan-foto" onClick={() => fotoRef.current?.click()}>
-                <Ico name="camera" size={18} /> Não lê? Tira uma foto do código
+                <Ico name="camera" size={18} /> {t('scanner.tirarFoto')}
               </button>
               <div className="scan-manual">
-                <input inputMode="numeric" placeholder="ou escreve o código (EAN)" value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
-                <button type="button" disabled={manual.length < 8} onClick={() => consultarCod(manual)}>Consultar</button>
+                <input inputMode="numeric" placeholder={t('scanner.placeholderEan')} value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
+                <button type="button" disabled={manual.length < 8} onClick={() => consultarCod(manual)}>{t('scanner.consultar')}</button>
               </div>
               <div className="scan-manual">
-                <input placeholder="ou pelo nome (figo, fraldinha…)" value={nomeQ}
+                <input placeholder={t('scanner.placeholderNome')} value={nomeQ}
                   onChange={(e) => setNomeQ(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') consultarNome(nomeQ); }} />
-                <button type="button" disabled={nomeQ.trim().length < 2} onClick={() => consultarNome(nomeQ)}>Consultar</button>
+                <button type="button" disabled={nomeQ.trim().length < 2} onClick={() => consultarNome(nomeQ)}>{t('scanner.consultar')}</button>
               </div>
             </>
           )}
@@ -2058,17 +2058,17 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
   return (
     <>
       <div className="scrim open" onClick={onFechar} />
-      <section className="sheet open ident" aria-label="Identificar produto">
+      <section className="sheet open ident" aria-label={t('ident.title')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">Identificar produto</span>
+          <span className="t">{t('ident.title')}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
         </div>
         <div className="ident-body">
           <div className="ident-prod">{item.produto}</div>
-          <label className="ident-lbl">EAN (código de barras) — ou apanha-o na foto</label>
+          <label className="ident-lbl">{t('ident.eanLbl')}</label>
           <input className="ident-ean" inputMode="numeric" placeholder="ex.: 5601234567890" value={ean} onChange={(e) => setEan(e.target.value)} />
           {/* capture SEM multiple (a combinação devolve 0 ficheiros em iOS); uma foto
               por toque, acumula. Tocar de novo para a próxima (frente · rótulo · ingredientes). */}
@@ -2092,10 +2092,10 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
           >
             <Ico name="camera" size={18} />{' '}
             {fotos.length >= MAX_FOTOS
-              ? `Máximo de ${MAX_FOTOS} fotos`
+              ? t('capt.maxFotos', { n: MAX_FOTOS })
               : fotos.length
-                ? `Adicionar mais uma foto · ${fotos.length}/${MAX_FOTOS}`
-                : 'Adicionar foto (frente · ingredientes · validade)'}
+                ? t('capt.maisFoto', { i: fotos.length, n: MAX_FOTOS })
+                : t('ident.addFoto')}
           </button>
           {fotos.length > 0 && (
             <div className="ident-fotos">
@@ -2108,7 +2108,7 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
             </div>
           )}
           <button type="button" className="ident-go" onClick={analisar} disabled={a || (!ean.trim() && !fotos.length)}>
-            {a ? 'a analisar…' : 'Analisar'}
+            {a ? t('ident.analisando') : t('ident.analisar')}
           </button>
           {res && <ResultadoIdent res={res} />}
         </div>
@@ -2165,10 +2165,10 @@ function ProdutoInfoSheet({ item, onFechar }) {
   return (
     <>
       <div className="scrim open" onClick={onFechar} />
-      <section className="sheet open ident" aria-label="Informação do produto">
+      <section className="sheet open ident" aria-label={t('info.title')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">Informação do produto</span>
+          <span className="t">{t('info.title')}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
@@ -2183,7 +2183,7 @@ function ProdutoInfoSheet({ item, onFechar }) {
             <>
               {aval && <AvaliacaoPessoal aval={aval} />}
               {info.fonte === 'generico' && (
-                <p className="info-generico">Valores típicos do alimento (sem rótulo) — estimativa por 100 g.</p>
+                <p className="info-generico">{t('info.generico')}</p>
               )}
               {info.fonte === 'catalogo' && info.base && (
                 <div className="info-catalogo">
@@ -2192,7 +2192,7 @@ function ProdutoInfoSheet({ item, onFechar }) {
                     {info.base.quantidade && <span className="info-cat-tam">{info.base.quantidade}</span>}
                   </div>
                   {info.base.categoria && <div className="info-cat-cat">{info.base.categoria}</div>}
-                  <p className="info-generico">Do catálogo (Auchan · Continente) — sem tabela nutricional.</p>
+                  <p className="info-generico">{t('info.catalogo')}</p>
                 </div>
               )}
               <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g} />
