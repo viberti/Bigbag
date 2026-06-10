@@ -1049,6 +1049,30 @@ function grupoProduto(categoria, nome) {
   return g.id === 'outros' ? categoriaAlto(nome) : g;
 }
 
+// Tamanho/formato do produto (cerveja "33 cl · lata", leite "1 l", fiambre "200 g"):
+// junta o tamanho (produto_ean.quantidade) com o contentor lido na descrição crua do
+// talão (LATA / GARRAFA / TP=tara perdida). Útil sobretudo em bebidas/embalados.
+const CONTENTORES = [
+  { re: /\blatas?\b/i, label: 'lata' },
+  { re: /\b(garrafas?|grf|gf)\b/i, label: 'garrafa' },
+  { re: /\btp\b/i, label: 'garrafa' },
+  { re: /\bbarril\b/i, label: 'barril' },
+];
+function tamanhoTexto(s) {
+  const m = String(s || '').match(/(\d+(?:[.,]\d+)?)\s*(cl|ml|lt|litros?|kg|gr|g|l)\b/i);
+  if (!m) return null;
+  const u = m[2].toLowerCase().replace(/^lt$/, 'l').replace(/^litros?$/, 'l').replace(/^gr$/, 'g');
+  return `${m[1].replace('.', ',')} ${u}`;
+}
+function formatoProduto(it) {
+  const desc = String(it.descricao_raw || '');
+  let tam = tamanhoTexto(it.tamanho) || tamanhoTexto(desc);
+  let cont = null;
+  for (const c of CONTENTORES) if (c.re.test(desc)) { cont = c.label; break; }
+  if (!tam && cont) { const b = desc.match(/\b(\d{2,3})\b/); if (b) tam = `${b[1]} cl`; } // bebida: nº ≈ cl
+  return [tam, cont].filter(Boolean).join(' · ') || null;
+}
+
 // Detalhe de uma compra (slide-in): cabeçalho da loja + produtos + total. Tocar
 // num produto abre a ficha (ou a identificação, se ainda for preciso). Três vistas:
 // original (ordem da nota), A→Z, e por categoria (agrupada).
@@ -1085,10 +1109,11 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
     const eanItem = it.ean || identificados?.[it.id] || null;
     const temFicha = !!it.tem_dados || !!identificados?.[it.id] || it.tipo_alimento === 'fresco';
     const marca = limparMarca(it.marca) || null;
+    const fmt = formatoProduto(it);
     return temFicha ? (
       <button key={it.id} type="button" className="cmp-prow clic" onClick={() => onInfo({ id: it.id, ean: eanItem, produto: it.produto })}>
         <span className="cmp-pn">
-          <b>{it.produto}{marca && <em className="cmp-marca">{marca}</em>}</b>
+          <b>{it.produto}{marca && <em className="cmp-marca">{marca}</em>}{fmt && <em className="cmp-tam">{fmt}</em>}</b>
           {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
         </span>
         <span className="cmp-pp">{eur(linha)}</span>
@@ -1096,7 +1121,7 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
     ) : (
       <div key={it.id} className="cmp-prow">
         <span className="cmp-pn">
-          <b>{it.produto}</b>
+          <b>{it.produto}{fmt && <em className="cmp-tam">{fmt}</em>}</b>
           {qtd !== 1 && <span>{qtd} × {eur(unit)}</span>}
         </span>
         <button type="button" className="cmp-pcam" onClick={() => onIdentificar({ id: it.id, sku_id: it.sku_id, produto: it.produto })} title="identificar produto (fotos do rótulo)" aria-label="identificar produto">
