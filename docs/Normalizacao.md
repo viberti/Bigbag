@@ -299,6 +299,23 @@ agrupam-se em três famílias:
   ver outliers de preço, e **aprovar nomes canónicos** (aba "Nomes"). A correção
   humana alimenta a cache de imediato.
 
+### 5.1 Identificação por EAN — worklist "por identificar" (2026-06-09)
+Para a worklist de produtos a identificar (embalados sem EAN, não-frescos), um item
+**sai da lista** quando: (a) tem `item.ean`; (b) a mesma descrição+cadeia já tem ficha
+por EAN **ou** por foto/VLM/OFF (captura só-fotos também resolve); ou (c) **reuso entre
+cadeias pelo MESMO EAN** — a descrição do talão está ligada a **um único EAN** em
+`produto_nome` (nome↔EAN). É o critério do *mesmo EAN*, **não** de marca/SKU: "CARLSBERG
+LATA" e "...TP" têm EANs distintos (cada um resolve o seu); nomes genéricos ligados a
+**vários** EANs (LEITE MEIO GORDO, IOGURTE GREGO = marca-própria diferente por loja)
+ficam na lista (ambíguos). Foram **descartadas** duas heurísticas frouxas (só-SKU;
+marca-no-nome) que escondiam produtos diferentes.
+- **Carimbar EAN** (`scripts/carimbar_ean.mjs`, idempotente): grava `item.ean` nas linhas
+  sem EAN cujo nome liga a um EAN único em `produto_nome` (nome idêntico → mesmo produto).
+- **Merge de SKU** (`/skus/merge`) passou a preservar `sku_alias`+`produto_nome`+
+  `produto_ean`+genérico — os nomes de talão ficam ligados ao SKU que fica, matching futuro intacto.
+- **EAN à mão** na **aba Itens** do `/admin`: define/limpa `item.ean` (valida dígito
+  verificador + enriquece a ficha por OFF/catálogo).
+
 ## 6. Problemas em aberto
 
 1. ~~**Unidade adivinhada errada**~~ **resolvido** (ver 4.2): peso/volume explícito

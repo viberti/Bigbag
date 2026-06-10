@@ -259,6 +259,11 @@ CREATE TABLE perfil_membro (
 - **Cache em todo o lado:** `consultarOFF` por EAN, análise factual em `produto_analise` (chave EAN ou `sku:<id>`), nutrição de categoria em `categoria_nutricao`. Re-geração explícita (`?forcar=1` / apagar a linha).
 - **Fotos guardadas em disco** (não na BD), ligadas ao item; o caminho fica em `produto_foto.ficheiro` e é servido com auth (nunca via static root).
 
+### 1c. Catálogo, matching de EAN e telemetria (migrações 028–032)
+- **`catalogo_produto` (028/029):** catálogo multi-fonte com **EAN por nome PT** (scrapes Auchan/Continente — só esses expõem EAN em HTML estático). Chave `fonte`+`sku_fonte` UNIQUE; campos `nome, marca, categoria_path, ean, formato/formato_valor, preco, url, imagem`. Dá candidatos de EAN/ficha aos itens do talão **sem EAN** (`src/normaliza/resolverProduto.js`, `mestreEan.js`).
+- **`match_ean_sugestao` (030, +métricas 031):** propostas de EAN por matching de nome do talão → catálogo, para o operador rever na **aba EANs** (uma por descrição; estado pendente/aprovado/rejeitado, **sem LLM — o operador é o juiz**). A 031 acrescenta `preco_pago/preco_cand/formato_pago/formato_cand` para comparar (mesma loja: preço≈preço e formato≈formato confirmam).
+- **`evento_uso` (032):** **telemetria de USO** self-hosted (sem terceiros, NUNCA conteúdo — só QUAL ação). Campos `fonte` (api|ui), `utilizador`, `sessao` (id por visita, sem fingerprint), `evento`, `props` JSON, `criado_em`. `api` = middleware (`src/telemetria.js`) regista o **padrão da rota** de cada pedido `/api`; `ui` = ações só-frontend (`track()`) via `POST /api/telemetria`. Mapa na **aba Uso** do `/admin` (`GET /admin/uso?dias=`).
+
 ### Notas de design
 - **`preco_por_base` é o que faz a comparação funcionar.** Para itens por peso (fruta a granel), `preco_liquido` sozinho não é comparável; `preco_por_base` (€/kg) é. Para itens por unidade, é o preço por unidade. As funções de comparação consultam sempre `preco_por_base`.
 - **`preco_liquido` = preço impresso na linha, NÃO raspado pelo desconto de cartão.** O desconto global ("Desconto Cartão Utilizado") é um desconto da NOTA aplicado no pagamento, não atribuível a produtos — espalhá-lo cêntimo a cêntimo distorcia cada preço (um sumo de 2,49 aparecia como 2,37). Fica só em `fatura.desconto_global`. Consequência: `Σ preco_liquido` = subtotal (valor dos produtos), não o total pago; a diferença é o benefício do cartão.
@@ -419,11 +424,12 @@ Resumo das rotas montadas em `backend/src/routes/`. Todas exigem sessão (portã
 - **`POST /`** (`{ nome, texto }`) — carrega/atualiza um perfil: extrai o `resumo` estruturado (LLM) e fica **ativo** (upsert por nome; ativa só este).
 - **`POST /:id/ativar`** — torna esse perfil o ativo (`ativo = IF(id=?,1,0)`).
 
-### Operador — `/api/admin` (`admin.js`), aba "Nomes"
-- **`GET /nomes`** — sugestões de nome canónico pendentes (`nome_sugestao` + variantes).
-- **`POST /nomes/gerar`** — gera/atualiza sugestões (LLM, das variantes em `produto_nome`) para os SKUs ainda sem decisão (ignora os já rejeitados).
-- **`POST /nomes/:skuId/aplicar`** — renomeia o SKU para o sugerido (guarda anti-colisão de nome → 409).
-- **`POST /nomes/:skuId/rejeitar`** — marca a sugestão como rejeitada (não reaparece).
+### Operador — `/api/admin` (`admin.js`)
+- **Nomes:** `GET /nomes` (sugestões pendentes), `POST /nomes/gerar` (LLM das variantes em `produto_nome`), `POST /nomes/:skuId/aplicar` (renomeia, guarda anti-colisão → 409), `POST /nomes/:skuId/rejeitar`.
+- **EANs:** `GET /match-eans` + `POST /match-eans/gerar` (propostas de EAN por matching de nome → `match_ean_sugestao`), `POST /match-eans/:id/aprovar|rejeitar` (ao aprovar, o produto ganha ficha+nutrição; propaga o EAN aos irmãos OCR).
+- **SKUs:** `POST /skus/merge` (funde `de`→`para`; **preserva** itens + `sku_alias` + `produto_nome` + `produto_ean` + genérico — nomes de talão intactos p/ matching futuro), `POST /skus/auto-merge`.
+- **Itens** (inspeção/correção do item cru): `GET /itens?q=&ordenar=loja&todos=1` (todas as propriedades extraídas; por defeito só com EAN ou a precisar; colapsa iguais), `GET /itens-resumo` (cartões EANs distintos / por-identificar), `POST /itens/:id/ean` (define/limpa o EAN à mão — valida dígito verificador + enriquece ficha por OFF/catálogo), `PATCH /itens/:id` (edita qualquer campo; dar peso recalcula €/base e limpa `peso_em_falta`).
+- **Uso** (telemetria): `GET /uso?dias=` — mapa por funcionalidade (usos · última vez · quem). Eventos `ui` entram por `POST /api/telemetria` (top-level, `server.js`).
 
 ### Funções de apoio (ingestão)
 - **`ingest/produto.js`:** `extrairProdutoFotos` (VLM sobre N fotos), `consultarOFF` (Open Food Facts por EAN), `analisarProduto` (análise factual), `caracterizarProdutoNome` (fresco vs. processado + nutrição típica), `sugerirNomeCanonico` (melhor nome PT genérico das variantes), `eanValido` (check-digit GTIN-8/12/13), `lerEanDeFoto`, `analisarFotoProduto` (classifica talão/produto/outro), `buscarOffPorNome`.
