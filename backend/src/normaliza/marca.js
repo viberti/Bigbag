@@ -30,7 +30,9 @@ export const MARCADORES_CADEIA = [
 
 // Palavras que existem como "marca" no catálogo mas são vocabulário de produto —
 // nunca são evidência de marca num talão (medido: falsos positivos reais).
-const BLOQUEADAS = new Set(['fresco', 'fresca', 'natural', 'integral', 'premium', 'pato', 'rainha', 'grainha', 'brasil', 'lisa', 'bio', 'gourmet', 'tradicional', 'caseiro', 'extra', 'fino', 'fina', 'real', 'nacional', 'original', 'classico', 'classica', 'seleccao', 'selecao']);
+const BLOQUEADAS = new Set(['fresco', 'fresca', 'natural', 'integral', 'premium', 'pato', 'rainha', 'grainha', 'brasil', 'lisa', 'bio', 'gourmet', 'tradicional', 'caseiro', 'extra', 'fino', 'fina', 'real', 'nacional', 'original', 'classico', 'classica', 'seleccao', 'selecao',
+  // cores e descritores comuns que existem como "marca" no catálogo
+  'branca', 'branco', 'preta', 'preto', 'negra', 'negro', 'verde', 'vermelha', 'vermelho', 'amarela', 'amarelo', 'doce', 'suave', 'forte', 'leve', 'grande']);
 
 let _gaz = null;
 // Gazetteer: marca normalizada → display. Cache por processo.
