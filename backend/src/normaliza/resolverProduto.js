@@ -293,8 +293,19 @@ export function pontuarBusca(q, candToks, idf) {
   return den ? num / den : 0;
 }
 
+// Formato só compara quando os DOIS lados o declaram EXPLICITAMENTE — o
+// extrairFormato devolve {un,1} por omissão, e isso penalizava de borla todo o
+// catálogo de nomes limpos (Pingo Doce não embute o tamanho no nome).
+const temFormatoExplicito = (s) => /\d\s*(kgs?|grs?|g|ml|cl|lt?|un|dz)\b/i.test(String(s || ''));
+function formatoBusca(a, b) {
+  if (!temFormatoExplicito(a) || !temFormatoExplicito(b)) return null;
+  return formatoCompativel(a, b);
+}
+
 // Devolve o melhor candidato { nome, marca, categoria_path, ean?, fonte, score,
 // margem } ou null. `cadeia` dá prior à fonte da mesma loja (marca-própria).
+// `margem` = distância ao 2.º melhor de NOME DIFERENTE — margem ~0 significa
+// empate entre produtos distintos (ex.: "BANANA" cobre dezenas) → pista não fiável.
 export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } = {}) {
   const idf = await carregarIdf(pool);
   const cat = await catalogoEmMemoria(pool);
@@ -307,11 +318,14 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } =
     let s = pontuarBusca(q, r.t, idf);
     if (s < 0.45) continue;
     if (saborConflito(desc, r.nome)) continue; // morango ≠ baunilha (gate duro)
-    const fc = formatoCompativel(descricao, r.nome);
+    const fc = formatoBusca(descricao, r.nome);
     if (fc === true) s += 0.08; else if (fc === false) s -= 0.3; // formato desempata
     if (fontePref && r.fonte === fontePref) s += 0.12; // prior da mesma cadeia
-    if (!top || s > top.s) { segundo = top ? top.s : 0; top = { r, s }; }
-    else if (s > segundo) segundo = s;
+    if (!top) { top = { r, s }; continue; }
+    if (s > top.s) {
+      if (norm(r.nome) !== norm(top.r.nome)) segundo = Math.max(segundo, top.s);
+      top = { r, s };
+    } else if (s > segundo && norm(r.nome) !== norm(top.r.nome)) segundo = s;
   }
   if (!top || top.s < limiar) return null;
   return {

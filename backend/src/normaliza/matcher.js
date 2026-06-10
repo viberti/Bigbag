@@ -63,7 +63,12 @@ export async function resolverSku(
   // 2) canonicalizar (com contexto da cadeia + pista do motor de busca interno:
   // o produto real provável no catálogo — determinístico, ancora o LLM)
   let pistaCatalogo = null;
-  try { pistaCatalogo = await buscarCatalogo(db, desc, { cadeia, limiar: 0.62 }); } catch { /* sem catálogo → segue sem pista */ }
+  try {
+    const b = await buscarCatalogo(db, desc, { cadeia, limiar: 0.62 });
+    // margem baixa = empate entre produtos DISTINTOS (descrições genéricas tipo
+    // "BANANA" cobrem dezenas) → a pista seria arbitrária; melhor nenhuma.
+    if (b && b.margem >= 0.05) pistaCatalogo = b;
+  } catch { /* sem catálogo → segue sem pista */ }
   const c = await canonicalizar(desc, { cadeia, pistaCatalogo });
   if (!c || (c.confianca != null && c.confianca < limiarRevisao)) {
     return { sku_id: null, via: 'revisao', canonical: c || null };
