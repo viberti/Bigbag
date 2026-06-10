@@ -78,6 +78,14 @@ adminRouter.get('/itens', async (req, res) => {
               i.preco_unitario, i.preco_liquido, i.preco_por_base, i.peso_em_falta,
               i.taxa_iva, i.ppb_inferido, i.is_clearance, i.desconto_direto, i.is_non_product,
               i.sku_id, s.nome_canonico, s.unidade_base,
+              -- marca: vive na FICHA do produto (produto_ean), não na linha do talão.
+              -- Coluna primeiro (onde as edições manuais ficam), senão o off_json.
+              COALESCE(
+                (SELECT COALESCE(NULLIF(pe.marca,''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')),'null'))
+                   FROM produto_ean pe WHERE pe.ean = i.ean ORDER BY pe.id LIMIT 1),
+                (SELECT COALESCE(NULLIF(pe2.marca,''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe2.off_json,'$.marca')),'null'))
+                   FROM produto_ean pe2 WHERE pe2.item_id = i.id ORDER BY pe2.id LIMIT 1)
+              ) AS marca,
               i.fatura_id, COALESCE(l.cadeia, l.nome) AS loja, f.data_compra AS data, f.numero_fatura,
               -- mesmo critério da worklist "por identificar" (embalado sem EAN, não-fresco, por resolver)
               (i.is_non_product = 0 AND i.ean IS NULL AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
@@ -105,7 +113,7 @@ adminRouter.get('/itens', async (req, res) => {
     // todos" não colapsa (acesso a cada linha individual para edição).
     let lista = itens;
     if (req.query.todos !== '1') {
-      const sig = (i) => [i.descricao_original, i.loja, i.ean, i.quantidade, i.preco_unitario,
+      const sig = (i) => [i.descricao_original, i.loja, i.ean, i.marca, i.quantidade, i.preco_unitario,
         i.preco_liquido, i.preco_por_base, i.taxa_iva, i.desconto_direto, i.is_clearance,
         i.is_non_product, i.peso_em_falta, i.ppb_inferido, i.sku_id].join('');
       const vistos = new Map();
@@ -262,15 +270,35 @@ adminRouter.patch('/itens/:id', async (req, res) => {
       if (ppbFinal === null) sets.push('preco_por_base = NULL');
       else { sets.push('preco_por_base = ?'); vals.push(ppbFinal); }
     }
+    // MARCA: vive na FICHA do produto (produto_ean), não na linha do talão.
+    // Grava por EAN (upsert — vale para todas as compras desse produto) ou na
+    // ficha ligada ao item; cria a ficha se ainda não existir.
+    let marcaTratada = false;
+    if ('marca' in b) {
+      const m = String(b.marca || '').trim().slice(0, 120) || null;
+      const [[it]] = await getPool().query('SELECT ean FROM item WHERE id = ?', [id]);
+      if (it?.ean) {
+        await getPool().query(
+          "INSERT INTO produto_ean (ean, item_id, marca, fonte) VALUES (?,?,?,'manual') ON DUPLICATE KEY UPDATE marca = ?",
+          [it.ean, id, m, m],
+        );
+      } else {
+        const [r1] = await getPool().query('UPDATE produto_ean SET marca = ? WHERE item_id = ?', [m, id]);
+        if (!r1.affectedRows && m) {
+          await getPool().query("INSERT INTO produto_ean (ean, item_id, marca, fonte) VALUES (NULL, ?, ?, 'manual')", [id, m]);
+        }
+      }
+      marcaTratada = true;
+    }
     // flags — peso_em_falta força a 0 quando o ppb passa a ter valor
     const forcaPeso0 = Number.isFinite(ppbFinal);
     for (const c of ['is_clearance', 'is_non_product', 'peso_em_falta', 'ppb_inferido']) {
       if (c === 'peso_em_falta' && forcaPeso0) { sets.push('peso_em_falta = ?'); vals.push(0); continue; }
       if (c in b) { sets.push(`${c} = ?`); vals.push(b[c] ? 1 : 0); }
     }
-    if (!sets.length) return res.status(400).json({ erro: 'nada para atualizar' });
+    if (!sets.length && !marcaTratada) return res.status(400).json({ erro: 'nada para atualizar' });
     vals.push(id);
-    await getPool().query(`UPDATE item SET ${sets.join(', ')} WHERE id = ?`, vals);
+    if (sets.length) await getPool().query(`UPDATE item SET ${sets.join(', ')} WHERE id = ?`, vals);
     res.json({ ok: true, preco_por_base: ppbFinal, peso_em_falta: forcaPeso0 ? 0 : undefined });
   } catch (e) {
     console.error('[admin/itens PATCH] erro:', e.message);

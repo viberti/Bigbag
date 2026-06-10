@@ -1140,7 +1140,7 @@ function ItemRow({ it, onAbrirNota, onPatch }) {
   async function salvar() {
     setSaving(true);
     try {
-      const campos = ['descricao_original', 'quantidade', 'preco_unitario', 'preco_liquido', 'preco_por_base', 'taxa_iva', 'desconto_direto', 'is_clearance', 'is_non_product', 'peso_em_falta', 'ppb_inferido'];
+      const campos = ['descricao_original', 'marca', 'quantidade', 'preco_unitario', 'preco_liquido', 'preco_por_base', 'taxa_iva', 'desconto_direto', 'is_clearance', 'is_non_product', 'peso_em_falta', 'ppb_inferido'];
       const body = {};
       for (const c of campos) body[c] = d[c];
       await adm.atualizarItem(it.id, body);
@@ -1166,6 +1166,7 @@ function ItemRow({ it, onAbrirNota, onPatch }) {
         <td>{it.unidade_base || '—'}</td>
         <td className="adm-it-peso">{it.linha_peso || '—'}</td>
         <td className="adm-it-ean"><EanEdit item={it} onSaved={(ean) => onPatch?.({ ...it, ean })} /></td>
+        <td><input className="adm-it-inp adm-it-inp-marca" value={d.marca ?? ''} onChange={set('marca')} placeholder="marca" /></td>
         <td><input className="adm-it-inp num" value={d.taxa_iva ?? ''} onChange={set('taxa_iva')} placeholder="0.06" /></td>
         <td><input className="adm-it-inp num" value={d.desconto_direto ?? ''} onChange={set('desconto_direto')} /></td>
         <td>{it.nome_canonico || <em className="adm-it-semsku">sem SKU</em>}</td>
@@ -1197,6 +1198,7 @@ function ItemRow({ it, onAbrirNota, onPatch }) {
       <td>{it.unidade_base || '—'}</td>
       <td className="adm-it-peso">{it.linha_peso || '—'}</td>
       <td className="adm-it-ean"><EanEdit item={it} onSaved={(ean) => onPatch?.({ ...it, ean })} /></td>
+      <td className="adm-it-peso">{it.marca || '—'}</td>
       <td>{it.taxa_iva == null ? '—' : `${Math.round(Number(it.taxa_iva) * 100)}%`}</td>
       <td>{Number(it.desconto_direto) ? eur(it.desconto_direto) : '—'}</td>
       <td>{it.nome_canonico || <em className="adm-it-semsku">sem SKU</em>}</td>
@@ -1286,6 +1288,7 @@ function TabItens({ onAbrirNota }) {
                 <th>unid</th>
                 <th>linha peso</th>
                 <th>EAN</th>
+                <th>marca</th>
                 <th>IVA</th>
                 <th>desc.</th>
                 <th>SKU canónico</th>
@@ -1302,7 +1305,7 @@ function TabItens({ onAbrirNota }) {
                     lastLoja = it.loja;
                     linhas.push(
                       <tr key={`g-${it.loja}`} className="adm-it-grupo">
-                        <td colSpan={15}>{it.loja} · {dados.filter((x) => x.loja === it.loja).length}</td>
+                        <td colSpan={16}>{it.loja} · {dados.filter((x) => x.loja === it.loja).length}</td>
                       </tr>,
                     );
                   }
