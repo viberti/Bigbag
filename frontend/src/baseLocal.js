@@ -10,6 +10,11 @@ import { getAuth } from './api.js';
 
 const KEY_TS = 'bb_base_sync_ts';
 const KEY_CURSOR = 'bb_base_cat_cursor';
+const KEY_VER = 'bb_base_ver';
+// Versão da base: INCREMENTAR quando o servidor re-normaliza dados existentes
+// (ex.: capitalização uniforme) — o cursor incremental não os re-desceria.
+// Mudança de versão → resync completo na próxima sincronização.
+const BASE_VER = '2';
 const INTERVALO_MS = 60 * 60 * 1000; // 1 h entre sincronizações automáticas
 
 const parse = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
@@ -33,6 +38,11 @@ async function guardarLote(store, linhas) {
 // (máx. 10 chunks por chamada — o resto continua na próxima).
 export async function sincronizarBaseLocal({ forcar = false } = {}) {
   try {
+    if (localStorage.getItem(KEY_VER) !== BASE_VER) {
+      localStorage.removeItem(KEY_TS);
+      localStorage.setItem(KEY_CURSOR, '0');
+      localStorage.setItem(KEY_VER, BASE_VER);
+    }
     const agora = Date.now();
     if (!forcar && agora - (Number(localStorage.getItem(KEY_TS)) || 0) < INTERVALO_MS) return;
     const auth = getAuth();
