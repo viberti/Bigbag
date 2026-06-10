@@ -108,6 +108,21 @@ await check('ppb incoerente p/ unidade UN (nem ppb×qtd nem ppb×formato×qtd ba
       AND ABS(i.preco_por_base*i.quantidade - i.preco_liquido) > 0.05
       AND (s.formato_valor IS NULL OR ABS(i.preco_por_base*s.formato_valor*i.quantidade - i.preco_liquido) > 0.05)`,
   [], { amostra: (r) => `item ${r.id} "${r.descricao_original}" ${r.quantidade}×ppb ${r.preco_por_base} (formato ${r.formato_valor}) ≠ €${r.preco_liquido}`, max: 5 });
+// O IVA é consistente por produto — divergência dentro do SKU = legenda mal lida
+// numa das notas (ou SKU mal atribuído). Corrige-se com scripts/corrigir_iva.mjs.
+await check('IVA divergente da moda do SKU (taxa diferente da maioria ≥2/3)',
+  `SELECT i.id, i.descricao_original, i.taxa_iva, m.moda FROM item i
+     JOIN (SELECT sku_id, SUBSTRING_INDEX(GROUP_CONCAT(taxa_iva ORDER BY cnt DESC), ',', 1) AS moda, SUM(cnt) AS total, MAX(cnt) AS nmoda
+             FROM (SELECT sku_id, taxa_iva, COUNT(*) cnt FROM item
+                    WHERE sku_id IS NOT NULL AND taxa_iva IS NOT NULL AND is_non_product=0
+                    GROUP BY sku_id, taxa_iva) t
+            GROUP BY sku_id HAVING COUNT(*) > 1 AND total >= 3 AND nmoda/total >= 2/3) m ON m.sku_id = i.sku_id
+    WHERE i.taxa_iva IS NOT NULL AND i.taxa_iva <> m.moda`,
+  [], { amostra: (r) => `item ${r.id} "${r.descricao_original}" ${r.taxa_iva} ≠ moda ${r.moda}`, max: 5 });
+await check('fresco com IVA 23% (Lista I CIVA = taxa reduzida; leitura suspeita)',
+  `SELECT i.id, i.descricao_original FROM item i JOIN produto_generico pg ON pg.sku_id = i.sku_id
+    WHERE pg.tipo='fresco' AND i.taxa_iva = 0.23 AND i.is_non_product = 0`,
+  [], { amostra: (r) => `item ${r.id} "${r.descricao_original}"`, max: 5 });
 await check('peso_em_falta=1 MAS com preco_por_base (contraditório)',
   'SELECT id, descricao_original FROM item WHERE peso_em_falta=1 AND preco_por_base IS NOT NULL',
   [], { amostra: (r) => `item ${r.id} "${r.descricao_original}"` });
