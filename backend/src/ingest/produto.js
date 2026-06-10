@@ -325,7 +325,7 @@ export async function consultarOFF(ean) {
   const cod = String(ean || '').replace(/\D/g, '');
   if (cod.length < 8) return null;
   try {
-    const u = `https://world.openfoodfacts.org/api/v2/product/${cod}?fields=product_name,brands,quantity,categories,ingredients_text,allergens,nutriscore_grade,nova_group,nutriments,image_url`;
+    const u = `https://world.openfoodfacts.org/api/v2/product/${cod}?fields=product_name,brands,quantity,categories,categories_tags,food_groups_tags,labels_tags,ingredients_text,allergens,nutriscore_grade,nova_group,nutriments,image_url`;
     const r = await fetch(u, { headers: { 'User-Agent': 'Bigbag/0.1 (laboratorio pessoal)' } });
     const j = await r.json();
     if (j.status !== 1 || !j.product) return null;
@@ -333,6 +333,9 @@ export async function consultarOFF(ean) {
     return {
       nome: p.product_name || null, marca: p.brands || null, quantidade: p.quantity || null,
       categoria: p.categories || null, ingredientes: p.ingredients_text || null, alergenios: p.allergens || null,
+      // DAG de categorias do OFF (âncora da classificação facetada — vem de graça
+      // na mesma resposta; persistir agora evita um backfill impossível depois)
+      categorias_tags: p.categories_tags || null, grupos_alimento: p.food_groups_tags || null, labels: p.labels_tags || null,
       nutriscore: (p.nutriscore_grade || '').toUpperCase() || null, nova: p.nova_group || null, imagem: p.image_url || null,
       nutricao_100g: {
         energia_kcal: n['energy-kcal_100g'] ?? null, gordura: n.fat_100g ?? null, gordura_saturada: n['saturated-fat_100g'] ?? null,

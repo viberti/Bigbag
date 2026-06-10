@@ -10,6 +10,7 @@ import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
 import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
+import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from '../ingest/traduz.js';
@@ -59,6 +60,7 @@ export async function consultarOuGuardar(ean) {
         [ean, tituloProduto(cat.nome), tituloProduto(cat.marca), cat.quantidade, cat.categoria],
       );
       await guardarNomes(ean, null, [{ nome: cat.nome, origem: 'catalogo' }]);
+      await atualizarConteudoFicha(getPool(), ean);
     } catch (e) {
       console.error('[consultarOuGuardar] catálogo:', e.message);
     }
@@ -74,6 +76,7 @@ export async function consultarOuGuardar(ean) {
         off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
     );
     await guardarNomes(ean, null, [{ nome: off.nome, origem: 'off' }]);
+    await atualizarConteudoFicha(getPool(), ean);
     // OFF pode vir noutra língua → traduz para PT em fundo (não atrasa a resposta)
     garantirFichaPT(getPool(), ean).catch(() => {});
   } catch (e) {
@@ -282,6 +285,7 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
           nutricao ? JSON.stringify(nutricao) : null, nutConfirmada, fonte, vlm ? JSON.stringify(vlm) : null, off ? JSON.stringify(off) : null],
       );
     } catch (e) { console.error('[produto/identificar] guardar:', e.message); }
+    if (ean) atualizarConteudoFicha(getPool(), ean).catch(() => {});
 
     // EAN escaneado/manual é autoritativo para a IDENTIDADE do item → grava em
     // item.ean. Assim o item sai da worklist "por identificar" (que filtra

@@ -5,6 +5,7 @@
 import { consultarOFF } from './produto.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from './traduz.js';
+import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 
 export async function enriquecerEansFatura(pool, faturaId) {
   const [eans] = await pool.query('SELECT DISTINCT ean FROM item WHERE fatura_id = ? AND ean IS NOT NULL', [faturaId]);
@@ -22,6 +23,7 @@ export async function enriquecerEansFatura(pool, faturaId) {
         [ean, tituloProduto(off.nome), tituloProduto(off.marca), off.quantidade, off.categoria, off.ingredientes, off.alergenios,
           off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, JSON.stringify(off)],
       );
+      await atualizarConteudoFicha(pool, ean);
       garantirFichaPT(pool, ean).catch(() => {}); // OFF pode vir noutra língua → PT em fundo
     } catch (e) {
       console.error('[enriquecer ean]', ean, e.message);

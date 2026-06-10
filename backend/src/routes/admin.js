@@ -21,6 +21,7 @@ import { candidatosCatalogo, proporMesmaLoja } from '../normaliza/resolverProdut
 import { consultarOuGuardar } from './produto.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { tituloProduto } from '../normaliza/titulo.js';
+import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 
 export const adminRouter = Router();
 
@@ -230,6 +231,7 @@ adminRouter.patch('/fichas/:ean', async (req, res) => {
     vals.push(ean);
     const [r] = await getPool().query(`UPDATE produto_ean SET ${sets.join(', ')} WHERE ean = ?`, vals);
     if (!r.affectedRows) return res.status(404).json({ erro: 'Ficha não encontrada' });
+    if ('quantidade' in b) await atualizarConteudoFicha(getPool(), ean);
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/fichas PATCH] erro:', e.message);
