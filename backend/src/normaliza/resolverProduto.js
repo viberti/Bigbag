@@ -246,7 +246,11 @@ export async function candidatosCatalogo(pool, item, opts = {}) {
 // calibrado à parte para a aba EANs). "com/sem" NÃO são ruído aqui (negação que
 // define o produto: com côdea ≠ sem côdea).
 const STOPB = new Set([...STOP].filter((t) => t !== 'com' && t !== 'sem'));
-const toksB = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOPB.has(t) && !/^\d+$/.test(t));
+// Tokens de FORMATO (200g, 1kg, 33cl, 4x115g, 6x1l) ficam FORA do scoring: o
+// formato é desempate à parte (formatoBusca), não evidência de nome — senão
+// "…200g" do catálogo Auchan ganhava a um nome certo sem tamanho embutido (PD).
+const TOKEN_FORMATO = /^\d+([.,]\d+)?(g|gr|grs|kg|kgs|ml|cl|l|lt|un|dz)?$|^\d+x\d+\w*$/i;
+const toksB = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOPB.has(t) && !TOKEN_FORMATO.test(t));
 
 let _catMem = null;
 async function catalogoEmMemoria(pool) {
