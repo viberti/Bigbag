@@ -10,7 +10,7 @@ import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
 import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
-import { alertasDoPerfil, avaliarParaPerfil } from '../ingest/perfil.js';
+import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -628,6 +628,60 @@ produtoRouter.get('/personalizado', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[produto/personalizado] erro:', e.message);
     res.status(500).json({ erro: 'Falha na avaliação personalizada' });
+  }
+});
+
+// COMPARAR 2-6 produtos (na prateleira): junta a ficha de cada EAN + o perfil
+// ativo (se houver) → o LLM rankeia e explica. Alergénio do perfil num produto
+// força "evitar" DETERMINISTICAMENTE (a regra dura nunca fica nas mãos do LLM).
+produtoRouter.post('/comparar', requireAuth, async (req, res) => {
+  try {
+    const eans = [...new Set((Array.isArray(req.body?.eans) ? req.body.eans : [])
+      .map((e) => String(e).replace(/\D/g, '')).filter((e) => e.length >= 8))].slice(0, 6);
+    if (eans.length < 2) return res.status(400).json({ erro: 'São precisos pelo menos 2 produtos.' });
+
+    const [[p]] = await getPool().query('SELECT id, nome, resumo FROM perfil_membro WHERE ativo = 1 LIMIT 1');
+    const resumo = p ? (typeof p.resumo === 'string' ? JSON.parse(p.resumo) : p.resumo) : null;
+
+    const produtos = [];
+    for (const ean of eans) {
+      const info = await consolidarProduto({ eanQ: ean });
+      const prod = {
+        ean,
+        nome: info.off?.nome || info.vlm?.nome || info.base?.nome || info.generico?.alimento || info.nome || ean,
+        marca: info.off?.marca || info.vlm?.marca || info.base?.marca || null,
+        quantidade: info.off?.quantidade || info.vlm?.quantidade || info.base?.quantidade || null,
+        categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
+        ingredientes: info.vlm?.ingredientes || info.off?.ingredientes || null,
+        alergenios: info.off?.alergenios || info.vlm?.alergenios || null,
+        nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
+        nutriscore: info.off?.nutriscore || null,
+        nova: info.off?.nova ?? null,
+      };
+      prod.dados_incompletos = !prod.nutricao_100g;
+      prod.alertas = resumo ? alertasDoPerfil(prod, resumo) : [];
+      produtos.push(prod);
+    }
+
+    const { comparacao, custo } = await compararProdutosLLM(
+      produtos.map(({ alertas, ...resto }) => (alertas.length ? { ...resto, alertas_perfil: alertas } : resto)),
+      resumo,
+    );
+    // regra dura: alergénio do perfil → "evitar", digam o que disserem os pontos
+    const ranking = (comparacao?.ranking || []).map((r) => {
+      const pr = produtos.find((x) => x.ean === String(r.ean));
+      return pr?.alertas?.length ? { ...r, veredicto: 'evitar', alertas: pr.alertas } : r;
+    });
+    res.json({
+      perfil: p?.nome || null,
+      resumo: comparacao?.resumo || null,
+      ranking,
+      produtos: produtos.map(({ ean, nome, marca, quantidade, dados_incompletos }) => ({ ean, nome, marca, quantidade, dados_incompletos })),
+      custo,
+    });
+  } catch (e) {
+    console.error('[produto/comparar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha ao comparar os produtos' });
   }
 });
 

@@ -185,6 +185,17 @@ export async function consultarProdutoEan(ean) {
   return r.json(); // { ean, encontrado, fonte, nome }
 }
 
+// Compara 2-6 produtos (EANs) à luz do perfil ativo (ou factual, sem perfil).
+export async function compararProdutos(eans) {
+  const r = await call('/api/produto/comparar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eans }),
+  });
+  if (!r.ok) throw new Error(`comparar ${r.status}`);
+  return r.json(); // { perfil, resumo, ranking, produtos, custo }
+}
+
 export async function consultarProdutoNome(nome) {
   const r = await call(`/api/produto/por-nome?nome=${encodeURIComponent(nome)}`);
   if (!r.ok) throw new Error(`por-nome ${r.status}`);

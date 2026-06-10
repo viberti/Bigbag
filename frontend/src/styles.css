@@ -863,6 +863,35 @@ body { background: #0c1814; }
 .bb .capt-semcod { color: var(--muted-bb); font-style: italic; }
 .bb .capt-reler { margin-left: auto; padding: 5px 11px; border-radius: 9px; border: 1px solid var(--line); background: none; color: var(--muted-bb); font-size: 12.5px; cursor: pointer; }
 .bb .capt-reler:hover { color: var(--accent); border-color: var(--accent); }
+/* Comparar produtos (na prateleira) */
+.bb .comp-vazio { margin: 4px 0 0; font-size: 13px; color: var(--faint); text-align: center; }
+.bb .comp-aviso { margin: 4px 0 0; font-size: 12.5px; color: #ffcf99; text-align: center; }
+.bb .comp-tray { display: flex; flex-wrap: wrap; gap: 7px; }
+.bb .comp-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 7px 11px; border-radius: 99px;
+  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); color: var(--text-bb);
+  font-size: 13px; font-weight: 600; cursor: pointer; }
+.bb .comp-chip .comp-x { color: var(--muted-bb); font-weight: 800; }
+.bb .comp-res { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.bb .comp-perfil { font-size: 13px; font-weight: 700; color: var(--accent); }
+.bb .comp-semperfil { font-size: 12.5px; color: var(--muted-bb); }
+.bb .comp-resumo { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--text-bb); background: #1b2a22; border: 1px solid var(--line); border-radius: 13px; padding: 11px 13px; }
+.bb .comp-card { background: #1b2a22; border: 1px solid var(--line); border-left-width: 4px; border-radius: 13px; padding: 11px 13px; }
+.bb .comp-card.v-adequado { border-left-color: #2ec46e; }
+.bb .comp-card.v-atencao { border-left-color: #e0b341; }
+.bb .comp-card.v-evitar { border-left-color: #e05c5c; }
+.bb .comp-card-h { display: flex; align-items: center; gap: 9px; }
+.bb .comp-medal { font-size: 19px; flex: 0 0 auto; }
+.bb .comp-nome { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 700; }
+.bb .comp-verd { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; text-transform: uppercase; border-radius: 6px; padding: 2px 7px; }
+.bb .comp-verd.v-adequado { color: #6fd49a; background: rgba(46,196,110,.14); }
+.bb .comp-verd.v-atencao { color: #ffd98a; background: rgba(224,179,65,.14); }
+.bb .comp-verd.v-evitar { color: #ff9d9d; background: rgba(224,92,92,.16); }
+.bb .comp-motivo { margin: 7px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted-bb); }
+.bb .comp-alerta { margin: 7px 0 0; font-size: 12.5px; font-weight: 700; color: #ff9d9d; }
+.bb .comp-pontos { display: flex; flex-direction: column; gap: 3px; margin-top: 7px; }
+.bb .comp-pt { font-size: 12.5px; line-height: 1.4; }
+.bb .comp-pt.ok { color: #8fd9ae; }
+.bb .comp-pt.mau { color: #ffc1a1; }
 
 /* Compras (redesign por loja) */
 .bb .sheet.cmp { overflow: hidden; }

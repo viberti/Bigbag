@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -239,6 +239,7 @@ function Chat({ onSair, nome }) {
     mostrarToast(t('toast.enviados', { n: ok }) + (falhou ? t('toast.falharam', { n: falhou }) : '') + '.');
   }
   const [scannerAberto, setScannerAberto] = useState(false);
+  const [compararAberto, setCompararAberto] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [toast, setToast] = useState('');
   const mostrarToast = (m) => { setToast(m); setTimeout(() => setToast(''), 4500); };
@@ -516,6 +517,9 @@ function Chat({ onSair, nome }) {
           <button type="button" className="round" onClick={abrirNotas} disabled={ocupado} aria-label="as minhas compras">
             <Ico name="notas" size={21} />
           </button>
+          <button type="button" className="round" onClick={() => { setCompararAberto(true); track('comparar_abrir'); }} disabled={ocupado} aria-label={t('comp.title')}>
+            <Ico name="comparar" size={21} />
+          </button>
           <button type="button" className="round scan" onClick={() => { setScannerAberto(true); track('scanner_abrir'); }} disabled={ocupado} aria-label="consultar produto (código de barras)">
             <Ico name="barras" size={21} />
           </button>
@@ -696,6 +700,7 @@ function Chat({ onSair, nome }) {
         onFechar={() => setScannerAberto(false)}
         onEncontrado={(p) => { setScannerAberto(false); setInfoItem(p.sku_id ? { sku_id: p.sku_id, produto: p.nome } : { ean: p.ean, produto: p.nome || p.ean, local: p.local }); }}
       />
+      <CompararSheet aberto={compararAberto} onFechar={() => setCompararAberto(false)} />
       <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
       {toast && <div className="toast" onClick={() => setToast('')}>{toast}</div>}
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} onIdentificado={marcarIdentificado} />
@@ -1715,6 +1720,173 @@ function GastosSheet({ aberto, dados, onFechar }) {
               )}
 
               <p className="g-total">{t('gastos.total')} <b>{eur(d.total_geral)}</b></p>
+            </>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+// COMPARAR PRODUTOS (na prateleira): scan CONTÍNUO de 2-6 códigos → bandeja de
+// chips (nome instantâneo via base local; desconhecidos resolvem-se em fundo e
+// acumulam conhecimento no servidor) → "Comparar" → ranking personalizado pelo
+// perfil ativo (ou factual, sem perfil). Alergénio do perfil = "evitar" (regra dura).
+const MAX_COMPARAR = 6;
+function CompararSheet({ aberto, onFechar }) {
+  const videoRef = useRef(null);
+  const trackRef = useRef(null);
+  const [fase, setFase] = useState('scan'); // scan | comparando | resultado
+  const [itens, setItens] = useState([]); // [{ean, nome|null}]
+  const [res, setRes] = useState(null);
+  const [manual, setManual] = useState('');
+  const [aviso, setAviso] = useState('');
+  const [temLuz, setTemLuz] = useState(false);
+  const [luz, setLuz] = useState(false);
+  const itensRef = useRef(itens);
+  itensRef.current = itens;
+
+  function adicionar(cod) {
+    const c = String(cod).replace(/\D/g, '');
+    if (c.length < 8) return;
+    if (itensRef.current.some((x) => x.ean === c)) return; // contínuo relê o mesmo código — ignora
+    if (itensRef.current.length >= MAX_COMPARAR) { setAviso(t('comp.max', { n: MAX_COMPARAR })); return; }
+    try { navigator.vibrate?.(50); } catch { /* noop */ }
+    setItens((xs) => [...xs, { ean: c, nome: null }]);
+    setAviso('');
+    (async () => {
+      const local = (await fichaLocal(c).catch(() => null)) || (await catalogoLocal(c).catch(() => null));
+      if (local?.nome) { setItens((xs) => xs.map((x) => (x.ean === c ? { ...x, nome: local.nome } : x))); return; }
+      try {
+        const r = await consultarProdutoEan(c); // resolve E acumula no servidor
+        if (r?.nome) setItens((xs) => xs.map((x) => (x.ean === c ? { ...x, nome: r.nome } : x)));
+      } catch { /* offline → fica o EAN no chip */ }
+    })();
+  }
+
+  // reset ao fechar
+  useEffect(() => {
+    if (!aberto) { setFase('scan'); setItens([]); setRes(null); setManual(''); setAviso(''); setLuz(false); setTemLuz(false); }
+  }, [aberto]);
+
+  // scanner CONTÍNUO enquanto na fase 'scan' (não para no 1.º código)
+  useEffect(() => {
+    if (!aberto || fase !== 'scan') return undefined;
+    let controls;
+    let parado = false;
+    (async () => {
+      try {
+        const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+        const hints = new Map();
+        hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
+        hints.set(lib.DecodeHintType.TRY_HARDER, true);
+        const reader = new BrowserMultiFormatReader(hints);
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+          videoRef.current,
+          (result) => { if (!result || parado) return; adicionar(result.getText()); },
+        );
+        const track2 = videoRef.current?.srcObject?.getVideoTracks?.()[0];
+        if (track2) {
+          try { await track2.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* noop */ }
+          const caps = track2.getCapabilities?.() || {};
+          if (caps.torch) { trackRef.current = track2; setTemLuz(true); }
+        }
+      } catch { setAviso(t('scanner.semCamera')); }
+    })();
+    return () => { parado = true; controls?.stop(); trackRef.current = null; };
+  }, [aberto, fase]);
+
+  async function alternarLuz() {
+    const tr = trackRef.current;
+    if (!tr) return;
+    const novo = !luz;
+    try { await tr.applyConstraints({ advanced: [{ torch: novo }] }); setLuz(novo); } catch { /* noop */ }
+  }
+
+  async function comparar() {
+    if (itens.length < 2 || fase === 'comparando') return;
+    setFase('comparando');
+    try {
+      const r = await compararProdutos(itens.map((x) => x.ean));
+      setRes(r);
+      setFase('resultado');
+    } catch {
+      setAviso(t('comp.falha'));
+      setFase('scan');
+    }
+  }
+
+  if (!aberto) return null;
+  const nomeDe = (ean) => res?.produtos?.find((p) => p.ean === ean)?.nome || itens.find((x) => x.ean === ean)?.nome || ean;
+  const medalha = (pos) => (pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`);
+
+  return (
+    <>
+      <div className="scrim open" onClick={onFechar} />
+      <section className="sheet open" aria-label={t('comp.title')}>
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">{t('comp.title')}</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar"><Ico name="close" size={18} /></button>
+        </div>
+        <div className="scan-body">
+          {fase === 'resultado' && res ? (
+            <div className="comp-res">
+              {res.perfil
+                ? <div className="comp-perfil">✨ {t('comp.paraPerfil', { nome: res.perfil })}</div>
+                : <div className="comp-semperfil">{t('comp.semPerfil')}</div>}
+              {res.resumo && <p className="comp-resumo">{res.resumo}</p>}
+              {(res.ranking || []).map((r) => (
+                <div key={r.ean} className={`comp-card v-${r.veredicto || 'atencao'}`}>
+                  <div className="comp-card-h">
+                    <span className="comp-medal">{medalha(r.posicao)}</span>
+                    <span className="comp-nome">{nomeDe(String(r.ean))}</span>
+                    <span className={`comp-verd v-${r.veredicto || 'atencao'}`}>{r.veredicto}</span>
+                  </div>
+                  {r.motivo && <p className="comp-motivo">{r.motivo}</p>}
+                  {r.alertas?.length > 0 && <p className="comp-alerta">⚠ {r.alertas.join(' · ')}</p>}
+                  {(r.a_favor?.length > 0 || r.contra?.length > 0) && (
+                    <div className="comp-pontos">
+                      {(r.a_favor || []).map((x, i) => <span key={`f${i}`} className="comp-pt ok">✓ {x}</span>)}
+                      {(r.contra || []).map((x, i) => <span key={`c${i}`} className="comp-pt mau">✗ {x}</span>)}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <button type="button" className="ident-go" onClick={() => { setRes(null); setItens([]); setFase('scan'); }}>{t('comp.nova')}</button>
+            </div>
+          ) : (
+            <>
+              <div className="scan-cam">
+                <video ref={videoRef} className="scan-video" playsInline muted />
+                <div className="scan-mira" />
+                {temLuz && fase === 'scan' && (
+                  <button type="button" className={`scan-luz ${luz ? 'on' : ''}`} onClick={alternarLuz} aria-label="lanterna"><Ico name="luz" size={20} /></button>
+                )}
+                {fase === 'comparando' && <div className="scan-overlay">{t('comp.comparando')}</div>}
+              </div>
+              <p className="scan-hint">{t('comp.hint')}</p>
+              {itens.length === 0 ? (
+                <p className="comp-vazio">{t('comp.vazio')}</p>
+              ) : (
+                <div className="comp-tray">
+                  {itens.map((x) => (
+                    <button key={x.ean} type="button" className="comp-chip" title={t('comp.removerT')}
+                      onClick={() => setItens((xs) => xs.filter((y) => y.ean !== x.ean))}>
+                      {x.nome || `…${x.ean.slice(-6)}`} <span className="comp-x">×</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {aviso && <p className="comp-aviso">{aviso}</p>}
+              <div className="scan-manual">
+                <input inputMode="numeric" placeholder={t('comp.placeholderEan')} value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
+                <button type="button" disabled={manual.length < 8} onClick={() => { adicionar(manual); setManual(''); }}>{t('comp.add')}</button>
+              </div>
+              <button type="button" className="ident-go" onClick={comparar} disabled={itens.length < 2 || fase === 'comparando'}>
+                {fase === 'comparando' ? t('comp.comparando') : t('comp.comparar', { n: itens.length })}
+              </button>
             </>
           )}
         </div>
