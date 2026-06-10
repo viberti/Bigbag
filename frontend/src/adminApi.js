@@ -35,6 +35,8 @@ export const listarItens = (q, ordenar, todos) =>
 export const definirEanItem = (id, ean) => jsend(`/api/admin/itens/${id}/ean`, 'POST', { ean });
 export const atualizarItem = (id, dados) => jsend(`/api/admin/itens/${id}`, 'PATCH', dados);
 export const itensResumo = () => jget('/api/admin/itens-resumo');
+export const listarFichas = (q) => jget(`/api/admin/fichas${q ? '?q=' + encodeURIComponent(q) : ''}`);
+export const atualizarFicha = (ean, dados) => jsend(`/api/admin/fichas/${ean}`, 'PATCH', dados);
 export const uso = (dias) => jget(`/api/admin/uso${dias ? '?dias=' + dias : ''}`);
 export const capturas = (q) => jget(`/api/admin/capturas${q ? '?q=' + encodeURIComponent(q) : ''}`);
 export const mestres = () => jget('/api/admin/mestres');

@@ -170,6 +170,67 @@ adminRouter.get('/itens-resumo', async (req, res) => {
   }
 });
 
+// FICHAS de produto (por EAN): pesquisar e editar TODAS as características do
+// PRODUTO — nome, marca, tamanho, categoria, ingredientes, alergénios, nutrição.
+// É o nível certo para editar dados do produto (a aba Itens trata a linha do talão).
+adminRouter.get('/fichas', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const like = `%${q}%`;
+    const [fichas] = await getPool().query(
+      `SELECT pe.id, pe.ean, pe.nome, pe.marca, pe.quantidade, pe.categoria,
+              pe.ingredientes, pe.alergenios, pe.validade, CAST(pe.nutricao AS CHAR) AS nutricao, pe.fonte,
+              (SELECT COUNT(*) FROM item i WHERE i.ean = pe.ean) AS n_compras
+         FROM produto_ean pe
+        WHERE pe.ean IS NOT NULL AND pe.ean <> ''
+          AND (? = '' OR pe.ean LIKE ? OR pe.nome LIKE ? OR pe.marca LIKE ?)
+        ORDER BY pe.id DESC
+        LIMIT 300`,
+      [q, like, like, like],
+    );
+    res.json({ fichas });
+  } catch (e) {
+    console.error('[admin/fichas] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar fichas' });
+  }
+});
+
+// Edita os campos de uma ficha (por EAN). Texto vazio → NULL. A nutrição vem como
+// objeto {chave: valor} e FUNDE com a existente (vazio remove a chave).
+adminRouter.patch('/fichas/:ean', async (req, res) => {
+  try {
+    const ean = String(req.params.ean || '').replace(/\D/g, '');
+    if (!ean) return res.status(400).json({ erro: 'EAN inválido' });
+    const b = req.body || {};
+    const sets = [], vals = [];
+    for (const c of ['nome', 'marca', 'quantidade', 'categoria', 'ingredientes', 'alergenios', 'validade']) {
+      if (!(c in b)) continue;
+      sets.push(`${c} = ?`);
+      vals.push(String(b[c] ?? '').trim() || null);
+    }
+    if ('nutricao' in b && b.nutricao && typeof b.nutricao === 'object') {
+      const [[cur]] = await getPool().query('SELECT CAST(nutricao AS CHAR) AS n FROM produto_ean WHERE ean = ?', [ean]);
+      let nut = {};
+      try { nut = cur?.n ? JSON.parse(cur.n) : {}; } catch { nut = {}; }
+      for (const [k, v] of Object.entries(b.nutricao)) {
+        if (v === '' || v == null) { delete nut[k]; continue; }
+        const num = Number(String(v).replace(',', '.'));
+        if (Number.isFinite(num)) nut[k] = num;
+      }
+      sets.push('nutricao = ?');
+      vals.push(Object.keys(nut).length ? JSON.stringify(nut) : null);
+    }
+    if (!sets.length) return res.status(400).json({ erro: 'nada para atualizar' });
+    vals.push(ean);
+    const [r] = await getPool().query(`UPDATE produto_ean SET ${sets.join(', ')} WHERE ean = ?`, vals);
+    if (!r.affectedRows) return res.status(404).json({ erro: 'Ficha não encontrada' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/fichas PATCH] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a atualizar a ficha' });
+  }
+});
+
 // Mapa de USO: por funcionalidade (evento) → nº de usos, última vez, utilizadores.
 // Mostra o que é central e o que ninguém usa (candidato a remover). Janela opcional
 // em dias (?dias=30); sem janela = tudo.

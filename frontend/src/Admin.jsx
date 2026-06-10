@@ -53,6 +53,9 @@ export default function Admin() {
           <button className={aba === 'itens' ? 'on' : ''} onClick={() => setAba('itens')}>
             Itens
           </button>
+          <button className={aba === 'fichas' ? 'on' : ''} onClick={() => setAba('fichas')}>
+            Fichas
+          </button>
           <button className={aba === 'revisao' ? 'on' : ''} onClick={() => setAba('revisao')}>
             Revisão
           </button>
@@ -89,6 +92,8 @@ export default function Admin() {
         <TabEans />
       ) : aba === 'itens' ? (
         <TabItens onAbrirNota={abrirNota} />
+      ) : aba === 'fichas' ? (
+        <TabFichas />
       ) : aba === 'revisao' ? (
         <TabRevisao />
       ) : aba === 'qualidade' ? (
@@ -1068,6 +1073,125 @@ function TabUso() {
   );
 }
 
+// FICHAS de produto (por EAN): pesquisar e editar TODAS as características do
+// PRODUTO (nome/marca/tamanho/categoria/ingredientes/alergénios/nutrição) — o
+// nível certo para corrigir dados do produto; a aba Itens trata a linha do talão.
+const NUTRI_CAMPOS = [
+  ['energia_kcal', 'kcal'], ['gordura', 'gordura g'], ['gordura_saturada', 'saturada g'],
+  ['hidratos', 'hidratos g'], ['acucares', 'açúcares g'], ['fibra', 'fibra g'],
+  ['proteina', 'proteína g'], ['sal', 'sal g'],
+];
+function FichaRow({ f, onPatch }) {
+  const [edit, setEdit] = useState(false);
+  const [d, setD] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const nut = (() => { try { return f.nutricao ? JSON.parse(f.nutricao) : {}; } catch { return {}; } })();
+  function abrir() {
+    setD({
+      nome: f.nome || '', marca: f.marca || '', quantidade: f.quantidade || '', categoria: f.categoria || '',
+      validade: f.validade || '', ingredientes: f.ingredientes || '', alergenios: f.alergenios || '',
+      nutricao: Object.fromEntries(NUTRI_CAMPOS.map(([k]) => [k, nut[k] ?? ''])),
+    });
+    setEdit(true);
+  }
+  async function salvar() {
+    setSaving(true);
+    try {
+      await adm.atualizarFicha(f.ean, d);
+      const novaNut = { ...nut };
+      for (const [k, v] of Object.entries(d.nutricao)) {
+        if (v === '' || v == null) delete novaNut[k];
+        else { const num = Number(String(v).replace(',', '.')); if (Number.isFinite(num)) novaNut[k] = num; }
+      }
+      onPatch?.({ ...f, ...d, nutricao: JSON.stringify(novaNut) });
+      setEdit(false);
+    } catch (e) {
+      alert('Falha ao salvar: ' + (e.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
+  const set = (k) => (e) => setD((x) => ({ ...x, [k]: e.target.value }));
+  const setNut = (k) => (e) => setD((x) => ({ ...x, nutricao: { ...x.nutricao, [k]: e.target.value } }));
+  if (!edit) {
+    return (
+      <div className="adm-ficha">
+        <div className="adm-ficha-h">
+          <b>{f.nome || <em>sem nome</em>}</b>
+          {f.marca && <span className="adm-ficha-marca">{f.marca}</span>}
+          {f.quantidade && <span className="adm-ficha-tam">{f.quantidade}</span>}
+          <span className="adm-ficha-ean">{f.ean}</span>
+          <span className="adm-ficha-meta">{f.fonte || '—'} · {f.n_compras} compra(s)</span>
+          <button className="adm-link-min" onClick={abrir}>✎ editar</button>
+        </div>
+        {(f.categoria || f.alergenios) && (
+          <div className="adm-ficha-sub">{[f.categoria, f.alergenios && `alergénios: ${f.alergenios}`].filter(Boolean).join(' · ')}</div>
+        )}
+        {Object.keys(nut).length > 0 && (
+          <div className="adm-ficha-nut">
+            {NUTRI_CAMPOS.filter(([k]) => nut[k] != null).map(([k, lbl]) => `${lbl.replace(' g', '')} ${nut[k]}`).join(' · ')}
+          </div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="adm-ficha edit">
+      <div className="adm-ficha-grid">
+        <label>nome<input value={d.nome} onChange={set('nome')} /></label>
+        <label>marca<input value={d.marca} onChange={set('marca')} /></label>
+        <label>tamanho<input value={d.quantidade} onChange={set('quantidade')} placeholder="ex.: 300 g" /></label>
+        <label>categoria<input value={d.categoria} onChange={set('categoria')} /></label>
+        <label>validade<input value={d.validade} onChange={set('validade')} placeholder="AAAA-MM-DD" /></label>
+        <label>alergénios<input value={d.alergenios} onChange={set('alergenios')} /></label>
+      </div>
+      <label className="adm-ficha-full">ingredientes<textarea rows={2} value={d.ingredientes} onChange={set('ingredientes')} /></label>
+      <div className="adm-ficha-nutgrid">
+        {NUTRI_CAMPOS.map(([k, lbl]) => (
+          <label key={k}>{lbl}<input inputMode="decimal" value={d.nutricao[k]} onChange={setNut(k)} /></label>
+        ))}
+      </div>
+      <div className="adm-ficha-acoes">
+        <button className="adm-ean-ok" onClick={salvar} disabled={saving}>{saving ? '…' : '✓ salvar'}</button>
+        <button className="adm-link-min" onClick={() => setEdit(false)}>cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function TabFichas() {
+  const [q, setQ] = useState('');
+  const [busca, setBusca] = useState('');
+  const [dados, setDados] = useState(null);
+  useEffect(() => {
+    setDados(null);
+    adm.listarFichas(busca).then((d) => setDados(d.fichas || [])).catch(() => setDados([]));
+  }, [busca]);
+  return (
+    <div className="adm-itens">
+      <div className="adm-sug-top">
+        <input className="adm-it-busca" placeholder="procurar por EAN, nome ou marca…" value={q}
+          onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setBusca(q.trim()); }} />
+        <button onClick={() => setBusca(q.trim())}>procurar</button>
+        {busca && <button onClick={() => { setQ(''); setBusca(''); }}>limpar</button>}
+        <span className="adm-sug-dica">a FICHA do produto (por EAN) — o nível certo para corrigir nome/marca/tamanho/nutrição</span>
+      </div>
+      {dados === null ? (
+        <p className="adm-vazio">a carregar…</p>
+      ) : dados.length === 0 ? (
+        <p className="adm-vazio">Nenhuma ficha.</p>
+      ) : (
+        <div className="adm-fichas">
+          <p className="adm-sug-dica">{dados.length} ficha(s){dados.length >= 300 ? ' · limite 300 — refina a busca' : ''}</p>
+          {dados.map((f) => (
+            <FichaRow key={f.ean} f={f} onPatch={(nova) => setDados((ds) => ds.map((x) => (x.ean === f.ean ? nova : x)))} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Editor inline do EAN de um item: escrever/colar o código → ✓ grava (valida o
 // dígito verificador no servidor e enriquece a ficha por Open Food Facts/catálogo).
 // Vazio → limpa o EAN. Mostra o nome do produto encontrado como confirmação.
@@ -1140,7 +1264,7 @@ function ItemRow({ it, onAbrirNota, onPatch }) {
   async function salvar() {
     setSaving(true);
     try {
-      const campos = ['descricao_original', 'marca', 'quantidade', 'preco_unitario', 'preco_liquido', 'preco_por_base', 'taxa_iva', 'desconto_direto', 'is_clearance', 'is_non_product', 'peso_em_falta', 'ppb_inferido'];
+      const campos = ['descricao_original', 'quantidade', 'preco_unitario', 'preco_liquido', 'preco_por_base', 'taxa_iva', 'desconto_direto', 'is_clearance', 'is_non_product', 'peso_em_falta', 'ppb_inferido'];
       const body = {};
       for (const c of campos) body[c] = d[c];
       await adm.atualizarItem(it.id, body);
@@ -1166,7 +1290,7 @@ function ItemRow({ it, onAbrirNota, onPatch }) {
         <td>{it.unidade_base || '—'}</td>
         <td className="adm-it-peso">{it.linha_peso || '—'}</td>
         <td className="adm-it-ean"><EanEdit item={it} onSaved={(ean) => onPatch?.({ ...it, ean })} /></td>
-        <td><input className="adm-it-inp adm-it-inp-marca" value={d.marca ?? ''} onChange={set('marca')} placeholder="marca" /></td>
+        <td className="adm-it-peso">{it.marca || '—'}</td>
         <td><input className="adm-it-inp num" value={d.taxa_iva ?? ''} onChange={set('taxa_iva')} placeholder="0.06" /></td>
         <td><input className="adm-it-inp num" value={d.desconto_direto ?? ''} onChange={set('desconto_direto')} /></td>
         <td>{it.nome_canonico || <em className="adm-it-semsku">sem SKU</em>}</td>
