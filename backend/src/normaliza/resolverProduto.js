@@ -263,7 +263,7 @@ async function catalogoEmMemoria(pool) {
   return _catMem;
 }
 
-const FONTE_POR_CADEIA = { 'continente': 'continente', 'pingo doce': 'pingodoce', 'auchan': 'auchan', 'lidl': 'lidl' };
+const FONTE_POR_CADEIA = { 'continente': 'continente', 'pingo doce': 'pingodoce', 'auchan': 'auchan', 'lidl': 'lidl-fr', 'mercadona': 'mercadona' };
 
 // Cobertura ponderada (raridade × posição) com PREFIXO. Exportada p/ testes.
 export function pontuarBusca(q, candToks, idf) {
