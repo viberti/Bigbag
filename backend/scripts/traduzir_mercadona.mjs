@@ -26,7 +26,7 @@ const LEX = {
   patatas: 'batatas', patata: 'batata', cebolla: 'cebola', cebollas: 'cebolas', ajo: 'alho',
   manzana: 'maçã', manzanas: 'maçãs', plátano: 'banana', plátanos: 'bananas', naranja: 'laranja', naranjas: 'laranjas',
   fresa: 'morango', fresas: 'morangos', limón: 'limão', melocotón: 'pêssego', sandía: 'melancia', melón: 'melão',
-  girasol: 'girassol', mantequilla: 'manteiga',
+  girasol: 'girassol', mantequilla: 'manteiga', perejil: 'salsa', rallado: 'ralado', rallada: 'ralada',
   piña: 'ananás', helado: 'gelado', helados: 'gelados', refresco: 'refrigerante', refrescos: 'refrigerantes',
   infusión: 'infusão', mermelada: 'compota', miel: 'mel', aceitunas: 'azeitonas', aceituna: 'azeitona',
   garbanzos: 'grão', lentejas: 'lentilhas', judías: 'feijão', alubias: 'feijão', guisantes: 'ervilhas', maíz: 'milho',
