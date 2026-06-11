@@ -35,6 +35,7 @@ que a liga*.
 | **`match_ean_sugestao`** | 58 (17 aprovadas, 14 rejeitadas) | **pares rotulados** talão↔catálogo validados pelo operador | usado só como fila — **material de treino desperdiçado** |
 | **`nome_sugestao`** | 33 (32 aplicadas) | nomes canónicos validados | ✓ |
 | Paradas | Google CSE (403) · Brave (planeado) · scrape Continente (19k/98k) | nome→EAN; catálogo completo | bloqueadas/pausadas |
+| **Makro — SEM caminho limpo** (investigado 2026-06-11) | catálogo `produtos.makro.pt` é SPA vazia (3 KB); sitemap oficial só lista categorias (~840, zero produtos); endpoints de dados `/backend/*` **proibidos no robots.txt** (e 403 anti-bot no www a UA de bot) | seria nome/EAN/preço do cash&carry | **não scrapear** (violaria o princípio robots-compliant). Pouca falta faz: o talão Makro já imprime o EAN; medido: 9 EANs distintos, 6 c/ ficha, 3 nos catálogos — o gap (~3, não-food/marca Metro) resolve-se por foto ou busca web (fase C) |
 
 Cobertura: 463 descrições → 134 batem verbatim em `produto_nome`; worklist "por
 identificar" = **203 descrições sem EAN**. O buraco é o **Pingo Doce** (112 descrições,
