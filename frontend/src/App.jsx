@@ -186,6 +186,7 @@ function Chat({ onSair, nome }) {
   // Sincroniza por polling curto enquanto a folha está aberta; alterações são
   // otimistas; adicionar OFFLINE vai para uma fila (localStorage) e segue depois.
   const [lista, setLista] = useState(null); // null = a carregar
+  const listaIdsRef = useRef(null); // ids conhecidos (p/ avisar de adições de OUTRO membro)
   const [listaLojas, setListaLojas] = useState([]);
   const [mercadoSel, setMercadoSel] = useState(''); // '' = todas as lojas
   const [listaOffline, setListaOffline] = useState(false);
@@ -442,14 +443,25 @@ function Chat({ onSair, nome }) {
     } catch { /* sem rede → fica para a próxima */ }
     try {
       const d = await obterLista(mercado);
-      setLista(d.itens || []);
+      const novos = d.itens || [];
+      // Ponto 2: alguém (a Sue) adicionou itens enquanto estou na loja → aviso.
+      // Compara com os ids já conhecidos; só os de OUTRO membro e fora da 1.ª carga.
+      const conhecidos = listaIdsRef.current;
+      if (conhecidos) {
+        const adicionados = novos.filter((it) => !conhecidos.has(it.id) && String(it.adicionado_por || '').toLowerCase() !== eu);
+        if (adicionados.length) {
+          mostrarToast(t('lista.atualizada', { n: adicionados.length, nomes: adicionados.map((x) => x.nome).join(', ') }));
+        }
+      }
+      listaIdsRef.current = new Set(novos.map((it) => it.id));
+      setLista(novos);
       setListaLojas(d.lojas || []);
       setListaOffline(false);
     } catch {
       setListaOffline(true);
       setLista((x) => x ?? []);
     }
-  }, [mercadoSel]);
+  }, [mercadoSel, eu]);
 
   // polling enquanto a folha está aberta (a "sincronização em tempo real" p/ 2 pessoas)
   useEffect(() => {
@@ -3279,18 +3291,31 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
           <div className="cart-empty">{t('chat.thinking')}</div>
         ) : lista.length === 0 ? (
           <div className="cart-empty">{t('cart.empty')}</div>
-        ) : (
-          <div className="cart-list">
-            {agruparPorSecao(lista).map(([sec, grupo]) => (
-              <div key={sec}>
-                <div className="cart-cat">{sec}</div>
-                {grupo.map((it) => (
-                  <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} />
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
+        ) : (() => {
+          // ATIVOS agrupados por categoria (grupo do servidor) sobem ao topo; os
+          // "no carrinho" descem para uma secção própria no fim (ícone de carrinho).
+          const { secoes, noCarrinho } = organizarCarrinho(lista);
+          return (
+            <div className="cart-list">
+              {secoes.map(({ g, itens: its }) => (
+                <div key={g.id}>
+                  <div className="cart-cat"><span className="cart-cat-ic">{g.ic}</span> {g.label}</div>
+                  {its.map((it) => (
+                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} />
+                  ))}
+                </div>
+              ))}
+              {noCarrinho.length > 0 && (
+                <div className="cart-feito">
+                  <div className="cart-cat cart-cat-feito"><Ico name="cart" size={15} /> <span>{noCarrinho.length}</span></div>
+                  {noCarrinho.map((it) => (
+                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
         <div className="cart-add">
           <button type="button" className="voz" onClick={onAbrirHabituais} aria-label={t('habituais.title')} title={t('habituais.title')}>
             <Ico name="usual" size={18} />
@@ -3348,17 +3373,19 @@ function secaoDe(cat) {
   return cat ? 'Mercearia' : 'Outros';
 }
 
-function agruparPorSecao(itens) {
-  const grupos = {};
+// Organiza a lista para a folha: ATIVOS por grupo (categoria do servidor B1; cai
+// para o keyword local se faltar), ordenados; "no carrinho" à parte (descem ao fim).
+function organizarCarrinho(itens) {
+  const porGrupo = new Map();
   for (const it of itens) {
-    const s = secaoDe(it.categoria);
-    (grupos[s] = grupos[s] || []).push(it);
+    if (it.estado === 'carrinho') continue;
+    const g = (it.grupo && GRUPOS_CAT.find((x) => x.id === it.grupo)) || grupoProduto(it.categoria, it.nome);
+    if (!porGrupo.has(g.id)) porGrupo.set(g.id, { g, itens: [] });
+    porGrupo.get(g.id).itens.push(it);
   }
-  const ord = (s) => {
-    const i = ORDEM_SECAO.indexOf(s);
-    return i < 0 ? 99 : i;
-  };
-  return Object.entries(grupos).sort((a, b) => ord(a[0]) - ord(b[0]) || a[0].localeCompare(b[0]));
+  const ordem = (id) => { const i = GRUPOS_CAT.findIndex((x) => x.id === id); return i < 0 ? 99 : i; };
+  const secoes = [...porGrupo.values()].sort((a, b) => ordem(a.g.id) - ordem(b.g.id));
+  return { secoes, noCarrinho: itens.filter((i) => i.estado === 'carrinho') };
 }
 
 // Captura guiada ao vivo: câmara traseira + moldura de alinhamento.

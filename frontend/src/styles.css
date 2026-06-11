@@ -1297,6 +1297,11 @@ body { background: #0c1814; }
 .bb .cart-list { overflow-y: auto; flex: 1; min-height: 0; }
 .bb .cart-cat { position: sticky; top: 0; background: #18261f; z-index: 1; padding: 14px 18px 7px;
   font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.bb .cart-cat-ic { font-size: 13px; }
+/* secção "no carrinho" (pontos 1): desce ao fim, separada, com ícone de carrinho */
+.bb .cart-feito { margin-top: 14px; border-top: 1px dashed var(--borda); opacity: .82; }
+.bb .cart-cat-feito { display: flex; align-items: center; gap: 6px; color: var(--muted); background: transparent; }
+.bb .cart-cat-feito span { font-size: 12px; }
 .bb .crow-li { position: relative; overflow: hidden; }
 .bb .crow-bg { position: absolute; inset: 0; display: flex; align-items: center; padding-left: 22px; color: #fff; background: #7a2e2e; }
 .bb .crow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 18px;
