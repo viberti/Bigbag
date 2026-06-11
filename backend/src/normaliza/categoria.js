@@ -49,13 +49,16 @@ export function grupoDeTexto(texto) {
 }
 
 // Grupo de um SKU a partir das fontes disponíveis, por força decrescente:
-// food_groups do OFF (autoritativo) → categoria (texto) → nome do produto.
+// food_groups do OFF (autoritativo) → NOME → categoria (texto). O nome do produto
+// é mais fiável que a categoria de LOJA, que mistura prateleiras: "Charcutaria e
+// Queijos" casava 'charcutaria'→carne ANTES de 'queijo'→lacticínios, e punha os
+// queijos na carne. O nome ("Queijo Grana Padano") desambigua; a categoria é a rede.
 export function grupoDe({ foodGroups = null, categoria = null, nome = null } = {}) {
   for (const fg of Array.isArray(foodGroups) ? foodGroups : []) {
     const slug = String(fg).replace(/^en:/, '');
     if (FOOD_GROUPS[slug]) return FOOD_GROUPS[slug];
   }
-  const porCat = grupoDeTexto(categoria);
-  if (porCat !== GRUPO_OUTROS) return porCat;
-  return grupoDeTexto(nome);
+  const porNome = grupoDeTexto(nome);
+  if (porNome !== GRUPO_OUTROS) return porNome;
+  return grupoDeTexto(categoria);
 }

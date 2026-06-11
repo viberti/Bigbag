@@ -155,6 +155,7 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   if (skuId) {
     const [[g]] = await getPool().query('SELECT tipo, alimento, categoria, nutricao FROM produto_generico WHERE sku_id = ?', [skuId]);
     if (g) generico = { tipo: g.tipo, alimento: g.alimento, categoria: g.categoria, nutricao_100g: parseJson(g.nutricao) };
+    if (!nome) { const [[s]] = await getPool().query('SELECT nome_canonico FROM sku_normalizado WHERE id = ?', [skuId]); nome = s?.nome_canonico || null; }
   }
 
   const temGenericoNut = !!generico?.nutricao_100g;
