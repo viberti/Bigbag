@@ -3485,15 +3485,9 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
           </button>
         </div>
         {offline && <p className="sheet-offline">{t('cart.offline')}</p>}
-        {(lojas?.length || 0) > 1 && (
-          <div className="cart-mercados">
-            <span className="cm-k">{t('cart.comprarEm')}</span>
-            <button type="button" className={!mercado ? 'on' : ''} onClick={() => onMercado('')}>{t('cart.mercTodas')}</button>
-            {lojas.map((l) => (
-              <button key={l} type="button" className={mercado === l ? 'on' : ''} onClick={() => onMercado(l)}>{l}</button>
-            ))}
-          </div>
-        )}
+        {/* Seletor "comprar em:" (preço por mercado) REMOVIDO da UI 2026-06-11 —
+            ainda sem dados suficientes para ser útil; o backend (?mercado=) fica
+            intacto para quando voltar (decisão do dono). */}
         {itens === null ? (
           <div className="cart-empty">{t('chat.thinking')}</div>
         ) : lista.length === 0 ? (
