@@ -27,6 +27,13 @@ de Portugal, porque isola o valor e remove a parte frágil (entity resolution).
   (preço único nacional). O scrape inicial usou o default (≈ Madrid); o scraper
   aceita agora `WH=mad1,bcn1,…` e **une** os sortidos (incremental via `SO_NOVOS`).
   Referências externas: `m0wer/mercaapi` (nutrição+histórico), `josantonius/php-mercadona-importer`.
+- **Portugal NÃO existe na API (testado 2026-06-11):** o `wh` não é validado —
+  código desconhecido cai silenciosamente no default (controlo-lixo `zzz9` ≡ `bra1`/
+  `opo1`/`lis1`, 0 diferenças; `bcn1` difere de verdade). Os warehouses servem o
+  e-commerce ES (colmenas); as lojas físicas PT não têm representação. `lang=pt` é
+  fallback para ES (`lang=ca` e `lang=en` funcionam de verdade — não há PT oficial;
+  o léxico ES→PT `nome_pt` mantém-se). **Preços Mercadona PT só via talões reais**
+  (IVA ES 4/10/21 ≠ PT 6/13/23 — nem podiam coincidir).
 - Nutrição: **não vem na API**, mas EAN→OFF preenche (Hacendado tem 815+ no OFF).
 
 ## Porque o problema difícil colapsa
