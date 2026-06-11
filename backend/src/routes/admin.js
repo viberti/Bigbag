@@ -145,6 +145,7 @@ adminRouter.get('/itens-resumo', async (req, res) => {
     const [[pend]] = await pool.query(
       `SELECT COUNT(*) AS n FROM (
          SELECT 1 FROM item i
+           LEFT JOIN sku_normalizado s ON s.id = i.sku_id
            LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
            JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
           WHERE ${POR_IDENTIFICAR_SQL}
