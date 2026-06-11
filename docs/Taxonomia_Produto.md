@@ -345,7 +345,7 @@ O modelo de hoje (`Normalizacao.md`) **achata** este desenho: um `nome_canonico`
 | 1 | **Não fundir marcas — ligar a Produto Mestre** (§4.1); marca-desconhecida isolada | 🔥 alto | 🟢 baixo | **Fase 1** |
 | 2 | **Unidade pela categoria** (§4.2), não pelo formato (bug do kefir) | 🟡 médio | 🟢 baixo | **Fase 1** |
 | 3 | **Coorte + defaults na consulta** (§5.1) | 🔥 alto | 🟡 médio | **Fase 1–2** |
-| 4 | **Facetas como campos** (estilo, sabor, teor, forma) | 🟡 médio | 🟡 médio | Fase 2 |
+| 4 | ~~**Facetas como campos** (estilo, sabor, teor, forma)~~ **FEITO (2026-06-11, migração 043):** os 10 slots da chave do Mestre são COLUNAS consultáveis (`facetasDaChave` = split puro, sem LLM; backfill instantâneo dos 228 Mestres). A consulta usa-as (`facetasSkuIds` em queries.js): "iogurte **magro**" casa o "…Natural **Ligeiro**" pela coluna `teor=magro` — impossível pelo nome. Resolve a crítica "string ≠ taxonomia" pela via facetada (não árvore): os níveis são projeções das colunas. | 🟡 médio | 🟡 médio | Fase 2 |
 | 5 | **gama em batches** (§10) + **Nutri-Score** (OFF) | 🟡 médio | 🟢 baixo | Fase 2 |
 | 6 | **EAN (scan) → OFF** (natureza B) | 🚀 extremo (longo prazo) | 🔴 alto | **só depois da captura de EAN** |
 

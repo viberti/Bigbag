@@ -57,7 +57,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 
 **Consulta:** 11 funções + tool use (`POST /api/consulta` texto, `POST /api/voz`), modelo `gemini-2.5-flash`.
 
-**Infra FECHADA:** `https://bigbag.hal9klabs.com` (Apache+Let's Encrypt), `bigbag-backend.service` (systemd, porta 4200). BD `app_bigbag`, **migrações até 042** (013-032 base; 033 nutricao_confirmada; 034 lista_compras; 035 conteúdo da embalagem; 036 marca_origem; 037 verificacao_nome; 038 off_produto; 039 chave larga em produto_analise; 040 catalogo nome_pt; 041 sku.grupo; 042 fatura nif_comprador+forma_pagamento). Migrações novas: aplicar com `mysql … < ficheiro` no servidor.
+**Infra FECHADA:** `https://bigbag.hal9klabs.com` (Apache+Let's Encrypt), `bigbag-backend.service` (systemd, porta 4200). BD `app_bigbag`, **migrações até 042** (013-032 base; 033 nutricao_confirmada; 034 lista_compras; 035 conteúdo da embalagem; 036 marca_origem; 037 verificacao_nome; 038 off_produto; 039 chave larga em produto_analise; 040 catalogo nome_pt; 041 sku.grupo; 042 fatura nif_comprador+forma_pagamento; 043 facetas do Mestre como colunas). Migrações novas: aplicar com `mysql … < ficheiro` no servidor.
 
 **O que está construído (detalhe nos docs-fonte):**
 - **Eixo saúde** — identificação por EAN (scan/foto/linha do talão) + OFF; ficha factual não-clínica; frescos por nome (`produto_generico`); perfil por membro com alertas determinísticos de alergia; comparar produtos na prateleira. Modelo de **3 níveis de nome** (nota → produto real por EAN → nome canónico sem marca). Ver `Visao_Conselheiro`.
