@@ -258,7 +258,7 @@ async function catalogoEmMemoria(pool) {
   // nome_pt: tradução PT do nome (catálogos em ES, ex.: Mercadona) — tokeniza-se
   // o PT quando existe, para o talão português casar na PRÓPRIA cadeia em vez de
   // perder para um catálogo PT. O `nome` exibido também passa a ser o PT.
-  const [rows] = await pool.query("SELECT nome, nome_pt, marca, categoria_path, ean, fonte FROM catalogo_produto WHERE nome IS NOT NULL AND nome <> ''");
+  const [rows] = await pool.query("SELECT nome, nome_pt, marca, categoria_path, ean, fonte, formato, formato_valor, unidade_base, preco_por_base FROM catalogo_produto WHERE nome IS NOT NULL AND nome <> ''");
   _catMem = rows.map((r) => ({ ...r, nome: r.nome_pt || r.nome, t: toksB(`${r.nome_pt || r.nome} ${r.marca || ''}`) }));
   return _catMem;
 }
@@ -288,6 +288,16 @@ function formatoBusca(a, b) {
   if (!temFormatoExplicito(a) || !temFormatoExplicito(b)) return null;
   return formatoCompativel(a, b);
 }
+// Compara o formato do talão (já parseado) com o formato ESTRUTURADO do candidato
+// (colunas do catálogo). Crucial onde o tamanho NÃO está no nome — ex.: Mercadona
+// tem "Lixívia Tradicional" 2L e 5L com o MESMO nome (o tamanho vem à parte). Sem
+// isto, o matcher escolhia o errado. null = um dos lados não declara → não decide.
+function formatoEstrut(fmtQ, fv, ub) {
+  if (!fmtQ || fmtQ.formato_valor == null || fv == null || !ub) return null;
+  if (fmtQ.unidade_base !== ub) return false;
+  const r = Number(fmtQ.formato_valor) / Number(fv);
+  return r > 0.8 && r < 1.25;
+}
 
 // Devolve o melhor candidato { nome, marca, categoria_path, ean?, fonte, score,
 // margem } ou null. `cadeia` dá prior à fonte da mesma loja (marca-própria).
@@ -299,6 +309,7 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } =
   const desc = expandirAbreviaturas(descricao);
   const q = toksB(desc);
   if (!q.length) return null;
+  const fmtQ = extrairFormato(descricao); // formato lido do talão (p/ desempate de tamanho)
   const fontePref = FONTE_POR_CADEIA[norm(cadeia || '')] || null;
   let top = null, segundo = 0;
   for (const r of cat) {
@@ -308,7 +319,10 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } =
     // abrevia ("NAT") e não dá para expandir deterministicamente; a margem e o
     // LLM (que recebe a pista com instrução de a rejeitar se não encaixar) decidem.
     if (compararFacetas(desc, r.nome) === 'conflito') continue;
-    const fc = formatoBusca(descricao, r.nome);
+    // formato: preferir o ESTRUTURADO do candidato (tamanho à parte do nome, ex.:
+    // Mercadona 2L vs 5L com o MESMO nome); senão, parsear o nome (Auchan/Continente).
+    let fc = formatoEstrut(fmtQ, r.formato_valor, r.unidade_base);
+    if (fc === null) fc = formatoBusca(descricao, r.nome);
     if (fc === true) s += 0.08; else if (fc === false) s -= 0.3; // formato desempata
     if (fontePref && r.fonte === fontePref) s += 0.12; // prior da mesma cadeia
     if (!top) { top = { r, s }; continue; }
@@ -320,7 +334,7 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } =
   if (!top || top.s < limiar) return null;
   return {
     nome: top.r.nome, marca: top.r.marca || null, categoria_path: top.r.categoria_path || null,
-    ean: top.r.ean || null, fonte: top.r.fonte,
+    ean: top.r.ean || null, fonte: top.r.fonte, formato: top.r.formato || null, preco_por_base: top.r.preco_por_base ?? null,
     score: Math.round(Math.min(1, top.s) * 100) / 100, margem: Math.round((top.s - segundo) * 100) / 100,
   };
 }

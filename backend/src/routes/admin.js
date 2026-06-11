@@ -550,7 +550,7 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
         // apanha. Confiança limitada a média — o operador é o juiz na mesma.
         if (!prop) {
           const b = await buscarCatalogo(pool, it.d, { cadeia: it.cadeia, limiar: 0.55 });
-          if (b?.ean) prop = { ean: b.ean, nome: b.nome, marca: b.marca, fonte: b.fonte, formato: null, preco: null, confianca: Math.min(0.7, b.score), alternativas: [] };
+          if (b?.ean) prop = { ean: b.ean, nome: b.nome, marca: b.marca, fonte: b.fonte, formato: b.formato, preco: b.preco_por_base, confianca: Math.min(0.7, b.score), alternativas: [] };
         }
       } else {
         // Outras cadeias: porta de marca (cross-cadeia só com marca nacional explícita).
