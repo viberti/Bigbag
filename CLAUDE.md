@@ -46,7 +46,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor.
 - Quando fechares uma "decisão em aberto", regista a escolha e o porquê no `Conceito`.
 
-## Estado atual (2026-06-11 · app v0.0.107.0 — fase BETA)
+## Estado atual (2026-06-11 · app v0.0.110.2 — fase BETA)
 
 **Três superfícies** (routing por path em `frontend/src/main.jsx`):
 - **App de chat (`/`)** — PWA do utilizador: envia notas (📷 câmara **inteligente**: barras → consulta produto; senão → talão), faz perguntas, **carrinho/lista partilhada**, scanner de barras, despensa, gastos, "por identificar", perfil nutricional. Abrir produto → **ficha factual** (Nutri-Score/NOVA/réguas UE/parecer) + **avaliação personalizada** se houver perfil ativo. **Base LOCAL no telefone** (IndexedDB) → scan instantâneo/offline; cresce com o uso.
