@@ -229,7 +229,9 @@ async function sugestoesCadencia(pool) {
     if (mediana < 2 || mediana > 90) continue; // cadência sem significado
     const diasDesde = (hoje - ds[ds.length - 1]) / 86400000;
     const urgencia = diasDesde / mediana;
-    if (urgencia >= 0.85) cands.push({ sku_id: r.id, nome: r.nome, dias: Math.round(diasDesde), intervalo: Math.round(mediana), urgencia });
+    // janela 0.85–3×: abaixo ainda não falta; ACIMA de 3× o sinal inverte-se —
+    // não é "esqueceu 4 vezes", é HÁBITO ABANDONADO (pão 205d/ritmo 36d ≠ falta).
+    if (urgencia >= 0.85 && urgencia <= 3) cands.push({ sku_id: r.id, nome: r.nome, dias: Math.round(diasDesde), intervalo: Math.round(mediana), urgencia });
   }
   cands.sort((a, b) => b.urgencia - a.urgencia);
   const top = cands.slice(0, 12);
