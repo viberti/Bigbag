@@ -17,7 +17,7 @@ import { autoCorrigirOutliers } from '../normaliza/autoCorrige.js';
 import { marcaCompativel, precoPlausivel } from '../normaliza/validadores.js';
 import { ln } from '../normaliza/mestre.js';
 import { sugerirNomeCanonico, eanValido } from '../ingest/produto.js';
-import { candidatosCatalogo, proporMesmaLoja } from '../normaliza/resolverProduto.js';
+import { candidatosCatalogo, proporMesmaLoja, buscarCatalogo } from '../normaliza/resolverProduto.js';
 import { consultarOuGuardar } from './produto.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { tituloProduto } from '../normaliza/titulo.js';
@@ -540,6 +540,13 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
         prop = await proporMesmaLoja(pool, {
           descricao: it.canon || it.d, descricaoRaw: it.d, marca: it.marca, preco: it.preco, preco_por_base: it.ppb,
         }, fonteCasa);
+        // FALLBACK: o motor A2 (prefixo + abreviaturas + IDF) atravessa os nomes
+        // FR/ES do lidl-fr/mercadona, que o token-exato sobre o canónico PT não
+        // apanha. Confiança limitada a média — o operador é o juiz na mesma.
+        if (!prop) {
+          const b = await buscarCatalogo(pool, it.d, { cadeia: it.cadeia, limiar: 0.55 });
+          if (b?.ean) prop = { ean: b.ean, nome: b.nome, marca: b.marca, fonte: b.fonte, formato: null, preco: null, confianca: Math.min(0.7, b.score), alternativas: [] };
+        }
       } else {
         // Outras cadeias: porta de marca (cross-cadeia só com marca nacional explícita).
         const cand = await candidatosCatalogo(pool, { descricao: it.canon || it.d, marca: it.marca, preco_por_base: it.ppb });
