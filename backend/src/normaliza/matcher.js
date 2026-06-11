@@ -17,6 +17,7 @@ import { limparDescricao } from './mestre.js';
 import { buscarCatalogo } from './resolverProduto.js';
 import { marcaDeterministica } from './marca.js';
 import { compararFacetas } from './facetas.js';
+import { grupoDe } from './categoria.js';
 
 const formatoProximo = (a, b) => {
   if (a == null || b == null) return a == null && b == null;
@@ -133,8 +134,9 @@ export async function resolverSku(
 
   if (!sku_id) {
     const [r] = await db.query(
-      'INSERT INTO sku_normalizado (nome_canonico, marca, marca_origem, categoria, unidade_base, formato_valor) VALUES (?,?,?,?,?,?)',
-      [c.nome_canonico, c.marca, c.marca ? (marcaDet?.origem || 'llm') : null, c.categoria, unidade_base, formato_valor],
+      'INSERT INTO sku_normalizado (nome_canonico, marca, marca_origem, categoria, grupo, unidade_base, formato_valor) VALUES (?,?,?,?,?,?,?)',
+      [c.nome_canonico, c.marca, c.marca ? (marcaDet?.origem || 'llm') : null, c.categoria,
+        grupoDe({ categoria: c.categoria, nome: c.nome_canonico }), unidade_base, formato_valor],
     );
     sku_id = r.insertId;
     via = 'novo';

@@ -329,6 +329,7 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
     const [itens] = await getPool().query(
       `SELECT i.id, i.sku_id, COALESCE(s.nome_canonico, i.descricao_original) AS produto,
               i.quantidade, i.preco_liquido AS preco, s.unidade_base, i.preco_por_base,
+              s.grupo,
               COALESCE(i.ean, ident.ean) AS ean,
               ident.marca AS marca,
               pg.tipo AS tipo_alimento,

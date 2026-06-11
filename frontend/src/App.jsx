@@ -1421,7 +1421,10 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
           (() => {
             const grupos = new Map();
             for (const it of itensAgg) {
-              const g = grupoProduto(it.categoria, it.produto);
+              // grupo do SERVIDOR (categoria fechada por SKU, B1) quando existe e
+              // é específico; "outros"/ausente → fallback local por keywords (que
+              // ainda vê a categoria da ficha ao nível do item).
+              const g = (it.grupo && it.grupo !== 'outros' && GRUPOS_CAT.find((x) => x.id === it.grupo)) || grupoProduto(it.categoria, it.produto);
               if (!grupos.has(g.id)) grupos.set(g.id, { g, lista: [] });
               grupos.get(g.id).lista.push(it);
             }
