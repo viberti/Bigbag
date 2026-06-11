@@ -216,6 +216,13 @@ export async function infoProduto({ itemId, ean, skuId }) {
   return r.json(); // { ean, vlm, off, fonte, fotos, existe }
 }
 
+export async function alternativasProduto({ itemId, ean, skuId }) {
+  const qs = itemId ? `item_id=${itemId}` : skuId ? `sku_id=${skuId}` : `ean=${encodeURIComponent(ean)}`;
+  const r = await call(`/api/produto/alternativas?${qs}`);
+  if (!r.ok) throw new Error(`alternativas ${r.status}`);
+  return r.json(); // { grupo, produto:{nome,nutricao}, alternativas:[...] }
+}
+
 export async function analiseProduto({ itemId, ean, skuId, forcar }) {
   const qs = new URLSearchParams();
   if (itemId) qs.set('item_id', itemId);

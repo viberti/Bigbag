@@ -70,6 +70,8 @@ const STRINGS = {
     'cart.offline': 'Sem conexão — as alterações entram quando a rede voltar.',
     'lista.reconciliada': '🛒 Saíram da lista (comprados): {nomes}. {n|item fica|itens ficam} para a próxima.',
     'lista.atualizada': '🔔 Lista atualizada — {n|novo item|novos itens}: {nomes}',
+    'alt.titulo': 'Alternativas similares',
+    'alt.nota': 'Mesma categoria · nutrição por 100 g comparada com este produto',
     'plista.title': 'Minha lista',
     'plista.vazia': 'Sua lista pessoal está vazia. Adicione abaixo os itens que só você consome.',
     'plista.addPh': 'Adicionar à minha lista…',

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -2558,8 +2558,15 @@ function ProdutoInfoSheet({ item, onFechar, onFotografar }) {
   const [info, setInfo] = useState(null); // null = a carregar
   const [analise, setAnalise] = useState(null); // null = a carregar · {erro} em falha
   const [aval, setAval] = useState(null); // avaliação personalizada (perfil ativo)
+  const [alt, setAlt] = useState(null); // alternativas similares (mesmo grupo)
   useEffect(() => {
     if (!item) return;
+    setAlt(null);
+    if (item.id || item.ean || item.sku_id) {
+      alternativasProduto({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
+        .then((r) => setAlt(r?.alternativas?.length ? r : null))
+        .catch(() => setAlt(null));
+    }
     // SEED da base local: mostra já o que temos no telefone (instantâneo/offline);
     // a rede enriquece por trás e, se falhar, o local fica (não vira "erro").
     const seed = item.local ? infoDeLocal(item.local, item.ean) : null;
@@ -2660,6 +2667,7 @@ function ProdutoInfoSheet({ item, onFechar, onFotografar }) {
                 </button>
               )}
               <AnaliseProduto a={analise} n={info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g} temPerfil={!!aval} nutProvisoria={!!info.nutricao_provisoria} />
+              {alt && <AlternativasProduto dados={alt} />}
               {info.fotos?.length > 0 && (
                 <details className="fx">
                   <summary>{t('ficha.fotos')} · {info.fotos.length}</summary>
@@ -2679,6 +2687,54 @@ function ProdutoInfoSheet({ item, onFechar, onFotografar }) {
         </div>
       </section>
     </>
+  );
+}
+
+// ALTERNATIVAS similares (mesmo grupo): mostra cada uma com a nutrição-chave
+// comparada com a do produto da ficha (↑/↓ vs o atual) + preço do histórico.
+// Determinístico (sem LLM); o parecer personalizado fica para um passo seguinte.
+function AlternativasProduto({ dados }) {
+  const base = dados.produto?.nutricao || {};
+  const eur = (v) => '€' + (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
+  // seta de comparação: para proteína/fibra ↑ é melhor; gordura sat/açúcares/sal ↓ é melhor
+  const delta = (val, ref, menorMelhor) => {
+    if (val == null || ref == null) return null;
+    const d = val - ref;
+    if (Math.abs(d) < 0.1) return { dir: '=', bom: null };
+    const sobe = d > 0;
+    return { dir: sobe ? '↑' : '↓', bom: menorMelhor ? !sobe : sobe };
+  };
+  return (
+    <div className="alt-bloco">
+      <div className="alt-titulo">{t('alt.titulo')}</div>
+      <div className="alt-nota">{t('alt.nota')}</div>
+      {dados.alternativas.map((a) => {
+        const n = a.nutricao || {};
+        const cmp = [
+          ['prot', 'proteina', false, n.proteina],
+          ['gord. sat', 'gordura_saturada', true, n.gordura_saturada],
+          ['açúc', 'acucares', true, n.acucares],
+        ].filter((x) => x[3] != null);
+        return (
+          <div key={a.sku_id} className="alt-item">
+            <div className="alt-item-top">
+              <span className="alt-nome">{a.nome}</span>
+              {a.eur_base != null && <span className="alt-preco">{eur(a.eur_base)}/{a.unidade_base || 'kg'}</span>}
+            </div>
+            <div className="alt-nutri">
+              {cmp.map(([lbl, key, menor, val]) => {
+                const dd = delta(val, base[key], menor);
+                return (
+                  <span key={key} className={`alt-n ${dd?.bom === true ? 'bom' : dd?.bom === false ? 'mau' : ''}`}>
+                    {lbl} {String(Math.round(val * 10) / 10).replace('.', ',')}{dd && dd.dir !== '=' ? ` ${dd.dir}` : ''}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
