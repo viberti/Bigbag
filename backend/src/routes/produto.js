@@ -11,6 +11,7 @@ import { getPool } from '../db.js';
 import { config } from '../config.js';
 import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
+import { grupoDe } from '../normaliza/categoria.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from '../ingest/traduz.js';
@@ -151,6 +152,15 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
       ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE item_id = ? ORDER BY ordem, id', [itemId])
       : [[]];
 
+  // sem SKU mas com EAN: liga ao SKU pela ficha (produto_ean.sku_id) ou por um
+  // item desse EAN — necessário p/ o grupo/alternativas do produto scaneado.
+  if (!skuId) {
+    skuId = rows.find((r) => r.sku_id)?.sku_id || null;
+    if (!skuId && ean) {
+      const [[it2]] = await getPool().query('SELECT sku_id FROM item WHERE ean = ? AND sku_id IS NOT NULL LIMIT 1', [ean]);
+      skuId = it2?.sku_id || null;
+    }
+  }
   let generico = null;
   if (skuId) {
     const [[g]] = await getPool().query('SELECT tipo, alimento, categoria, nutricao FROM produto_generico WHERE sku_id = ?', [skuId]);
@@ -370,11 +380,16 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     if (!itemId && !eanQ && !skuId) return res.status(400).json({ erro: 'item_id, sku_id ou ean em falta' });
     const info = await consolidarProduto({ itemId, eanQ, skuId });
     const nutAtual = info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null;
-    // grupo do produto (via SKU); sem SKU/grupo não há alternativas comparáveis
+    // grupo do produto: do SKU (B1) e, se não houver, derivado do OFF (categorias/
+    // food_groups) — assim um produto scaneado nunca comprado ainda tem alternativas.
     let grupo = null;
     if (info.skuId) {
       const [[s]] = await getPool().query('SELECT grupo FROM sku_normalizado WHERE id = ?', [info.skuId]);
       grupo = s?.grupo || null;
+    }
+    if (!grupo || grupo === 'outros') {
+      const g = grupoDe({ foodGroups: info.off?.grupos_alimento, categoria: info.off?.categoria || info.base?.categoria, nome: info.nome });
+      if (g && g !== 'outros') grupo = g;
     }
     if (!grupo || grupo === 'outros') return res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
 
