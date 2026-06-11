@@ -255,8 +255,11 @@ const toksB = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOPB.ha
 let _catMem = null;
 async function catalogoEmMemoria(pool) {
   if (_catMem) return _catMem;
-  const [rows] = await pool.query("SELECT nome, marca, categoria_path, ean, fonte FROM catalogo_produto WHERE nome IS NOT NULL AND nome <> ''");
-  _catMem = rows.map((r) => ({ ...r, t: toksB(`${r.nome} ${r.marca || ''}`) }));
+  // nome_pt: tradução PT do nome (catálogos em ES, ex.: Mercadona) — tokeniza-se
+  // o PT quando existe, para o talão português casar na PRÓPRIA cadeia em vez de
+  // perder para um catálogo PT. O `nome` exibido também passa a ser o PT.
+  const [rows] = await pool.query("SELECT nome, nome_pt, marca, categoria_path, ean, fonte FROM catalogo_produto WHERE nome IS NOT NULL AND nome <> ''");
+  _catMem = rows.map((r) => ({ ...r, nome: r.nome_pt || r.nome, t: toksB(`${r.nome_pt || r.nome} ${r.marca || ''}`) }));
   return _catMem;
 }
 
