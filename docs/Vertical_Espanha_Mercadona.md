@@ -21,6 +21,12 @@ de Portugal, porque isola o valor e remove a parte frágil (entity resolution).
   categorias a 3 níveis. Em `catalogo_produto` fonte `mercadona`.
 - Via **API JSON pública** `tienda.mercadona.es/api` — limpa, sem fricção de scraping,
   atualizável diariamente (`scripts/scrape_mercadona.mjs`).
+- **Warehouses (`?wh=`)**: a API serve sortidos **ligeiramente diferentes por zona**
+  (mad1/bcn1/vlc1/svq1/alc1…; medido 2026-06-11: bcn1 tinha +4 produtos que mad1
+  numa amostra de 3 categorias, ~4% regionais). **Preços iguais** entre warehouses
+  (preço único nacional). O scrape inicial usou o default (≈ Madrid); o scraper
+  aceita agora `WH=mad1,bcn1,…` e **une** os sortidos (incremental via `SO_NOVOS`).
+  Referências externas: `m0wer/mercaapi` (nutrição+histórico), `josantonius/php-mercadona-importer`.
 - Nutrição: **não vem na API**, mas EAN→OFF preenche (Hacendado tem 815+ no OFF).
 
 ## Porque o problema difícil colapsa
