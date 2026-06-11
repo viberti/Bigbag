@@ -125,6 +125,38 @@ function extrairNutricaoAuchan(html) {
   return out;
 }
 
+// NUTRIÇÃO + INGREDIENTES das páginas do PINGO DOCE (HTML estático, 2026-06-11):
+// <table class="nutrition-table"> com section-header "Valores médios por 100 g de
+// produto (não preparado)" e linhas <td>Energia (kcal)</td><td>205.0</td> — a
+// unidade vem no NOME do nutriente. Só aceita base "por 100 g/ml". Ingredientes
+// no texto "Ingredientes: …" (alergénios em MAIÚSCULAS, rotulagem UE).
+function extrairNutricaoPD(html) {
+  const out = { nutricao: null, nutricao_base: null, ingredientes: null };
+  const mIng = html.match(/Ingredientes:\s*([^<]{10,})/);
+  if (mIng) out.ingredientes = decode(`Ingredientes: ${mIng[1]}`).slice(0, 3000) || null;
+  const mTab = html.match(/nutrition-table[\s\S]*?<\/table>/i);
+  if (!mTab) return out;
+  const bloco = mTab[0];
+  const mBase = bloco.match(/section-header[^>]*>\s*([^<]+)/i);
+  if (mBase) out.nutricao_base = decode(mBase[1]).slice(0, 80) || null;
+  if (out.nutricao_base && !/por\s*100\s*(g|ml)/i.test(out.nutricao_base)) return out; // por porção → fora
+  const rows = [...bloco.matchAll(/<tr>\s*<td>([^<]+)<\/td>\s*<td>([^<]*)<\/td>\s*<\/tr>/gi)]
+    .map((m) => ({ n: decode(m[1]).toLowerCase(), v: num(String(m[2]).replace(',', '.').trim()) }));
+  const val = (re) => rows.find((r) => re.test(r.n) && r.v != null)?.v ?? null;
+  const nut = {
+    energia_kcal: val(/^energia \(kcal\)/),
+    gordura: val(/^l[ií]pidos/),
+    gordura_saturada: val(/saturados/),
+    hidratos: val(/^hidratos/),
+    acucares: val(/a[çc][úu]cares/),
+    proteina: val(/^prote[ií]na/),
+    sal: val(/^sal\b/),
+    fibra: val(/^fibra/),
+  };
+  if (Object.values(nut).some((v) => v != null)) out.nutricao = nut;
+  return out;
+}
+
 const FONTES = {
   auchan: {
     sitemapIndex: 'https://www.auchan.pt/sitemap_index.xml',
@@ -230,6 +262,7 @@ const FONTES = {
         preco, moeda: (Array.isArray(p.offers) ? p.offers[0]?.priceCurrency : p.offers?.priceCurrency) || 'EUR',
         imagem_url: ((Array.isArray(p.image) ? p.image[0] : p.image) || null)?.toString().slice(0, 600) || null,
         ...fmt,
+        ...extrairNutricaoPD(html),
       };
     },
   },
