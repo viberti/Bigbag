@@ -35,6 +35,17 @@ const LEX = {
   // modificadores
   desnatado: 'magro', desnatada: 'magra', semidesnatado: 'meio-gordo', semidesnatada: 'meio-gorda',
   entero: 'inteiro', entera: 'inteira', rallado: 'ralado', rallada: 'ralada', dorado: 'dourado', ecológico: 'biológico',
+  // PALAVRAS ES↔PT COMPLETAMENTE DIFERENTES (não só grafia — revelado pela aba Mercadona)
+  anacardo: 'caju', anacardos: 'caju', cacahuete: 'amendoim', cacahuetes: 'amendoim',
+  gambas: 'camarão', langostinos: 'lagostins', merluza: 'pescada', lubina: 'robalo',
+  dorada: 'dourada', almeja: 'amêijoa', almejas: 'amêijoas', mejillones: 'mexilhões',
+  bizcocho: 'pão de ló', magdalenas: 'queques', chuletas: 'costeletas',
+  calabacín: 'courgette', berenjena: 'beringela', col: 'couve', coliflor: 'couve-flor',
+  calabaza: 'abóbora', seta: 'cogumelo', setas: 'cogumelos', champiñones: 'cogumelos',
+  aguacate: 'abacate', pomelo: 'toranja', arándanos: 'mirtilos', avellanas: 'avelãs',
+  almendras: 'amêndoas', nueces: 'nozes', frambuesa: 'framboesa', frambuesas: 'framboesas',
+  cangrejo: 'caranguejo', pulpo: 'polvo', mejicano: 'mexicano',
+  pañal: 'fralda', toallitas: 'toalhitas', papel: 'papel', higiénico: 'higiénico',
   // conetores
   con: 'com', sin: 'sem', y: 'e', al: 'ao',
 };
