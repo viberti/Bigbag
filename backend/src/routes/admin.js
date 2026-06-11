@@ -478,7 +478,12 @@ adminRouter.get('/match-eans', async (req, res) => {
     const [rows] = await getPool().query(
       `SELECT m.id, m.descricao, m.ean, m.nome_cand, m.marca, m.fonte, m.confianca,
               m.preco_pago, m.preco_cand, m.formato_pago, m.formato_cand, m.alternativas,
-              (SELECT COUNT(*) FROM item i WHERE i.descricao_original = m.descricao AND i.is_non_product = 0) AS compras
+              (SELECT COUNT(*) FROM item i WHERE i.descricao_original = m.descricao AND i.is_non_product = 0) AS compras,
+              -- cadeia(s) onde este item foi comprado (contexto p/ o operador julgar:
+              -- talão Mercadona deve casar candidato Mercadona, não Auchan)
+              (SELECT GROUP_CONCAT(DISTINCT COALESCE(l.cadeia, l.nome) ORDER BY 1 SEPARATOR ', ')
+                 FROM item i JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
+                WHERE i.descricao_original = m.descricao AND i.is_non_product = 0) AS cadeia_item
          FROM match_ean_sugestao m
         WHERE m.estado = 'pendente' ORDER BY m.confianca DESC, m.descricao`,
     );

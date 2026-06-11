@@ -510,6 +510,9 @@ body {
 .adm-ean-marca { color: var(--muted); font-size: 12px; }
 .adm-ean-cod { font-family: ui-monospace, monospace; font-size: 12px; color: var(--verde); }
 .adm-ean-fonte { font-size: 11px; color: var(--muted); background: #ffffff10; padding: 1px 6px; border-radius: 6px; }
+.adm-ean-fonte.f-mesma { color: #4ade80; background: #22c55e22; }
+.adm-ean-fonte.f-outra { color: #fbbf24; background: #f59e0b1c; }
+.adm-ean-cadeia { font-size: 11px; font-weight: 600; color: #d8b4fe; background: #a855f722; padding: 1px 7px; border-radius: 6px; }
 .adm-ean-metr { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 5px 0 0 48px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .adm-ean-metr-lado { color: var(--texto); }
 .adm-ean-metr-lado i { color: var(--muted); font-style: normal; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-right: 3px; }

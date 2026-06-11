@@ -864,6 +864,16 @@ function TabEans() {
   }
 
   const banda = (c) => (c >= 0.8 ? 'forte' : c >= 0.6 ? 'media' : 'fraca');
+  // o candidato veio da MESMA cadeia do item? (fonte 'lidl-fr'/'pingodoce' vs
+  // cadeia 'Lidl'/'Pingo Doce'; fonte pode ser combinada 'mercadona+auchan').
+  const mesmaLoja = (cadeiaItem, fonte) => {
+    if (!cadeiaItem || !fonte) return false;
+    const f = String(fonte).toLowerCase();
+    return String(cadeiaItem).split(',').some((c) => {
+      const t = c.trim().toLowerCase().replace(/\s+/g, '');
+      return t && f.includes(t.slice(0, 6));
+    });
+  };
 
   return (
     <div className="adm-fusoes">
@@ -884,6 +894,7 @@ function TabEans() {
             <li key={s.id} className="adm-ean-li">
               <div className="adm-ean-top">
                 <span className={`adm-ean-conf ${banda(s.confianca)}`}>{Math.round(s.confianca * 100)}%</span>
+                {s.cadeia_item && <span className="adm-ean-cadeia" title="cadeia onde o item foi comprado">{s.cadeia_item}</span>}
                 <span className="adm-ean-talao">{s.descricao}</span>
                 {s.compras > 1 && <span className="adm-ean-compras">{s.compras}×</span>}
               </div>
@@ -892,7 +903,10 @@ function TabEans() {
                 <b>{s.nome_cand}</b>
                 {s.marca && <span className="adm-ean-marca">{s.marca}</span>}
                 <code className="adm-ean-cod">{s.ean}</code>
-                <span className="adm-ean-fonte">{s.fonte}</span>
+                <span className={`adm-ean-fonte${mesmaLoja(s.cadeia_item, s.fonte) ? ' f-mesma' : ' f-outra'}`}
+                  title={mesmaLoja(s.cadeia_item, s.fonte) ? 'candidato da MESMA cadeia do item' : 'candidato de OUTRA cadeia (ok p/ marca nacional; suspeito p/ marca-própria)'}>
+                  {s.fonte}
+                </span>
               </div>
               {(s.formato_pago || s.preco_pago != null || s.formato_cand || s.preco_cand != null) && (
                 <div className="adm-ean-metr">
