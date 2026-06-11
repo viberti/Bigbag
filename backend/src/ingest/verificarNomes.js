@@ -44,7 +44,7 @@ export async function detetarSuspeitos(pool, faturaId, cadeia) {
 
 // Camada 2 — re-transcrição dirigida: localiza pelas âncoras de preço e pede o
 // nome EXATO impresso (sem expandir nem corrigir — queremos a 2.ª leitura crua).
-async function segundaOpiniao(ficheiro, suspeitos) {
+export async function segundaOpiniao(ficheiro, suspeitos) {
   const buf = await readFile(ficheiro);
   const mime = /\.png$/i.test(ficheiro) ? 'image/png' : 'image/jpeg';
   const lista = suspeitos
