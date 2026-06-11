@@ -63,6 +63,31 @@ A mesma compra tem **três nomes**, e os três importam:
                                                 marca, alergias)    seção 3)
 ```
 
+### As matérias-primas: fontes de produto (números reais, 2026-06-11)
+
+Classificar exige **conhecimento externo** — catálogos das lojas, bases abertas e
+as próprias compras. Cada fonte tem lacunas diferentes; o sistema **cruza-as**:
+
+| Fonte | Produtos | EAN | Tamanho | Preço | Nota |
+|---|---:|:---:|:---:|:---:|---|
+| **Talões do utilizador** (66 notas, 6 cadeias) | 651 itens → 322 SKUs | 34% | ✓ | **pago = facto** | a fonte primária: preços reais e hábitos |
+| Continente (scrape) | 19.102 | **100%** | 3% | ✓ | maior catálogo PT; nomes sem gramagem |
+| Pingo Doce (scrape) | 15.144 | ✗ (**+2.388 inferidos**) | a crescer | ✗ | site não expõe EAN/preço; a `descricao_curta` é a abreviatura de talão |
+| Auchan (scrape) | 11.998 | **100%** | 85% | ✓ | nomes com gramagem |
+| Lidl-FR (lista QCE) | 9.390 | ✓ | ✗ | ✗ | só EAN + nome francês |
+| Mercadona ES (API) | 5.060 | **100%** | 90% | ✓ (ES) | preço único nacional; `nome_pt` p/ matching |
+| Mercadona own-brand (OFF) | 586 | ✓ | 63% | ✗ | nomes PT |
+| Lidl PT (scrape) | 390 | ✗ | ✗ | 72% | pequeno |
+| **Open Food Facts** (dump local) | 26.969 | ✓ | 47% | ✗ | **nutrição só 16%**, Nutri-Score 39% — completado on-demand pela API live |
+| Fichas próprias (fotos+OFF) | 180 EANs | ✓ | — | — | 90% com nutrição |
+| Genéricos frescos (por classe) | 291 (71 c/ nutrição) | — | — | — | "banana" tem nutrição conhecida por 100 g |
+
+Três lições dos números: (1) **nenhuma fonte chega sozinha** — quem tem EAN não tem
+nutrição, quem tem nutrição não tem preço; (2) a mesma informação ("tamanho") vem
+**em sítios diferentes** por loja (no nome no Auchan, na abreviatura de talão no
+Pingo Doce, em campo próprio no Mercadona); (3) os preços de catálogo são
+**referência** — o preço-facto é o do talão.
+
 ---
 
 ## 3. Facetas, não árvore — a decisão central
