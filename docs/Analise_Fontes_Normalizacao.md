@@ -156,7 +156,9 @@ Estado da implementação: A1 (migração 035, `conteudo.js`, cadeia no `ppb.js`
 | A6 | **Vocabulário único de facetas discriminantes** (sabor/teor/dieta/com-sem, multilingue) + **gate de conflito no `resolverSku`** + política do ausente | mata auto-merges errados; menos juiz LLM |
 | A7 | **Persistir `categories_tags`/`food_groups` do OFF** no off_json | 1 linha agora, evita backfill impossível depois |
 
-### Fase B — médio custo
+### Fase B — médio custo — **✅ IMPLEMENTADA (2026-06-11; B3/B4 parciais por desenho)**
+
+Estado: **B1** ✓ (migração 041 `sku.grupo`, `normaliza/categoria.js` — 11 grupos, food_groups do OFF autoritativo → categoria → nome; backfill 322 SKUs com só 3 'outros'; `detalhesNota` devolve `grupo`, frontend usa-o com fallback local) · **B2** ✓ (`matchProduto` em cascata: grupo fechado p/ termos amplos → tokens-palavra sobre SKUs com prioridade ao substantivo-cabeça — "leite" já não mistura "Doce de Leite" — → fuzzy → LIKE último recurso; validado: "laticinios"→grupo, "doce de leite"→exato) · **B3** parcial (Mercadona ✓ via API; Continente em cron gota-a-gota desde 17/06) · **B4** parcial (universo-restrito Mercadona substituiu o prior) · **B5** ✓ (migração 042 `fatura.nif_comprador`+`forma_pagamento`, schema VLM + persist/reprocess, validado em talão real — "cartao" ✓; filtro de cabeçalhos de secção no prompt + rede determinística na `limparDescricao`).
 
 | # | Proposta | Notas |
 |---|---|---|
