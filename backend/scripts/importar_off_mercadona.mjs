@@ -29,15 +29,19 @@ for (const r of rows) {
   if (!nome) continue; // sem nome utilizável → não serve para matching
   const c = conteudoDeTexto(r.quantidade);
   if (APLICAR) {
-    await pool.query(
-      `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, nome_pt, marca, categoria, formato, unidade_base, formato_valor, url, scraped_at)
-         VALUES ('mercadona-off', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'off-dump', NOW())
-       ON DUPLICATE KEY UPDATE nome=VALUES(nome), nome_pt=VALUES(nome_pt), marca=VALUES(marca),
-         categoria=VALUES(categoria), formato=VALUES(formato), unidade_base=VALUES(unidade_base), formato_valor=VALUES(formato_valor)`,
-      [r.ean, r.ean, nome.slice(0, 255), r.nome_pt ? (tituloProduto(r.nome_pt) || '').slice(0, 255) || null : null,
-        (tituloProduto(r.marca) || '').slice(0, 140) || null, r.categoria?.slice(0, 160) || null,
-        c ? `${c.valor}${c.unidade}` : (r.quantidade?.slice(0, 40) || null), c?.unidade || null, c?.valor ?? null],
-    );
+    // categoria do OFF é uma lista longa → guarda só o último nó (o mais específico)
+    const cat = r.categoria ? String(r.categoria).split(',').pop().trim().slice(0, 100) : null;
+    try {
+      await pool.query(
+        `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, nome_pt, marca, categoria, formato, unidade_base, formato_valor, url, scraped_at)
+           VALUES ('mercadona-off', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'off-dump', NOW())
+         ON DUPLICATE KEY UPDATE nome=VALUES(nome), nome_pt=VALUES(nome_pt), marca=VALUES(marca),
+           categoria=VALUES(categoria), formato=VALUES(formato), unidade_base=VALUES(unidade_base), formato_valor=VALUES(formato_valor)`,
+        [r.ean, r.ean, nome.slice(0, 255), r.nome_pt ? (tituloProduto(r.nome_pt) || '').slice(0, 255) || null : null,
+          (tituloProduto(r.marca) || '').slice(0, 140) || null, cat,
+          c ? `${c.valor}${c.unidade}` : (r.quantidade?.slice(0, 40) || null), c?.unidade || null, c?.valor ?? null],
+      );
+    } catch (e) { console.error('  erro', r.ean, e.message); continue; }
   }
   inseridos++;
 }
