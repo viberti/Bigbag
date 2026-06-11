@@ -6,63 +6,77 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
+import { grupoDeTexto } from '../normaliza/categoria.js';
 
 export const listaRouter = Router();
 listaRouter.use(requireAuth);
 
 const num = (v) => (v == null ? null : Math.round(Number(v) * 100) / 100);
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
-// Preço de referência de um nome da lista: casa com o nome canónico (ou
-// simplificado) do SKU — os habituais vêm daí, por isso batem; itens escritos à
-// mão podem não casar (→ sem preço, honesto).
-// Preços de TODOS os itens da lista em 2 queries (antes: 2 POR ITEM — e esta
-// rota é polled a cada 4 s com a folha aberta). ROW_NUMBER particiona as últimas
-// 3 compras por item da lista; o melhor calcula-se em JS.
-async function precosDaLista(pool, itens, mercado) {
+// Casa um NOME de lista ("Leite", "Presunto") aos SKUs por TOKENS-palavra (não
+// igualdade exata — "Leite" tem de casar "Leite Meio Gordo"). Todos os tokens do
+// nome da lista têm de aparecer como palavra (prefixo p/ plurais) no nome do SKU.
+function skusDoNome(nome, skus) {
+  const q = norm(nome).split(' ').filter((t) => t.length >= 2);
+  if (!q.length) return [];
+  return skus.filter((s) => {
+    const nt = norm(`${s.nome_canonico} ${s.nome_simplificado || ''}`).split(' ').filter(Boolean);
+    return q.every((qt) => nt.some((w) => w.startsWith(qt) || (qt.startsWith(w) && w.length >= 4)));
+  });
+}
+
+// Resolve preço + GRUPO de cada item da lista. Carrega os SKUs uma vez (tabela
+// pequena), casa por tokens, e pede os preços recentes desses SKUs numa query só.
+async function resolverItensLista(pool, itens, mercado) {
   if (!itens.length) return;
-  const porId = new Map(itens.map((it) => [it.id, it]));
-  const [ult3] = await pool.query(
-    `SELECT t.lista_id, t.unit, t.loja FROM (
-       SELECT li.id AS lista_id, i.preco_liquido / GREATEST(i.quantidade, 1) AS unit,
-              COALESCE(l.cadeia, l.nome) AS loja,
-              ROW_NUMBER() OVER (PARTITION BY li.id ORDER BY f.data_compra DESC, i.id DESC) AS rn
-         FROM lista_item li
-         JOIN sku_normalizado s ON LOWER(s.nome_canonico) = LOWER(li.nome) OR LOWER(COALESCE(s.nome_simplificado, '')) = LOWER(li.nome)
-         JOIN item i ON i.sku_id = s.id AND i.is_non_product = 0
-         JOIN fatura f ON f.id = i.fatura_id
-         JOIN loja l ON l.id = f.loja_id
-        WHERE li.estado IN ('ativo','carrinho')
-     ) t WHERE t.rn <= 3`,
-  );
-  for (const r of ult3) {
-    const it = porId.get(r.lista_id);
-    if (it && (it.melhor_preco == null || Number(r.unit) < it.melhor_preco)) {
-      it.melhor_preco = num(r.unit);
-      it.melhor_loja = r.loja;
-    }
-  }
-  if (mercado) {
-    const [no] = await pool.query(
-      `SELECT t.lista_id, t.unit FROM (
-         SELECT li.id AS lista_id, i.preco_liquido / GREATEST(i.quantidade, 1) AS unit,
-                ROW_NUMBER() OVER (PARTITION BY li.id ORDER BY f.data_compra DESC, i.id DESC) AS rn
-           FROM lista_item li
-           JOIN sku_normalizado s ON LOWER(s.nome_canonico) = LOWER(li.nome) OR LOWER(COALESCE(s.nome_simplificado, '')) = LOWER(li.nome)
-           JOIN item i ON i.sku_id = s.id AND i.is_non_product = 0
-           JOIN fatura f ON f.id = i.fatura_id
-           JOIN loja l ON l.id = f.loja_id AND COALESCE(l.cadeia, l.nome) = ?
-          WHERE li.estado IN ('ativo','carrinho')
-       ) t WHERE t.rn = 1`,
-      [mercado],
-    );
-    for (const r of no) { const it = porId.get(r.lista_id); if (it) it.preco_mercado = num(r.unit); }
-  }
+  const [skus] = await pool.query('SELECT id, nome_canonico, nome_simplificado, grupo FROM sku_normalizado');
+  const skuIdsPorItem = new Map();   // lista_id → Set(sku_id)
+  const allSkuIds = new Set();
   for (const it of itens) {
-    it.melhor_preco ??= null; it.melhor_loja ??= null; it.preco_mercado ??= null;
+    const matched = skusDoNome(it.nome, skus);
+    skuIdsPorItem.set(it.id, new Set(matched.map((s) => s.id)));
+    for (const s of matched) allSkuIds.add(s.id);
+    // GRUPO (ponto 3): do SKU casado (1.º com grupo definido); senão do NOME.
+    it.grupo = matched.find((s) => s.grupo && s.grupo !== 'outros')?.grupo || grupoDeTexto(it.nome);
+    it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null;
+  }
+  if (!allSkuIds.size) return;
+  const ids = [...allSkuIds];
+  const ph = ids.map(() => '?').join(',');
+  // últimas 3 compras (por SKU) — para cada item escolhemos o melhor entre os seus SKUs.
+  const [rows] = await pool.query(
+    `SELECT sku_id, unit, loja, data FROM (
+       SELECT i.sku_id, i.preco_liquido / GREATEST(i.quantidade,1) AS unit, COALESCE(l.cadeia,l.nome) AS loja,
+              f.data_compra AS data, ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
+         FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id
+        WHERE i.sku_id IN (${ph}) AND i.is_non_product=0
+     ) t WHERE t.rn <= 3`, ids);
+  // preço no mercado selecionado (a compra mais recente nesse mercado), por SKU
+  let noMercado = new Map();
+  if (mercado) {
+    const [mrows] = await pool.query(
+      `SELECT sku_id, unit FROM (
+         SELECT i.sku_id, i.preco_liquido / GREATEST(i.quantidade,1) AS unit,
+                ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
+           FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id AND COALESCE(l.cadeia,l.nome)=?
+          WHERE i.sku_id IN (${ph}) AND i.is_non_product=0
+       ) t WHERE t.rn=1`, [mercado, ...ids]);
+    noMercado = new Map(mrows.map((r) => [r.sku_id, num(r.unit)]));
+  }
+  const recentePorSku = new Map(); // sku_id → [{unit, loja}]
+  for (const r of rows) (recentePorSku.get(r.sku_id) || recentePorSku.set(r.sku_id, []).get(r.sku_id)).push(r);
+  for (const it of itens) {
+    for (const sid of skuIdsPorItem.get(it.id) || []) {
+      for (const r of recentePorSku.get(sid) || []) {
+        if (it.melhor_preco == null || Number(r.unit) < it.melhor_preco) { it.melhor_preco = num(r.unit); it.melhor_loja = r.loja; }
+      }
+      if (mercado && noMercado.has(sid) && (it.preco_mercado == null || noMercado.get(sid) < it.preco_mercado)) it.preco_mercado = noMercado.get(sid);
+    }
   }
 }
 
-// Lista atual (ativos + riscados) com preços, e as lojas conhecidas p/ o seletor.
+// Lista atual (ativos + riscados) com preços + GRUPO, e as lojas p/ o seletor.
 listaRouter.get('/', async (req, res) => {
   try {
     const pool = getPool();
@@ -71,7 +85,7 @@ listaRouter.get('/', async (req, res) => {
       `SELECT id, nome, quantidade, categoria, estado, adicionado_por, marcado_por
          FROM lista_item WHERE estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
     );
-    await precosDaLista(pool, itens, mercado);
+    await resolverItensLista(pool, itens, mercado);
     const [lojas] = await pool.query(
       `SELECT DISTINCT COALESCE(l.cadeia, l.nome) AS loja FROM fatura f JOIN loja l ON l.id = f.loja_id ORDER BY 1`,
     );
