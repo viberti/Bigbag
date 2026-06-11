@@ -881,6 +881,7 @@ function TabMercadona() {
                     {it.candidatos.map((c) => (
                       <button key={c.ean} className="adm-merc-cand" disabled={ocupado}
                         title={`gravar EAN ${c.ean}`} onClick={() => casar(it.descricao, c.ean)}>
+                        {c.imagem && <img className="adm-cand-img" src={c.imagem} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                         <b>{c.nome}</b>
                         {c.formato && <em className="adm-ean-alt-fmt">{c.formato}</em>}
                         <small>{Math.round(c.score * 100)}%</small>
@@ -998,6 +999,7 @@ function TabEans() {
               </div>
               <div className="adm-ean-cand">
                 <span className="adm-par-seta">→</span>
+                {s.imagem && <img className="adm-cand-img" src={s.imagem} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                 <b>{s.nome_cand}</b>
                 {s.marca && <span className="adm-ean-marca">{s.marca}</span>}
                 <code className="adm-ean-cod">{s.ean}</code>

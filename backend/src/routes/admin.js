@@ -464,6 +464,9 @@ adminRouter.get('/match-eans', async (req, res) => {
     const [rows] = await getPool().query(
       `SELECT m.id, m.descricao, m.ean, m.nome_cand, m.marca, m.fonte, m.confianca,
               m.preco_pago, m.preco_cand, m.formato_pago, m.formato_cand, m.alternativas,
+              -- foto de catálogo do candidato: o operador julga o match num olhar
+              (SELECT c.imagem_url FROM catalogo_produto c
+                WHERE c.ean = m.ean AND c.imagem_url IS NOT NULL AND c.imagem_url <> '' LIMIT 1) AS imagem,
               (SELECT COUNT(*) FROM item i WHERE i.descricao_original = m.descricao AND i.is_non_product = 0) AS compras,
               -- cadeia(s) onde este item foi comprado (contexto p/ o operador julgar:
               -- talão Mercadona deve casar candidato Mercadona, não Auchan)
@@ -683,6 +686,15 @@ adminRouter.get('/mercadona', async (req, res) => {
         preco_pago: it.preco != null ? Math.round(Number(it.preco) * 100) / 100 : null,
         candidatos,
       });
+    }
+    // fotos de catálogo dos candidatos — o operador julga o match num olhar
+    const eans = [...new Set(out.flatMap((x) => x.candidatos.map((c) => c.ean).filter(Boolean)))];
+    if (eans.length) {
+      const [imgs] = await pool.query(
+        `SELECT ean, MAX(imagem_url) AS img FROM catalogo_produto
+          WHERE ean IN (${eans.map(() => '?').join(',')}) AND imagem_url IS NOT NULL AND imagem_url <> '' GROUP BY ean`, eans);
+      const por = new Map(imgs.map((r) => [r.ean, r.img]));
+      for (const x of out) for (const c of x.candidatos) if (c.ean) c.imagem = por.get(c.ean) || null;
     }
     res.json({ itens: out, com_candidato: out.filter((x) => x.candidatos.length).length });
   } catch (e) {

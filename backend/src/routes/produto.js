@@ -180,7 +180,16 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
     : temGenericoNut ? 'generico' : base?.fonte === 'catalogo' ? 'catalogo' : null;
   // nutrição "por confirmar": lida só do rótulo por VLM (sem OFF a confirmar)
   const nutricaoProvisoria = !off?.nutricao_100g && rows.some((r) => r.nutricao && r.nutricao_confirmada === 0);
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, nutricao_provisoria: nutricaoProvisoria, existe: rows.length > 0 || temGenericoNut };
+  // foto de CATÁLOGO do produto (hotlink; ~52k disponíveis): dá cara à ficha
+  // mesmo sem fotos do utilizador. Por EAN direto, ou pelo ean_inferido (PD).
+  let imagemCatalogo = null;
+  if (ean) {
+    const [[img]] = await getPool().query(
+      `SELECT imagem_url FROM catalogo_produto
+        WHERE (ean = ? OR ean_inferido = ?) AND imagem_url IS NOT NULL AND imagem_url <> '' LIMIT 1`, [ean, ean]);
+    imagemCatalogo = img?.imagem_url || null;
+  }
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;

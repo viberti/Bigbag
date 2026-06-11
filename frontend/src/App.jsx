@@ -2734,7 +2734,13 @@ function ProdutoInfoSheet({ item, onFechar, onFotografar }) {
           </button>
         </div>
         <div className="ident-body">
-          <div className="ident-prod">{item.produto}</div>
+          <div className="ident-prod">
+            {info?.imagem_catalogo && (
+              <img className="ident-img" src={info.imagem_catalogo} alt="" loading="lazy"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            )}
+            <span>{item.produto}</span>
+          </div>
           {info === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : info.erro ? (
@@ -3546,6 +3552,10 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
               ) : (
                 variantes.map((v) => (
                   <button key={v.sku_id} type="button" className="cvar" onClick={() => escolherVariante(v)}>
+                    {v.imagem && (
+                      <img className="cvar-img" src={v.imagem} alt="" loading="lazy"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    )}
                     <span className="cvar-n">
                       <b>{v.nome}</b>
                       <span>

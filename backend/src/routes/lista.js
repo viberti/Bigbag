@@ -169,6 +169,13 @@ listaRouter.get('/variantes', async (req, res) => {
           WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0
        ) t WHERE rn = 1`, ids);
     const precoPorSku = new Map(prec.map((r) => [r.sku_id, r]));
+    // foto de catálogo por SKU (via EAN das compras desse SKU) — escolher com os olhos
+    const [imgs] = await pool.query(
+      `SELECT i.sku_id, MAX(c.imagem_url) AS img
+         FROM item i JOIN catalogo_produto c ON (c.ean = i.ean OR c.ean_inferido = i.ean)
+        WHERE i.sku_id IN (${ph}) AND i.ean IS NOT NULL AND c.imagem_url IS NOT NULL AND c.imagem_url <> ''
+        GROUP BY i.sku_id`, ids);
+    const imgPorSku = new Map(imgs.map((r) => [r.sku_id, r.img]));
     const variantes = matched
       .map((s) => {
         const h = habito.get(s.id);
@@ -180,6 +187,7 @@ listaRouter.get('/variantes', async (req, res) => {
           preco: p ? num(p.ppb ?? p.pu) : null,
           unidade: p?.ppb != null ? p.unidade : null,
           loja: p?.loja || null,
+          imagem: imgPorSku.get(s.id) || null,
         };
       })
       .filter(Boolean)

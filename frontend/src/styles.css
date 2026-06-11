@@ -507,6 +507,8 @@ body {
 .adm-ean-talao { font-weight: 600; font-size: 14px; }
 .adm-ean-compras { color: var(--muted); font-size: 12px; }
 .adm-ean-cand { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 0 0 48px; font-size: 13px; }
+.adm-cand-img { width: 52px; height: 52px; flex: 0 0 auto; object-fit: contain; border-radius: 8px;
+  background: #fff; padding: 2px; border: 1px solid rgba(0,0,0,.12); }
 .adm-ean-marca { color: var(--muted); font-size: 12px; }
 .adm-ean-cod { font-family: ui-monospace, monospace; font-size: 12px; color: var(--verde); }
 .adm-ean-fonte { font-size: 11px; color: var(--muted); background: #ffffff10; padding: 1px 6px; border-radius: 6px; }
@@ -1211,7 +1213,9 @@ body { background: #0c1814; }
 
 /* Identificar produto (EAN + fotos → VLM/OFF) */
 .bb .ident-body { overflow-y: auto; padding: 14px 16px 20px; }
-.bb .ident-prod { font-weight: 700; font-size: 17px; margin-bottom: 12px; }
+.bb .ident-prod { font-weight: 700; font-size: 17px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; }
+.bb .ident-img { width: 64px; height: 64px; flex: 0 0 auto; object-fit: contain; border-radius: 12px;
+  background: #fff; padding: 3px; box-shadow: 0 2px 10px rgba(0,0,0,.3); }
 .bb .ident-lbl { display: block; color: var(--muted-bb); font-size: 12.5px; margin: 6px 0 5px; }
 .bb .ident-ean { width: 100%; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--campo, rgba(255,255,255,.04)); color: var(--text-bb); font-size: 15px; font-variant-numeric: tabular-nums; }
 .bb .ident-add { width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; border-radius: 11px;
@@ -1404,7 +1408,9 @@ body { background: #0c1814; }
 .bb .cvar { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left;
   padding: 10px 12px; margin-bottom: 6px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.04);
   color: var(--txt); cursor: pointer; }
-.bb .cvar-n { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bb .cvar-img { width: 44px; height: 44px; flex: 0 0 auto; object-fit: contain; border-radius: 10px;
+  background: #fff; padding: 2px; }
+.bb .cvar-n { min-width: 0; display: flex; flex-direction: column; gap: 1px; flex: 1; }
 .bb .cvar-n b { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bb .cvar-n span { font-size: 11px; color: var(--faint); }
 .bb .cvar-p { flex: 0 0 auto; text-align: right; font-size: 12px; font-weight: 800; color: var(--accent-bright);
