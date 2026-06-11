@@ -505,19 +505,27 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
     // re-scrapes e os reruns do matcher catálogo↔catálogo.
     let verbatim = 0;
     try {
+      // 1 SÓ EAN por descrição (HAVING): "TABLETE FERRERO 90G" casa 2 entradas
+      // (Negro c/ Avelãs E Branco — a mesma abreviatura p/ variantes) → ambíguo,
+      // fica para a via normal. O INSERT…SELECT é atómico: sem o HAVING, a unique
+      // de descricao rebentava e anulava o lote inteiro.
       const [r0] = await pool.query(`
         INSERT INTO match_ean_sugestao (descricao, ean, nome_cand, marca, fonte, confianca, formato_cand, estado)
-        SELECT DISTINCT i.descricao_original, c.ean_inferido, c.nome, c.marca,
-               CONCAT('pd-verbatim·', c.ean_inferido_de), 0.92, c.formato, 'pendente'
-          FROM item i
-          JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
-          JOIN catalogo_produto c ON c.fonte = 'pingodoce'
-               AND c.descricao_curta = i.descricao_original
-               AND c.ean_inferido IS NOT NULL
-         WHERE COALESCE(l.cadeia, l.nome) = 'Pingo Doce' AND i.is_non_product = 0 AND i.ean IS NULL
-           AND NOT EXISTS (SELECT 1 FROM match_ean_sugestao m WHERE m.descricao = i.descricao_original)
-           AND NOT EXISTS (SELECT 1 FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
-                            WHERE i2.descricao_original = i.descricao_original AND pe.ean IS NOT NULL)`);
+        SELECT t.d, t.ean, t.nome, t.marca, t.fonte, 0.92, t.formato, 'pendente' FROM (
+          SELECT i.descricao_original AS d, MAX(c.ean_inferido) AS ean, MAX(c.nome) AS nome, MAX(c.marca) AS marca,
+                 CONCAT('pd-verbatim·', MAX(c.ean_inferido_de)) AS fonte, MAX(c.formato) AS formato
+            FROM item i
+            JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
+            JOIN catalogo_produto c ON c.fonte = 'pingodoce'
+                 AND c.descricao_curta = i.descricao_original
+                 AND c.ean_inferido IS NOT NULL
+           WHERE COALESCE(l.cadeia, l.nome) = 'Pingo Doce' AND i.is_non_product = 0 AND i.ean IS NULL
+           GROUP BY i.descricao_original
+          HAVING COUNT(DISTINCT c.ean_inferido) = 1
+        ) t
+        WHERE NOT EXISTS (SELECT 1 FROM match_ean_sugestao m WHERE m.descricao = t.d)
+          AND NOT EXISTS (SELECT 1 FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
+                           WHERE i2.descricao_original = t.d AND pe.ean IS NOT NULL)`);
       verbatim = r0.affectedRows || 0;
     } catch (e) { console.error('[match-eans/gerar] pass verbatim PD:', e.message); }
     // produtos distintos comprados, sem EAN (nem na linha nem identificado) e sem
