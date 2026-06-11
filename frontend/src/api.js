@@ -257,6 +257,13 @@ export async function adicionarListaItem({ nome, quantidade, categoria, somar })
   if (!r.ok) throw new Error(`lista add ${r.status}`);
   return r.json();
 }
+// Sugestões por cadência ("provavelmente está a acabar") — determinístico.
+export async function sugestoesLista() {
+  const r = await call('/api/lista/sugestoes');
+  if (!r.ok) throw new Error(`sugestoes ${r.status}`);
+  const { sugestoes } = await r.json();
+  return sugestoes || [];
+}
 // Variantes habituais de um item ("iogurte" → os iogurtes que a casa compra).
 export async function variantesLista(nome) {
   const r = await call(`/api/lista/variantes?nome=${encodeURIComponent(nome)}`);

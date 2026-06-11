@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, variantesLista, adicionarListaLote, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, variantesLista, adicionarListaLote, sugestoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -3411,6 +3411,28 @@ function ItemCarrinho({ it, novo, onRemover, onMarcar, onDelta, onCard }) {
 
 function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onDelta, onLote, novosIds, onRemover, onRenomear, onLimpar, onAbrirHabituais, onAbrirMinha, onFechar }) {
   const [novo, setNovo] = useState('');
+  // "provavelmente está a acabar" (cadência das compras, determinístico):
+  // alimenta o estado vazio (✨ Começar por mim) e o cartão de sugestões.
+  const [sugestoes, setSugestoes] = useState(null);
+  const [sugFechado, setSugFechado] = useState(false);
+  useEffect(() => {
+    if (!aberto) return;
+    sugestoesLista().then(setSugestoes).catch(() => setSugestoes([]));
+  }, [aberto]);
+  function aceitarSugestao(sg) {
+    onAdicionar(sg.nome, null, sg.quantidade || 1);
+    navigator.vibrate?.(10);
+    track('lista_sugestao_cadencia');
+    setSugestoes((xs) => (xs || []).filter((x) => x.nome !== sg.nome));
+  }
+  async function comecarPorMim() {
+    const lote = (sugestoes || []).map((sg) => ({ nome: sg.nome, quantidade: sg.quantidade || 1 }));
+    if (!lote.length) return;
+    track('lista_comecar_por_mim', { n: lote.length });
+    await onLote(lote);
+    navigator.vibrate?.([15, 60, 15]);
+    setSugestoes([]);
+  }
   const adicionar = () => { if (novo.trim()) { onAdicionar(novo); setNovo(''); } };
   // seletor de VARIANTES habituais ("iogurte" → os iogurtes que a casa compra)
   const [varItem, setVarItem] = useState(null);   // item da lista em escolha
@@ -3518,13 +3540,37 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
         {itens === null ? (
           <div className="cart-empty">{t('chat.thinking')}</div>
         ) : lista.length === 0 ? (
-          <div className="cart-empty">{t('cart.empty')}</div>
+          <div className="cart-empty">
+            {sugestoes?.length > 0 ? (
+              <>
+                <p className="cart-empty-t">{t('sug.vaziaTitulo')}</p>
+                <button type="button" className="sug-comecar" onClick={comecarPorMim}>
+                  ✨ {t('sug.comecar', { n: sugestoes.length })}
+                </button>
+                <p className="cart-empty-sub">{t('sug.comecarSub', { nomes: sugestoes.slice(0, 4).map((x) => x.nome).join(', ') })}</p>
+              </>
+            ) : (
+              t('cart.empty')
+            )}
+          </div>
         ) : (() => {
           // ATIVOS agrupados por categoria (grupo do servidor) sobem ao topo; os
           // "no carrinho" descem para uma secção própria no fim (ícone de carrinho).
           const { secoes, noCarrinho } = organizarCarrinho(lista);
           return (
             <div className="cart-list">
+              {!sugFechado && sugestoes?.length > 0 && (
+                <div className="sug-cartao">
+                  <span className="sug-t">✨ {t('sug.titulo')}</span>
+                  {sugestoes.slice(0, 6).map((sg) => (
+                    <button key={sg.nome} type="button" className="sug-chip" onClick={() => aceitarSugestao(sg)}
+                      title={t('sug.detalhe', { dias: sg.dias, intervalo: sg.intervalo })}>
+                      + {sg.nome}{(sg.quantidade || 1) > 1 ? ` ×${sg.quantidade}` : ''}
+                    </button>
+                  ))}
+                  <button type="button" className="sug-x" aria-label="fechar" onClick={() => setSugFechado(true)}>✕</button>
+                </div>
+              )}
               {!dicaVista && lista.length > 0 && <p className="cart-dica">{t('card.dica')}</p>}
               {secoes.map(({ g, itens: its }) => (
                 <div key={g.id}>

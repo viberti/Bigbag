@@ -203,6 +203,61 @@ listaRouter.get('/variantes', async (req, res) => {
   }
 });
 
+// SUGESTÕES POR CADÊNCIA — "provavelmente está a acabar" (determinístico, zero
+// LLM): para cada SKU com ≥3 compras em datas distintas, intervalo MEDIANO entre
+// compras vs dias desde a última. urgência ≥0.85 → sugerir, com a qtd habitual.
+// Alimenta o estado vazio ("✨ Começar por mim") e o cartão no topo da lista.
+async function sugestoesCadencia(pool) {
+  const [rows] = await pool.query(`
+    SELECT s.id, COALESCE(s.nome_simplificado, s.nome_canonico) AS nome,
+           GROUP_CONCAT(DISTINCT DATE(f.data_compra) ORDER BY DATE(f.data_compra)) AS datas
+      FROM item i
+      JOIN fatura f ON f.id = i.fatura_id
+      JOIN sku_normalizado s ON s.id = i.sku_id
+     WHERE i.is_non_product = 0
+     GROUP BY s.id
+    HAVING COUNT(DISTINCT DATE(f.data_compra)) >= 3`);
+  const hoje = Date.now();
+  const cands = [];
+  for (const r of rows) {
+    const ds = String(r.datas || '').split(',').map((d) => new Date(d).getTime()).filter(Boolean).sort((a, b) => a - b);
+    if (ds.length < 3) continue;
+    const gaps = [];
+    for (let i = 1; i < ds.length; i++) gaps.push((ds[i] - ds[i - 1]) / 86400000);
+    gaps.sort((a, b) => a - b);
+    const mediana = gaps[Math.floor(gaps.length / 2)];
+    if (mediana < 2 || mediana > 90) continue; // cadência sem significado
+    const diasDesde = (hoje - ds[ds.length - 1]) / 86400000;
+    const urgencia = diasDesde / mediana;
+    if (urgencia >= 0.85) cands.push({ sku_id: r.id, nome: r.nome, dias: Math.round(diasDesde), intervalo: Math.round(mediana), urgencia });
+  }
+  cands.sort((a, b) => b.urgencia - a.urgencia);
+  const top = cands.slice(0, 12);
+  if (top.length) {
+    // quantidade habitual (unidades por ida) dos candidatos
+    const habito = await habitosDosSkus(pool, top.map((c) => c.sku_id));
+    for (const c of top) {
+      const h = habito.get(c.sku_id);
+      c.quantidade = h ? Math.max(1, Math.round(h.soma / h.idas)) : 1;
+    }
+    // não sugerir o que JÁ está na lista (consolidação pela mesma chave)
+    const [ativos] = await pool.query("SELECT nome FROM lista_item WHERE estado IN ('ativo','carrinho')");
+    const chavesAtivas = new Set(ativos.map((a) => chaveItemLista(a.nome)));
+    return top.filter((c) => !chavesAtivas.has(chaveItemLista(c.nome)))
+      .map(({ urgencia, sku_id, ...resto }) => resto);
+  }
+  return [];
+}
+
+listaRouter.get('/sugestoes', async (req, res) => {
+  try {
+    res.json({ sugestoes: await sugestoesCadencia(getPool()) });
+  } catch (e) {
+    console.error('[lista/sugestoes] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a calcular sugestões' });
+  }
+});
+
 // Monta a lista completa (itens enriquecidos + lojas) — partilhado pelo GET e
 // pelo POST /lote (que devolve a lista atualizada num só round-trip).
 async function montarLista(pool, mercado) {
