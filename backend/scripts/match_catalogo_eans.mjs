@@ -40,9 +40,10 @@ async function main() {
   const pool = getPool();
   const ph = ALVOS.map(() => '?').join(',');
   const [ac] = await pool.query(
-    `SELECT ean, nome, marca, fonte, formato_valor, unidade_base FROM catalogo_produto WHERE fonte IN (${ph}) AND ean IS NOT NULL AND ean <> ''`, ALVOS);
+    `SELECT ean, nome, marca, fonte, formato_valor, unidade_base, nutricao FROM catalogo_produto WHERE fonte IN (${ph}) AND ean IS NOT NULL AND ean <> ''`, ALVOS);
   const [pd] = await pool.query(
-    "SELECT sku_fonte, nome, marca, formato_valor, unidade_base FROM catalogo_produto WHERE fonte = ? AND marca IS NOT NULL AND marca <> ''", [FONTE]);
+    "SELECT sku_fonte, nome, marca, formato_valor, unidade_base, nutricao FROM catalogo_produto WHERE fonte = ? AND marca IS NOT NULL AND marca <> ''", [FONTE]);
+  const nutDe = (r) => { if (!r.nutricao) return null; try { return typeof r.nutricao === 'string' ? JSON.parse(r.nutricao) : r.nutricao; } catch { return null; } };
   const porMarca = new Map();
   for (const c of ac) {
     const m = norm(c.marca);
@@ -54,10 +55,23 @@ async function main() {
   const degen = (v, u) => v == null || (Number(v) === 1 && u === 'un');
   const mesmoTam = (a, b) => a.unidade_base === b.unidade_base
     && Math.abs(Number(a.formato_valor) - Number(b.formato_valor)) <= 0.02 * Math.max(Number(a.formato_valor), Number(b.formato_valor));
+  // NUTRIÇÃO como FINGERPRINT (auxiliar de match, 047): por 100 g é independente
+  // de nome/marca/tamanho — desambigua VARIANTES (o "Light" tem outras kcal; o
+  // tamanho não ajuda aí porque a nutrição/100g é igual entre gramagens).
+  // Devolve true/false quando há veredicto, null quando falta nutrição num lado.
+  const nutCompat = (a, b) => {
+    if (!a || !b || a.energia_kcal == null || b.energia_kcal == null) return null;
+    if (Math.abs(a.energia_kcal - b.energia_kcal) > 0.12 * Math.max(a.energia_kcal, b.energia_kcal) + 3) return false;
+    if (a.proteina != null && b.proteina != null
+      && Math.abs(a.proteina - b.proteina) > Math.max(1, 0.25 * Math.max(a.proteina, b.proteina))) return false;
+    if (a.gordura != null && b.gordura != null
+      && Math.abs(a.gordura - b.gordura) > Math.max(1.5, 0.25 * Math.max(a.gordura, b.gordura))) return false;
+    return true;
+  };
 
   if (APLICAR) await pool.query('UPDATE catalogo_produto SET ean_inferido = NULL, ean_inferido_de = NULL WHERE fonte = ?', [FONTE]); // rebuild idempotente
 
-  let unico = 0, amb = 0, fraco = 0, semMarca = 0, gravados = 0, porTam = 0, vetoTam = 0;
+  let unico = 0, amb = 0, fraco = 0, semMarca = 0, gravados = 0, porTam = 0, vetoTam = 0, porNut = 0, vetoNut = 0;
   for (const p of pd) {
     const cands = porMarca.get(norm(p.marca));
     if (!cands) { semMarca++; continue; }
@@ -76,20 +90,29 @@ async function main() {
       else if (top.every((x) => !degen(x.c.formato_valor, x.c.unidade_base))) { vetoTam++; continue; }
       // candidatos sem tamanho conhecido → segue sem o critério (como antes)
     }
+    // FINGERPRINT nutricional: filtra variantes incompatíveis (Light vs normal)
+    let resolvidoPorNut = false;
+    const pNut = nutDe(p);
+    if (pNut) {
+      const compat = top.filter((x) => nutCompat(pNut, nutDe(x.c)) !== false);
+      if (!compat.length) { vetoNut++; continue; } // nenhum candidato bate a nutrição → fora
+      if (compat.length < top.length) { resolvidoPorNut = new Set(compat.map((x) => x.c.ean)).size < new Set(top.map((x) => x.c.ean)).size; top = compat; }
+    }
     const eans = new Set(top.map((x) => x.c.ean));
     if (eans.size !== 1) { amb++; continue; }
-    unico++; if (resolvidoPorTam) porTam++;
+    unico++; if (resolvidoPorTam) porTam++; if (resolvidoPorNut) porNut++;
     if (APLICAR) {
       const tam = !degen(p.formato_valor, p.unidade_base) && mesmoTam(p, top[0].c) ? '+tam' : '';
-      const de = `${top[0].c.fonte}:cov${Math.round(top[0].cov * 100)}${tam}`;
+      const nut = pNut && nutCompat(pNut, nutDe(top[0].c)) === true ? '+nut' : '';
+      const de = `${top[0].c.fonte}:cov${Math.round(top[0].cov * 100)}${tam}${nut}`;
       await pool.query('UPDATE catalogo_produto SET ean_inferido = ?, ean_inferido_de = ? WHERE fonte = ? AND sku_fonte = ?',
         [top[0].c.ean, de, FONTE, String(p.sku_fonte)]);
       gravados++;
     }
   }
   console.log(`[match-catalogo] ${FONTE} → ${ALVOS.join('+')} (cobertura ≥${COBERTURA})`);
-  console.log(`  match único: ${unico} (${porTam} desempatados pelo TAMANHO) | ambíguo (≥2 EANs): ${amb} | vetado por tamanho≠: ${vetoTam}`);
-  console.log(`  sem candidato: ${fraco} | marca só-${FONTE}: ${semMarca}`);
+  console.log(`  match único: ${unico} (desempate: ${porTam} por TAMANHO, ${porNut} por NUTRIÇÃO) | ambíguo (≥2 EANs): ${amb}`);
+  console.log(`  vetado: ${vetoTam} tamanho≠ + ${vetoNut} nutrição≠ | sem candidato: ${fraco} | marca só-${FONTE}: ${semMarca}`);
   console.log(APLICAR ? `  ✅ gravados ${gravados} em ean_inferido.` : '  (dry-run — corre com --aplicar para gravar)');
   process.exit(0);
 }
