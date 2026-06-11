@@ -14,6 +14,23 @@ detetarLocale('pt-BR'); // default; usa o idioma do browser se houver dicionári
 // logo para se ver, num relance, se o PWA está em cache antigo.
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
 
+// Talão partilhado (Share Target/Android): o SW guardou o ficheiro nesta cache
+// antes de reencaminhar para /?compartilhado=1. Lê-o uma vez e apaga-o.
+async function lerTalaoPartilhado() {
+  try {
+    if (!('caches' in window)) return null;
+    const cache = await caches.open('bigbag-partilha');
+    const res = await cache.match('/__talao_partilhado');
+    if (!res) return null;
+    const blob = await res.blob();
+    const nome = decodeURIComponent(res.headers.get('X-Nome') || 'talao');
+    await cache.delete('/__talao_partilhado');
+    return new File([blob], nome, { type: blob.type || 'image/jpeg' });
+  } catch {
+    return null;
+  }
+}
+
 const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
 const hora = () => new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 const dataHora = (ts) =>
@@ -274,6 +291,17 @@ function Chat({ onSair, nome }) {
   // LOCAL de produtos (fire-and-forget, auto-limitada a 1x/hora) — é o que torna o
   // scan instantâneo/offline para produtos já conhecidos.
   useEffect(() => { track('app_abrir'); sincronizarBaseLocal(); }, []);
+
+  // Talão partilhado (Android Share Target): se viemos de /?compartilhado=1, lê o
+  // ficheiro que o SW guardou e mete-o no fluxo de talões (mesma bolha de chat).
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('compartilhado')) return;
+    window.history.replaceState(null, '', '/'); // limpa o ?compartilhado do URL
+    (async () => {
+      const file = await lerTalaoPartilhado();
+      if (file) { track('talao_partilhado', { tipo: file.type }); fatura(file, { origem: 'partilha' }); }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Carregar a conversa anterior ao abrir (memória entre sessões).
   useEffect(() => {

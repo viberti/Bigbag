@@ -34,6 +34,9 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         cleanupOutdatedCaches: true,
+        // Share Target (Android): o handler que intercepta o POST da partilha do
+        // talão é injetado no topo do SW gerado (corre antes do routing do workbox).
+        importScripts: ['share-target-sw.js'],
         // OpenCV.js (~9MB) não entra no precache (não pesa no arranque); é
         // carregado sob demanda e fica em cache só depois do 1.º uso.
         globIgnores: ['**/vendor/opencv.js'],
@@ -65,6 +68,16 @@ export default defineConfig({
         background_color: '#06201d',
         display: 'standalone',
         start_url: '/',
+        // Share Target: o Bigbag aparece no menu "partilhar" do Android (ex.: app
+        // do LIDL a partilhar o talão como imagem). O SW intercepta este POST,
+        // guarda o ficheiro e reencaminha para /?compartilhado=1, onde a app o lê
+        // e o mete no fluxo de talões. (iOS/Safari não suporta — só Android/desktop.)
+        share_target: {
+          action: '/share-target',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: { files: [{ name: 'talao', accept: ['image/*', 'application/pdf'] }] },
+        },
         // Ícone "Spotlight" (saco iluminado por holofote verde sobre fundo escuro).
         // SVG escalável + PNGs `any` (tile com cantos) + PNGs `maskable` (saco na
         // safe zone sobre fundo full-bleed, p/ o SO aplicar a sua máscara).
