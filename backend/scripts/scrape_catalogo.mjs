@@ -229,9 +229,12 @@ async function main() {
   if (LIMITE > 0) urls = urls.slice(0, LIMITE);
   console.log(`[${FONTE}] a processar ${urls.length} (pool=${POOL}, delay=${DELAY}ms)…\n`);
 
-  let ok = 0, semFicha = 0, semEan = 0, erro = 0, feitos = 0;
+  let ok = 0, semFicha = 0, semEan = 0, erro = 0, feitos = 0, errosSeguidos = 0;
   async function worker(lista) {
     for (const url of lista) {
+      // CIRCUIT-BREAKER: 25 erros SEGUIDOS = anti-bot ativo (Continente devolve
+      // 471/474 ao IP) → aborta em vez de insistir e endurecer o bloqueio.
+      if (errosSeguidos >= 25) { console.error(`[${FONTE}] ${errosSeguidos} erros seguidos — bloqueio ativo, a abortar.`); break; }
       try {
         const html = await fetchText(url);
         const sku = cfg.skuDoUrl(url);
@@ -241,7 +244,8 @@ async function main() {
           if (!f) { semFicha++; }
           else { await upsert(pool, FONTE, sku, url, f); ok++; if (!f.ean) semEan++; }
         }
-      } catch (e) { erro++; if (erro <= 5) console.error('  erro:', url.split('/').pop(), e.message); }
+        errosSeguidos = 0;
+      } catch (e) { erro++; errosSeguidos++; if (erro <= 5) console.error('  erro:', url.split('/').pop(), e.message); }
       feitos++;
       if (feitos % 25 === 0) console.log(`  …${feitos}/${urls.length} (ok ${ok}, s/ean ${semEan}, s/ficha ${semFicha}, erro ${erro})`);
       await sleep(DELAY);
