@@ -1315,6 +1315,10 @@ body { background: #0c1814; }
 .bb .alt-n { color: var(--muted); font-variant-numeric: tabular-nums; }
 .bb .alt-n.bom { color: #4ade80; }
 .bb .alt-n.mau { color: #fb9a6b; }
+/* consulta por nome em destaque no scanner */
+.bb .scan-pornome { margin: 4px 0 10px; padding: 10px 12px; background: var(--verde)14; border: 1px solid var(--verde); border-radius: 12px; }
+.bb .scan-pornome-k { display: block; font-size: 12px; font-weight: 600; color: var(--verde); margin-bottom: 6px; }
+.bb .scan-pornome .scan-manual { margin: 0; }
 .bb .crow-li { position: relative; overflow: hidden; }
 .bb .crow-bg { position: absolute; inset: 0; display: flex; align-items: center; padding-left: 22px; color: #fff; background: #7a2e2e; }
 .bb .crow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 18px;

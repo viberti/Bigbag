@@ -761,6 +761,7 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}><Ico name="galeria" size={18} /> {t('cap.gallery')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
+            <button onClick={() => { setMenuAberto(false); setScannerAberto(true); track('scanner_abrir', { via: 'menu' }); }}><Ico name="search" size={18} /> {t('menu.consultar')}</button>
             <button onClick={() => { setMenuAberto(false); setPerfilAberto(true); }}><Ico name="spark" size={18} /> {t('menu.perfil')}</button>
             <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> {t('menu.despensa')}</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> {t('menu.gastos')}</button>
@@ -839,7 +840,7 @@ function Chat({ onSair, nome }) {
       <ScannerSheet
         aberto={scannerAberto}
         onFechar={() => setScannerAberto(false)}
-        onEncontrado={(p) => { setScannerAberto(false); setInfoItem(p.sku_id ? { sku_id: p.sku_id, produto: p.nome } : { ean: p.ean, produto: p.nome || p.ean, local: p.local }); }}
+        onEncontrado={(p) => { setScannerAberto(false); setInfoItem({ ean: p.ean || undefined, sku_id: p.sku_id || undefined, produto: p.nome || p.ean, local: p.local }); }}
       />
       <CompararSheet aberto={compararAberto} onFechar={() => setCompararAberto(false)} />
       <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
@@ -2319,6 +2320,18 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
                 )}
               </div>
               <p className="scan-hint">{t('scanner.aproxime')}</p>
+              {/* Consulta por NOME em destaque (sem scan): "carne de porco", "queijo gouda"… */}
+              <div className="scan-pornome">
+                <span className="scan-pornome-k">{t('scanner.ouNome')}</span>
+                <div className="scan-manual">
+                  <input placeholder={t('scanner.placeholderNome')} value={nomeQ}
+                    onChange={(e) => setNomeQ(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') consultarNome(nomeQ); }} />
+                  <button type="button" disabled={nomeQ.trim().length < 2} onClick={() => consultarNome(nomeQ)}>
+                    <Ico name="search" size={16} /> {t('scanner.consultar')}
+                  </button>
+                </div>
+              </div>
               <input ref={fotoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { lerFoto(e.target.files?.[0]); e.target.value = ''; }} />
               <button type="button" className="scan-foto" onClick={() => fotoRef.current?.click()}>
                 <Ico name="camera" size={18} /> {t('scanner.tirarFoto')}
@@ -2326,12 +2339,6 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
               <div className="scan-manual">
                 <input inputMode="numeric" placeholder={t('scanner.placeholderEan')} value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
                 <button type="button" disabled={manual.length < 8} onClick={() => consultarCod(manual)}>{t('scanner.consultar')}</button>
-              </div>
-              <div className="scan-manual">
-                <input placeholder={t('scanner.placeholderNome')} value={nomeQ}
-                  onChange={(e) => setNomeQ(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') consultarNome(nomeQ); }} />
-                <button type="button" disabled={nomeQ.trim().length < 2} onClick={() => consultarNome(nomeQ)}>{t('scanner.consultar')}</button>
               </div>
             </>
           )}

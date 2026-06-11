@@ -98,6 +98,7 @@ const STRINGS = {
     'err.mic': 'Sem acesso ao microfone.',
     // menu (⋯)
     'menu.perfil': 'Perfil nutricional',
+    'menu.consultar': 'Consultar produto',
     'menu.despensa': 'Minha despensa',
     'menu.gastos': 'Meus gastos',
     'menu.porident': 'Produtos por identificar',
@@ -123,7 +124,8 @@ const STRINGS = {
     'scanner.tirarFoto': 'Não lê? Tire uma foto do código',
     'scanner.placeholderEan': 'ou digite o código (EAN)',
     'scanner.consultar': 'Consultar',
-    'scanner.placeholderNome': 'ou pelo nome (figo, fraldinha…)',
+    'scanner.placeholderNome': 'ex.: carne de porco, queijo gouda…',
+    'scanner.ouNome': 'Consultar pelo nome (sem scan)',
     // folha de captura (worklist por identificar)
     'capt.title': 'Capturar produto',
     'capt.semCamera': 'Não foi possível abrir a câmera. Digite o código manualmente ou siga só com fotos.',
