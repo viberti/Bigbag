@@ -32,6 +32,15 @@ async function lerTalaoPartilhado() {
 }
 
 const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
+
+// Sufixo de quantidade de um item da lista: na UNIDADE DE VENDA quando se conhece
+// (ex.: ovos → "· 1 dúzia" / "· 2 dúzias", em vez de "×1" que se lia como 1 ovo);
+// senão, a contagem simples (×N). Pluralização simples (+s) — serve para dúzia/caixa.
+function textoQtd(it) {
+  const q = it.quantidade || 1;
+  if (it.unidade_venda) return ` · ${q} ${q > 1 ? `${it.unidade_venda}s` : it.unidade_venda}`;
+  return q > 1 ? ` ×${q}` : '';
+}
 const hora = () => new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 const dataHora = (ts) =>
   ts ? new Date(ts).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
@@ -3317,7 +3326,7 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onRenomear, onVariantes 
         </span>
         <span className="cnwrap">
           <span className="cn" style={riscado ? { textDecorationColor: corMembro(it.marcado_por) } : undefined}>
-            {it.nome}{it.quantidade > 1 ? ` ×${it.quantidade}` : ''}
+            {it.nome}{textoQtd(it)}
           </span>
           {preco != null && (
             <span className="csub">
@@ -3488,7 +3497,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
               ))}
               {noCarrinho.length > 0 && (
                 <div className="cart-feito">
-                  <div className="cart-cat cart-cat-feito"><Ico name="cart" size={15} /> <span>{noCarrinho.length}</span></div>
+                  <div className="cart-cat cart-cat-feito"><Ico name="cart" size={22} /> <span>{noCarrinho.length}</span></div>
                   {noCarrinho.map((it) => (
                     <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onRenomear={onRenomear} onVariantes={abrirVariantes} />
                   ))}

@@ -14,6 +14,15 @@ listaRouter.use(requireAuth);
 const num = (v) => (v == null ? null : Math.round(Number(v) * 100) / 100);
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
+// Unidade de VENDA de um item da lista (como se compra de facto, não "à unidade"):
+// ovos vendem-se à dúzia, não 1 a 1. Devolve o rótulo singular (o frontend
+// pluraliza) ou null (= contagem simples). Determinístico; extensível por caso.
+function unidadeVenda(nome) {
+  const n = norm(nome);
+  if (/\bovos?\b/.test(n)) return 'dúzia';
+  return null;
+}
+
 // Casa um NOME de lista ("Leite", "Presunto") aos SKUs por TOKENS-palavra (não
 // igualdade exata — "Leite" tem de casar "Leite Meio Gordo"). Prioriza o
 // SUBSTANTIVO-CABEÇA: "Leite" prefere SKUs que COMEÇAM por "Leite", não "Doce de
@@ -65,6 +74,7 @@ async function resolverItensLista(pool, itens, mercado) {
     it.grupo = matched.find((s) => s.grupo && s.grupo !== 'outros')?.grupo || grupoDeTexto(it.nome);
     it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null; it.unidade_base = null;
     it.produto_sugerido = null; it.variantes_n = 0; it.qtd_habitual = null;
+    it.unidade_venda = unidadeVenda(it.nome);
   }
   if (!allSkuIds.size) return;
   const ids = [...allSkuIds];
