@@ -667,6 +667,67 @@ adminRouter.post('/match-eans/:id/rejeitar', async (req, res) => {
   }
 });
 
+// ───────────── Aba MERCADONA: talões PT × catálogo Mercadona (ES) ─────────────
+// Foco no problema isolado: os produtos Hacendado são iguais em PT e ES, mas o
+// catálogo é espanhol → matching difícil. Esta aba mostra SÓ os itens de talão
+// Mercadona sem EAN, com candidatos restritos ao PRÓPRIO catálogo Mercadona.
+adminRouter.get('/mercadona', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [itens] = await pool.query(
+      `SELECT i.descricao_original AS d,
+              AVG(i.preco_liquido / GREATEST(i.quantidade, 1)) AS preco, COUNT(*) AS compras
+         FROM item i JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
+         LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
+        WHERE i.is_non_product = 0 AND i.ean IS NULL AND COALESCE(l.cadeia, l.nome) = 'Mercadona'
+          AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
+          AND NOT EXISTS (SELECT 1 FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
+                           WHERE i2.descricao_original = i.descricao_original AND pe.ean IS NOT NULL)
+        GROUP BY i.descricao_original ORDER BY compras DESC, d`);
+    const out = [];
+    for (const it of itens) {
+      const m = await buscarCatalogo(pool, it.d, { cadeia: 'Mercadona', fonteUnica: 'mercadona', limiar: 0.45 });
+      const candidatos = m
+        ? [{ ean: m.ean, nome: m.nome, formato: m.formato, preco_por_base: m.preco_por_base, score: m.score }, ...(m.alternativas || [])]
+        : [];
+      const mFmt = String(it.d).match(/(\d+\s*[x*]\s*)?\d+[.,]?\d*\s*(kg|gr?s?|m?l|cl|lt|un|dz)\b/i);
+      out.push({
+        descricao: it.d, compras: it.compras,
+        formato_pago: mFmt ? mFmt[0].replace(/\s+/g, '').toLowerCase() : null,
+        preco_pago: it.preco != null ? Math.round(Number(it.preco) * 100) / 100 : null,
+        candidatos,
+      });
+    }
+    res.json({ itens: out, com_candidato: out.filter((x) => x.candidatos.length).length });
+  } catch (e) {
+    console.error('[admin/mercadona] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar' });
+  }
+});
+
+// Aprova um EAN para uma descrição Mercadona: grava item.ean (sai da worklist),
+// enriquece a ficha (off_produto local → OFF → catálogo) e regista a variante.
+adminRouter.post('/mercadona/ean', async (req, res) => {
+  try {
+    const pool = getPool();
+    const descricao = str(req.body?.descricao, 255);
+    const ean = str(req.body?.ean, 20)?.replace(/\D/g, '');
+    if (!descricao || !ean) return res.status(400).json({ erro: 'descricao e ean obrigatórios' });
+    if (!eanValido(ean)) return res.status(400).json({ erro: 'EAN inválido (dígito verificador)' });
+    const [r] = await pool.query(
+      `UPDATE item i JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
+          SET i.ean = ?
+        WHERE i.descricao_original = ? AND COALESCE(l.cadeia, l.nome) = 'Mercadona'
+          AND i.ean IS NULL AND i.is_non_product = 0`, [ean, descricao]);
+    await consultarOuGuardar(ean).catch((e) => console.error('[mercadona/ean] enriquecer:', e.message));
+    await pool.query('INSERT IGNORE INTO produto_nome (ean, nome, origem) VALUES (?,?,?)', [ean, descricao, 'talao']).catch(() => {});
+    res.json({ ok: true, ean, n_itens: r.affectedRows });
+  } catch (e) {
+    console.error('[admin/mercadona/ean] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a gravar' });
+  }
+});
+
 // ───────────────────────── Painel (Admin v2) ─────────────────────────
 
 // Cards do dashboard: nº de notas, por mercado, nº de produtos crus (antes da

@@ -303,7 +303,7 @@ function formatoEstrut(fmtQ, fv, ub) {
 // margem } ou null. `cadeia` dá prior à fonte da mesma loja (marca-própria).
 // `margem` = distância ao 2.º melhor de NOME DIFERENTE — margem ~0 significa
 // empate entre produtos distintos (ex.: "BANANA" cobre dezenas) → pista não fiável.
-export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } = {}) {
+export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6, fonteUnica = null } = {}) {
   const idf = await carregarIdf(pool);
   const cat = await catalogoEmMemoria(pool);
   const desc = expandirAbreviaturas(descricao);
@@ -313,6 +313,7 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } =
   const fontePref = FONTE_POR_CADEIA[norm(cadeia || '')] || null;
   const marcados = [];
   for (const r of cat) {
+    if (fonteUnica && r.fonte !== fonteUnica) continue; // restringe a 1 catálogo (ex.: só Mercadona)
     let s = pontuarBusca(q, r.t, idf);
     if (s < 0.45) continue;
     // Só CONFLITO bloqueia (morango ≠ baunilha); faceta AUSENTE passa — o talão

@@ -47,6 +47,9 @@ export default function Admin() {
           <button className={aba === 'eans' ? 'on' : ''} onClick={() => setAba('eans')}>
             EANs
           </button>
+          <button className={aba === 'mercadona' ? 'on' : ''} onClick={() => setAba('mercadona')}>
+            Mercadona
+          </button>
           <button className={aba === 'notas' ? 'on' : ''} onClick={() => setAba('notas')}>
             Notas
           </button>
@@ -90,6 +93,8 @@ export default function Admin() {
         <TabNomes />
       ) : aba === 'eans' ? (
         <TabEans />
+      ) : aba === 'mercadona' ? (
+        <TabMercadona />
       ) : aba === 'itens' ? (
         <TabItens onAbrirNota={abrirNota} />
       ) : aba === 'fichas' ? (
@@ -812,6 +817,77 @@ function TabNomes() {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// Aba MERCADONA: foco no match dos talões PT contra o catálogo Mercadona (ES).
+// Os produtos Hacendado são iguais nos dois países, mas o catálogo é espanhol —
+// mostra só os candidatos do PRÓPRIO Mercadona, com tamanhos, p/ o operador casar.
+function TabMercadona() {
+  const [itens, setItens] = useState(null);
+  const [msg, setMsg] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const [feito, setFeito] = useState(() => new Set());
+
+  const recarregar = () => adm.mercadonaMatch().then((r) => setItens(r.itens)).catch(() => setItens([]));
+  useEffect(() => { recarregar(); }, []);
+
+  async function casar(descricao, ean) {
+    setOcupado(true);
+    try {
+      const r = await adm.mercadonaEan(descricao, ean);
+      setMsg(`✓ "${descricao}" → EAN ${r.ean} (${r.n_itens} compra(s))`);
+      setFeito((s) => new Set(s).add(descricao));
+    } catch (e) { setMsg('✗ ' + (e.message || 'falhou')); }
+    setOcupado(false);
+  }
+
+  const pend = (itens || []).filter((x) => !feito.has(x.descricao));
+  const comCand = pend.filter((x) => x.candidatos.length);
+  return (
+    <div className="adm-fusoes">
+      <div className="adm-auto">
+        <span className="adm-merc-titulo">🛒 Talões Mercadona × catálogo Mercadona (Espanha)</span>
+        <span className="adm-sug-dica">Os produtos Hacendado são iguais em PT e ES — aqui só aparecem candidatos do PRÓPRIO catálogo Mercadona, com o tamanho. Confirma o que bate; o item ganha ficha (nutrição via Open Food Facts) e sai da lista.</span>
+        {msg && <span className="adm-ok">{msg}</span>}
+      </div>
+      {itens === null ? (
+        <p className="adm-vazio">a carregar…</p>
+      ) : pend.length === 0 ? (
+        <p className="adm-vazio">Sem itens Mercadona por identificar. 👍</p>
+      ) : (
+        <>
+          <p className="adm-aviso">{pend.length} itens · {comCand.length} com candidato no catálogo Mercadona</p>
+          <ul className="adm-pares adm-eans">
+            {pend.map((it) => (
+              <li key={it.descricao} className="adm-ean-li">
+                <div className="adm-ean-top">
+                  <span className="adm-ean-talao">{it.descricao}</span>
+                  {it.formato_pago && <span className="adm-ean-alt-fmt">{it.formato_pago}</span>}
+                  {it.preco_pago != null && <span className="adm-ean-compras">€{it.preco_pago.toFixed(2)}</span>}
+                  {it.compras > 1 && <span className="adm-ean-compras">{it.compras}×</span>}
+                </div>
+                {it.candidatos.length === 0 ? (
+                  <div className="adm-ean-cand"><span className="adm-vazio2">sem candidato no catálogo Mercadona</span></div>
+                ) : (
+                  <div className="adm-merc-cands">
+                    {it.candidatos.map((c) => (
+                      <button key={c.ean} className="adm-merc-cand" disabled={ocupado}
+                        title={`gravar EAN ${c.ean}`} onClick={() => casar(it.descricao, c.ean)}>
+                        <b>{c.nome}</b>
+                        {c.formato && <em className="adm-ean-alt-fmt">{c.formato}</em>}
+                        <small>{Math.round(c.score * 100)}%</small>
+                        <code className="adm-ean-cod">{c.ean}</code>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

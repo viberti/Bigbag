@@ -57,6 +57,8 @@ export const matchEans = () => jget('/api/admin/match-eans');
 export const gerarMatchEans = (limite = 60) => jsend('/api/admin/match-eans/gerar', 'POST', { limite });
 export const aprovarMatchEan = (id, ean) => jsend(`/api/admin/match-eans/${id}/aprovar`, 'POST', ean ? { ean } : {});
 export const rejeitarMatchEan = (id) => jsend(`/api/admin/match-eans/${id}/rejeitar`, 'POST', {});
+export const mercadonaMatch = () => jget('/api/admin/mercadona');
+export const mercadonaEan = (descricao, ean) => jsend('/api/admin/mercadona/ean', 'POST', { descricao, ean });
 
 // Notas
 export const listarNotas = (status) => jget(`/api/admin/faturas?status=${status || 'all'}&limit=300`);
