@@ -51,6 +51,31 @@ feita para *compensar* a falta de catálogo, passa de "andaime essencial" a "bó
 3. Decisão de âmbito: continua **laboratório** (utilizador único) ou evolui para
    multi-utilizador (auth/suporte — maior compromisso). Como vertical de lab, não precisa.
 
+## Experiência validada (2026-06-11): tradução ES→PT do catálogo
+
+Hipótese: os itens de talão Mercadona (PT) casavam no catálogo **Auchan/Continente**
+(nomes PT) em vez do **próprio Mercadona** (nomes ES) — "MOZZARELLA" batia "Queijo
+Mozzarella Galbani" (Auchan) e não "Queso Mozzarella Hacendado" (Mercadona). Pior:
+casava no **produto errado** (Galbani ≠ Hacendado).
+
+Teste (`scripts/exp_match_mercadona.mjs`, A/B na worklist Mercadona, 21 itens sem EAN):
+- **Baseline** (catálogo ES): só **3/21** na própria cadeia.
+- **+ tradução por léxico** (`scripts/traduzir_mercadona.mjs`, ES→PT determinístico,
+  sem LLM, coluna `catalogo_produto.nome_pt`; `buscarCatalogo` tokeniza nome_pt):
+  ainda 3 — a tradução **sozinha não chegou**.
+- **+ correção do prior de cadeia** (achado: o Mercadona e o lidl-fr nem estavam no
+  `FONTE_POR_CADEIA` → o +0,12 que desempata p/ a própria loja **nunca se aplicava**):
+  **11/21** no match direto, **14** nas propostas geradas.
+
+Os que continuam a casar cross-cadeia são **marcas nacionais** (Gullon, Chips Ahoy,
+Lacasa, Agros) — onde o EAN é o mesmo em qualquer catálogo, logo está **correto**.
+
+**Conclusões:** (1) a tradução do catálogo é **valor permanente também em PT** —
+corrigiu matches errados de marca-própria Mercadona (Hacendado passou a resolver no
+produto certo). (2) Para o **vertical ES**, onde ~tudo é Hacendado, isto é o catálogo
+inteiro a resolver corretamente — reforça a tese. (3) Um léxico ES→PT (sem LLM) chega
+para o matching; tradução fluente (LLM) só seria precisa para o nome de exibição.
+
 ## Notas
 
 - O preço do **histórico** continua a vir do **talão real** (como em PT) — o catálogo
