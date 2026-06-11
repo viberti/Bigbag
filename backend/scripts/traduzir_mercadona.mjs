@@ -33,8 +33,10 @@ const LEX = {
   lonchas: 'fatias', loncha: 'fatia', picada: 'picada', picado: 'picado', troceado: 'aos pedaços',
   pechuga: 'peito', muslo: 'coxa', alitas: 'asas', costillas: 'costeletas', lomo: 'lombo', solomillo: 'lombinho',
   // modificadores
-  desnatado: 'magro', desnatada: 'magra', semidesnatado: 'meio-gordo', semidesnatada: 'meio-gorda',
+  // teores → valor canónico das facetas (alinha o match: "leite meio gordo" do talão)
+  desnatado: 'magro', desnatada: 'magro', semidesnatado: 'meio-gordo', semidesnatada: 'meio-gordo',
   entero: 'inteiro', entera: 'inteira', rallado: 'ralado', rallada: 'ralada', dorado: 'dourado', ecológico: 'biológico',
+  asado: 'assado', asada: 'assada', cocido: 'cozido', cocida: 'cozida', ahumado: 'fumado', ahumada: 'fumada',
   // PALAVRAS ES↔PT COMPLETAMENTE DIFERENTES (não só grafia — revelado pela aba Mercadona)
   anacardo: 'caju', anacardos: 'caju', cacahuete: 'amendoim', cacahuetes: 'amendoim',
   gambas: 'camarão', langostinos: 'lagostins', merluza: 'pescada', lubina: 'robalo',
