@@ -15,9 +15,11 @@ const DISPENSA_FICHA_KW = [
   'vinho', 'espumante', 'cerveja', 'whisky', 'gin', 'ginja', 'vodka', 'licor',
   'aguardente', 'sidra', 'sangria', 'vermute', 'brandy', 'tequila', 'moscatel', 'champanhe', 'conhaque',
   // cereais / massas — nutrição da classe
-  'arroz', 'esparguete', 'massa', 'macarrao', 'farinha', 'cuscuz', 'penne', 'fusilli', 'talharim', 'noodles',
+  'arroz', 'esparguete', 'massa', 'macarrao', 'macarrão', 'farinha', 'cuscuz', 'penne', 'fusilli', 'talharim', 'noodles',
   // pão / padaria fresca — frescos-like
-  'pao', 'paes', 'baguete', 'croissant', 'brioche', 'broa', 'tosta', 'carcaca', 'pain',
+  'pao', 'pão', 'paes', 'pães', 'baguete', 'croissant', 'brioche', 'broa', 'tosta', 'carcaca', 'carcaça', 'pain',
+  // NB: o REGEXP do MySQL é sensível a acentos — manter as duas formas (pao/pão)
+  // porque o critério casa o nome canónico (acentuado) E a descrição crua (sem).
 ];
 // Valor com `\\b` para sobreviver ao literal de string do MySQL (interpolado no SQL).
 export const DISPENSA_FICHA_RE = `\\\\b(${DISPENSA_FICHA_KW.join('|')})\\\\b`;
