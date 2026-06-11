@@ -14,6 +14,23 @@ import { chatCompletion } from '../openrouter.js';
 import { responderPergunta } from '../consulta.js';
 import { carregarHistorico, guardarMensagem } from '../historico.js';
 import { carregarPerfil } from '../perfil.js';
+import { getPool } from '../db.js';
+
+// Nomes que a CASA realmente compra (cache 10 min): entram no prompt da voz para
+// o LLM ancorar a transcrição ("iogurt grego" → "Iogurte Grego Natural") e
+// resolver plurais/pronúncia ao vocabulário real em vez de inventar variantes.
+let _habituais = { nomes: [], ate: 0 };
+async function nomesHabituais() {
+  if (Date.now() < _habituais.ate) return _habituais.nomes;
+  try {
+    const [rows] = await getPool().query(`
+      SELECT COALESCE(s.nome_simplificado, s.nome_canonico) AS nome, COUNT(DISTINCT i.fatura_id) idas
+        FROM sku_normalizado s JOIN item i ON i.sku_id = s.id AND i.is_non_product = 0
+       GROUP BY s.id HAVING idas >= 2 ORDER BY idas DESC LIMIT 40`);
+    _habituais = { nomes: rows.map((r) => r.nome), ate: Date.now() + 600000 };
+  } catch { /* sem BD → prompt segue sem vocabulário */ }
+  return _habituais.nomes;
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -53,6 +70,7 @@ vozRouter.post('/lista', requireAuth, upload.single('audio'), async (req, res) =
   try {
     if (!req.file) return res.status(400).json({ erro: 'Falta o arquivo "audio"' });
     const mime = req.file.mimetype || 'audio/webm';
+    const habituais = await nomesHabituais();
     const conteudo = await chatCompletion({
       messages: [
         {
@@ -60,7 +78,8 @@ vozRouter.post('/lista', requireAuth, upload.single('audio'), async (req, res) =
           content: [
             {
               type: 'text',
-              text: 'O áudio dita itens para uma lista de compras de supermercado (português). Extrai os PRODUTOS e as QUANTIDADES ditadas e devolve SÓ JSON: {"produtos": [{"nome": "...", "quantidade": N}]}. Regras: nome curto com a 1.ª letra maiúscula, SEM a embalagem nem a quantidade no nome ("2 latas de coca-cola" → nome "Coca-Cola", quantidade 2; "3 dúzias de ovos" → nome "Ovos", quantidade 3; "3 cervejas" → nome "Cerveja", quantidade 3). Sem quantidade dita → 1. Se não houver produtos no áudio, {"produtos": []}.',
+              text: 'O áudio dita itens para uma lista de compras de supermercado (português). Extrai os PRODUTOS e as QUANTIDADES ditadas e devolve SÓ JSON: {"produtos": [{"nome": "...", "quantidade": N}]}. Regras: nome curto com a 1.ª letra maiúscula, SEM a embalagem nem a quantidade no nome ("2 latas de coca-cola" → nome "Coca-Cola", quantidade 2; "3 dúzias de ovos" → nome "Ovos", quantidade 3; "3 cervejas" → nome "Cerveja", quantidade 3). Sem quantidade dita → 1. Se não houver produtos no áudio, {"produtos": []}.'
+                + (habituais.length ? ` A casa costuma comprar (quando o áudio corresponder a um destes, usa EXATAMENTE este nome): ${habituais.join('; ')}.` : ''),
             },
             { type: 'input_audio', input_audio: { data: req.file.buffer.toString('base64'), format: formatoDeMime(mime) } },
           ],

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, variantesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, variantesLista, adicionarListaLote, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -32,6 +32,13 @@ async function lerTalaoPartilhado() {
 }
 
 const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
+
+// Chave LOCAL de consolidação (aproximação otimista da do servidor): minúsculas,
+// sem acentos, -s final fora. "Bananas"≈"banana", "Pão"≈"pao". O servidor é a
+// verdade (singularização completa); isto só evita duplicado visual imediato.
+const chaveLite = (n) => String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/)
+  .map((t) => (t.length > 3 && t.endsWith('s') && !t.endsWith('ss') ? t.slice(0, -1) : t)).join(' ');
 
 // Sufixo de quantidade de um item da lista: na UNIDADE DE VENDA quando se conhece
 // (ex.: ovos → "· 1 dúzia" / "· 2 dúzias", em vez de "×1" que se lia como 1 ovo);
@@ -217,6 +224,7 @@ function Chat({ onSair, nome }) {
   const [listaLojas, setListaLojas] = useState([]);
   const [mercadoSel, setMercadoSel] = useState(''); // '' = todas as lojas
   const [listaOffline, setListaOffline] = useState(false);
+  const [novosIds, setNovosIds] = useState(new Set()); // itens acabados de chegar de OUTRO membro (animação)
   const [habituaisAberto, setHabituaisAberto] = useState(false);
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
   const [notasAberto, setNotasAberto] = useState(false);
@@ -486,9 +494,12 @@ function Chat({ onSair, nome }) {
       // Compara com os ids já conhecidos; só os de OUTRO membro e fora da 1.ª carga.
       const conhecidos = listaIdsRef.current;
       if (conhecidos) {
+        // SEM toast: o próprio aparecimento do item comunica (animação + vibração).
         const adicionados = novos.filter((it) => !conhecidos.has(it.id) && String(it.adicionado_por || '').toLowerCase() !== eu);
         if (adicionados.length) {
-          mostrarToast(t('lista.atualizada', { n: adicionados.length, nomes: adicionados.map((x) => x.nome).join(', ') }));
+          setNovosIds(new Set(adicionados.map((x) => x.id)));
+          navigator.vibrate?.(20);
+          setTimeout(() => setNovosIds(new Set()), 2600);
         }
       }
       listaIdsRef.current = new Set(novos.map((it) => it.id));
@@ -514,10 +525,21 @@ function Chat({ onSair, nome }) {
   // carrega 1x no arranque (badge do cabeçalho)
   useEffect(() => { carregarLista(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const noCarrinho = (n) => (lista || []).some((i) => i.nome.toLowerCase() === String(n).toLowerCase());
+  const noCarrinho = (n) => (lista || []).some((i) => chaveLite(i.nome) === chaveLite(n));
   async function adicionarAoCarrinho(n, categoria, quantidade = 1) {
     const nome = String(n || '').trim();
-    if (!nome || noCarrinho(nome)) return;
+    if (!nome) return;
+    // CONSOLIDAÇÃO: "ovos" quando já há "Ovo" não duplica — soma a quantidade
+    // (otimista local pela chaveLite; o servidor confirma com a chave completa).
+    const existente = (lista || []).find((i) => chaveLite(i.nome) === chaveLite(nome));
+    if (existente) {
+      setLista((xs) => (xs || []).map((i) => (i.id === existente.id
+        ? { ...i, quantidade: Math.min(99, (i.quantidade || 1) + quantidade), estado: 'ativo', marcado_por: null } : i)));
+      if (!String(existente.id).startsWith('tmp')) {
+        try { await atualizarListaItem(existente.id, { inc: quantidade, marcado: false }); } catch { setListaOffline(true); }
+      }
+      return;
+    }
     const cat = categoria || catPorNome[nome] || null;
     setLista((xs) => [...(xs || []), { id: `tmp${Date.now()}`, nome, quantidade, categoria: cat, estado: 'ativo', adicionado_por: eu, melhor_preco: null }]);
     try {
@@ -542,6 +564,22 @@ function Chat({ onSair, nome }) {
     setLista((xs) => (xs || []).map((i) => (i.id === id ? { ...i, quantidade } : i)));
     if (String(id).startsWith('tmp')) return;
     try { await atualizarListaItem(id, { quantidade }); } catch { setListaOffline(true); }
+  }
+  // Incremento por DELTA (servidor soma): dois membros a carregar "+" ao mesmo
+  // tempo somam os dois — valor absoluto era last-write-wins e perdia um.
+  async function deltaItemLista(id, inc) {
+    setLista((xs) => (xs || []).map((i) => (i.id === id ? { ...i, quantidade: Math.min(99, Math.max(1, (i.quantidade || 1) + inc)) } : i)));
+    if (String(id).startsWith('tmp')) return;
+    try { await atualizarListaItem(id, { inc }); } catch { setListaOffline(true); }
+  }
+  // Ditado por VOZ em lote: 1 round-trip, devolve a lista completa + o resumo
+  // do que entrou (para a barra de confirmação editável).
+  async function ditarLote(produtos) {
+    const d = await adicionarListaLote(produtos, mercadoSel || undefined);
+    setLista(d.itens || []);
+    listaIdsRef.current = new Set((d.itens || []).map((it) => it.id));
+    setListaLojas(d.lojas || []);
+    return d.adicionados || [];
   }
   async function removerItemLista(id) {
     setLista((xs) => (xs || []).filter((i) => i.id !== id));
@@ -862,6 +900,9 @@ function Chat({ onSair, nome }) {
         onAdicionar={adicionarAoCarrinho}
         onMarcar={marcarItemLista}
         onQtd={qtdItemLista}
+        onDelta={deltaItemLista}
+        onLote={ditarLote}
+        novosIds={novosIds}
         onRemover={removerItemLista}
         onRenomear={renomearItemLista}
         onLimpar={limparCarrinho}
@@ -3279,10 +3320,21 @@ function TabNut({ n }) {
 // com a cor de quem riscou); SEGURAR (~450ms parado) abre o CARD do item (sugestão,
 // variantes, qtd habitual, histórico, remover); arrastar p/ a DIREITA remove.
 // A linha em si fica mínima: ponto de cor · nome · preço · − / +.
-function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onCard }) {
+function ItemCarrinho({ it, novo, onRemover, onMarcar, onDelta, onCard }) {
   const [dx, setDx] = useState(0);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
-  const lp = useRef({ timer: null, fired: false }); // long-press
+  const lp = useRef({ timer: null, fired: false }); // long-press (abre o card)
+  // long-press no "+" = repetição acelerada (+1 a cada 130ms) — "+5 bananas" sem
+  // metralhar o botão; o click normal continua a dar +1.
+  const rep = useRef({ timer: null, int: null, fired: false });
+  const repStart = () => {
+    rep.current.fired = false;
+    rep.current.timer = setTimeout(() => {
+      rep.current.fired = true;
+      rep.current.int = setInterval(() => { onDelta(it.id, +1); navigator.vibrate?.(5); }, 130);
+    }, 400);
+  };
+  const repStop = () => { clearTimeout(rep.current.timer); clearInterval(rep.current.int); };
   const abrirCard = () => {
     if (lp.current.fired) return; // não duplicar (timer + contextmenu)
     lp.current.fired = true;
@@ -3324,8 +3376,9 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onCard }) {
         <Ico name="close" size={18} />
       </div>
       <div
-        className={`crow${riscado ? ' riscado' : ''}`}
-        style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+        className={`crow${riscado ? ' riscado' : ''}${novo ? ' novo' : ''}`}
+        style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s',
+          ...(novo ? { '--cor-novo': corMembro(it.adicionado_por) } : {}) }}
         onTouchStart={start}
         onTouchMove={move}
         onTouchEnd={end}
@@ -3346,15 +3399,17 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onCard }) {
           )}
         </span>
         <span className="cqtd" onClick={(e) => e.stopPropagation()}>
-          <button type="button" onClick={() => onQtd(it.id, Math.max(1, (it.quantidade || 1) - 1))} aria-label="-">−</button>
-          <button type="button" onClick={() => onQtd(it.id, (it.quantidade || 1) + 1)} aria-label="+">+</button>
+          <button type="button" onClick={() => onDelta(it.id, -1)} aria-label="-">−</button>
+          <button type="button" aria-label="+"
+            onClick={() => { if (rep.current.fired) { rep.current.fired = false; return; } onDelta(it.id, +1); }}
+            onPointerDown={repStart} onPointerUp={repStop} onPointerLeave={repStop} onContextMenu={(e) => e.preventDefault()}>+</button>
         </span>
       </div>
     </div>
   );
 }
 
-function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onRemover, onRenomear, onLimpar, onAbrirHabituais, onAbrirMinha, onFechar }) {
+function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onDelta, onLote, novosIds, onRemover, onRenomear, onLimpar, onAbrirHabituais, onAbrirMinha, onFechar }) {
   const [novo, setNovo] = useState('');
   const adicionar = () => { if (novo.trim()) { onAdicionar(novo); setNovo(''); } };
   // seletor de VARIANTES habituais ("iogurte" → os iogurtes que a casa compra)
@@ -3383,19 +3438,29 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
     if (!dicaVista) { try { localStorage.setItem('bb_dica_card', '1'); } catch { /* sem storage */ } setDicaVista(true); }
     historicoProduto(it.nome).then(setHistCard).catch(() => setHistCard([]));
   }
-  // ditar produtos por VOZ: gravar → /api/voz/lista extrai os nomes → adiciona todos
+  // ditar produtos por VOZ: gravar → /api/voz/lista extrai nomes+quantidades →
+  // POST /lote (1 round-trip) → barra de confirmação EDITÁVEL ("Entendi: …" c/ ✕).
   const [gravando, setGravando] = useState(false);
   const [aOuvir, setAOuvir] = useState(false); // a processar o áudio
   const [erroVoz, setErroVoz] = useState(null); // mensagem visível — NUNCA falhar mudo
+  const [vozOk, setVozOk] = useState(null); // [{id, nome, quantidade}] — confirmação editável
   const mrRef = useRef(null);
+  const vozOkTimer = useRef(null);
   async function alternarVoz() {
     if (gravando) { mrRef.current?.stop(); return; }
     setErroVoz(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      // bitrate baixo = upload mais rápido = micro "volta" mais depressa; o
+      // mimeType pedido pode não existir (iOS) → fallback ao default do browser.
+      let mr;
+      try { mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 32000 }); }
+      catch { mr = new MediaRecorder(stream); }
       const pedacos = [];
       mr.ondataavailable = (e) => { if (e.data.size) pedacos.push(e.data); };
+      // só sinaliza "a gravar" quando o recorder está MESMO pronto — falar antes
+      // do sinal cortava a 1.ª palavra ("…nanas" em vez de "bananas").
+      mr.onstart = () => { setGravando(true); navigator.vibrate?.(10); };
       mr.onstop = async () => {
         stream.getTracks().forEach((tr) => tr.stop());
         setGravando(false);
@@ -3403,18 +3468,20 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
         try {
           const blob = new Blob(pedacos, { type: mr.mimeType || 'audio/webm' });
           const { produtos } = await vozParaLista(blob);
-          // objetos {nome, quantidade} ("3 cervejas" → Cerveja ×3); strings = retrocompat
-          for (const p of produtos || []) {
-            if (typeof p === 'string') onAdicionar(p);
-            else onAdicionar(p.nome, null, p.quantidade || 1);
+          const lote = (produtos || []).map((p) => (typeof p === 'string' ? { nome: p, quantidade: 1 } : p));
+          if (!lote.length) { setErroVoz(t('voz.nadaOuvido')); }
+          else {
+            const adicionados = await onLote(lote);
+            navigator.vibrate?.(15);
+            setVozOk(adicionados);
+            clearTimeout(vozOkTimer.current);
+            vozOkTimer.current = setTimeout(() => setVozOk(null), 7000);
           }
-          if (!produtos?.length) setErroVoz(t('voz.nadaOuvido'));
-        } catch { setErroVoz(t('err.query')); }
+        } catch (e) { setErroVoz(String(e?.name) === 'AbortError' ? t('voz.demorou') : t('err.query')); }
         setAOuvir(false);
       };
       mrRef.current = mr;
       mr.start();
-      setGravando(true);
     } catch {
       // permissão recusada/apagada (ex.: limpar dados do site remove-a) — dizer!
       setErroVoz(t('err.micPerm'));
@@ -3463,7 +3530,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                 <div key={g.id}>
                   <div className="cart-cat">{g.label}</div>
                   {its.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onCard={abrirCard} />
+                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
                   ))}
                 </div>
               ))}
@@ -3471,13 +3538,24 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                 <div className="cart-feito">
                   <div className="cart-cat cart-cat-feito"><Ico name="cart" size={22} /> <span>{noCarrinho.length}</span></div>
                   {noCarrinho.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onCard={abrirCard} />
+                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
                   ))}
                 </div>
               )}
             </div>
           );
         })()}
+        {vozOk?.length > 0 && (
+          <div className="voz-ok">
+            <span className="voz-ok-k">{t('voz.entendi')}</span>
+            {vozOk.map((a) => (
+              <span key={a.id} className="voz-ok-item">
+                {a.nome}{a.quantidade > 1 ? ` ×${a.quantidade}` : ''}
+                <button type="button" aria-label="remover" onClick={() => { onRemover(a.id); setVozOk((xs) => xs.filter((x) => x.id !== a.id)); }}>✕</button>
+              </span>
+            ))}
+          </div>
+        )}
         {erroVoz && <p className="sheet-offline">{erroVoz}</p>}
         <div className="cart-add">
           <button type="button" className="voz" onClick={onAbrirHabituais} aria-label={t('habituais.title')} title={t('habituais.title')}>

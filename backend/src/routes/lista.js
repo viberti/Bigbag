@@ -6,7 +6,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { grupoDeTexto, tokenCasa, singularizar } from '../normaliza/categoria.js';
+import { grupoDeTexto, tokenCasa, singularizar, chaveItemLista } from '../normaliza/categoria.js';
 
 export const listaRouter = Router();
 listaRouter.use(requireAuth);
@@ -203,20 +203,25 @@ listaRouter.get('/variantes', async (req, res) => {
   }
 });
 
+// Monta a lista completa (itens enriquecidos + lojas) — partilhado pelo GET e
+// pelo POST /lote (que devolve a lista atualizada num só round-trip).
+async function montarLista(pool, mercado) {
+  const [itens] = await pool.query(
+    `SELECT id, nome, quantidade, categoria, estado, adicionado_por, marcado_por
+       FROM lista_item WHERE estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
+  );
+  await resolverItensLista(pool, itens, mercado);
+  const [lojas] = await pool.query(
+    `SELECT DISTINCT COALESCE(l.cadeia, l.nome) AS loja FROM fatura f JOIN loja l ON l.id = f.loja_id ORDER BY 1`,
+  );
+  return { itens, lojas: lojas.map((x) => x.loja).filter(Boolean), mercado };
+}
+
 // Lista atual (ativos + riscados) com preços + GRUPO, e as lojas p/ o seletor.
 listaRouter.get('/', async (req, res) => {
   try {
-    const pool = getPool();
     const mercado = String(req.query.mercado || '').trim() || null;
-    const [itens] = await pool.query(
-      `SELECT id, nome, quantidade, categoria, estado, adicionado_por, marcado_por
-         FROM lista_item WHERE estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
-    );
-    await resolverItensLista(pool, itens, mercado);
-    const [lojas] = await pool.query(
-      `SELECT DISTINCT COALESCE(l.cadeia, l.nome) AS loja FROM fatura f JOIN loja l ON l.id = f.loja_id ORDER BY 1`,
-    );
-    res.json({ itens, lojas: lojas.map((x) => x.loja).filter(Boolean), mercado });
+    res.json(await montarLista(getPool(), mercado));
   } catch (e) {
     console.error('[lista] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar a lista' });
@@ -262,31 +267,64 @@ listaRouter.delete('/pessoal/:id', async (req, res) => {
   }
 });
 
-// Adicionar (dedup por nome, case-insensitive): se já está na lista, soma a
-// quantidade — duas pessoas a adicionar "Leite" não criam duplicados.
+// Nome de item válido? Guarda contra lixo programático: o caso real foi um
+// cliente PWA em cache antiga a stringificar objetos → item "[object Object]".
+const nomeValido = (n) => n && n.length >= 2 && !/\[object|^undefined$|^null$/i.test(n);
+
+// Adiciona com CONSOLIDAÇÃO por chave normalizada (minúsculas, sem acentos,
+// singular): "ovos" e "Ovo", "Bananas" e "banana" são o MESMO item → SOMA a
+// quantidade em vez de duplicar (decisão do dono). Um item já riscado volta a
+// ativo (nova necessidade). Partilhado pelo POST unitário e pelo /lote.
+async function adicionarConsolidado(pool, { nome, quantidade, categoria, user }) {
+  const qtd = Math.max(1, Math.min(99, Number(quantidade) || 1));
+  const chave = chaveItemLista(nome);
+  const [ativos] = await pool.query(
+    `SELECT id, nome, quantidade, estado FROM lista_item WHERE estado IN ('ativo','carrinho')`);
+  const ja = ativos.find((x) => chaveItemLista(x.nome) === chave);
+  if (ja) {
+    await pool.query(
+      `UPDATE lista_item SET quantidade = LEAST(99, quantidade + ?), estado = 'ativo', marcado_por = NULL WHERE id = ?`,
+      [qtd, ja.id]);
+    return { id: ja.id, consolidado: true };
+  }
+  const [r] = await pool.query(
+    'INSERT INTO lista_item (nome, quantidade, categoria, adicionado_por) VALUES (?,?,?,?)',
+    [nome, qtd, categoria || null, user]);
+  return { id: r.insertId, consolidado: false };
+}
+
 listaRouter.post('/', async (req, res) => {
   try {
     const nome = String(req.body?.nome || '').trim().slice(0, 160);
-    if (!nome) return res.status(400).json({ erro: 'nome em falta' });
-    const qtd = Math.max(1, Math.min(99, Number(req.body?.quantidade) || 1));
+    if (!nomeValido(nome)) return res.status(400).json({ erro: 'nome inválido' });
     const categoria = String(req.body?.categoria || '').trim().slice(0, 80) || null;
-    const pool = getPool();
-    const [[ja]] = await pool.query(
-      `SELECT id, quantidade FROM lista_item WHERE estado IN ('ativo','carrinho') AND LOWER(nome) = LOWER(?) LIMIT 1`,
-      [nome],
-    );
-    if (ja) {
-      if (req.body?.somar) await pool.query('UPDATE lista_item SET quantidade = quantidade + ? WHERE id = ?', [qtd, ja.id]);
-      return res.json({ ok: true, id: ja.id, existia: true });
-    }
-    const [r] = await pool.query(
-      'INSERT INTO lista_item (nome, quantidade, categoria, adicionado_por) VALUES (?,?,?,?)',
-      [nome, qtd, categoria, req.user.id],
-    );
-    res.json({ ok: true, id: r.insertId, existia: false });
+    const r = await adicionarConsolidado(getPool(), { nome, quantidade: req.body?.quantidade, categoria, user: req.user.id });
+    res.json({ ok: true, id: r.id, existia: r.consolidado, consolidado: r.consolidado });
   } catch (e) {
     console.error('[lista POST] erro:', e.message);
     res.status(500).json({ erro: 'Falha a adicionar' });
+  }
+});
+
+// LOTE (ditado por voz): adiciona N itens consolidados num só round-trip e
+// devolve a LISTA COMPLETA atualizada + o resumo do que entrou (para a barra
+// de confirmação editável da voz). Substitui N POSTs + N reloads.
+listaRouter.post('/lote', async (req, res) => {
+  try {
+    const pool = getPool();
+    const pedidos = Array.isArray(req.body?.produtos) ? req.body.produtos.slice(0, 20) : [];
+    const adicionados = [];
+    for (const p of pedidos) {
+      const nome = String(p?.nome || '').trim().slice(0, 160);
+      if (!nomeValido(nome)) continue;
+      const r = await adicionarConsolidado(pool, { nome, quantidade: p?.quantidade, categoria: null, user: req.user.id });
+      adicionados.push({ id: r.id, nome, quantidade: Math.max(1, Math.min(99, Number(p?.quantidade) || 1)), consolidado: r.consolidado });
+    }
+    const mercado = String(req.body?.mercado || '').trim() || null;
+    res.json({ ...(await montarLista(pool, mercado)), adicionados });
+  } catch (e) {
+    console.error('[lista/lote] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a adicionar os itens' });
   }
 });
 
@@ -301,6 +339,12 @@ listaRouter.patch('/:id', async (req, res) => {
       const q = Math.max(1, Math.min(99, Number(req.body.quantidade) || 1));
       sets.push('quantidade = ?');
       vals.push(q);
+    }
+    if ('inc' in (req.body || {})) {
+      // DELTA em vez de valor absoluto: dois membros a carregar "+" ao mesmo
+      // tempo somam os dois incrementos (valor absoluto era last-write-wins).
+      const inc = Math.max(-98, Math.min(98, Number(req.body.inc) || 0));
+      if (inc) { sets.push('quantidade = LEAST(99, GREATEST(1, quantidade + ?))'); vals.push(inc); }
     }
     if ('nome' in (req.body || {})) {
       // concretizar o item (ex.: escolher a variante "Iogurte Grego Natural")

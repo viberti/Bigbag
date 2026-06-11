@@ -1394,6 +1394,24 @@ body { background: #0c1814; }
 .bb .cmembro { flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; align-self: flex-start; margin-top: 7px; }
 /* folha da lista a ecrã (quase) inteiro — aproveitar a tela */
 .bb .sheet.cheia { height: calc(100vh - 36px); height: calc(100dvh - 36px); max-height: none; }
+/* item ACABADO DE CHEGAR de outro membro: entrada animada + glow na cor de quem
+   o adicionou — o aparecimento É a notificação (sem toast). */
+@keyframes bbChega { from { transform: translateY(-8px); } to { transform: none; } }
+@keyframes bbGlow { 0% { box-shadow: inset 3px 0 0 var(--cor-novo), 0 0 14px var(--cor-novo); }
+  100% { box-shadow: inset 3px 0 0 var(--cor-novo), 0 0 0 transparent; } }
+@media (prefers-reduced-motion: no-preference) {
+  .bb .crow.novo { animation: bbChega .35s cubic-bezier(.22,1,.36,1) both, bbGlow 2.4s ease-out both; }
+}
+.bb .crow.novo { box-shadow: inset 3px 0 0 var(--cor-novo); }
+/* barra de confirmação do ditado: "Entendi: X ×2 ✕ · Y ✕" (editável, some só) */
+.bb .voz-ok { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 14px 0;
+  padding: 8px 10px; border-radius: 12px; background: var(--accent-soft); border: 1px solid rgba(46,196,110,.35); }
+.bb .voz-ok-k { font-size: 12px; font-weight: 800; color: var(--accent-bright); }
+.bb .voz-ok-item { display: inline-flex; align-items: center; gap: 5px; padding: 3px 4px 3px 10px; border-radius: 99px;
+  background: rgba(255,255,255,.07); font-size: 12.5px; font-weight: 600; color: var(--txt); }
+.bb .voz-ok-item button { width: 20px; height: 20px; border-radius: 50%; border: none; cursor: pointer;
+  background: rgba(255,255,255,.12); color: var(--muted-bb); font-size: 11px; line-height: 1; }
+
 /* long-press abre o card → suprimir seleção/callout nativos na linha */
 .bb .crow { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .bb .cart-dica { margin: 8px 18px 2px; font-size: 12px; color: var(--faint); }

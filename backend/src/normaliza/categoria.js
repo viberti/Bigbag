@@ -106,6 +106,14 @@ export function singularizar(t) {
   return t;
 }
 
+// Chave de CONSOLIDAÇÃO de um item da lista de compras: "Ovo", "ovos", "OVOS " e
+// "Bananas"/"banana" são o MESMO item — minúsculas, sem acentos, cada token no
+// singular canónico. Itens com a mesma chave somam quantidades em vez de duplicar.
+export function chaveItemLista(nome) {
+  return String(nome || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).map(singularizar).join(' ');
+}
+
 // Um token do PEDIDO casa um token do NOME quando: são iguais; são o MESMO
 // singular (plural⇄singular nos dois sentidos, incluindo irregulares — pão/pães,
 // limão/limões — via singularizar, NÃO por prefixo: prefixo largo foi o que fez

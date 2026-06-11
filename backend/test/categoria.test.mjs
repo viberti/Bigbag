@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { grupoDeTexto, grupoDe, grupoDeNome, tokenCasa, singularizar } from '../src/normaliza/categoria.js';
+import { grupoDeTexto, grupoDe, grupoDeNome, tokenCasa, singularizar, chaveItemLista } from '../src/normaliza/categoria.js';
+
+test('chaveItemLista: plurais/acentos/maiusculas consolidam no MESMO item', () => {
+  assert.equal(chaveItemLista('Ovo'), chaveItemLista('ovos'));
+  assert.equal(chaveItemLista('Banana'), chaveItemLista('BANANAS '));
+  assert.equal(chaveItemLista('Pão'), chaveItemLista('pao'));
+  assert.equal(chaveItemLista('Maçãs'), chaveItemLista('maca'));
+  assert.equal(chaveItemLista('Limões'), chaveItemLista('limao'));
+  // itens diferentes NÃO colidem
+  assert.notEqual(chaveItemLista('Leite'), chaveItemLista('Leite Meio Gordo'));
+  assert.notEqual(chaveItemLista('Sal'), chaveItemLista('Salmão'));
+});
 
 test('grupoDeNome: substantivo-cabeça vence palavra forte de outro grupo (achados do LLM-juiz)', () => {
   assert.equal(grupoDeNome('Croissant de Manteiga'), 'padaria');     // não lacticinios

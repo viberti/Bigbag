@@ -106,6 +106,8 @@ const STRINGS = {
     'err.mic': 'Sem acesso ao microfone.',
     'err.micPerm': '🎙️ Sem acesso ao microfone. Permita o microfone nas configurações: Android → Aplicativos → Bigbag → Permissões (ou no Chrome, nas permissões do site).',
     'voz.nadaOuvido': 'Não entendi o áudio — tente de novo, falando perto do microfone.',
+    'voz.entendi': 'Entendi:',
+    'voz.demorou': 'O processamento demorou demais — tente de novo.',
     // barra de ações (ícone + legenda)
     'act.camera': 'Câmera',
     'act.scanner': 'Scanner',

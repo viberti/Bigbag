@@ -311,9 +311,29 @@ export async function vozParaLista(blob) {
   const fd = new FormData();
   const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
   fd.append('audio', blob, `lista.${ext}`);
-  const r = await call('/api/voz/lista', { method: 'POST', body: fd });
-  if (!r.ok) throw new Error(`voz-lista ${r.status}`);
-  return r.json(); // { produtos: [] }
+  // timeout próprio (15s): sem ele, o botão do micro ficava "preso" até 25s+ à
+  // espera do LLM — melhor falhar visivelmente e deixar repetir.
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const r = await call('/api/voz/lista', { method: 'POST', body: fd, signal: ctrl.signal });
+    if (!r.ok) throw new Error(`voz-lista ${r.status}`);
+    return r.json(); // { produtos: [{nome, quantidade}] }
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Adicionar VÁRIOS itens (ditado por voz) num só round-trip; devolve a lista
+// completa atualizada + `adicionados` (para a barra de confirmação editável).
+export async function adicionarListaLote(produtos, mercado) {
+  const r = await call('/api/lista/lote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ produtos, mercado }),
+  });
+  if (!r.ok) throw new Error(`lista lote ${r.status}`);
+  return r.json(); // { itens, lojas, mercado, adicionados }
 }
 
 export async function vozParaProduto(blob) {
