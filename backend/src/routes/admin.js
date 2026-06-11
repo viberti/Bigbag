@@ -465,8 +465,9 @@ adminRouter.get('/match-eans', async (req, res) => {
       `SELECT m.id, m.descricao, m.ean, m.nome_cand, m.marca, m.fonte, m.confianca,
               m.preco_pago, m.preco_cand, m.formato_pago, m.formato_cand, m.alternativas,
               -- foto de catálogo do candidato: o operador julga o match num olhar
+              -- (COLLATE: match_ean_sugestao.ean 0900_ai_ci vs catalogo unicode_ci)
               (SELECT c.imagem_url FROM catalogo_produto c
-                WHERE c.ean = m.ean AND c.imagem_url IS NOT NULL AND c.imagem_url <> '' LIMIT 1) AS imagem,
+                WHERE c.ean = m.ean COLLATE utf8mb4_unicode_ci AND c.imagem_url IS NOT NULL AND c.imagem_url <> '' LIMIT 1) AS imagem,
               (SELECT COUNT(*) FROM item i WHERE i.descricao_original = m.descricao AND i.is_non_product = 0) AS compras,
               -- cadeia(s) onde este item foi comprado (contexto p/ o operador julgar:
               -- talão Mercadona deve casar candidato Mercadona, não Auchan)

@@ -2203,11 +2203,13 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
   const [nomeQ, setNomeQ] = useState('');
   const [gravandoVoz, setGravandoVoz] = useState(false);
   const [aOuvirVoz, setAOuvirVoz] = useState(false);
+  const [erroVoz, setErroVoz] = useState(null); // mensagem visível — NUNCA falhar mudo
   const mrRef = useRef(null);
 
   // Microfone: a Sue DIZ o produto ("carne de porco") → áudio → nome → consulta.
   async function alternarVozProduto() {
     if (gravandoVoz) { mrRef.current?.stop(); return; }
+    setErroVoz(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
@@ -2220,13 +2222,17 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
         try {
           const { produto } = await vozParaProduto(new Blob(pedacos, { type: mr.mimeType || 'audio/webm' }));
           if (produto) { setNomeQ(produto); await consultarNome(produto); }
-        } catch { /* falha de rede/áudio */ }
+          else setErroVoz(t('voz.nadaOuvido'));
+        } catch { setErroVoz(t('err.query')); }
         setAOuvirVoz(false);
       };
       mrRef.current = mr;
       mr.start();
       setGravandoVoz(true);
-    } catch { /* sem microfone/permissão */ }
+    } catch {
+      // permissão recusada/apagada (ex.: limpar dados do site remove-a) — dizer!
+      setErroVoz(t('err.micPerm'));
+    }
   }
 
   // Consulta por NOME (texto/voz): frescos sem código (figo, fraldinha). Abre a ficha
@@ -2418,6 +2424,7 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
                     <Ico name="search" size={16} /> {t('scanner.consultar')}
                   </button>
                 </div>
+                {erroVoz && <p className="sheet-offline">{erroVoz}</p>}
               </div>
               <input ref={fotoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { lerFoto(e.target.files?.[0]); e.target.value = ''; }} />
               <button type="button" className="scan-foto" onClick={() => fotoRef.current?.click()}>
@@ -3421,9 +3428,11 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
   // ditar produtos por VOZ: gravar → /api/voz/lista extrai os nomes → adiciona todos
   const [gravando, setGravando] = useState(false);
   const [aOuvir, setAOuvir] = useState(false); // a processar o áudio
+  const [erroVoz, setErroVoz] = useState(null); // mensagem visível — NUNCA falhar mudo
   const mrRef = useRef(null);
   async function alternarVoz() {
     if (gravando) { mrRef.current?.stop(); return; }
+    setErroVoz(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
@@ -3437,13 +3446,17 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
           const blob = new Blob(pedacos, { type: mr.mimeType || 'audio/webm' });
           const { produtos } = await vozParaLista(blob);
           for (const p of produtos || []) onAdicionar(p);
-        } catch { /* falha de rede/áudio → nada a adicionar */ }
+          if (!produtos?.length) setErroVoz(t('voz.nadaOuvido'));
+        } catch { setErroVoz(t('err.query')); }
         setAOuvir(false);
       };
       mrRef.current = mr;
       mr.start();
       setGravando(true);
-    } catch { /* sem microfone/permissão */ }
+    } catch {
+      // permissão recusada/apagada (ex.: limpar dados do site remove-a) — dizer!
+      setErroVoz(t('err.micPerm'));
+    }
   }
   const lista = itens || [];
   // total estimado: melhor preço conhecido (ou o do mercado escolhido) × quantidade
@@ -3512,6 +3525,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
             </div>
           );
         })()}
+        {erroVoz && <p className="sheet-offline">{erroVoz}</p>}
         <div className="cart-add">
           <button type="button" className="voz" onClick={onAbrirHabituais} aria-label={t('habituais.title')} title={t('habituais.title')}>
             <Ico name="usual" size={18} />

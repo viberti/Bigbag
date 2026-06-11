@@ -102,6 +102,8 @@ const STRINGS = {
     'err.upload': 'Falha ao enviar a nota.',
     'err.voice': 'Falha na consulta por voz.',
     'err.mic': 'Sem acesso ao microfone.',
+    'err.micPerm': '🎙️ Sem acesso ao microfone. Permita o microfone nas configurações: Android → Aplicativos → Bigbag → Permissões (ou no Chrome, nas permissões do site).',
+    'voz.nadaOuvido': 'Não entendi o áudio — tente de novo, falando perto do microfone.',
     // barra de ações (ícone + legenda)
     'act.camera': 'Câmera',
     'act.scanner': 'Scanner',
