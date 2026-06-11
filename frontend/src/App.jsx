@@ -649,8 +649,9 @@ function Chat({ onSair, nome }) {
         <button className="kebab" onClick={() => { setMenuAberto(true); track('menu_abrir'); }} title={t('menu.mais')} aria-label={t('menu.mais')}>
           <Ico name="kebab" size={22} />
         </button>
-        <button className="avatar" onClick={() => setContaAberta(true)} title={t('conta.title')} aria-label={t('conta.title')}>
-          <Ico name="pessoa" size={22} />
+        <button className="avatar" onClick={() => setContaAberta(true)} title={t('conta.title')} aria-label={t('conta.title')}
+          style={{ background: `linear-gradient(150deg, ${corMembro(nome)}, ${corMembro(nome)}bb)` }}>
+          {(nome || '?')[0].toUpperCase()}
         </button>
       </header>
 
@@ -706,6 +707,10 @@ function Chat({ onSair, nome }) {
           <button type="button" className="act" onClick={() => { setCompararAberto(true); track('comparar_abrir'); }} disabled={ocupado}>
             <span className="act-ic"><Ico name="comparar" size={25} stroke={2.2} /></span>
             <span className="act-lb">{t('act.comparar')}</span>
+          </button>
+          <button type="button" className="act" onClick={abrirNotas} disabled={ocupado}>
+            <span className="act-ic"><Ico name="notas" size={25} stroke={2.2} /></span>
+            <span className="act-lb">{t('act.compras')}</span>
           </button>
           <button type="button" className={`act voice ${aGravar ? 'rec' : ''}`} onClick={aGravar ? pararVoz : iniciarVoz} disabled={ocupado}>
             <span className="act-ic"><Ico name={aGravar ? 'stop' : 'mic'} size={23} stroke={2.1} /></span>
@@ -805,9 +810,7 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}><Ico name="galeria" size={18} /> {t('cap.gallery')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
-            <button onClick={() => { setMenuAberto(false); abrirNotas(); }}><Ico name="notas" size={18} /> {t('menu.notas')}</button>
             <button onClick={() => { setMenuAberto(false); setScannerAberto(true); track('scanner_abrir', { via: 'menu' }); }}><Ico name="search" size={18} /> {t('menu.consultar')}</button>
-            <button onClick={() => { setMenuAberto(false); setPerfilAberto(true); }}><Ico name="spark" size={18} /> {t('menu.perfil')}</button>
             <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> {t('menu.despensa')}</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> {t('menu.gastos')}</button>
             <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> {t('menu.porident')}</button>
@@ -819,6 +822,7 @@ function Chat({ onSair, nome }) {
         <>
           <div className="cap-menu-bd" onClick={() => setContaAberta(false)} />
           <div className="cap-menu conta-menu">
+            <button onClick={() => { setContaAberta(false); setPerfilAberto(true); }}><Ico name="spark" size={18} /> {t('menu.perfil')}</button>
             <button onClick={() => { setContaAberta(false); novaConversa(); }}><Ico name="sync" size={18} /> {t('chat.newConv')}</button>
             <button onClick={() => { setContaAberta(false); sair(); }}><Ico name="logout" size={18} /> {t('conta.sair')}</button>
           </div>
@@ -3333,7 +3337,9 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onCard }) {
           <span className="cn" style={riscado ? { textDecorationColor: corMembro(it.marcado_por) } : undefined}>
             {it.nome}{textoQtd(it)}
           </span>
-          {preco != null && (
+          {preco != null && !it.unidade_venda && (
+            // sem preço quando se vende por embalagem (ovos→dúzia): o €/un não
+            // representa como o produto é vendido — enganaria.
             <span className="csub">
               {eur(preco)}{it.unidade_base ? `/${it.unidade_base}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}
             </span>

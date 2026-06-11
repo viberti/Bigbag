@@ -443,14 +443,21 @@ export async function total_gasto(db, { alvo, periodo_inicio, periodo_fim, loja 
 // não-produto e notas em revisão. Mais recente primeiro.
 export async function historico_produto(db, { produto }) {
   const m = await matchProduto(db, produto);
+  // Últimos 3 MESES e SEM repetir (loja, preço): se o mesmo produto custou o mesmo
+  // na mesma cadeia em várias compras, mostra só a mais recente — a lista de preços
+  // serve para ver variação, não para repetir a mesma linha N vezes.
   const [rows] = await db.query(
-    `SELECT DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
-            l.cadeia, l.nome AS loja,
-            i.preco_liquido AS preco, i.preco_por_base, s.unidade_base, i.is_clearance
-     ${BASE_JOINS}
-     WHERE ${m.sql} AND i.is_non_product = FALSE AND f.needs_review = FALSE
-       AND i.preco_por_base IS NOT NULL
-     ORDER BY f.data_compra DESC, i.id DESC
+    `SELECT data, cadeia, loja, preco, preco_por_base, unidade_base, is_clearance FROM (
+       SELECT DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data, l.cadeia, l.nome AS loja,
+              i.preco_liquido AS preco, i.preco_por_base, s.unidade_base, i.is_clearance,
+              ROW_NUMBER() OVER (PARTITION BY COALESCE(l.cadeia, l.nome), i.preco_por_base
+                                 ORDER BY f.data_compra DESC, i.id DESC) AS rn
+       ${BASE_JOINS}
+       WHERE ${m.sql} AND i.is_non_product = FALSE AND f.needs_review = FALSE
+         AND i.preco_por_base IS NOT NULL
+         AND f.data_compra >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+     ) t WHERE rn = 1
+     ORDER BY data DESC
      LIMIT 30`,
     m.params,
   );

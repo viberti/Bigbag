@@ -110,6 +110,7 @@ const STRINGS = {
     'act.camera': 'Câmera',
     'act.scanner': 'Scanner',
     'act.comparar': 'Comparar',
+    'act.compras': 'Compras',
     'act.voz': 'Voz',
     'menu.mais': 'Mais opções',
     'conta.title': 'Minha conta',
