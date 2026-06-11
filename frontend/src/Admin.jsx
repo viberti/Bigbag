@@ -824,6 +824,7 @@ function TabEans() {
   const [sugestoes, setSugestoes] = useState(null);
   const [msg, setMsg] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  const [cadeiaSel, setCadeiaSel] = useState('');
 
   const recarregar = () => adm.matchEans().then((r) => setSugestoes(r.sugestoes)).catch(() => setSugestoes([]));
   useEffect(() => { recarregar(); }, []);
@@ -881,16 +882,32 @@ function TabEans() {
         <button className="adm-auto-btn" onClick={gerar} disabled={ocupado}>
           🔗 Gerar propostas de EAN
         </button>
-        <span className="adm-sug-dica">procura cada produto SEM EAN no catálogo (Auchan · Continente) e propõe o código de barras. Tu confirmas; ao aprovar, o produto ganha a ficha (Nutri-Score / nutrição via Open Food Facts).</span>
+        <span className="adm-sug-dica">procura cada produto SEM EAN no catálogo (Auchan · Continente · Mercadona · Lidl) e propõe o código de barras. Tu confirmas; ao aprovar, o produto ganha a ficha (Nutri-Score / nutrição via Open Food Facts).</span>
         {msg && <span className="adm-ok">{msg}</span>}
       </div>
+      {(() => {
+        if (!sugestoes || !sugestoes.length) return null;
+        const cont = {};
+        for (const s of sugestoes) for (const c of String(s.cadeia_item || '—').split(',').map((x) => x.trim()))
+          cont[c] = (cont[c] || 0) + 1;
+        const cadeias = Object.keys(cont).sort();
+        if (cadeias.length < 2) return null;
+        return (
+          <div className="adm-ean-filtro">
+            <button className={cadeiaSel === '' ? 'on' : ''} onClick={() => setCadeiaSel('')}>todas ({sugestoes.length})</button>
+            {cadeias.map((c) => (
+              <button key={c} className={cadeiaSel === c ? 'on' : ''} onClick={() => setCadeiaSel(c)}>{c} ({cont[c]})</button>
+            ))}
+          </div>
+        );
+      })()}
       {sugestoes === null ? (
         <p className="adm-vazio">a carregar…</p>
       ) : sugestoes.length === 0 ? (
         <p className="adm-vazio">Sem propostas pendentes. Carrega em "Gerar propostas de EAN". 👍</p>
       ) : (
         <ul className="adm-pares adm-eans">
-          {sugestoes.map((s) => (
+          {sugestoes.filter((s) => !cadeiaSel || String(s.cadeia_item || '—').split(',').map((x) => x.trim()).includes(cadeiaSel)).map((s) => (
             <li key={s.id} className="adm-ean-li">
               <div className="adm-ean-top">
                 <span className={`adm-ean-conf ${banda(s.confianca)}`}>{Math.round(s.confianca * 100)}%</span>
