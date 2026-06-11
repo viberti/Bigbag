@@ -50,6 +50,10 @@ A mesma compra tem **três nomes**, e os três importam:
   dígito verificador antes de entrar na base.
 - **Frescos** (banana, carne picada) não têm EAN útil → a identidade é o **nome**,
   e a nutrição vem da **classe** ("banana" tem nutrição conhecida por 100 g).
+- **É aqui que a tensão preço-vs-nutrição se resolve** (Família → Produto → EAN):
+  o **preço** compara-se no nível 3 (família, *sem* marca — senão não havia "onde
+  está mais barato"); a **nutrição** vem do nível 2 (EAN, *com* marca — a receita
+  muda os números). São identidades diferentes **de propósito**, não confusão.
 
 ### Nutrição: da CLASSE ou do PRODUTO (e o EAN não decide)
 
@@ -171,6 +175,10 @@ usado para organizar a lista de compras e acelerar buscas. É derivado por forç
 decrescente: `food_groups` do OFF (autoritativo) → **nome** do produto → categoria
 da loja (a mais fraca: prateleiras misturam, como "Charcutaria e Queijos").
 
+**Importante:** o grupo é **organização de UI** (lista de compras, percurso de
+loja) — **não é a taxonomia** (essa é o vetor de facetas). E fechado ≠ imutável:
+ração, bebé ou farmácia entram como novos valores quando os talões os trouxerem.
+
 ### Como uma pergunta encontra produtos (cascata de matching)
 
 ```
@@ -254,7 +262,27 @@ Um classificador sem métrica de qualidade é uma opinião. Medimos em **3 camad
 
 ---
 
-## 7. A lição de arquitetura (para levar para casa)
+## 7. O ativo que estamos a construir
+
+O OCR e o LLM, qualquer concorrente aluga à API. O que **não** se aluga é o
+**grafo de equivalência entre cadeias**:
+
+```
+ Família:  Leite Meio Gordo                ← onde o PREÇO se compara (sem marca)
+              │
+ Produtos: Continente · Milbona/Lidl · Hacendado/Mercadona · Auchan
+              │                            ← onde a NUTRIÇÃO é exata (com marca)
+ EANs:     560…  ·  405…  ·  842…  ·  358…
+                                           ← mesmo EAN = mesmo produto, em qualquer loja
+```
+
+Números reais: **3.420 EANs** vendidos por Auchan∩Continente (59% com o mesmo
+preço — comparação perfeita, zero LLM); **2.562 EANs** herdados pelo Pingo Doce
+por matching catálogo↔catálogo determinístico. Construído de forma auditável,
+com o operador como juiz, e cresce a cada talão e re-scrape. **É o ativo mais
+difícil de replicar do sistema.**
+
+## 8. A lição de arquitetura (para levar para casa)
 
 > **String não é taxonomia.** O nome do produto é uma *evidência*, não a
 > *identidade*. A identidade é (1) o EAN quando existe, (2) um vetor de facetas

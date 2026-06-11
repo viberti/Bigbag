@@ -180,6 +180,9 @@ PREPARADO CARNE PICADA PORC</pre>
   <ul>
     <li><b>EAN</b> = identidade forte (validada pelo dígito verificador); liga ao Open Food Facts.</li>
     <li><b>Frescos</b> (banana, carne) não têm EAN útil → identidade pelo nome, nutrição pela <b>classe</b>.</li>
+    <li><b>É aqui que a tensão preço-vs-nutrição se resolve:</b> o <b class="acc">preço</b> compara-se no
+        nível 3 (<i>família</i>, sem marca — senão não havia "onde está mais barato"); a <b class="acc">nutrição</b>
+        vem do nível 2 (<i>EAN</i>, com marca — a receita muda os números). Identidades diferentes, de propósito.</li>
   </ul>
 </section>
 
@@ -328,6 +331,9 @@ doces · congelados · higiene · mercearia · outros</pre>
   <p style="font-size:clamp(18px,3vh,28px)"><span class="acc">food_groups do OFF</span> (autoritativo)
      → <span class="acc">NOME do produto</span>
      → <span class="warn">categoria da loja</span> <span class="muted">(a mais fraca: "Charcutaria e Queijos"…)</span></p>
+  <p class="muted" style="font-size:clamp(13px,2.1vh,20px)"><b>Importante:</b> isto é <b class="acc">organização de UI</b>
+     (lista de compras, percurso de loja) — <b>não é a taxonomia</b> (essa é o vetor de facetas).
+     E fechado ≠ imutável: ração, bebé ou farmácia entram como novos valores quando os talões os trouxerem.</p>
 </section>
 
 <!-- 9 · CASCATA -->
@@ -397,6 +403,39 @@ doces · congelados · higiene · mercearia · outros</pre>
     <li><span class="num">6</span><b>Não-alimentares</b> — sem OFF, sem nutrição, categorias caóticas (plano: busca web).</li>
     <li><span class="num">7</span><b>Multi-país</b> — modelo desenhado p/ Espanha, à espera do 1.º talão real.</li>
   </ul>
+</section>
+
+<!-- 11b · O ATIVO -->
+<section class="slide">
+  <span class="kicker">O que se está mesmo a construir</span>
+  <h2>O ativo: o <span class="acc">grafo de equivalência</span> entre cadeias</h2>
+  <div class="flow">
+    <div class="fbox">
+      <span class="tag">Família</span>
+      <span class="big">Leite Meio Gordo</span>
+      <span class="sub">sem marca — onde o <b>preço</b> se compara</span>
+    </div>
+    <span class="farr">→</span>
+    <div class="fbox">
+      <span class="tag">Produtos (marcas)</span>
+      <span class="big">Continente · Milbona/Lidl · Hacendado/Mercadona · Auchan</span>
+      <span class="sub">onde a <b>nutrição</b> é exata</span>
+    </div>
+    <span class="farr">→</span>
+    <div class="fbox">
+      <span class="tag">EANs</span>
+      <span class="big">560… · 405… · 842… · 358…</span>
+      <span class="sub"><b>mesmo EAN = mesmo produto</b>, em qualquer loja</span>
+    </div>
+  </div>
+  <ul style="gap:1.2vh">
+    <li><b class="acc">3.420 EANs</b> vendidos por Auchan ∩ Continente (59% com o mesmo preço) — comparação <b>perfeita</b>, zero LLM.</li>
+    <li><b class="acc">2.562 EANs</b> herdados pelo Pingo Doce por matching catálogo↔catálogo (4 sinais determinísticos).</li>
+    <li>Construído de forma <b>determinística e auditável</b>, com o operador como juiz — cresce a cada talão e re-scrape.</li>
+  </ul>
+  <p class="muted" style="font-size:clamp(14px,2.2vh,21px)"><b>Modelos alugam-se; este grafo não.</b> O OCR e o LLM qualquer
+     concorrente compra à API — a equivalência entre os produtos de 6 cadeias só se constrói com dados próprios.
+     É o ativo mais difícil de replicar do sistema.</p>
 </section>
 
 <!-- 12 · LIÇÃO -->
