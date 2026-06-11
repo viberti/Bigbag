@@ -148,7 +148,7 @@ PREPARADO CARNE PICADA PORC</pre>
       <h3>"sal" → peixe??</h3>
       <p>Matching por prefixo: <b>"sal"</b> casava <b>"SALmão"</b>.
          E a prateleira "Charcutaria e <b>Queijos</b>" mandava queijos para o grupo <b>carne</b>.</p>
-      <p class="acc">Solução: prefixo só para plural (uva→uvas ✓, sal→salmão ✗);
+      <p class="acc">Solução: plural por <b>singularização</b> dos dois lados (pães→pão ✓, sal→salmão ✗);
          o <b>nome</b> do produto vale mais que a categoria da loja.</p>
     </div>
   </div>
@@ -259,7 +259,8 @@ doces · congelados · higiene · mercearia · outros</pre>
             3. <b>tokens</b> c/ substantivo-cabeça
                · "leite" prefere SKUs que COMEÇAM por "Leite"
                  → não mistura <i>"Doce de Leite"</i>
-               · prefixo só p/ plural  (uva→uvas ✓ · sal→salmão ✗)
+               · plural por SINGULARIZAÇÃO dos dois lados
+                 (uvas→uva · pães→pão · integrais→integral · sal→salmão ✗)
             4. <b>fuzzy</b>               (erros de digitação)
             5. <b>LIKE</b> na descrição crua (último recurso)</pre>
   <p class="muted">Cada degrau só roda se o anterior não resolver. <b class="acc">Determinístico primeiro</b>;

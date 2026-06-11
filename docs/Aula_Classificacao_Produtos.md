@@ -112,8 +112,10 @@ da loja (a mais fraca: prateleiras misturam, como "Charcutaria e Queijos").
 "leite"  ──► 1. grupo fechado?  ("fruta" → grupo frutas)
              2. sinônimos expandidos ("álcool" → cerveja+vinho+…)
              3. TOKENS com substantivo-cabeça:  "leite" prefere SKUs que COMEÇAM
-                por "Leite" → não mistura "Doce de Leite"; prefixo só p/ plural
-                (uva→uvas ✓, sal→salmão ✗)
+                por "Leite" → não mistura "Doce de Leite"; plural por
+                SINGULARIZAÇÃO canônica dos DOIS lados (uvas→uva, pães→pão,
+                limões→limão, integrais→integral), nunca por prefixo
+                (sal→salmão ✗)
              4. fuzzy (erros de digitação)
              5. LIKE na descrição crua (último recurso)
 ```
