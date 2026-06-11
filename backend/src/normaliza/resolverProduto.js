@@ -16,7 +16,7 @@ const toks = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOP.has(
 // facetas.js (A6): morango=fresa=strawberry; magro≠meio-gordo; "natural" é valor.
 // Semântica mantida: talão com facetas → o candidato tem de ter EXATAMENTE as
 // mesmas; talão sem facetas → não bloqueia. Re-exportado para os consumidores.
-import { saborConflito, compararFacetas } from './facetas.js';
+import { saborConflito, compararFacetas, facetasDe } from './facetas.js';
 export { saborConflito };
 
 // RARIDADE (IDF): cada palavra pesa pela sua raridade no catálogo. "mel" aparece em
@@ -310,6 +310,7 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6, fo
   const q = toksB(desc);
   if (!q.length) return null;
   const fmtQ = extrairFormato(descricao); // formato lido do talão (p/ desempate de tamanho)
+  const fdesc = facetasDe(desc);          // facetas do talão (p/ preferir o "simples")
   const fontePref = FONTE_POR_CADEIA[norm(cadeia || '')] || null;
   // fonteUnica: string OU lista — restringe o universo de candidatos (ex.: o match
   // do talão Mercadona só sobre ['mercadona','mercadona-off'], nunca Continente/Auchan).
@@ -323,6 +324,13 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6, fo
     // abrevia ("NAT") e não dá para expandir deterministicamente; a margem e o
     // LLM (que recebe a pista com instrução de a rejeitar se não encaixar) decidem.
     if (compararFacetas(desc, r.nome) === 'conflito') continue;
+    // PRIOR do simples: candidato que ACRESCENTA uma faceta de dieta que o talão
+    // não pede (sem lactose · bio · zero · sem glúten) fica abaixo do normal — o
+    // comum é o simples ("LEITE MEIO GORDO" → o normal, não o sem-lactosa).
+    const fr = facetasDe(r.nome);
+    let extra = 0;
+    for (const d of fr.dieta) if (!fdesc.dieta.has(d)) extra++;
+    if (extra) s -= 0.06 * extra;
     // formato: preferir o ESTRUTURADO do candidato (tamanho à parte do nome, ex.:
     // Mercadona 2L vs 5L com o MESMO nome); senão, parsear o nome (Auchan/Continente).
     let fc = formatoEstrut(fmtQ, r.formato_valor, r.unidade_base);
