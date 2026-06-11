@@ -453,13 +453,43 @@ produtoRouter.get('/consultar', requireAuth, async (req, res) => {
   }
 });
 
-// Consultar um produto pelo NOME (texto/voz), p/ frescos sem código de barras
-// (ex.: "figo", "fraldinha"). Resolve a nutrição-por-nome (cria/reusa o SKU) e
-// devolve o sku_id para abrir a ficha. Embalados → encontrado:false (pede rótulo/EAN).
+const normN = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+// Procura um produto JÁ CONHECIDO (SKU com ficha/nutrição) pelo nome, por TOKENS
+// com prioridade ao substantivo-cabeça (igual à consulta). Devolve {sku_id, ean}
+// do melhor candidato com nutrição — embalado (ean→ficha OFF) ou fresco (genérico).
+async function buscarProdutoConhecido(pool, nome) {
+  const q = normN(nome).split(' ').filter((t) => t.length >= 2);
+  if (!q.length) return null;
+  const [skus] = await pool.query('SELECT id, nome_canonico, nome_simplificado FROM sku_normalizado');
+  const fortes = [], fracos = [];
+  for (const s of skus) {
+    const nt = normN(`${s.nome_canonico} ${s.nome_simplificado || ''}`).split(' ').filter(Boolean);
+    if (!q.every((qt) => nt.some((w) => w.startsWith(qt) || (qt.startsWith(w) && w.length >= 4)))) continue;
+    (normN(s.nome_canonico).split(' ')[0].startsWith(q[0]) ? fortes : fracos).push(s);
+  }
+  for (const s of (fortes.length ? fortes : fracos)) {
+    // embalado: EAN com ficha (nutrição OFF/VLM) → abre por EAN
+    const [[pe]] = await pool.query(
+      `SELECT i.ean FROM item i JOIN produto_ean pe ON pe.ean = i.ean
+        WHERE i.sku_id = ? AND pe.nutricao IS NOT NULL LIMIT 1`, [s.id]);
+    if (pe?.ean) return { sku_id: s.id, ean: pe.ean, nome: s.nome_canonico };
+    // fresco: nutrição típica por SKU
+    const [[g]] = await pool.query('SELECT 1 FROM produto_generico WHERE sku_id = ? AND nutricao IS NOT NULL', [s.id]);
+    if (g) return { sku_id: s.id, ean: null, nome: s.nome_canonico };
+  }
+  return null;
+}
+
+// Consultar um produto pelo NOME (texto/voz), SEM código de barras. 1.º procura nos
+// produtos que JÁ conhecemos (SKU c/ ficha — frescos E embalados, ex.: "queijo
+// gouda"); 2.º cria nutrição-típica por LLM para frescos novos ("figo", "fraldinha").
+// Embalado desconhecido → encontrado:false (pede rótulo/EAN).
 produtoRouter.get('/por-nome', requireAuth, async (req, res) => {
   try {
     const nome = String(req.query.nome || '').trim().slice(0, 120);
     if (nome.length < 2) return res.status(400).json({ erro: 'Escreve o nome do produto' });
+    const conhecido = await buscarProdutoConhecido(getPool(), nome);
+    if (conhecido) return res.json({ encontrado: true, ...conhecido });
     const gen = await resolverGenericoPorNome(getPool(), nome);
     if (gen?.nutricao_100g && gen.sku_id) {
       return res.json({ encontrado: true, sku_id: gen.sku_id, nome: gen.alimento || nome, tipo: gen.tipo });

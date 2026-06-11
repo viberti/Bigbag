@@ -2154,7 +2154,7 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
     setFase('consulta');
     try {
       const r = await consultarProdutoNome(q);
-      if (r.encontrado && r.sku_id) onEncontrado({ sku_id: r.sku_id, nome: r.nome });
+      if (r.encontrado && (r.sku_id || r.ean)) onEncontrado({ sku_id: r.sku_id, ean: r.ean, nome: r.nome });
       else setFase('embalado');
     } catch {
       setFase('embalado');
