@@ -198,6 +198,28 @@ foto/PDF ──► <b>extração</b> (VLM/LLM) ──► item ─┬─► <b>ca
   <p class="muted">A extração reconcilia com o total impresso — se a soma não bate, ela corrige a si mesma.</p>
 </section>
 
+<!-- 5a · CANONICALIZAÇÃO -->
+<section class="slide">
+  <span class="kicker">O passo central do pipeline</span>
+  <h2>Canonicalização: do grito do talão ao nome limpo</h2>
+  <pre>
+"BOL DIGESTIVE AVEIA CNT 425GR"            <i>← a linha crua do talão</i>
+ │
+ ├─ 1 <b>FORMATO</b> (regra)         425GR → 0,425 kg → preço vira <b>€/kg comparável</b>
+ ├─ 2 <b>MARCA</b> (determinístico)  CNT → Continente (marca própria, sem LLM)
+ ├─ 3 <b>ABREVIATURAS</b>            BOL → Bolacha  <i>(dicionário MINADO dos pares
+ │                                  que o operador já validou — aprende do uso)</i>
+ ├─ 4 <b>CATÁLOGO</b> (busca interna) casa "Bolacha Digestive Aveia 425g" → <b>EAN!</b>
+ ├─ 5 <b>LLM</b> (só o que sobrar)    nome canónico "Bolacha Digestive de Aveia"
+ │                                  <i>vocabulário de facetas fechado + cache</i>
+ └─ 6 <b>VERIFICAÇÃO</b>             o nome é o único campo SEM checksum →
+ ▼                                  2.ª leitura por outro modelo, voto a 3
+ SKU: <b>Bolacha Digestive de Aveia</b> · grupo doces · 0,425 kg · €/kg</pre>
+  <p class="muted" style="font-size:clamp(13px,2.1vh,20px)"><b class="acc">Determinístico primeiro:</b> cada item resolvido
+     pelos passos 1–4 não custa nada — a normalização por LLM é ~metade do custo de ingestão,
+     e o <b>catálogo</b> é a alavanca que a corta. O LLM trata só o resto, <b>uma vez</b> (cache).</p>
+</section>
+
 <!-- 5b · FONTES -->
 <section class="slide">
   <span class="kicker">As matérias-primas</span>

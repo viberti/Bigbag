@@ -63,6 +63,26 @@ A mesma compra tem **três nomes**, e os três importam:
                                                 marca, alergias)    seção 3)
 ```
 
+### O passo central: canonicalização (do grito do talão ao nome limpo)
+
+```
+"BOL DIGESTIVE AVEIA CNT 425GR"            ← a linha crua do talão
+ ├─ 1 FORMATO (regra)          425GR → 0,425 kg → preço vira €/kg comparável
+ ├─ 2 MARCA (determinístico)   CNT → Continente (marca própria, sem LLM)
+ ├─ 3 ABREVIATURAS             BOL → Bolacha (dicionário MINADO dos pares já
+ │                             validados pelo operador — aprende do uso)
+ ├─ 4 CATÁLOGO (busca interna) casa "Bolacha Digestive Aveia 425g" → EAN!
+ ├─ 5 LLM (só o que sobrar)    nome canónico "Bolacha Digestive de Aveia"
+ │                             (vocabulário de facetas fechado + cache)
+ └─ 6 VERIFICAÇÃO              o nome é o único campo SEM checksum →
+ ▼                             2.ª leitura por outro modelo, voto a 3
+ SKU: Bolacha Digestive de Aveia · grupo doces · 0,425 kg · €/kg
+```
+
+**Determinístico primeiro:** cada item resolvido pelos passos 1–4 não custa nada —
+a normalização por LLM é ~metade do custo de ingestão, e o catálogo é a alavanca
+que a corta. O LLM trata só o que sobra, **uma vez** (o resultado fica em cache).
+
 ### As matérias-primas: fontes de produto (números reais, 2026-06-11)
 
 Classificar exige **conhecimento externo** — catálogos das lojas, bases abertas e
