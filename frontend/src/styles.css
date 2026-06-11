@@ -516,6 +516,7 @@ body {
 .adm-ean-filtro { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
 .adm-ean-filtro button { font-size: 12px; padding: 3px 10px; border-radius: 14px; border: 1px solid var(--borda); background: transparent; color: var(--muted); cursor: pointer; }
 .adm-ean-filtro button.on { background: var(--verde); border-color: var(--verde); color: #06201d; font-weight: 600; }
+.adm-ean-alt-fmt { font-style: normal; color: var(--verde); font-weight: 600; font-size: 11px; }
 .adm-ean-metr { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 5px 0 0 48px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .adm-ean-metr-lado { color: var(--texto); }
 .adm-ean-metr-lado i { color: var(--muted); font-style: normal; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-right: 3px; }

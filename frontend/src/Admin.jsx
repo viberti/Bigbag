@@ -947,7 +947,7 @@ function TabEans() {
                   {s.alternativas.map((a) => (
                     <button key={a.ean} className="adm-ean-alt" disabled={ocupado}
                       title={`usar este EAN (${a.ean})`} onClick={() => aprovar(s, a.ean)}>
-                      {a.nome} <small>{Math.round(a.score * 100)}%</small>
+                      {a.nome} {a.formato && <em className="adm-ean-alt-fmt">{a.formato}</em>} <small>{Math.round(a.score * 100)}%</small>
                     </button>
                   ))}
                 </div>

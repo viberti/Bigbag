@@ -311,7 +311,7 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } =
   if (!q.length) return null;
   const fmtQ = extrairFormato(descricao); // formato lido do talão (p/ desempate de tamanho)
   const fontePref = FONTE_POR_CADEIA[norm(cadeia || '')] || null;
-  let top = null, segundo = 0;
+  const marcados = [];
   for (const r of cat) {
     let s = pontuarBusca(q, r.t, idf);
     if (s < 0.45) continue;
@@ -325,17 +325,29 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6 } =
     if (fc === null) fc = formatoBusca(descricao, r.nome);
     if (fc === true) s += 0.08; else if (fc === false) s -= 0.3; // formato desempata
     if (fontePref && r.fonte === fontePref) s += 0.12; // prior da mesma cadeia
-    if (!top) { top = { r, s }; continue; }
-    if (s > top.s) {
-      if (norm(r.nome) !== norm(top.r.nome)) segundo = Math.max(segundo, top.s);
-      top = { r, s };
-    } else if (s > segundo && norm(r.nome) !== norm(top.r.nome)) segundo = s;
+    marcados.push({ r, s });
   }
-  if (!top || top.s < limiar) return null;
+  if (!marcados.length) return null;
+  marcados.sort((a, b) => b.s - a.s);
+  const top = marcados[0];
+  if (top.s < limiar) return null;
+  // margem = distância ao melhor de NOME DIFERENTE (irmãos de tamanho não contam).
+  const seg = marcados.find((m) => norm(m.r.nome) !== norm(top.r.nome));
+  // alternativas: melhores candidatos de EAN distinto (inclui os irmãos de tamanho,
+  // ex.: a lixívia 5L quando a 2L ganhou — para o operador ver os tamanhos e escolher).
+  const vistos = new Set([top.r.ean]);
+  const alternativas = [];
+  for (const m of marcados.slice(1)) {
+    if (!m.r.ean || vistos.has(m.r.ean)) continue;
+    vistos.add(m.r.ean);
+    alternativas.push({ ean: m.r.ean, nome: m.r.nome, formato: m.r.formato || null, score: Math.round(Math.min(1, m.s) * 100) / 100 });
+    if (alternativas.length >= 3) break;
+  }
   return {
     nome: top.r.nome, marca: top.r.marca || null, categoria_path: top.r.categoria_path || null,
     ean: top.r.ean || null, fonte: top.r.fonte, formato: top.r.formato || null, preco_por_base: top.r.preco_por_base ?? null,
-    score: Math.round(Math.min(1, top.s) * 100) / 100, margem: Math.round((top.s - segundo) * 100) / 100,
+    score: Math.round(Math.min(1, top.s) * 100) / 100, margem: Math.round((top.s - (seg ? seg.s : 0)) * 100) / 100,
+    alternativas,
   };
 }
 

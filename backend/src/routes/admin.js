@@ -493,7 +493,7 @@ adminRouter.get('/match-eans', async (req, res) => {
       preco_pago: r.preco_pago != null ? Number(r.preco_pago) : null,
       preco_cand: r.preco_cand != null ? Number(r.preco_cand) : null,
       alternativas: String(r.alternativas || '').split('||').filter(Boolean)
-        .map((a) => { const [ean, nome, score] = a.split('|'); return { ean, nome, score: Number(score) || 0 }; }),
+        .map((a) => { const [ean, nome, score, formato] = a.split('|'); return { ean, nome, score: Number(score) || 0, formato: formato || null }; }),
     })) });
   } catch (e) {
     console.error('[admin/match-eans] erro:', e.message);
@@ -550,7 +550,7 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
         // apanha. Confiança limitada a média — o operador é o juiz na mesma.
         if (!prop) {
           const b = await buscarCatalogo(pool, it.d, { cadeia: it.cadeia, limiar: 0.55 });
-          if (b?.ean) prop = { ean: b.ean, nome: b.nome, marca: b.marca, fonte: b.fonte, formato: b.formato, preco: b.preco_por_base, confianca: Math.min(0.7, b.score), alternativas: [] };
+          if (b?.ean) prop = { ean: b.ean, nome: b.nome, marca: b.marca, fonte: b.fonte, formato: b.formato, preco: b.preco_por_base, confianca: Math.min(0.7, b.score), alternativas: b.alternativas || [] };
         }
       } else {
         // Outras cadeias: porta de marca (cross-cadeia só com marca nacional explícita).
@@ -559,7 +559,7 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
         if (top && top.score >= 0.4) prop = { ...top, confianca: top.score, alternativas: cand.slice(1, 4) };
       }
       if (!prop) { semCand++; continue; }
-      const alt = (prop.alternativas || []).map((c) => `${c.ean}|${String(c.nome).slice(0, 80)}|${(c.score || 0).toFixed(2)}`).join('||');
+      const alt = (prop.alternativas || []).map((c) => `${c.ean}|${String(c.nome).slice(0, 80)}|${(c.score || 0).toFixed(2)}|${c.formato || ''}`).join('||');
       // peso/volume lido no nome do talão (ex.: "175GR", "6*1L", "4X115G")
       const mFmt = String(it.d).match(/(\d+\s*[x*]\s*)?\d+[.,]?\d*\s*(kg|gr?s?|m?l|cl|lt|un|dz)\b/i);
       const fmtPago = mFmt ? mFmt[0].replace(/\s+/g, '').toLowerCase().slice(0, 40) : null;
