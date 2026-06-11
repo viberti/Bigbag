@@ -93,6 +93,38 @@ const niveisToCat = (niveis) => ({
   cat_n1: niveis[0] || null, cat_n2: niveis[1] || null, cat_n3: niveis[2] || null, cat_n4: niveis[3] || null,
 });
 
+// NUTRIÇÃO + INGREDIENTES das páginas do AUCHAN (HTML estático, 2026-06-11):
+// <span class="auc-pdp-nutritional-disclaimer">Valores Nutricionais por: 100 Gramas …</span>
+// <div class="auc-pdp-nutritional-table"><table><tr><td>Energia</td><td>494.00</td><td>kcal</td>…
+// Só aceita base "por: 100 …" (g/ml) — outra base (por porção) fica de fora para
+// não poluir comparações por 100 g. Ingredientes vêm da secção própria, com os
+// ALERGÉNIOS EM MAIÚSCULAS (rotulagem UE) — preservados tal e qual.
+function extrairNutricaoAuchan(html) {
+  const out = { nutricao: null, nutricao_base: null, ingredientes: null };
+  const mIng = html.match(/Ingredientes\/Composi[^<]*<\/h3>\s*<ul[^>]*>\s*<li[^>]*>([\s\S]*?)<\/li>/i);
+  if (mIng) out.ingredientes = decode(mIng[1].replace(/<[^>]+>/g, ' ')).slice(0, 3000) || null;
+  const disc = html.match(/auc-pdp-nutritional-disclaimer[^>]*>\s*([^<]+)/i)?.[1];
+  if (disc) out.nutricao_base = decode(disc).slice(0, 80) || null;
+  if (out.nutricao_base && !/por:\s*100/i.test(out.nutricao_base)) return out; // base ≠ 100g/ml → não comparável
+  const tab = html.match(/auc-pdp-nutritional-table[\s\S]*?<table>([\s\S]*?)<\/table>/i)?.[1];
+  if (!tab) return out;
+  const rows = [...tab.matchAll(/<tr><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]*)<\/td><\/tr>/gi)]
+    .map((m) => ({ n: decode(m[1]).toLowerCase(), v: num(String(m[2]).trim()), u: decode(m[3]).toLowerCase() }));
+  const val = (re, u) => rows.find((r) => re.test(r.n) && (!u || r.u === u) && r.v != null)?.v ?? null;
+  const nut = {
+    energia_kcal: val(/^energia/, 'kcal'),
+    gordura: val(/^l[ií]pidos/),
+    gordura_saturada: val(/saturados/),
+    hidratos: val(/^hidratos/),
+    acucares: val(/a[çc][úu]cares/),
+    proteina: val(/^prote[ií]na/),
+    sal: val(/^sal\b/),
+    fibra: val(/^fibra/),
+  };
+  if (Object.values(nut).some((v) => v != null)) out.nutricao = nut;
+  return out;
+}
+
 const FONTES = {
   auchan: {
     sitemapIndex: 'https://www.auchan.pt/sitemap_index.xml',
@@ -111,6 +143,7 @@ const FONTES = {
         preco, moeda: (Array.isArray(p.offers) ? p.offers[0]?.priceCurrency : p.offers?.priceCurrency) || 'EUR',
         imagem_url: ((Array.isArray(p.image) ? p.image[0] : p.image) || null)?.toString().slice(0, 600) || null,
         ...comporFormatoPreco(p, nome, preco),
+        ...extrairNutricaoAuchan(html),
       };
     },
   },
@@ -206,15 +239,18 @@ async function upsert(pool, fonte, sku, url, f) {
   await pool.query(
     `INSERT INTO catalogo_produto
        (fonte, sku_fonte, ean, nome, marca, descricao_curta, categoria_path, categoria, cat_n1, cat_n2, cat_n3, cat_n4,
-        formato, unidade_base, formato_valor, preco, moeda, preco_por_base, url, imagem_url, scraped_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())
+        formato, unidade_base, formato_valor, preco, moeda, preco_por_base, nutricao, nutricao_base, ingredientes, url, imagem_url, scraped_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())
      ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome=VALUES(nome), marca=VALUES(marca),
        descricao_curta=COALESCE(VALUES(descricao_curta), descricao_curta), categoria_path=VALUES(categoria_path),
        categoria=VALUES(categoria), cat_n1=VALUES(cat_n1), cat_n2=VALUES(cat_n2), cat_n3=VALUES(cat_n3), cat_n4=VALUES(cat_n4),
        formato=VALUES(formato), unidade_base=VALUES(unidade_base), formato_valor=VALUES(formato_valor), preco=VALUES(preco),
-       moeda=VALUES(moeda), preco_por_base=VALUES(preco_por_base), url=VALUES(url), imagem_url=VALUES(imagem_url), scraped_at=NOW()`,
+       moeda=VALUES(moeda), preco_por_base=VALUES(preco_por_base),
+       nutricao=COALESCE(VALUES(nutricao), nutricao), nutricao_base=COALESCE(VALUES(nutricao_base), nutricao_base),
+       ingredientes=COALESCE(VALUES(ingredientes), ingredientes), url=VALUES(url), imagem_url=VALUES(imagem_url), scraped_at=NOW()`,
     [fonte, sku, f.ean, tituloProduto(f.nome), tituloProduto(f.marca), f.descricao_curta || null, f.categoria_path, f.categoria, f.cat_n1, f.cat_n2, f.cat_n3, f.cat_n4,
-      f.formato, f.unidade_base, f.formato_valor, f.preco, f.moeda, f.preco_por_base, url, f.imagem_url],
+      f.formato, f.unidade_base, f.formato_valor, f.preco, f.moeda, f.preco_por_base,
+      f.nutricao ? JSON.stringify(f.nutricao) : null, f.nutricao_base || null, f.ingredientes || null, url, f.imagem_url],
   );
 }
 
