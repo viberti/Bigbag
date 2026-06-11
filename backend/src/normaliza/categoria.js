@@ -5,6 +5,23 @@
 // livre mantém-se como detalhe; o grupo é o eixo estável para agrupar/filtrar.
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
+// Categorias alimentares que DISPENSAM ficha nutricional POR-PRODUTO (não entram na
+// worklist "por identificar"): a nutrição vem da CLASSE (cereais/massas; pão, que é
+// fresco-like) ou é irrelevante (álcool). Decisão do dono (2026-06-11): "vinho não
+// precisa de ficha; arroz é cereal; pães comportam-se como frescos". Match por
+// PALAVRA no nome canónico (regex ICU \b, MySQL 8). Fonte de verdade única.
+const DISPENSA_FICHA_KW = [
+  // álcool — nutrição irrelevante
+  'vinho', 'espumante', 'cerveja', 'whisky', 'gin', 'ginja', 'vodka', 'licor',
+  'aguardente', 'sidra', 'sangria', 'vermute', 'brandy', 'tequila', 'moscatel', 'champanhe', 'conhaque',
+  // cereais / massas — nutrição da classe
+  'arroz', 'esparguete', 'massa', 'macarrao', 'farinha', 'cuscuz', 'penne', 'fusilli', 'talharim', 'noodles',
+  // pão / padaria fresca — frescos-like
+  'pao', 'paes', 'baguete', 'croissant', 'brioche', 'broa', 'tosta', 'carcaca', 'pain',
+];
+// Valor com `\\b` para sobreviver ao literal de string do MySQL (interpolado no SQL).
+export const DISPENSA_FICHA_RE = `\\\\b(${DISPENSA_FICHA_KW.join('|')})\\\\b`;
+
 export const GRUPOS = [
   { id: 'frutas', t: ['fruta', 'fruit', 'legume', 'vegetal', 'vegetable', 'verdura', 'hortic', 'hortofrut', 'salada', 'cogumelo', 'meloa', 'melao', 'melancia', 'salsa'] },
   { id: 'carne', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'salam', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru', 'presunto', 'chourico'] },

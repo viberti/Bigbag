@@ -1,3 +1,5 @@
+import { DISPENSA_FICHA_RE } from './normaliza/categoria.js';
+
 // Critério ÚNICO de "produto por identificar" (precisa de foto/ficha).
 //
 // Partilhado pela worklist da app (`/produto/por-identificar`) e pelo flag +
@@ -21,6 +23,7 @@ export const POR_IDENTIFICAR_SQL = `(
   AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
   AND pg.nutricao IS NULL
   AND (s.grupo IS NULL OR s.grupo <> 'higiene')
+  AND COALESCE(s.nome_canonico, i.descricao_original) NOT REGEXP '${DISPENSA_FICHA_RE}'
   AND NOT EXISTS (
     SELECT 1 FROM produto_ean pe
       JOIN item i2 ON i2.id = pe.item_id
