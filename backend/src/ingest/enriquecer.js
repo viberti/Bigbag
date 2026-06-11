@@ -23,12 +23,21 @@ const lim = (s, n) => (s == null ? null : String(s).slice(0, n));
 // atum em lata é peixe|mercearia(conservas); kefir é lacticinios|bebidas;
 // sobremesa láctea é lacticinios|doces; bolacha é doces|padaria; congelados
 // cruza com tudo (estado físico, não tipo).
-const ADJACENTES = new Set([
-  'bebidas|lacticinios', 'doces|lacticinios', 'doces|padaria', 'doces|frutas',
-  'frutas|mercearia', 'carne|mercearia', 'peixe|mercearia', 'mercearia|padaria',
-  'bebidas|mercearia',
-]);
+// (construído via parKey para nunca depender da ordem de escrita)
 const parKey = (a, b) => [a, b].sort().join('|');
+const ADJACENTES = new Set([
+  ['bebidas', 'lacticinios'],   // kefir, leite achocolatado
+  ['doces', 'padaria'],         // bolachas, cereais açucarados
+  ['doces', 'frutas'],          // fruta desidratada, compotas
+  ['frutas', 'mercearia'],      // conservas de legumes
+  ['carne', 'mercearia'],       // conservas/patês
+  ['peixe', 'mercearia'],       // atum em lata
+  ['mercearia', 'padaria'],     // farinhas, massas
+  ['bebidas', 'mercearia'],     // azeites/vinagres vs garrafas
+].map(([a, b]) => parKey(a, b)));
+// LIMITE CONHECIDO: a guarda só atua quando o NOME DO TALÃO classifica ("NAN
+// SUPREME" → outros → sem veredicto, passa). Cobre os casos tipo patê→pão;
+// não cobre nomes opacos — esses só com confirmação visual/operador.
 export function eanSuspeito(descricaoTalao, { foodGroups = null, nomeCand = null, categoriaCand = null } = {}) {
   const gTalao = grupoDeNome(descricaoTalao);
   if (!gTalao || gTalao === 'outros') return false; // sem veredicto do talão → não bloqueia
