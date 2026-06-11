@@ -14,6 +14,7 @@
 // LIKE não acha nenhum SKU: apanha plural/typo/truncagem do utilizador
 // ("manteigas"→"manteiga", "iorgute"→"iogurte") sem o custo de embeddings.
 import { similaridadeTermo } from './normaliza/similaridade.js';
+import { facetasDe } from './normaliza/facetas.js';
 
 // Limiar do fallback fuzzy: ≥ casa; abaixo ignora (evita falsos positivos).
 const LIMIAR_FUZZY = 0.7;
@@ -67,6 +68,32 @@ const GRUPO_ALVOS = {
   padaria: 'padaria', cereais: 'padaria',
 };
 
+// Facetas como colunas (Taxonomia §11.6): o pedido traz VALORES de faceta
+// ("iogurte magro", "grego de morango") → filtra pelas COLUNAS do Mestre
+// (teor/sabor canónicos), e os tokens restantes casam categoria/estilo/variedade.
+// Mais preciso que tokens sobre o nome: "Ligeiro" no nome É teor=magro — o token
+// "magro" nunca apareceria na string.
+async function facetasSkuIds(db, produto) {
+  const f = facetasDe(produto);
+  const teor = [...f.teor][0] || null;
+  const sabor = [...f.sabor][0] || null;
+  if (!teor && !sabor) return [];
+  const valoresFaceta = new Set([...f.teor, ...f.sabor, ...f.dieta].flatMap((v) => v.split(/\s+/)));
+  const resto = normaliza(produto).split(/\s+/)
+    .filter((t) => t.length >= 3 && !valoresFaceta.has(t) && !['com', 'sem', 'de', 'do', 'da'].includes(t));
+  const [rows] = await db.query(
+    'SELECT s.id, m.categoria, m.estilo, m.variedade, m.sabor, m.teor FROM sku_normalizado s JOIN produto_mestre m ON m.id = s.mestre_id');
+  const ids = [];
+  for (const r of rows) {
+    if (teor && normaliza(r.teor) !== teor) continue;
+    if (sabor && normaliza(r.sabor) !== sabor) continue;
+    const campos = [r.categoria, r.estilo, r.variedade].filter(Boolean).map(normaliza);
+    if (!resto.every((t) => campos.some((c) => c.split(/\s+/).some((w) => w.startsWith(t))))) continue;
+    ids.push(r.id);
+  }
+  return ids;
+}
+
 // B2 — match por TOKENS (palavra, não substring): "leite" casa "Leite Meio-Gordo"
 // mas NÃO mistura "Doce de Leite" quando há leites a sério ("fortes" = o 1.º token
 // do pedido é o SUBSTANTIVO-CABEÇA do nome; "fracos" só entram sem fortes). A
@@ -108,6 +135,9 @@ async function matchProduto(db, produto) {
   }
 
   if (db) {
+    // pedido com VALOR de faceta (teor/sabor) → colunas do Mestre primeiro
+    const fids = await facetasSkuIds(db, produto);
+    if (fids.length) return { sql: `(i.sku_id IN (${fids.map(() => '?').join(',')}))`, params: fids };
     const ids = await tokensSkuIds(db, produto);
     if (ids.length) return { sql: `(i.sku_id IN (${ids.map(() => '?').join(',')}))`, params: ids };
     const fz = await resolverFuzzy(db, produto);

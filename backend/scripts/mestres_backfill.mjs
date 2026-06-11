@@ -3,6 +3,7 @@
 // Não funde nem apaga SKUs — apenas agrupa por cima. Re-corrível (idempotente).
 import { getPool } from '../src/db.js';
 import { classificarMestre } from '../src/normaliza/classificaMestre.js';
+import { facetasDaChave } from '../src/normaliza/mestre.js';
 
 const db = getPool();
 
@@ -30,9 +31,15 @@ for (const s of skus) {
     // Categoria é o portão-MESTRE: sem ela, NÃO agrupa (senão colapsa tudo num
     // Mestre-lixo). Fica sem mestre_id — não-classificado, candidato a revisão.
     if (!categoria) { semCat++; continue; }
+    // facetas como COLUNAS (migração 043) — derivadas da própria chave
+    const fc = facetasDaChave(chave);
     const [r] = await db.query(
-      'INSERT INTO produto_mestre (chave, categoria, nome) VALUES (?,?,?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)',
-      [chave, categoria || null, s.nome_canonico],
+      `INSERT INTO produto_mestre (chave, categoria, apresentacao, corte, processamento, variedade, sabor, teor, estilo, funcao, fonte, nome)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), apresentacao=VALUES(apresentacao), corte=VALUES(corte),
+         processamento=VALUES(processamento), variedade=VALUES(variedade), sabor=VALUES(sabor), teor=VALUES(teor),
+         estilo=VALUES(estilo), funcao=VALUES(funcao), fonte=VALUES(fonte)`,
+      [chave, categoria || null, fc.apresentacao, fc.corte, fc.processamento, fc.variedade, fc.sabor, fc.teor, fc.estilo, fc.funcao, fc.fonte, s.nome_canonico],
     );
     await db.query('UPDATE sku_normalizado SET mestre_id = ? WHERE id = ?', [r.insertId, s.id]);
     (porChave.get(chave) || porChave.set(chave, []).get(chave)).push({ id: s.id, nome: s.nome_canonico });

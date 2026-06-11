@@ -108,7 +108,16 @@ const viaDic = (dic, v) => {
 
 // (3) CHAVE do Mestre: tuplo canónico estável a partir das facetas (A) extraídas.
 // Slots fixos; valores normalizados; `fonte=vaca` colapsa (default lácteo/bovino).
-const SLOTS = ['categoria', 'apresentacao', 'corte', 'processamento', 'variedade', 'sabor', 'teor', 'estilo', 'funcao', 'fonte'];
+export const SLOTS = ['categoria', 'apresentacao', 'corte', 'processamento', 'variedade', 'sabor', 'teor', 'estilo', 'funcao', 'fonte'];
+
+// Inverso da chave: split → objeto de facetas ('' → null). Permite materializar
+// as facetas como COLUNAS consultáveis (Taxonomia §11.6) sem re-extrair nada.
+export function facetasDaChave(chave) {
+  const partes = String(chave || '').split('|');
+  const out = {};
+  for (let i = 0; i < SLOTS.length; i++) out[SLOTS[i]] = partes[i] || null;
+  return out;
+}
 export function chaveMestre(facetas = {}) {
   const f = facetas || {};
   let fonte = ln(f.fonte);
