@@ -25,7 +25,8 @@ for (const r of rows) {
   if (noScrape) { jaNoScrape++; continue; }
   // nome PT da comunidade quando existe; senão o nome do OFF (pode ser ES/EN → o
   // léxico ES→PT ajuda no token-matching, sem o reescrever de forma destrutiva).
-  const nome = r.nome_pt || r.nome;
+  const nome = tituloProduto(r.nome_pt || r.nome);
+  if (!nome) continue; // sem nome utilizável → não serve para matching
   const c = conteudoDeTexto(r.quantidade);
   if (APLICAR) {
     await pool.query(
@@ -33,8 +34,8 @@ for (const r of rows) {
          VALUES ('mercadona-off', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'off-dump', NOW())
        ON DUPLICATE KEY UPDATE nome=VALUES(nome), nome_pt=VALUES(nome_pt), marca=VALUES(marca),
          categoria=VALUES(categoria), formato=VALUES(formato), unidade_base=VALUES(unidade_base), formato_valor=VALUES(formato_valor)`,
-      [r.ean, r.ean, tituloProduto(nome).slice(0, 255), r.nome_pt ? tituloProduto(r.nome_pt).slice(0, 255) : null,
-        tituloProduto(r.marca)?.slice(0, 140) || null, r.categoria?.slice(0, 160) || null,
+      [r.ean, r.ean, nome.slice(0, 255), r.nome_pt ? (tituloProduto(r.nome_pt) || '').slice(0, 255) || null : null,
+        (tituloProduto(r.marca) || '').slice(0, 140) || null, r.categoria?.slice(0, 160) || null,
         c ? `${c.valor}${c.unidade}` : (r.quantidade?.slice(0, 40) || null), c?.unidade || null, c?.valor ?? null],
     );
   }
