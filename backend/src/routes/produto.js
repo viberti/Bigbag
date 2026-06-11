@@ -356,6 +356,59 @@ produtoRouter.get('/info', requireAuth, async (req, res) => {
   }
 });
 
+// ALTERNATIVAS SIMILARES (MVP determinístico, sem LLM): produtos do MESMO grupo
+// com nutrição, p/ comparar com o produto da ficha ("em vez de carne de vaca, o
+// frango: mais proteína, menos saturada"). A nutrição é uniforme por 100 g em
+// todas as fontes; o preço vem do histórico. O parecer personalizado fica para o
+// passo seguinte (reusa compararProdutosLLM) — aqui é a base factual e barata.
+produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
+  try {
+    const itemId = Number(req.query.item_id) || null;
+    const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
+    const skuId = Number(req.query.sku_id) || null;
+    if (!itemId && !eanQ && !skuId) return res.status(400).json({ erro: 'item_id, sku_id ou ean em falta' });
+    const info = await consolidarProduto({ itemId, eanQ, skuId });
+    const nutAtual = info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null;
+    // grupo do produto (via SKU); sem SKU/grupo não há alternativas comparáveis
+    let grupo = null;
+    if (info.skuId) {
+      const [[s]] = await getPool().query('SELECT grupo FROM sku_normalizado WHERE id = ?', [info.skuId]);
+      grupo = s?.grupo || null;
+    }
+    if (!grupo || grupo === 'outros') return res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
+
+    const [cands] = await getPool().query(
+      `SELECT s.id, s.nome_canonico AS nome, m.corte, m.variedade, m.sabor, m.teor,
+              COALESCE(pg.nutricao, (SELECT pe.nutricao FROM item i JOIN produto_ean pe ON pe.ean = i.ean
+                 WHERE i.sku_id = s.id AND pe.nutricao IS NOT NULL LIMIT 1)) AS nutricao,
+              (SELECT ROUND(AVG(i2.preco_por_base), 2) FROM item i2 WHERE i2.sku_id = s.id AND i2.preco_por_base IS NOT NULL) AS eur_base,
+              (SELECT s.unidade_base) AS unidade_base
+         FROM sku_normalizado s
+         LEFT JOIN produto_mestre m ON m.id = s.mestre_id
+         LEFT JOIN produto_generico pg ON pg.sku_id = s.id
+        WHERE s.grupo = ? AND s.id <> ?
+       HAVING nutricao IS NOT NULL
+        LIMIT 30`,
+      [grupo, info.skuId || 0],
+    );
+    // parse + dedup por nome canónico; prioriza os que têm preço no histórico
+    const vistos = new Set();
+    const alternativas = cands.map((c) => ({
+      sku_id: c.id, nome: c.nome, corte: c.corte || null, variedade: c.variedade || null, teor: c.teor || null,
+      eur_base: c.eur_base != null ? Number(c.eur_base) : null, unidade_base: c.unidade_base || null,
+      nutricao: parseJson(c.nutricao),
+    })).filter((a) => {
+      const k = a.nome.toLowerCase();
+      if (vistos.has(k) || !a.nutricao) return false; vistos.add(k); return true;
+    }).sort((a, b) => (b.eur_base != null) - (a.eur_base != null)).slice(0, 6);
+
+    res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas });
+  } catch (e) {
+    console.error('[produto/alternativas] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a obter alternativas' });
+  }
+});
+
 // Lê o EAN de uma FOTO do código de barras (fallback do scanner ao vivo). Valida
 // o dígito verificador antes de devolver.
 produtoRouter.post('/ler-ean', requireAuth, upload.single('foto'), async (req, res) => {
