@@ -264,6 +264,13 @@ export async function sugestoesLista() {
   const { sugestoes } = await r.json();
   return sugestoes || [];
 }
+// Refeições possíveis com a lista atual (LLM cacheado por hash da lista).
+export async function refeicoesLista() {
+  const r = await call('/api/lista/refeicoes');
+  if (!r.ok) throw new Error(`refeicoes ${r.status}`);
+  const { refeicoes } = await r.json();
+  return refeicoes || [];
+}
 // Variantes habituais de um item ("iogurte" → os iogurtes que a casa compra).
 export async function variantesLista(nome) {
   const r = await call(`/api/lista/variantes?nome=${encodeURIComponent(nome)}`);

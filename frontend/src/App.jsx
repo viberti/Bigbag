@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, variantesLista, adicionarListaLote, sugestoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -3415,9 +3415,12 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
   // alimenta o estado vazio (✨ Começar por mim) e o cartão de sugestões.
   const [sugestoes, setSugestoes] = useState(null);
   const [sugFechado, setSugFechado] = useState(false);
+  const [refeicoes, setRefeicoes] = useState(null);
   useEffect(() => {
     if (!aberto) return;
     sugestoesLista().then(setSugestoes).catch(() => setSugestoes([]));
+    // refeições chegam quando chegarem (LLM cacheado) — descoberta, não bloqueio
+    refeicoesLista().then(setRefeicoes).catch(() => setRefeicoes([]));
   }, [aberto]);
   function aceitarSugestao(sg) {
     onAdicionar(sg.nome, null, sg.quantidade || 1);
@@ -3585,6 +3588,23 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                   <div className="cart-cat cart-cat-feito"><Ico name="cart" size={22} /> <span>{noCarrinho.length}</span></div>
                   {noCarrinho.map((it) => (
                     <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
+                  ))}
+                </div>
+              )}
+              {refeicoes?.length > 0 && (
+                <div className="ref-cartao">
+                  <span className="sug-t">🍳 {t('ref.titulo')}</span>
+                  {refeicoes.map((rf) => (
+                    <div key={rf.nome} className="ref-linha">
+                      <span className="ref-nome">{rf.nome}</span>
+                      {rf.falta?.length > 0 ? (
+                        <button type="button" className="sug-chip" onClick={() => { rf.falta.forEach((f) => onAdicionar(f)); navigator.vibrate?.(10); track('lista_refeicao_completar'); setRefeicoes((xs) => xs.filter((x) => x.nome !== rf.nome)); }}>
+                          + {rf.falta.join(' + ')}
+                        </button>
+                      ) : (
+                        <span className="ref-completo">✓ {t('ref.completo')}</span>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}

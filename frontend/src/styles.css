@@ -1412,6 +1412,13 @@ body { background: #0c1814; }
   box-shadow: 0 5px 16px rgba(46,196,110,.45); }
 .bb .sug-comecar:active { transform: scale(.97); }
 
+/* refeições possíveis (LLM cacheado): "com esta lista fazes…" */
+.bb .ref-cartao { display: flex; flex-direction: column; gap: 7px; margin: 12px 14px 8px;
+  padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.035); border: 1px solid var(--line); }
+.bb .ref-linha { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bb .ref-nome { font-size: 14px; font-weight: 700; color: var(--txt); }
+.bb .ref-completo { font-size: 12px; font-weight: 700; color: var(--accent-bright); }
+
 /* item ACABADO DE CHEGAR de outro membro: entrada animada + glow na cor de quem
    o adicionou — o aparecimento É a notificação (sem toast). */
 @keyframes bbChega { from { transform: translateY(-8px); } to { transform: none; } }

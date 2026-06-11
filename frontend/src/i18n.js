@@ -112,6 +112,8 @@ const STRINGS = {
     'sug.vaziaTitulo': 'Sua lista está vazia',
     'sug.comecar': 'Começar por mim ({n})',
     'sug.comecarSub': 'Pelo ritmo das suas compras: {nomes}…',
+    'ref.titulo': 'Com esta lista você faz',
+    'ref.completo': 'tem tudo!',
     'voz.demorou': 'O processamento demorou demais — tente de novo.',
     // barra de ações (ícone + legenda)
     'act.camera': 'Câmera',

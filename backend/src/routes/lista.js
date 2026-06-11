@@ -6,7 +6,9 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { grupoDeTexto, tokenCasa, singularizar, chaveItemLista } from '../normaliza/categoria.js';
+import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista } from '../normaliza/categoria.js';
+import { chatCompletion } from '../openrouter.js';
+import { config } from '../config.js';
 
 export const listaRouter = Router();
 listaRouter.use(requireAuth);
@@ -200,6 +202,43 @@ listaRouter.get('/variantes', async (req, res) => {
   } catch (e) {
     console.error('[lista/variantes] erro:', e.message);
     res.status(500).json({ erro: 'Falha a listar variantes' });
+  }
+});
+
+// REFEIÇÕES POSSÍVEIS — a única chamada LLM da lista ("com isto fazes Carbonara,
+// falta o queijo ralado"). Cache em memória por HASH da lista (chaves ordenadas):
+// a mesma lista nunca paga duas vezes; mudou um item → recalcula. Gate: ≥4 itens
+// alimentares. O LLM devolve no máx. 3 refeições quase-completas (falta ≤2).
+const _refeicoesCache = new Map(); // hash → [{nome, usa, falta}]
+listaRouter.get('/refeicoes', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [ativos] = await pool.query("SELECT nome FROM lista_item WHERE estado IN ('ativo','carrinho')");
+    const nomes = ativos.map((a) => a.nome).filter((n) => grupoDeNome(n) !== 'higiene');
+    if (nomes.length < 4) return res.json({ refeicoes: [] });
+    const hash = nomes.map(chaveItemLista).sort().join('|');
+    if (_refeicoesCache.has(hash)) return res.json({ refeicoes: _refeicoesCache.get(hash), cacheada: true });
+    const r = await chatCompletion({
+      messages: [{ role: 'user', content:
+        `Lista de compras de um supermercado em Portugal: ${nomes.join('; ')}.
+Que refeições COMPLETAS ou QUASE completas dá para cozinhar com estes itens (+ básicos de despensa: sal, azeite, alho, cebola)?
+Devolve SÓ JSON: {"refeicoes":[{"nome":"...","usa":["..."],"falta":["..."]}]}.
+Regras: máximo 3 refeições; só onde a lista cobre ≥3 ingredientes PRINCIPAIS; "falta" com no máximo 2 itens (vazio se não falta nada); nomes de refeição curtos e apetitosos em português do Brasil; "usa" só com itens DA LISTA. Se nada fizer sentido, {"refeicoes":[]}.` }],
+      model: config.openrouter.modelConsulta,
+      responseFormat: { type: 'json_object' },
+      timeoutMs: 15000,
+      contexto: 'lista-refeicoes',
+    });
+    let refeicoes = [];
+    try { refeicoes = (JSON.parse(r || '{}').refeicoes || []).slice(0, 3)
+      .map((x) => ({ nome: String(x.nome || '').slice(0, 60), usa: (x.usa || []).slice(0, 8).map(String), falta: (x.falta || []).slice(0, 2).map(String) }))
+      .filter((x) => x.nome); } catch { refeicoes = []; }
+    if (_refeicoesCache.size > 50) _refeicoesCache.clear(); // cap simples
+    _refeicoesCache.set(hash, refeicoes);
+    res.json({ refeicoes });
+  } catch (e) {
+    console.error('[lista/refeicoes] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a sugerir refeições' });
   }
 });
 
