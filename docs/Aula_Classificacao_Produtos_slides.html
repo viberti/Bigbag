@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BigBag — Como classificamos produtos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg0:#10201b; --bg1:#16211d; --bg2:#1c2823;
+    --panel:#1f2d27; --panel2:#27352e;
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.16);
+    --accent:#2ec46e; --accent-d:#1f7a4d; --accent-soft:rgba(46,196,110,.14);
+    --warn:#f0b53c; --danger:#e8704f;
+    --text:#eef3f6; --muted:#aab6bd; --faint:#8a97a0;
+    --eur:#46d488; --mint:#bce8d2;
+    --font:"Plus Jakarta Sans",system-ui,sans-serif;
+    --mono:ui-monospace,Consolas,"Cascadia Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--font);color:var(--text);background:linear-gradient(160deg,var(--bg0),var(--bg1) 55%,var(--bg2));
+    overflow:hidden;-webkit-font-smoothing:antialiased}
+
+  .slide{display:none;flex-direction:column;justify-content:center;gap:2.6vh;
+    width:100vw;height:100vh;padding:6vh 7vw;position:relative}
+  .slide.on{display:flex}
+
+  .kicker{color:var(--accent);font-weight:800;font-size:clamp(13px,1.8vh,18px);
+    letter-spacing:.14em;text-transform:uppercase}
+  h1{font-size:clamp(34px,7vh,64px);font-weight:800;letter-spacing:-.02em;line-height:1.08;margin:0}
+  h2{font-size:clamp(26px,5vh,46px);font-weight:800;letter-spacing:-.02em;line-height:1.12;margin:0}
+  p,li{font-size:clamp(17px,2.7vh,26px);line-height:1.55;color:var(--text);margin:0}
+  .muted{color:var(--muted)} .faint{color:var(--faint)}
+  .acc{color:var(--accent);font-weight:700} .eur{color:var(--eur);font-weight:700}
+  .mint{color:var(--mint);font-weight:700} .warn{color:var(--warn);font-weight:700}
+  ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:1.4vh}
+  b{color:#fff}
+
+  pre{font-family:var(--mono);font-size:clamp(12px,2vh,19px);line-height:1.5;color:var(--mint);
+    background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:14px;
+    padding:2.2vh 1.6vw;margin:0;overflow:auto;max-width:100%}
+  pre b{color:var(--accent);font-weight:700}
+  pre i{color:var(--faint);font-style:normal}
+
+  .cols{display:flex;gap:2.4vw;align-items:stretch}
+  .cols>*{flex:1;min-width:0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:2.6vh 1.8vw;
+    display:flex;flex-direction:column;gap:1.2vh}
+  .card h3{margin:0;font-size:clamp(17px,2.7vh,26px);font-weight:800}
+  .card p,.card li{font-size:clamp(14px,2.2vh,21px)}
+  .card.bad{border-color:rgba(232,112,79,.45)} .card.bad h3{color:var(--danger)}
+  .card.good{border-color:rgba(46,196,110,.5)} .card.good h3{color:var(--accent)}
+
+  /* fluxo de caixas (3 níveis) */
+  .flow{display:flex;align-items:stretch;gap:1vw}
+  .fbox{flex:1;background:var(--panel);border:1.5px solid var(--line2);border-radius:16px;
+    padding:2.2vh 1.4vw;display:flex;flex-direction:column;gap:.9vh}
+  .fbox .tag{font-size:clamp(11px,1.7vh,15px);font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+  .fbox .big{font-size:clamp(15px,2.5vh,24px);font-weight:700}
+  .fbox .sub{font-size:clamp(12px,1.9vh,17px);color:var(--muted)}
+  .farr{align-self:center;color:var(--accent);font-size:clamp(22px,4vh,40px);font-weight:800;flex:0 0 auto}
+
+  table{border-collapse:collapse;width:100%}
+  th,td{font-size:clamp(13px,2.1vh,20px);padding:1.2vh 1vw;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--accent);font-weight:800;font-size:clamp(12px,1.9vh,17px);letter-spacing:.06em;text-transform:uppercase}
+  td b{color:#fff}
+  td:first-child{font-weight:700}
+
+  .quote{border-left:5px solid var(--accent);background:var(--accent-soft);border-radius:0 16px 16px 0;
+    padding:3vh 2.4vw;font-size:clamp(20px,3.4vh,32px);line-height:1.5;font-weight:600}
+
+  .foot{position:absolute;bottom:2.6vh;left:7vw;right:7vw;display:flex;justify-content:space-between;
+    color:var(--faint);font-size:clamp(11px,1.7vh,14px);font-weight:600}
+  .count{position:fixed;bottom:2.6vh;right:2.2vw;color:var(--faint);font-weight:700;
+    font-size:clamp(12px,1.8vh,15px);font-variant-numeric:tabular-nums;z-index:5}
+  .hintnav{position:fixed;bottom:2.6vh;left:2.2vw;color:var(--faint);font-size:clamp(11px,1.6vh,13px);z-index:5}
+
+  .mark{filter:drop-shadow(0 6px 22px rgba(46,196,110,.35))}
+  .wm{font-weight:800;letter-spacing:-.02em}
+  .wm .b2{color:var(--accent)}
+
+  .num{display:inline-grid;place-items:center;min-width:1.7em;height:1.7em;border-radius:50%;
+    background:var(--accent);color:#06241a;font-weight:800;font-size:.8em;margin-right:.5em}
+
+  @media print{
+    body{overflow:visible;background:#10201b}
+    .slide{display:flex;page-break-after:always;height:100vh}
+    .count,.hintnav{display:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- 1 · CAPA -->
+<section class="slide on">
+  <div style="display:flex;align-items:center;gap:2vw">
+    <svg class="mark" width="92" height="92" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="BigBag">
+      <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#41de86"/><stop offset="1" stop-color="#16a06a"/></linearGradient>
+      <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#37c97a"/><stop offset="1" stop-color="#159e76"/></linearGradient></defs>
+      <path d="M16 16 C16 8.5, 32 8.5, 32 16" stroke="#159e76" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+      <path d="M10.5 15 H37.5 a2.5 2.5 0 0 1 2.49 2.72 l-1.74 21 A4 4 0 0 1 34.26 42.4 H13.74 a4 4 0 0 1-3.98-3.68 l-1.75-21 A2.5 2.5 0 0 1 10.5 15 Z" fill="url(#g1)"/>
+      <path d="M10.5 15 H37.5 a2.5 2.5 0 0 1 2.49 2.72 l-.36 4.3 A1.6 1.6 0 0 1 38.04 23.7 H9.96 A1.6 1.6 0 0 1 8.37 22.02 l-.36-4.3 A2.5 2.5 0 0 1 10.5 15 Z" fill="url(#g2)"/>
+      <circle cx="20" cy="31" r="1.9" fill="#0c2b22"/><circle cx="28" cy="31" r="1.9" fill="#0c2b22"/>
+      <path d="M19.4 35.6 C21.6 38.8, 26.4 38.8, 28.6 35.6" stroke="#0c2b22" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+      <path d="M34.5 9.5 L35.4 12 L38 12.9 L35.4 13.8 L34.5 16.3 L33.6 13.8 L31 12.9 L33.6 12 Z" fill="#eafff4"/>
+    </svg>
+    <span class="wm" style="font-size:clamp(30px,5.4vh,52px)">Big<span class="b2">Bag</span></span>
+  </div>
+  <h1>Como classificar produtos<br>de supermercado</h1>
+  <p class="muted" style="max-width:32em">Identidade em três níveis, um modelo <b>facetado</b> em vez de árvore,
+     e matching determinístico — com LLM só onde ele é insubstituível.</p>
+  <div class="foot"><span>Estudo de caso de um sistema real</span><span>2026</span></div>
+</section>
+
+<!-- 2 · O PROBLEMA -->
+<section class="slide">
+  <span class="kicker">O problema</span>
+  <h2>Que produto é este?</h2>
+  <pre>
+LEIT MG UHT PD200ML
+BOL DIGESTIVE AVEIA CNT 425GR
+IOG GREGO LIGEIRO PD 4X120
+PREPARADO CARNE PICADA PORC</pre>
+  <ul>
+    <li>O talão dá um nome <b>abreviado, com erros</b>, diferente em <b>cada loja</b> e em <b>cada data</b>.</li>
+    <li>Sem classificar, comparamos <b>strings</b> — não <b>produtos</b>.</li>
+    <li>E sem saber o produto, não há nutrição, alergias, nem "onde está mais barato?".</li>
+  </ul>
+</section>
+
+<!-- 3 · ARMADILHAS REAIS -->
+<section class="slide">
+  <span class="kicker">Dados reais mordem</span>
+  <h2>Duas armadilhas que encontramos</h2>
+  <div class="cols">
+    <div class="card bad">
+      <h3>Leite a 0,31 €?</h3>
+      <p>Um pack de <b>9 mini-garrafas de 200 ml</b> custava 2,79 € → "unidade" a 0,31 €.
+         O mínimo global elegia esse outlier como "o preço do leite".</p>
+      <p class="acc">Solução: comparar sempre em <b>€/unidade base</b> (€/L, €/kg, €/un).</p>
+    </div>
+    <div class="card bad">
+      <h3>"sal" → peixe??</h3>
+      <p>Matching por prefixo: <b>"sal"</b> casava <b>"SALmão"</b>.
+         E a prateleira "Charcutaria e <b>Queijos</b>" mandava queijos para o grupo <b>carne</b>.</p>
+      <p class="acc">Solução: prefixo só para plural (uva→uvas ✓, sal→salmão ✗);
+         o <b>nome</b> do produto vale mais que a categoria da loja.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · TRÊS NÍVEIS -->
+<section class="slide">
+  <span class="kicker">Ideia 1</span>
+  <h2>A identidade tem <span class="acc">três níveis</span></h2>
+  <div class="flow">
+    <div class="fbox">
+      <span class="tag">1 · Nota</span>
+      <span class="big">"IOG GREGO LIGEIRO PD 4X120"</span>
+      <span class="sub">o que o talão diz — abreviado, com erros</span>
+    </div>
+    <span class="farr">→</span>
+    <div class="fbox">
+      <span class="tag">2 · Produto real</span>
+      <span class="big">Iogurte Grego Ligeiro<br>Pingo Doce · 4×120 g</span>
+      <span class="sub">ancorado no <b>EAN</b> (código de barras) → nutrição, marca, alergias</span>
+    </div>
+    <span class="farr">→</span>
+    <div class="fbox">
+      <span class="tag">3 · Família (SKU)</span>
+      <span class="big">Iogurte Grego Natural Ligeiro</span>
+      <span class="sub">sem marca, sem tamanho — o conceito <b>comparável</b> entre lojas</span>
+    </div>
+  </div>
+  <ul>
+    <li><b>EAN</b> = identidade forte (validada pelo dígito verificador); liga ao Open Food Facts.</li>
+    <li><b>Frescos</b> (banana, carne) não têm EAN útil → identidade pelo nome, nutrição pela <b>classe</b>.</li>
+  </ul>
+</section>
+
+<!-- 5 · PIPELINE -->
+<section class="slide">
+  <span class="kicker">Arquitetura</span>
+  <h2>Da foto ao produto classificado</h2>
+  <pre>
+foto/PDF ──► <b>extração</b> (VLM/LLM) ──► item ─┬─► <b>canonicalização</b> ──► sku_normalizado
+            + loop de auto-correção            │    (nome limpo,          │ grupo (11 valores)
+            (reconcilia com o total da nota)   │     formato → €/base)    │ unidade_base
+                                               │                          ▼
+                                               └─► EAN → produto_ean   <b>produto_mestre</b>
+                                                   (OFF: nutrição,     (vetor de FACETAS)
+                                                    marca, alergias)</pre>
+  <p class="muted">A extração reconcilia com o total impresso — se a soma não bate, ela corrige a si mesma.</p>
+</section>
+
+<!-- 6 · ÁRVORE FALHA -->
+<section class="slide">
+  <span class="kicker">Ideia 2 — a decisão central</span>
+  <h2>A tentação: classificar em <span class="warn">árvore</span></h2>
+  <div class="cols">
+    <pre>
+Iogurte
+ └─ Grego
+     └─ Natural
+         └─ Ligeiro</pre>
+    <div class="card bad">
+      <h3>Por que falha</h3>
+      <ul>
+        <li>Obriga a escolher <b>uma</b> ordem de ramificação.</li>
+        <li>"Iogurte <b>Ligeiro</b> de Morango" e "Iogurte Grego <b>Ligeiro</b>" caem longe um do outro.</li>
+        <li>"Quais iogurtes <b>magros</b>?" exige varrer a árvore — e a palavra <b>nem está no nome</b> ("Ligeiro" = magro).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 7 · FACETAS -->
+<section class="slide">
+  <span class="kicker">Ideia 2 — a solução</span>
+  <h2>Facetas: cada atributo é uma <span class="acc">dimensão</span></h2>
+  <table>
+    <tr><th>categoria</th><th>processamento</th><th>sabor</th><th>teor</th><th>estilo</th><th>fonte</th><th>…</th></tr>
+    <tr><td>iogurte</td><td>—</td><td>natural</td><td><b>magro</b></td><td>grego</td><td>—</td><td class="faint">10 facetas</td></tr>
+    <tr><td>leite</td><td>UHT</td><td>—</td><td>meio-gordo</td><td>—</td><td>vaca</td><td class="faint">no total</td></tr>
+  </table>
+  <ul>
+    <li>O Produto Mestre é um <b>vetor de 10 facetas</b> — colunas no banco, não palavras no nome.</li>
+    <li><span class="mint">SELECT … WHERE teor='magro'</span> devolve <b>todos</b> os magros, qualquer que seja o nome.</li>
+    <li>Os "níveis" viram <b>projeções</b> (categoria → categoria+estilo → …) escolhidas na hora da pergunta — não fixadas na estrutura.</li>
+  </ul>
+</section>
+
+<!-- 8 · GRUPO -->
+<section class="slide">
+  <span class="kicker">Acima das facetas</span>
+  <h2>O grupo de prateleira (vocabulário <span class="acc">fechado</span>)</h2>
+  <p>11 valores fixos, para organizar a lista de compras e acelerar buscas:</p>
+  <pre>
+frutas · carne · peixe · laticínios · padaria · bebidas
+doces · congelados · higiene · mercearia · outros</pre>
+  <p>Derivado por força decrescente:</p>
+  <p style="font-size:clamp(18px,3vh,28px)"><span class="acc">food_groups do OFF</span> (autoritativo)
+     → <span class="acc">NOME do produto</span>
+     → <span class="warn">categoria da loja</span> <span class="muted">(a mais fraca: "Charcutaria e Queijos"…)</span></p>
+</section>
+
+<!-- 9 · CASCATA -->
+<section class="slide">
+  <span class="kicker">O caminho de volta</span>
+  <h2>Como uma pergunta encontra produtos</h2>
+  <pre>
+"leite" ──► 1. <b>grupo fechado</b>?      ("fruta" → grupo frutas)
+            2. <b>sinônimos</b>           ("álcool" → cerveja + vinho + …)
+            3. <b>tokens</b> c/ substantivo-cabeça
+               · "leite" prefere SKUs que COMEÇAM por "Leite"
+                 → não mistura <i>"Doce de Leite"</i>
+               · prefixo só p/ plural  (uva→uvas ✓ · sal→salmão ✗)
+            4. <b>fuzzy</b>               (erros de digitação)
+            5. <b>LIKE</b> na descrição crua (último recurso)</pre>
+  <p class="muted">Cada degrau só roda se o anterior não resolver. <b class="acc">Determinístico primeiro</b>;
+     LLM só onde texto livre exige interpretação — e com resultado <b>cacheado</b>.</p>
+</section>
+
+<!-- 10 · VANTAGENS -->
+<section class="slide">
+  <span class="kicker">O que ganhamos</span>
+  <h2>Vantagens do modelo</h2>
+  <table>
+    <tr><td>Preços comparáveis</td><td>tudo em <span class="eur">€/base</span> (€/kg, €/L, €/un) — packs não enganam</td></tr>
+    <tr><td>Agrupamento entre lojas</td><td>o "Leite Meio Gordo" do Lidl, Continente e Mercadona é <b>o mesmo SKU</b></td></tr>
+    <tr><td>Consultas por atributo</td><td><span class="mint">teor='magro'</span>, <span class="mint">estilo='grego'</span> — impossível por string</td></tr>
+    <tr><td>Nutrição herdada</td><td>frescos pela <b>classe</b> (nome); embalados pelo <b>EAN → OFF</b></td></tr>
+    <tr><td>Barato e auditável</td><td>determinístico: rápido, custo ~zero, cada decisão é explicável</td></tr>
+    <tr><td>LLM só onde paga</td><td>extração de imagem + texto livre, sempre com <b>cache</b> (a 2.ª vez é grátis)</td></tr>
+  </table>
+</section>
+
+<!-- 11 · PROBLEMAS -->
+<section class="slide">
+  <span class="kicker">Honestidade científica</span>
+  <h2>Problemas <span class="warn">ainda não resolvidos</span></h2>
+  <ul style="gap:1.1vh">
+    <li><span class="num">1</span><b>Granularidade desigual</b> — "carne de porco" é específico; "iogurte" é genérico. Resolvido por caso de uso, falta regra geral.</li>
+    <li><span class="num">2</span><b>Marcas próprias fora do OFF</b> — EANs Lidl/Continente exigem foto do rótulo (trabalho humano).</li>
+    <li><span class="num">3</span><b>Mesmo nome, vários EANs</b> — "Leite Meio Gordo" tem um EAN por cadeia; o nome sozinho é ambíguo.</li>
+    <li><span class="num">4</span><b>EAN válido-mas-errado</b> — trocar um dígito pode dar <i>outro EAN real</i> (passa no verificador!).</li>
+    <li><span class="num">5</span><b>Vocabulário vivo</b> — novos valores de faceta ("kefir", "sem lactose") exigem curadoria manual.</li>
+    <li><span class="num">6</span><b>Não-alimentares</b> — sem OFF, sem nutrição, categorias caóticas (plano: busca web).</li>
+    <li><span class="num">7</span><b>Multi-país</b> — modelo desenhado p/ Espanha, à espera do 1.º talão real.</li>
+  </ul>
+</section>
+
+<!-- 12 · LIÇÃO -->
+<section class="slide">
+  <span class="kicker">Para levar para casa</span>
+  <h2>A lição de arquitetura</h2>
+  <div class="quote">
+    "<b>String não é taxonomia.</b> O nome é <i>evidência</i>; a identidade é o
+    <span class="acc">EAN</span> quando existe, um <span class="acc">vetor de facetas</span> quando não.
+    E facetas + projeções respondem a mais perguntas que qualquer árvore —
+    deixando o LLM no único papel em que é insubstituível:
+    <b>transformar linguagem bagunçada em valores desse vetor.</b>"
+  </div>
+  <p class="faint" style="margin-top:2vh">Perguntas?</p>
+</section>
+
+<div class="count" id="count"></div>
+<div class="hintnav">← → para navegar · F = tela cheia</div>
+
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  let i = Math.min(Math.max((parseInt(location.hash.slice(1), 10) || 1) - 1, 0), slides.length - 1);
+  function show(n) {
+    i = Math.min(Math.max(n, 0), slides.length - 1);
+    slides.forEach((s, k) => s.classList.toggle('on', k === i));
+    document.getElementById('count').textContent = (i + 1) + ' / ' + slides.length;
+    history.replaceState(null, '', '#' + (i + 1));
+  }
+  addEventListener('keydown', (e) => {
+    if (['ArrowRight','ArrowDown','PageDown',' '].includes(e.key)) { e.preventDefault(); show(i + 1); }
+    else if (['ArrowLeft','ArrowUp','PageUp'].includes(e.key)) { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key.toLowerCase() === 'f') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  });
+  addEventListener('click', (e) => { if (!e.target.closest('a')) show(i + 1); });
+  let x0 = null;
+  addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+  addEventListener('touchend', (e) => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1));
+    x0 = null;
+  }, { passive: true });
+  show(i);
+</script>
+</body>
+</html>

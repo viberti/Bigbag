@@ -12,7 +12,7 @@ import { config } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
-import { grupoDe, tokenCasa } from '../normaliza/categoria.js';
+import { grupoDe, tokenCasa, singularizar } from '../normaliza/categoria.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from '../ingest/traduz.js';
@@ -486,7 +486,7 @@ async function buscarProdutoConhecido(pool, nome) {
   for (const s of skus) {
     const nt = normN(`${s.nome_canonico} ${s.nome_simplificado || ''}`).split(' ').filter(Boolean);
     if (!q.every((qt) => nt.some((w) => tokenCasa(w, qt)))) continue;
-    (normN(s.nome_canonico).split(' ')[0].startsWith(q[0]) ? fortes : fracos).push(s);
+    (singularizar(normN(s.nome_canonico).split(' ')[0]).startsWith(singularizar(q[0])) ? fortes : fracos).push(s);
   }
   for (const s of (fortes.length ? fortes : fracos)) {
     // embalado: EAN com ficha (nutrição OFF/VLM) → abre por EAN

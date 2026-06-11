@@ -48,18 +48,40 @@ export function grupoDeTexto(texto) {
   return GRUPO_OUTROS;
 }
 
-// Um token do PEDIDO casa um token do NOME quando: são iguais; o nome é o pedido
-// no plural (prefixo +"s", ou +"es" só em palavras ≥4); ou o nome é a raiz de um
-// pedido mais longo (nome ≥4). O plural +"es" limita-se a palavras ≥4 porque em
-// tokens curtos a diferença de 2 não é plural mas palavra distinta: "mel"→"melão",
-// "sal"→"salmão", "arr"→"arroz". "uva"→"uvas" (diferença 1) continua a casar.
+// Reduz um token (já normalizado: minúsculas, sem acentos) ao SINGULAR canónico.
+// Cobre as classes do português que aparecem em produtos: -ões/-ães→-ão (limões→
+// limão, pães→pão), -éis/-veis→-el (pastéis→pastel, saudáveis→saudável), -ais/-óis
+// →-al/-ol (integrais→integral), -ns→-m (bombons→bombom), -res/-zes/-ses→raiz
+// (flores→flor, arrozes→arroz, ananases→ananás) e o -s simples (uvas→uva).
+// NÃO precisa de ser linguisticamente perfeita: é aplicada AOS DOIS lados da
+// comparação, por isso basta ser CONSISTENTE — um erro de redução só estraga se
+// duas palavras DIFERENTES colidirem no mesmo singular (ex. teórico: mães/mãos→
+// "mao" — irrelevante em nomes de produto). Mínimos de comprimento protegem os
+// tokens curtos ("pais", "mais", "gas" ficam intactos).
+export function singularizar(t) {
+  if (t.length < 4) return t;
+  if (t.endsWith('oes') || t.endsWith('aes')) return t.slice(0, -3) + 'ao'; // limões, pães
+  if (t.endsWith('eis') && t.length >= 5) return t.slice(0, -3) + 'el';     // pastéis, saudáveis
+  if (t.endsWith('ais') && t.length >= 5) return t.slice(0, -2) + 'l';      // integrais, naturais
+  if (t.endsWith('ois') && t.length >= 5) return t.slice(0, -2) + 'l';      // espanhóis
+  if (t.endsWith('ns')) return t.slice(0, -2) + 'm';                        // bombons
+  if (/[rz]es$/.test(t) && t.length >= 5) return t.slice(0, -2);            // flores, arrozes
+  if (t.endsWith('ses') && t.length >= 5) return t.slice(0, -2);            // ananases
+  // -is fica intacto: "pais"/"mais"/"lápis" são invariantes (os plurais -éis/-ais/
+  // -óis longos já foram tratados acima); -ss idem ("expresso" não tem plural aqui).
+  if (t.endsWith('s') && !t.endsWith('ss') && !t.endsWith('is')) return t.slice(0, -1); // uvas, iogurtes
+  return t;
+}
+
+// Um token do PEDIDO casa um token do NOME quando: são iguais; são o MESMO
+// singular (plural⇄singular nos dois sentidos, incluindo irregulares — pão/pães,
+// limão/limões — via singularizar, NÃO por prefixo: prefixo largo foi o que fez
+// "sal" casar "salmão"); ou o nome é a raiz de um pedido mais longo (nome ≥4,
+// p/ abreviaturas tipo "BOL"→"bolachas" ao contrário).
 // Partilhado pelos matchers por token (lista, consulta, ficha) para não divergirem.
 export function tokenCasa(nomeTok, pedidoTok) {
   if (nomeTok === pedidoTok) return true;
-  if (nomeTok.startsWith(pedidoTok)) {
-    const d = nomeTok.length - pedidoTok.length;
-    if (d === 1 || (d === 2 && pedidoTok.length >= 4)) return true;
-  }
+  if (singularizar(nomeTok) === singularizar(pedidoTok)) return true;
   if (pedidoTok.startsWith(nomeTok) && nomeTok.length >= 4) return true;
   return false;
 }

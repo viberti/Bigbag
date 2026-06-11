@@ -1,6 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { grupoDeTexto, grupoDe, tokenCasa } from '../src/normaliza/categoria.js';
+import { grupoDeTexto, grupoDe, tokenCasa, singularizar } from '../src/normaliza/categoria.js';
+
+test('singularizar: classes do português que aparecem em produtos', () => {
+  assert.equal(singularizar('paes'), 'pao');         // pães → pão
+  assert.equal(singularizar('limoes'), 'limao');     // limões → limão
+  assert.equal(singularizar('meloes'), 'melao');
+  assert.equal(singularizar('camaroes'), 'camarao');
+  assert.equal(singularizar('feijoes'), 'feijao');
+  assert.equal(singularizar('pasteis'), 'pastel');   // pastéis → pastel
+  assert.equal(singularizar('integrais'), 'integral'); // bolachas integrais
+  assert.equal(singularizar('naturais'), 'natural');
+  assert.equal(singularizar('bombons'), 'bombom');
+  assert.equal(singularizar('flores'), 'flor');
+  assert.equal(singularizar('arrozes'), 'arroz');
+  assert.equal(singularizar('uvas'), 'uva');
+  assert.equal(singularizar('iogurtes'), 'iogurte');
+  // intactos: curtos e singulares
+  assert.equal(singularizar('pao'), 'pao');
+  assert.equal(singularizar('sal'), 'sal');
+  assert.equal(singularizar('mais'), 'mais');        // len 4, 'ais' exige ≥5
+  assert.equal(singularizar('pais'), 'pais');
+});
+
+test('tokenCasa: plurais irregulares casam nos dois sentidos', () => {
+  assert.ok(tokenCasa('pao', 'paes'));     // nome singular, pedido plural
+  assert.ok(tokenCasa('paes', 'pao'));     // nome plural, pedido singular
+  assert.ok(tokenCasa('limoes', 'limao'));
+  assert.ok(tokenCasa('pasteis', 'pastel'));
+  assert.ok(tokenCasa('integrais', 'integral'));
+  assert.ok(!tokenCasa('leitao', 'leite'));  // leitão ≠ leite
+  assert.ok(!tokenCasa('pastel', 'pasta'));  // pastel ≠ pasta
+});
 
 test('tokenCasa: igualdade e plural casam, prefixo curto NÃO (sal≠salmão)', () => {
   assert.ok(tokenCasa('leite', 'leite'));        // igual

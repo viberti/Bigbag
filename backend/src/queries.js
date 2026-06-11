@@ -15,7 +15,7 @@
 // ("manteigas"→"manteiga", "iorgute"→"iogurte") sem o custo de embeddings.
 import { similaridadeTermo } from './normaliza/similaridade.js';
 import { facetasDe } from './normaliza/facetas.js';
-import { tokenCasa } from './normaliza/categoria.js';
+import { tokenCasa, singularizar } from './normaliza/categoria.js';
 
 // Limiar do fallback fuzzy: ≥ casa; abaixo ignora (evita falsos positivos).
 const LIMIAR_FUZZY = 0.7;
@@ -110,7 +110,7 @@ async function tokensSkuIds(db, produto) {
     const casa = toksQ.every((qt) => toksN.some((nt) => tokenCasa(nt, qt)));
     if (!casa) continue;
     const headN = normaliza(s.nome_canonico).split(/\s+/)[0] || '';
-    (headN.startsWith(toksQ[0]) ? fortes : fracos).push(s.id);
+    (singularizar(headN).startsWith(singularizar(toksQ[0])) ? fortes : fracos).push(s.id);
   }
   return fortes.length ? fortes : fracos;
 }
