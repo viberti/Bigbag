@@ -10,7 +10,7 @@ import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
-import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
+import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { grupoDe, tokenCasa, singularizar } from '../normaliza/categoria.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
@@ -28,19 +28,8 @@ const lim = (s, n) => (s == null ? null : String(s).slice(0, n));
 
 const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
 
-// Consulta o CATÁLOGO LOCAL (scrapes Auchan/Continente) por EAN: nome/marca/
-// categoria/tamanho — cobre o que o OFF não tem (cervejas, não-alimentares). Sem
-// nutrição (o catálogo não a tem). Prefere a linha COM marca.
-async function consultarCatalogo(ean) {
-  const [[c]] = await getPool().query(
-    `SELECT nome, marca, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria, formato AS quantidade, fonte
-       FROM catalogo_produto
-      WHERE ean = ? AND nome IS NOT NULL AND nome <> ''
-      ORDER BY (marca IS NOT NULL AND marca <> '') DESC, id LIMIT 1`,
-    [ean],
-  );
-  return c || null;
-}
+// (consultarCatalogo vive em ingest/produto.js — partilhado com o enriquecimento;
+// desde a 047 devolve também NUTRIÇÃO oficial de loja + ingredientes do Auchan.)
 
 // Consulta um produto pelo EAN: nossa base → Open Food Facts → catálogo local (e
 // GUARDA, item_id NULL). Devolve { encontrado, fonte, nome }. Por /consultar e /foto.
@@ -56,16 +45,21 @@ export async function consultarOuGuardar(ean) {
   if (ja) return { encontrado: true, fonte: 'base', nome: ja.nome || null };
   const off = await consultarOFF(ean);
   if (!off) {
-    // OFF não tem (típico em cervejas/álcool) → catálogo local Auchan/Continente.
+    // OFF não tem (típico em marcas próprias/cervejas) → catálogo local; desde a
+    // 047 a ficha do catálogo pode trazer NUTRIÇÃO oficial de loja (Auchan).
     const cat = await consultarCatalogo(ean);
     if (!cat) return { encontrado: false };
     try {
       await getPool().query(
-        `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, fonte)
-           VALUES (?,NULL,NULL,?,?,?,?, 'catalogo')
+        `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, nutricao, nutricao_confirmada, fonte)
+           VALUES (?,NULL,NULL,?,?,?,?,?,?,?, 'catalogo')
          ON DUPLICATE KEY UPDATE nome=COALESCE(produto_ean.nome, VALUES(nome)), marca=COALESCE(produto_ean.marca, VALUES(marca)),
-           quantidade=COALESCE(produto_ean.quantidade, VALUES(quantidade)), categoria=COALESCE(produto_ean.categoria, VALUES(categoria))`,
-        [ean, lim(tituloProduto(cat.nome), 200), lim(tituloProduto(cat.marca), 120), lim(cat.quantidade, 60), lim(cat.categoria, 255)],
+           quantidade=COALESCE(produto_ean.quantidade, VALUES(quantidade)), categoria=COALESCE(produto_ean.categoria, VALUES(categoria)),
+           ingredientes=COALESCE(produto_ean.ingredientes, VALUES(ingredientes)),
+           nutricao=COALESCE(produto_ean.nutricao, VALUES(nutricao)),
+           nutricao_confirmada=GREATEST(produto_ean.nutricao_confirmada, VALUES(nutricao_confirmada))`,
+        [ean, lim(tituloProduto(cat.nome), 200), lim(tituloProduto(cat.marca), 120), lim(cat.quantidade, 60), lim(cat.categoria, 255),
+          cat.ingredientes || null, cat.nutricao ? JSON.stringify(cat.nutricao) : null, cat.nutricao ? 1 : 0],
       );
       await guardarNomes(ean, null, [{ nome: cat.nome, origem: 'catalogo' }]);
       await atualizarConteudoFicha(getPool(), ean);
@@ -73,6 +67,12 @@ export async function consultarOuGuardar(ean) {
       console.error('[consultarOuGuardar] catálogo:', e.message);
     }
     return { encontrado: true, fonte: 'catalogo', nome: cat.nome || null };
+  }
+  // OFF tem a ficha mas SEM nutrição (nem o live) → completa com a do catálogo (047).
+  if (!off.nutricao_100g || Object.values(off.nutricao_100g).every((v) => v == null)) {
+    const cat = await consultarCatalogo(ean);
+    if (cat?.nutricao) off.nutricao_100g = cat.nutricao;
+    if (cat?.ingredientes && !off.ingredientes) off.ingredientes = cat.ingredientes;
   }
   try {
     await getPool().query(
@@ -261,7 +261,13 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
     const eanRejeitado = !!(eanCandidato && !ean); // leu um código mas o dígito verificador falhou
     const off = await consultarOFF(ean);
 
-    const nutricao = off?.nutricao_100g || vlm?.nutricao_100g || null;
+    let nutricao = off?.nutricao_100g || vlm?.nutricao_100g || null;
+    // 3.ª fonte: NUTRIÇÃO oficial de loja no catálogo (047, Auchan) — confirmada.
+    let nutCatalogo = false;
+    if (ean && (!nutricao || Object.values(nutricao).every((v) => v == null))) {
+      const cat = await consultarCatalogo(ean);
+      if (cat?.nutricao) { nutricao = cat.nutricao; nutCatalogo = true; }
+    }
     const fonte = off && vlm ? 'ambos' : off ? 'off' : 'vlm';
     const nome = off?.nome || vlm?.nome || null;
 
@@ -291,7 +297,7 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       }
       // nutrição lida SÓ pelo VLM (sem OFF) fica "por confirmar" — isolada até o
       // operador rever (aba Fichas) ou uma fonte independente (OFF) confirmar.
-      const nutConfirmada = off ? 1 : nutricao ? 0 : 1;
+      const nutConfirmada = off || nutCatalogo ? 1 : nutricao ? 0 : 1; // OFF e catálogo (fonte oficial) confirmam; só-VLM fica por confirmar
       await getPool().query(
         `INSERT INTO produto_ean (ean, sku_id, item_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, nutricao_confirmada, fonte, vlm_json, off_json)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)

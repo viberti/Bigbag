@@ -397,3 +397,22 @@ export async function consultarOFF(ean) {
   getPool().query('UPDATE off_produto SET nutricao = ? WHERE ean = ?', [JSON.stringify(live.nutricao_100g), cod]).catch(() => {});
   return local;
 }
+
+// Consulta o CATÁLOGO LOCAL por EAN (scrapes Auchan/Continente/Mercadona):
+// nome/marca/categoria/tamanho e — desde a 047 — NUTRIÇÃO oficial de loja +
+// ingredientes (o Auchan publica a tabela completa no HTML; ~12k EANs). Prefere
+// a linha COM nutrição, depois a com marca. Cobre o que o OFF não tem
+// (marcas próprias, cervejas, não-alimentares; dump OFF só 16% c/ nutrição).
+export async function consultarCatalogo(ean) {
+  const [[c]] = await getPool().query(
+    `SELECT nome, marca, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria, formato AS quantidade, fonte,
+            nutricao, ingredientes
+       FROM catalogo_produto
+      WHERE ean = ? AND nome IS NOT NULL AND nome <> ''
+      ORDER BY (nutricao IS NOT NULL) DESC, (marca IS NOT NULL AND marca <> '') DESC, id LIMIT 1`,
+    [ean],
+  );
+  if (!c) return null;
+  if (typeof c.nutricao === 'string') { try { c.nutricao = JSON.parse(c.nutricao); } catch { c.nutricao = null; } }
+  return c;
+}

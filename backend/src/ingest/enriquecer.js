@@ -2,7 +2,7 @@
 // (Makro, e agora também os talões digitais do Lidl Plus), guardando os dados
 // como produto_ean autónomo (item_id NULL) → a ficha fica cheia, sem foto.
 // Partilhado pela rota de faturas e pelo importador do Lidl Plus.
-import { consultarOFF } from './produto.js';
+import { consultarOFF, consultarCatalogo } from './produto.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from './traduz.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
@@ -19,7 +19,24 @@ export async function enriquecerEansFatura(pool, faturaId) {
       const [[ja]] = await pool.query('SELECT id FROM produto_ean WHERE ean = ? AND off_json IS NOT NULL LIMIT 1', [ean]);
       if (ja) continue;
       const off = await consultarOFF(ean);
-      if (!off) continue;
+      if (!off) {
+        // OFF não tem (marca própria, ex.: kefir Lidl) → CATÁLOGO local; desde a
+        // 047 pode trazer nutrição oficial de loja (Auchan) → a ficha nasce cheia.
+        const cat = await consultarCatalogo(ean);
+        if (!cat) continue;
+        await pool.query(
+          `INSERT INTO produto_ean (ean, item_id, fonte, nome, marca, quantidade, categoria, ingredientes, nutricao, nutricao_confirmada)
+             VALUES (?,NULL,'catalogo',?,?,?,?,?,?,?)
+           ON DUPLICATE KEY UPDATE nome=COALESCE(produto_ean.nome, VALUES(nome)), marca=COALESCE(produto_ean.marca, VALUES(marca)),
+             quantidade=COALESCE(produto_ean.quantidade, VALUES(quantidade)), categoria=COALESCE(produto_ean.categoria, VALUES(categoria)),
+             ingredientes=COALESCE(produto_ean.ingredientes, VALUES(ingredientes)), nutricao=COALESCE(produto_ean.nutricao, VALUES(nutricao)),
+             nutricao_confirmada=GREATEST(produto_ean.nutricao_confirmada, VALUES(nutricao_confirmada))`,
+          [ean, lim(tituloProduto(cat.nome), 200), lim(tituloProduto(cat.marca), 120), lim(cat.quantidade, 60), lim(cat.categoria, 255),
+            cat.ingredientes || null, cat.nutricao ? JSON.stringify(cat.nutricao) : null, cat.nutricao ? 1 : 0],
+        );
+        await atualizarConteudoFicha(pool, ean);
+        continue;
+      }
       await pool.query(
         `INSERT INTO produto_ean (ean, item_id, fonte, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, off_json)
            VALUES (?,NULL,'off',?,?,?,?,?,?,?,?)
