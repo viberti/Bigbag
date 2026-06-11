@@ -10,19 +10,22 @@ const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-
 // fresco-like) ou é irrelevante (álcool). Decisão do dono (2026-06-11): "vinho não
 // precisa de ficha; arroz é cereal; pães comportam-se como frescos". Match por
 // PALAVRA no nome canónico (regex ICU \b, MySQL 8). Fonte de verdade única.
-const DISPENSA_FICHA_KW = [
-  // álcool — nutrição irrelevante
+// Álcool — nutrição irrelevante (sai da worklist, mas NÃO recebe nutrição-classe).
+const DISPENSA_ALCOOL_KW = [
   'vinho', 'espumante', 'cerveja', 'whisky', 'gin', 'ginja', 'vodka', 'licor',
   'aguardente', 'sidra', 'sangria', 'vermute', 'brandy', 'tequila', 'moscatel', 'champanhe', 'conhaque',
-  // cereais / massas — nutrição da classe
+];
+// Cereais/massas + pão — nutrição da CLASSE (sai da worklist E recebe nutrição via
+// tipo 'basico'). NB: o REGEXP do MySQL é accent-sensitive — manter as duas formas
+// (pao/pão) porque casamos o nome canónico (acentuado) E a descrição crua (sem).
+const DISPENSA_CLASSE_KW = [
   'arroz', 'esparguete', 'massa', 'macarrao', 'macarrão', 'farinha', 'cuscuz', 'penne', 'fusilli', 'talharim', 'noodles',
-  // pão / padaria fresca — frescos-like
   'pao', 'pão', 'paes', 'pães', 'baguete', 'croissant', 'brioche', 'broa', 'tosta', 'carcaca', 'carcaça', 'pain',
-  // NB: o REGEXP do MySQL é sensível a acentos — manter as duas formas (pao/pão)
-  // porque o critério casa o nome canónico (acentuado) E a descrição crua (sem).
 ];
 // Valor com `\\b` para sobreviver ao literal de string do MySQL (interpolado no SQL).
-export const DISPENSA_FICHA_RE = `\\\\b(${DISPENSA_FICHA_KW.join('|')})\\\\b`;
+export const DISPENSA_FICHA_RE = `\\\\b(${[...DISPENSA_ALCOOL_KW, ...DISPENSA_CLASSE_KW].join('|')})\\\\b`;
+// Subconjunto que GANHA nutrição-de-classe (cereais/massas/pão) — para o backfill.
+export const DISPENSA_CLASSE_RE = `\\\\b(${DISPENSA_CLASSE_KW.join('|')})\\\\b`;
 
 export const GRUPOS = [
   { id: 'frutas', t: ['fruta', 'fruit', 'legume', 'vegetal', 'vegetable', 'verdura', 'hortic', 'hortofrut', 'salada', 'cogumelo', 'meloa', 'melao', 'melancia', 'salsa'] },

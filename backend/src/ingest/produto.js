@@ -137,19 +137,21 @@ export async function analisarProduto(p, { timeoutMs } = {}) {
 
 const PROMPT_CARACT = `És uma base de composição de alimentos. Recebes o NOME de um produto de supermercado (em português) e classificas + dás a nutrição típica. Devolve SÓ JSON:
 {
-  "tipo": "fresco" | "processado",
-  "alimento": string,              // alimento genérico identificado (ex.: "banana", "courgette", "peito de frango")
+  "tipo": "fresco" | "basico" | "processado",
+  "alimento": string,              // alimento genérico identificado (ex.: "banana", "arroz cozido", "pão de forma")
   "categoria": string,
   "nutricao_100g": {               // por 100 g
     "energia_kcal": number|null, "gordura": number|null, "gordura_saturada": number|null,
     "hidratos": number|null, "acucares": number|null, "proteina": number|null, "sal": number|null, "fibra": number|null
   }
 }
-Regras:
-- "fresco" = alimento inteiro ou minimamente processado, vendido a peso/unidade, SEM rótulo de ingredientes: fruta, legume, hortaliça, carne/peixe fresco, ovos, frutos secos/leguminosas a granel. Para estes, dá os valores TÍPICOS por 100 g (crus, são bem conhecidos das tabelas de composição).
-- "processado" = produto EMBALADO com rótulo (iogurte, queijo, bolacha, conserva, bebida, cereais, charcutaria…). Para estes, mete TODOS os campos de nutricao_100g a NULL — a nutrição vem do rótulo, não inventes.
-- Na dúvida entre fresco e processado, escolhe "processado".
-- Só o JSON.`;
+Regras de TIPO (decide pela NATUREZA do alimento, não pela embalagem nem por ter código de barras):
+- "fresco" = alimento inteiro/minimamente processado, vendido a peso/unidade, SEM rótulo: fruta, legume, hortaliça, carne/peixe fresco, ovos, frutos secos/leguminosas a granel.
+- "basico" = staple/commodity cuja nutrição é PADRÃO da classe (NÃO varia com a marca), mesmo que embalado: arroz, massa/esparguete simples, farinha, pão e padaria (pão de forma, baguete, broa, croissant, pão de deus), aveia/flocos naturais, leguminosas secas, frutos secos ao natural, açúcar, sal, azeite/óleo simples.
+- "processado" = embalado de MARCA/RECEITA onde a nutrição VARIA (iogurte, queijo, bolacha, cereais de pequeno-almoço de marca/açucarados, conserva, refeição pronta, charcutaria, molho composto, snack, bebida…).
+Para "fresco" e "basico": dá os valores TÍPICOS por 100 g (bem conhecidos das tabelas de composição). Para "processado": mete TODOS os campos de nutricao_100g a NULL — a nutrição vem do rótulo, não inventes.
+Na dúvida entre basico e processado, escolhe "processado".
+Só o JSON.`;
 
 // Classifica um produto pelo NOME (fresco vs. embalado) e, se fresco, devolve a
 // nutrição típica por 100 g (sem precisar de EAN nem rótulo).
@@ -175,7 +177,7 @@ export async function caracterizarProdutoNome(nome, { timeoutMs } = {}) {
       const data = await res.json();
       registrarCusto({ contexto: 'caracterizar', modelo: data.model, usage: data.usage });
       const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
-      if (dados.tipo !== 'fresco') dados.nutricao_100g = null; // processado → nutrição vem do rótulo
+      if (dados.tipo !== 'fresco' && dados.tipo !== 'basico') dados.nutricao_100g = null; // só processado-de-marca é que vem do rótulo
       return { dados, custo: Number(data.usage?.cost) || 0 };
     } catch (e) {
       ultimoErro = e;
@@ -200,7 +202,7 @@ export async function garantirGenericoSku(pool, skuId, nome) {
   }
   if (!nome) return null;
   const { dados, custo } = await caracterizarProdutoNome(nome);
-  const tipo = dados.tipo === 'fresco' ? 'fresco' : 'processado';
+  const tipo = ['fresco', 'basico'].includes(dados.tipo) ? dados.tipo : 'processado';
   await pool.query(
     `INSERT INTO produto_generico (sku_id, tipo, alimento, categoria, nutricao, modelo) VALUES (?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE tipo=VALUES(tipo), alimento=VALUES(alimento), categoria=VALUES(categoria), nutricao=VALUES(nutricao), modelo=VALUES(modelo)`,

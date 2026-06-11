@@ -235,17 +235,19 @@ async function resolverGenericoPorNome(pool, nome) {
     const g = await garantirGenericoSku(pool, skuId, limpo);
     return g ? { ...g, sku_id: skuId } : null;
   }
-  // 2) sem SKU: caracteriza; se FRESCO, cria entrada de catálogo (não se perde)
+  // 2) sem SKU: caracteriza; se tem NUTRIÇÃO DE CLASSE (fresco ou básico — arroz,
+  // pão), cria entrada de catálogo (não se perde). Processado-de-marca → sem nutrição.
   const { dados, custo } = await caracterizarProdutoNome(limpo);
-  if (dados.tipo !== 'fresco') return { tipo: 'processado', alimento: dados.alimento || null, nutricao_100g: null, custo, sku_id: null };
+  const tipoClasse = ['fresco', 'basico'].includes(dados.tipo) ? dados.tipo : null;
+  if (!tipoClasse) return { tipo: 'processado', alimento: dados.alimento || null, nutricao_100g: null, custo, sku_id: null };
   const nomeCanon = (dados.alimento || limpo).replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 160);
   const [ins] = await pool.query('INSERT INTO sku_normalizado (nome_canonico) VALUES (?)', [nomeCanon]);
   await pool.query(
     `INSERT INTO produto_generico (sku_id, tipo, alimento, categoria, nutricao, modelo) VALUES (?,?,?,?,?,?)`,
-    [ins.insertId, 'fresco', dados.alimento || null, dados.categoria || null,
+    [ins.insertId, tipoClasse, dados.alimento || null, dados.categoria || null,
       dados.nutricao_100g ? JSON.stringify(dados.nutricao_100g) : null, config.openrouter.modelConsulta],
   );
-  return { tipo: 'fresco', alimento: dados.alimento || null, categoria: dados.categoria || null, nutricao_100g: dados.nutricao_100g || null, custo, sku_id: ins.insertId, criado: true };
+  return { tipo: tipoClasse, alimento: dados.alimento || null, categoria: dados.categoria || null, nutricao_100g: dados.nutricao_100g || null, custo, sku_id: ins.insertId, criado: true };
 }
 
 produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) => {
