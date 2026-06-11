@@ -53,7 +53,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Operador (`/admin`)** — desktop. Abas: Painel · Produtos/SKUs · Mestres · Ligar nomes · Nomes · **EANs** (matching nome→EAN, operador é juiz) · **Mercadona** (talões PT × catálogo Mercadona ES) · Itens (item cru) · Fichas (editar produto por EAN) · Revisão · Qualidade · Preços · Saúde · **Uso** (telemetria) · **Custos** (gasto OpenRouter por feature/modelo/dia).
 - **Comprador (`/explorar`)** — desktop, tema "talão": explorar produtos, preço pago vs €/base, variação, por mercado.
 
-**Ingestão:** `POST /api/faturas` → VLM-imagem ou texto-PDF+LLM → extração com **loop de auto-correção** (reconcilia com o total) → dedup robusta (4 redes) → normalização (formato→`preco_por_base`) → canonicalização + matching → **verificação de nomes** (2.ª opinião). Desconto de cartão NÃO espalhado pelos itens.
+**Ingestão:** `POST /api/faturas` (vias: câmara/galeria · ficheiro · **Share Target Android** — app do LIDL et al. partilham o talão como imagem; iOS não suporta) → VLM-imagem ou texto-PDF+LLM → extração com **loop de auto-correção** (reconcilia com o total) → dedup robusta (4 redes) → normalização (formato→`preco_por_base`) → canonicalização + matching → **verificação de nomes** (2.ª opinião). Desconto de cartão NÃO espalhado pelos itens.
 
 **Consulta:** 11 funções + tool use (`POST /api/consulta` texto, `POST /api/voz`), modelo `gemini-2.5-flash`.
 

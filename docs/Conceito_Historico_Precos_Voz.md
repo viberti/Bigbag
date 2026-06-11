@@ -83,6 +83,8 @@ Dois subsistemas independentes que partilham a BD. Toda a IA passa pelo **OpenRo
 > - **Onde aplicamos regras próprias:** no **output estruturado** (reconciliação, `formato.js`, guarda de IVA, `decidirUnidadeBase`) — sobre números limpos, testável — e no caminho **PDF** (texto exato). Limpar texto *antes* do LLM só é seguro quando o texto é fiável (PDF), não sobre OCR de foto.
 > - `fatura.metodo_extracao` regista qual gerou cada registo (`vlm` | `ocr_llm`); o último é, na verdade, "texto-do-PDF + LLM" (não há OCR real no pipeline).
 
+**Vias de entrada do talão** (todas convergem no `POST /api/faturas`, campo `origem`): (1) **câmara/galeria** do rodapé — foto ou múltiplas; (2) **ficheiro** (PDF/imagem); (3) **Share Target (Android, 2026-06-11)** — o Bigbag é destino de partilha do sistema, por isso o **app do LIDL** (e qualquer app que partilhe a nota como imagem/PDF) pode enviá-la diretamente. O manifest declara `share_target → POST /share-target`; um handler no service worker (`public/share-target-sw.js`, injetado por `importScripts`) intercepta o POST, guarda o ficheiro numa cache efémera e reencaminha para `/?compartilhado=1`, onde a app o lê e o mete no **mesmo** fluxo de chat (`processarUma`, `origem='partilha'`). **iOS/Safari não suporta Share Target em PWA** — aí a via é guardar a imagem e enviá-la pela galeria (ou, no futuro, app nativa).
+
 ### 4.1 Regras de extração (casos reais das cadeias-alvo)
 
 | Cenário | Regra |
