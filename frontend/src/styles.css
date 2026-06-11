@@ -1319,6 +1319,10 @@ body { background: #0c1814; }
 .bb .scan-pornome { margin: 4px 0 10px; padding: 10px 12px; background: var(--verde)14; border: 1px solid var(--verde); border-radius: 12px; }
 .bb .scan-pornome-k { display: block; font-size: 12px; font-weight: 600; color: var(--verde); margin-bottom: 6px; }
 .bb .scan-pornome .scan-manual { margin: 0; }
+.bb .scan-mic { flex: 0 0 auto; width: 38px; padding: 0; display: grid; place-items: center; background: var(--verde); color: #06201d; border: 0; border-radius: 9px; cursor: pointer; }
+.bb .scan-mic:disabled { opacity: .5; }
+.bb .scan-mic.rec { background: #d64545; color: #fff; animation: pulseRec 1s infinite; }
+@keyframes pulseRec { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
 .bb .crow-li { position: relative; overflow: hidden; }
 .bb .crow-bg { position: absolute; inset: 0; display: flex; align-items: center; padding-left: 22px; color: #fff; background: #7a2e2e; }
 .bb .crow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 18px;

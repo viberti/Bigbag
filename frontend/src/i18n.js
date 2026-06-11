@@ -125,7 +125,9 @@ const STRINGS = {
     'scanner.placeholderEan': 'ou digite o código (EAN)',
     'scanner.consultar': 'Consultar',
     'scanner.placeholderNome': 'ex.: carne de porco, queijo gouda…',
-    'scanner.ouNome': 'Consultar pelo nome (sem scan)',
+    'scanner.ouNome': 'Consultar pelo nome (escreva ou fale)',
+    'scanner.dizer': 'Dizer o produto',
+    'scanner.aOuvir': 'a ouvir…',
     // folha de captura (worklist por identificar)
     'capt.title': 'Capturar produto',
     'capt.semCamera': 'Não foi possível abrir a câmera. Digite o código manualmente ou siga só com fotos.',

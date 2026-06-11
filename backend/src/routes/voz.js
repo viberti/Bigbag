@@ -80,3 +80,31 @@ vozRouter.post('/lista', requireAuth, upload.single('audio'), async (req, res) =
     res.status(502).json({ erro: 'Falha a entender a lista', detalhe: e.message });
   }
 });
+
+// Consulta de PRODUTO por voz: áudio → o NOME do produto a consultar (curto), p/
+// abrir a ficha sem scan ("informação sobre carne de porco" → "carne de porco").
+vozRouter.post('/produto', requireAuth, upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Falta o arquivo "audio"' });
+    const mime = req.file.mimetype || 'audio/webm';
+    const conteudo = await chatCompletion({
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'O áudio é um pedido para consultar UM produto de supermercado (português). Devolve SÓ o NOME do produto, curto e em minúsculas (ex.: "carne de porco", "queijo gouda", "iogurte grego"), sem verbos nem comentários ("quero ver", "informação sobre"). JSON: {"produto": "..."} — "" se não houver produto.' },
+          { type: 'input_audio', input_audio: { data: req.file.buffer.toString('base64'), format: formatoDeMime(mime) } },
+        ],
+      }],
+      model: config.openrouter.sttModel || config.openrouter.model,
+      responseFormat: { type: 'json_object' },
+      timeoutMs: 25000,
+      contexto: 'voz-produto',
+    });
+    let produto = '';
+    try { produto = String(JSON.parse(conteudo)?.produto || '').trim().slice(0, 120); } catch { produto = ''; }
+    res.json({ produto });
+  } catch (e) {
+    console.error('[voz/produto] erro:', e.message);
+    res.status(502).json({ erro: 'Falha a entender o produto', detalhe: e.message });
+  }
+});

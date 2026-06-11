@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -2145,6 +2145,33 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
   const [luz, setLuz] = useState(false);
   const [manual, setManual] = useState('');
   const [nomeQ, setNomeQ] = useState('');
+  const [gravandoVoz, setGravandoVoz] = useState(false);
+  const [aOuvirVoz, setAOuvirVoz] = useState(false);
+  const mrRef = useRef(null);
+
+  // Microfone: a Sue DIZ o produto ("carne de porco") → áudio → nome → consulta.
+  async function alternarVozProduto() {
+    if (gravandoVoz) { mrRef.current?.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      const pedacos = [];
+      mr.ondataavailable = (e) => { if (e.data.size) pedacos.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((tr) => tr.stop());
+        setGravandoVoz(false);
+        setAOuvirVoz(true);
+        try {
+          const { produto } = await vozParaProduto(new Blob(pedacos, { type: mr.mimeType || 'audio/webm' }));
+          if (produto) { setNomeQ(produto); await consultarNome(produto); }
+        } catch { /* falha de rede/áudio */ }
+        setAOuvirVoz(false);
+      };
+      mrRef.current = mr;
+      mr.start();
+      setGravandoVoz(true);
+    } catch { /* sem microfone/permissão */ }
+  }
 
   // Consulta por NOME (texto/voz): frescos sem código (figo, fraldinha). Abre a ficha
   // pela nutrição-por-nome; embalados → mensagem a pedir o código/rótulo.
@@ -2324,7 +2351,11 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
               <div className="scan-pornome">
                 <span className="scan-pornome-k">{t('scanner.ouNome')}</span>
                 <div className="scan-manual">
-                  <input placeholder={t('scanner.placeholderNome')} value={nomeQ}
+                  <button type="button" className={`scan-mic ${gravandoVoz ? 'rec' : ''}`} onClick={alternarVozProduto}
+                    disabled={aOuvirVoz} aria-label={t('scanner.dizer')} title={t('scanner.dizer')}>
+                    <Ico name="mic" size={18} />
+                  </button>
+                  <input placeholder={aOuvirVoz ? t('scanner.aOuvir') : t('scanner.placeholderNome')} value={nomeQ}
                     onChange={(e) => setNomeQ(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') consultarNome(nomeQ); }} />
                   <button type="button" disabled={nomeQ.trim().length < 2} onClick={() => consultarNome(nomeQ)}>

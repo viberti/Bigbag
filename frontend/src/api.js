@@ -309,6 +309,15 @@ export async function vozParaLista(blob) {
   return r.json(); // { produtos: [] }
 }
 
+export async function vozParaProduto(blob) {
+  const fd = new FormData();
+  const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
+  fd.append('audio', blob, `produto.${ext}`);
+  const r = await call('/api/voz/produto', { method: 'POST', body: fd });
+  if (!r.ok) throw new Error(`voz-produto ${r.status}`);
+  return r.json(); // { produto: "carne de porco" }
+}
+
 export async function enviarVoz(blob) {
   const fd = new FormData();
   const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
