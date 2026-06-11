@@ -331,22 +331,13 @@ export function eanValido(cod) {
 // Consulta o Open Food Facts pelo EAN (dados autoritativos do produto exato).
 // 1.º o EXTRATO LOCAL do dump (off_produto, migração 038 — Lidl/Aldi/PT em massa):
 // instantâneo, offline, sem rate-limit; só depois a API.
-export async function consultarOFF(ean) {
-  const cod = String(ean || '').replace(/\D/g, '');
-  if (cod.length < 8) return null;
-  try {
-    const [[l]] = await getPool().query('SELECT * FROM off_produto WHERE ean = ?', [cod]);
-    if (l) {
-      const j = (v) => (v == null ? null : typeof v === 'string' ? JSON.parse(v) : v);
-      return {
-        nome: l.nome_pt || l.nome, marca: l.marca, quantidade: l.quantidade,
-        categoria: l.categoria, ingredientes: l.ingredientes, alergenios: l.alergenios,
-        categorias_tags: j(l.categorias_tags), grupos_alimento: j(l.grupos_alimento), labels: j(l.labels),
-        nutriscore: l.nutriscore || null, nova: l.nova ?? null, imagem: null,
-        nutricao_100g: j(l.nutricao) || {},
-      };
-    }
-  } catch { /* tabela ainda não existe / erro → cai para a API */ }
+// Nutrição "vazia" = objeto sem chaves ou com todos os valores nulos. Uma linha do
+// dump local pode ter nome/marca/Nutri-Score mas faltar-lhe a nutrição (o snapshot
+// não a trouxe) — nesse caso vale a pena completar pela API live.
+const semNutricao = (nut) => !nut || Object.values(nut).every((v) => v == null);
+
+// API live do Open Food Facts (fallback quando o dump local não tem ou está incompleto).
+async function consultarOffLive(cod) {
   try {
     const u = `https://world.openfoodfacts.org/api/v2/product/${cod}?fields=product_name,brands,quantity,categories,categories_tags,food_groups_tags,labels_tags,ingredients_text,allergens,nutriscore_grade,nova_group,nutriments,image_url`;
     const r = await fetch(u, { headers: { 'User-Agent': 'Bigbag/0.1 (laboratorio pessoal)' } });
@@ -368,4 +359,41 @@ export async function consultarOFF(ean) {
   } catch {
     return null;
   }
+}
+
+// Local-first: o dump (off_produto) cobre a maioria de graça. MAS se a linha local
+// não tiver nutrição, completa-se pela API live (o site tem o que o snapshot não
+// trouxe — ex.: o kefir Milbona do Lidl) e cura-se o dump para não repetir a chamada.
+export async function consultarOFF(ean) {
+  const cod = String(ean || '').replace(/\D/g, '');
+  if (cod.length < 8) return null;
+  let local = null;
+  try {
+    const [[l]] = await getPool().query('SELECT * FROM off_produto WHERE ean = ?', [cod]);
+    if (l) {
+      const j = (v) => (v == null ? null : typeof v === 'string' ? JSON.parse(v) : v);
+      local = {
+        nome: l.nome_pt || l.nome, marca: l.marca, quantidade: l.quantidade,
+        categoria: l.categoria, ingredientes: l.ingredientes, alergenios: l.alergenios,
+        categorias_tags: j(l.categorias_tags), grupos_alimento: j(l.grupos_alimento), labels: j(l.labels),
+        nutriscore: l.nutriscore || null, nova: l.nova ?? null, imagem: null,
+        nutricao_100g: j(l.nutricao) || {},
+      };
+    }
+  } catch { /* tabela ainda não existe / erro → cai para a API */ }
+
+  if (local && !semNutricao(local.nutricao_100g)) return local; // local completo
+
+  const live = await consultarOffLive(cod);
+  if (!local) return live;                 // sem linha local → o que a API der
+  if (!live || semNutricao(live.nutricao_100g)) return local; // live não ajudou → o local
+
+  // Completa o local com o que lhe falta (sobretudo a nutrição), mantendo o nome_pt.
+  local.nutricao_100g = live.nutricao_100g;
+  for (const k of ['ingredientes', 'alergenios', 'quantidade', 'nutriscore', 'nova', 'categorias_tags', 'grupos_alimento']) {
+    if (local[k] == null && live[k] != null) local[k] = live[k];
+  }
+  // self-heal: grava a nutrição no dump local para não voltar a chamar a API por este EAN.
+  getPool().query('UPDATE off_produto SET nutricao = ? WHERE ean = ?', [JSON.stringify(live.nutricao_100g), cod]).catch(() => {});
+  return local;
 }
