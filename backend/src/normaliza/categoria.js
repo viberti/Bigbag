@@ -32,7 +32,7 @@ export const GRUPOS = [
   { id: 'carne', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'salam', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru', 'presunto', 'chourico', 'pate'] },
   { id: 'peixe', t: ['peixe', 'fish', 'marisco', 'seafood', 'bacalhau', 'atum', 'tuna', 'salmao', 'salmon', 'pescado', 'sardinha', 'cavala', 'biqueir'] },
   { id: 'lacticinios', t: ['laticinio', 'lacteo', 'lacte', 'dair', 'leite', 'milk_', 'queijo', 'cheese', 'iogurte', 'yogurt', 'yoghurt', 'manteiga', 'butter', 'nata', 'ovo', 'ovos', 'egg', 'eggs', 'requeijao', 'kefir', 'skyr', 'burrata', 'mozzarella', 'gorgonzola'] },
-  { id: 'padaria', t: ['cereai', 'cereal', 'breakfast', 'pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'tosta', 'wrap', 'croissant', 'muesli', 'granola', 'aveia', 'esparguete', 'espaguete'] },
+  { id: 'padaria', t: ['cereai', 'cereal', 'breakfast', 'pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'tosta', 'wrap', 'croissant', 'muesli', 'granola', 'aveia', 'esparguete', 'espaguete', 'gnocchi', 'nhoque', 'tortilha', 'tortilla'] },
   { id: 'bebidas', t: ['bebida', 'beverage', 'drink', 'agua', 'water', 'sumo', 'juice', 'refrigerante', 'soda', 'cerveja', 'beer', 'vinho', 'wine', 'cafe', 'coffee', 'cha', 'tea', 'alcool', 'alcohol'] },
   { id: 'doces', t: ['chocolate', 'doce', 'sweet', 'guloseima', 'candy', 'gelado', 'ice cream', 'snack', 'bolacha', 'biscuit', 'biscoito', 'cookie', 'sobremesa', 'dessert', 'mel', 'honey', 'compota', 'marmelada', 'jam'] },
   { id: 'congelados', t: ['congelado', 'frozen', 'ultracongelado'] },
@@ -144,11 +144,21 @@ export function grupoDeNome(nome) {
 }
 
 export function grupoDe({ foodGroups = null, categoria = null, nome = null } = {}) {
+  const porNome = grupoDeNome(nome);
   for (const fg of Array.isArray(foodGroups) ? foodGroups : []) {
     const slug = String(fg).replace(/^en:/, '');
-    if (FOOD_GROUPS[slug]) return FOOD_GROUPS[slug];
+    const g = FOOD_GROUPS[slug];
+    if (!g) continue;
+    // EXCEÇÃO bebidas-vs-lácteos: o OFF chama "beverages" a kefir/leite achocolatado/
+    // iogurte líquido; na nossa organização, bebida LÁCTEA fica nos laticínios.
+    if (g === 'bebidas' && porNome === 'lacticinios') return 'lacticinios';
+    return g;
   }
-  const porNome = grupoDeNome(nome);
+  // EXCEÇÃO congelados: a categoria de loja "Congelados" é um sinal FÍSICO
+  // inequívoco (batata palitos congelada organiza-se nos congelados, não nos
+  // legumes) — única categoria que vence o nome (a lição "Charcutaria e Queijos"
+  // mantém-se para as restantes).
+  if (grupoDeTexto(categoria) === 'congelados') return 'congelados';
   if (porNome !== GRUPO_OUTROS) return porNome;
   return grupoDeTexto(categoria);
 }

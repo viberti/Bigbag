@@ -19,6 +19,19 @@ test('grupoDeNome: substantivo-cabeça vence palavra forte de outro grupo (achad
   // 'milk_' = palavra inteira: "Milka" não é leite (era lacticinios)
   assert.notEqual(grupoDeNome('Milka Confetti'), 'lacticinios');
   assert.equal(grupoDeTexto('milk'), 'lacticinios'); // a palavra inteira continua a casar
+  assert.equal(grupoDeNome('Gnocchi de Batata'), 'padaria');   // massa, não legume
+  assert.equal(grupoDeNome('Tortilhas de Trigo'), 'padaria');
+});
+
+test('grupoDe: precedências cirúrgicas (kefir lácteo > OFF-bebidas; congelados de loja > nome)', () => {
+  // OFF diz "beverages" para kefir → o nome lácteo vence
+  assert.equal(grupoDe({ foodGroups: ['en:beverages', 'en:unsweetened-beverages'], nome: 'Kefir Natural' }), 'lacticinios');
+  // sumo continua bebidas (nome não é lácteo)
+  assert.equal(grupoDe({ foodGroups: ['en:unsweetened-beverages'], nome: 'Sumo de Laranja' }), 'bebidas');
+  // categoria de loja Congelados vence o nome (batata→frutas)
+  assert.equal(grupoDe({ categoria: 'Congelados', nome: 'Batata aos Cubos para Airfryer' }), 'congelados');
+  // mas a lição Charcutaria-e-Queijos mantém-se: nome vence as outras categorias
+  assert.equal(grupoDe({ categoria: 'Charcutaria e Queijos', nome: 'Queijo Grana Padano' }), 'lacticinios');
 });
 
 test('singularizar: classes do português que aparecem em produtos', () => {
