@@ -15,17 +15,19 @@ de Portugal, porque isola o valor e remove a parte frágil (entity resolution).
 
 ## O que já temos (medido 2026-06-11)
 
-- **100% do sortido Mercadona** — 4.375 produtos (o Mercadona usa um catálogo
-  deliberadamente curto, ~4-5k SKUs, "siempre los mismos productos"; o Continente tem
-  98k). Todos com **EAN**, marca, embalagem, preço, €/base (`reference_price`) e
-  categorias a 3 níveis. Em `catalogo_produto` fonte `mercadona`.
+- **100% do sortido online NACIONAL Mercadona** — **5.060 produtos** (união de 6
+  warehouses, 2026-06-11; o scrape inicial só de Madrid dava 4.375 — o sortido
+  regional valia **+17%**). O Mercadona usa um catálogo deliberadamente curto,
+  ~5k SKUs, "siempre los mismos productos"; o Continente tem 98k. Todos com **EAN**
+  (5.060/5.060), marca, embalagem, preço, €/base (`reference_price`) e categorias
+  a 3 níveis. Em `catalogo_produto` fonte `mercadona`.
 - Via **API JSON pública** `tienda.mercadona.es/api` — limpa, sem fricção de scraping,
   atualizável diariamente (`scripts/scrape_mercadona.mjs`).
-- **Warehouses (`?wh=`)**: a API serve sortidos **ligeiramente diferentes por zona**
-  (mad1/bcn1/vlc1/svq1/alc1…; medido 2026-06-11: bcn1 tinha +4 produtos que mad1
-  numa amostra de 3 categorias, ~4% regionais). **Preços iguais** entre warehouses
-  (preço único nacional). O scrape inicial usou o default (≈ Madrid); o scraper
-  aceita agora `WH=mad1,bcn1,…` e **une** os sortidos (incremental via `SO_NOVOS`).
+- **Warehouses (`?wh=`)**: a API serve sortidos **diferentes por zona** — medido
+  2026-06-11 na união completa: mad1 4.330 · mad2 +16 · bcn1 +267 · vlc1 +180 ·
+  svq1 +185 · alc1 +81 = **5.059 únicos (+17% sobre Madrid)**. **Preços iguais**
+  entre warehouses (preço único nacional). O scraper aceita `WH=mad1,bcn1,…` e
+  **une** os sortidos (incremental via `SO_NOVOS`); manter a união nos refrescos.
   Referências externas: `m0wer/mercaapi` (nutrição+histórico), `josantonius/php-mercadona-importer`.
 - **Portugal NÃO existe na API (testado 2026-06-11):** o `wh` não é validado —
   código desconhecido cai silenciosamente no default (controlo-lixo `zzz9` ≡ `bra1`/
@@ -119,7 +121,7 @@ tem o certo nas alternativas ou é ruído. **O que resta NÃO é defeito do matc
   catálogo online ES (re-embalamento / SKU regional). O matcher dá o produto certo
   (nome idêntico), EAN-irmão. **O EAN que o dono scaneia é o autoritativo** → não é
   problema no fluxo real (scan resolve; o match por nome é p/ os não-scaneados).
-- **Cobertura no teto** do catálogo online (4.375 = sortido online completo, sem mais
+- **Cobertura no teto** do catálogo online (5.060 = sortido online nacional completo, sem mais
   nível na API): 9/30 EANs são só-da-loja-física ou códigos de balança (prefixo 2) —
   irrecuperáveis por scraping. (FatSecret tem alguns, mas SEM EAN e licença restritiva
   → rejeitado como fonte; ver análise no histórico.)
