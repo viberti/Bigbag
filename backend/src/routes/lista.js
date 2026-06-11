@@ -15,15 +15,21 @@ const num = (v) => (v == null ? null : Math.round(Number(v) * 100) / 100);
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
 // Casa um NOME de lista ("Leite", "Presunto") aos SKUs por TOKENS-palavra (não
-// igualdade exata — "Leite" tem de casar "Leite Meio Gordo"). Todos os tokens do
-// nome da lista têm de aparecer como palavra (prefixo p/ plurais) no nome do SKU.
+// igualdade exata — "Leite" tem de casar "Leite Meio Gordo"). Prioriza o
+// SUBSTANTIVO-CABEÇA: "Leite" prefere SKUs que COMEÇAM por "Leite", não "Doce de
+// Leite" (mesma regra do matchProduto da consulta). Fracos só se não houver fortes.
 function skusDoNome(nome, skus) {
   const q = norm(nome).split(' ').filter((t) => t.length >= 2);
   if (!q.length) return [];
-  return skus.filter((s) => {
+  const fortes = [], fracos = [];
+  for (const s of skus) {
     const nt = norm(`${s.nome_canonico} ${s.nome_simplificado || ''}`).split(' ').filter(Boolean);
-    return q.every((qt) => nt.some((w) => w.startsWith(qt) || (qt.startsWith(w) && w.length >= 4)));
-  });
+    const casa = q.every((qt) => nt.some((w) => w.startsWith(qt) || (qt.startsWith(w) && w.length >= 4)));
+    if (!casa) continue;
+    const head = norm(s.nome_canonico).split(' ')[0] || '';
+    (head.startsWith(q[0]) ? fortes : fracos).push(s);
+  }
+  return fortes.length ? fortes : fracos;
 }
 
 // Resolve preço + GRUPO de cada item da lista. Carrega os SKUs uma vez (tabela
