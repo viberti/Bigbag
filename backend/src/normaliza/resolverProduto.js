@@ -331,10 +331,16 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6, fo
     let extra = 0;
     for (const d of fr.dieta) if (!fdesc.dieta.has(d)) extra++;
     if (extra) s -= 0.06 * extra;
-    // formato: preferir o ESTRUTURADO do candidato (tamanho à parte do nome, ex.:
-    // Mercadona 2L vs 5L com o MESMO nome); senão, parsear o nome (Auchan/Continente).
-    let fc = formatoEstrut(fmtQ, r.formato_valor, r.unidade_base);
-    if (fc === null) fc = formatoBusca(descricao, r.nome);
+    // formato: SÓ desempata quando o talão declara um tamanho EXPLÍCITO. Sem isso,
+    // o extrairFormato devolve o default {un,1} — que NÃO é um formato real e
+    // penalizava de borla os candidatos com tamanho ("LEITE MEIO GORDO" sem litros
+    // levava -0.3 contra o leite de 6L). Preferir o estruturado do candidato
+    // (Mercadona 2L vs 5L mesmo nome); senão, parsear o nome (Auchan/Continente).
+    let fc = null;
+    if (temFormatoExplicito(descricao)) {
+      fc = formatoEstrut(fmtQ, r.formato_valor, r.unidade_base);
+      if (fc === null) fc = formatoBusca(descricao, r.nome);
+    }
     if (fc === true) s += 0.08; else if (fc === false) s -= 0.3; // formato desempata
     if (fontePref && r.fonte === fontePref) s += 0.12; // prior da mesma cadeia
     marcados.push({ r, s });
