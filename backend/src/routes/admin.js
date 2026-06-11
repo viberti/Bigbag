@@ -8,6 +8,7 @@ import { Router } from 'express';
 import { unlink } from 'node:fs/promises';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
+import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { similaridade, razaoCaractere } from '../normaliza/similaridade.js';
 import { mergeNomesIdenticos } from '../normaliza/matcher.js';
 import { pistaCirurgica, validarLinhas } from '../ingest/reconcile.js';
@@ -89,16 +90,8 @@ adminRouter.get('/itens', async (req, res) => {
                    FROM produto_ean pe2 WHERE pe2.item_id = i.id ORDER BY pe2.id LIMIT 1)
               ) AS marca,
               i.fatura_id, COALESCE(l.cadeia, l.nome) AS loja, f.data_compra AS data, f.numero_fatura,
-              -- mesmo critério da worklist "por identificar" (embalado sem EAN, não-fresco, por resolver)
-              (i.is_non_product = 0 AND i.ean IS NULL AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
-                AND NOT EXISTS (SELECT 1 FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
-                                  JOIN fatura f2 ON f2.id = i2.fatura_id JOIN loja l2 ON l2.id = f2.loja_id
-                                 WHERE (pe.ean IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.off_json IS NOT NULL OR pe.nutricao IS NOT NULL)
-                                   AND i2.descricao_original = i.descricao_original
-                                   AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
-                AND (SELECT COUNT(DISTINCT pn.ean) FROM produto_nome pn
-                      WHERE pn.nome = i.descricao_original AND pn.ean IS NOT NULL) <> 1
-              ) AS por_identificar
+              -- critério ÚNICO da worklist "por identificar" (criterios.js)
+              ${POR_IDENTIFICAR_SQL} AS por_identificar
          FROM item i
          LEFT JOIN sku_normalizado s ON s.id = i.sku_id
          LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
@@ -154,14 +147,7 @@ adminRouter.get('/itens-resumo', async (req, res) => {
          SELECT 1 FROM item i
            LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
            JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
-          WHERE i.is_non_product = 0 AND i.ean IS NULL AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
-            AND NOT EXISTS (SELECT 1 FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
-                              JOIN fatura f2 ON f2.id = i2.fatura_id JOIN loja l2 ON l2.id = f2.loja_id
-                             WHERE (pe.ean IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.off_json IS NOT NULL OR pe.nutricao IS NOT NULL)
-                               AND i2.descricao_original = i.descricao_original
-                               AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
-            AND (SELECT COUNT(DISTINCT pn.ean) FROM produto_nome pn
-                  WHERE pn.nome = i.descricao_original AND pn.ean IS NOT NULL) <> 1
+          WHERE ${POR_IDENTIFICAR_SQL}
           GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
        ) t`,
     );

@@ -9,6 +9,7 @@ import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { config } from '../config.js';
+import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { grupoDe, tokenCasa } from '../normaliza/categoria.js';
@@ -636,32 +637,7 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
         LEFT JOIN produto_generico pg ON pg.sku_id = i.sku_id
         JOIN fatura f ON f.id = i.fatura_id
         JOIN loja l ON l.id = f.loja_id
-       WHERE i.is_non_product = 0
-         AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
-         AND pg.nutricao IS NULL
-         -- "Identificado" = EXATAMENTE o critério do tem_dados no detalhe da nota
-         -- (faturas.js) — as duas superfícies TÊM de concordar. Vale ter:
-         --   (A) ficha COM DADOS (foto/VLM ou OFF) para a mesma descrição+cadeia
-         --       (identificar uma "Salada Gourmet" do Continente vale p/ todas as do
-         --       Continente; entre cadeias não — pode ser marca-própria diferente; a
-         --       ficha por foto sem EAN também resolve), ou
-         --   (B) nutrição no genérico (pg.nutricao), ou
-         --   (C) o EAN da PRÓPRIA linha já com ficha (OFF/VLM).
-         -- Ter só um EAN na linha SEM ficha NÃO conta — senão o ícone de câmara do
-         -- detalhe e esta worklist discordam (ex.: "BIO KEFIR NATURAL" do Lidl: EAN
-         -- na linha mas sem OFF/VLM → mostrava câmara mas não aparecia aqui).
-         AND NOT EXISTS (
-           SELECT 1 FROM produto_ean pe
-             JOIN item i2 ON i2.id = pe.item_id
-             JOIN fatura f2 ON f2.id = i2.fatura_id
-             JOIN loja l2 ON l2.id = f2.loja_id
-            WHERE (pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL)
-              AND i2.descricao_original = i.descricao_original
-              AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
-         AND NOT EXISTS (
-           SELECT 1 FROM produto_ean pe0
-            WHERE pe0.ean = i.ean
-              AND (pe0.off_json IS NOT NULL OR pe0.vlm_json IS NOT NULL))
+       WHERE ${POR_IDENTIFICAR_SQL}
        GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
        ORDER BY loja, produto`);
     res.json({ itens });
