@@ -3271,29 +3271,26 @@ function TabNut({ n }) {
   );
 }
 
-// Linha da lista partilhada: TOQUE risca/desrisca ("no carrinho", com a cor de
-// quem riscou); arrasta para a DIREITA para remover; − / + altera a quantidade;
-// mostra quem adicionou (inicial colorida) e o melhor preço recente (e onde).
-function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onRenomear, onVariantes }) {
+// Linha da lista partilhada — gestos: TOQUE rápido risca/desrisca ("no carrinho",
+// com a cor de quem riscou); SEGURAR (~450ms parado) abre o CARD do item (sugestão,
+// variantes, qtd habitual, histórico, remover); arrastar p/ a DIREITA remove.
+// A linha em si fica mínima: ponto de cor · nome · preço · − / +.
+function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onCard }) {
   const [dx, setDx] = useState(0);
-  const [hist, setHist] = useState(null); // null = fechado; array = aberto
-  const [carregando, setCarregando] = useState(false);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
-  async function alternarHist(e) {
-    e.stopPropagation();
-    if (hist) return setHist(null); // fechar
-    setCarregando(true);
-    try {
-      setHist(await historicoProduto(it.nome));
-    } catch {
-      setHist([]);
-    } finally {
-      setCarregando(false);
-    }
-  }
+  const lp = useRef({ timer: null, fired: false }); // long-press
+  const abrirCard = () => {
+    if (lp.current.fired) return; // não duplicar (timer + contextmenu)
+    lp.current.fired = true;
+    navigator.vibrate?.(15);
+    onCard(it);
+  };
   function start(e) {
     const tt = e.touches[0];
     g.current = { x0: tt.clientX, y0: tt.clientY, horiz: false, mov: true, dx: 0 };
+    lp.current.fired = false;
+    clearTimeout(lp.current.timer);
+    lp.current.timer = setTimeout(abrirCard, 450);
   }
   function move(e) {
     const r = g.current;
@@ -3301,6 +3298,7 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onRenomear, onVariantes 
     const tt = e.touches[0];
     const dX = tt.clientX - r.x0;
     const dY = tt.clientY - r.y0;
+    if (Math.abs(dX) > 8 || Math.abs(dY) > 8) clearTimeout(lp.current.timer); // mexeu → não é long-press
     if (!r.horiz && Math.abs(dX) > Math.abs(dY) + 6) r.horiz = true;
     if (r.horiz) {
       r.dx = Math.max(0, dX);
@@ -3308,6 +3306,7 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onRenomear, onVariantes 
     }
   }
   function end() {
+    clearTimeout(lp.current.timer);
     const r = g.current;
     r.mov = false;
     if (r.horiz && r.dx > 90) onRemover(it.id);
@@ -3315,12 +3314,6 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onRenomear, onVariantes 
   }
   const riscado = it.estado === 'carrinho';
   const preco = it.preco_mercado ?? it.melhor_preco;
-  // chips inteligentes (do histórico da casa): sugestão do produto real, seletor
-  // de variantes e quantidade habitual. Discretos, e só em itens ainda ativos.
-  const sugestao = !riscado && it.produto_sugerido && it.produto_sugerido.toLowerCase() !== String(it.nome).toLowerCase()
-    ? it.produto_sugerido : null;
-  const sugereQtd = !riscado && it.qtd_habitual > 1 && (it.quantidade || 1) === 1;
-  const temChips = sugestao || it.variantes_n > 1 || sugereQtd;
   return (
     <div className="crow-li">
       <div className="crow-bg">
@@ -3332,7 +3325,8 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onRenomear, onVariantes 
         onTouchStart={start}
         onTouchMove={move}
         onTouchEnd={end}
-        onClick={() => onMarcar(it.id, !riscado)}
+        onClick={() => { if (lp.current.fired) { lp.current.fired = false; return; } onMarcar(it.id, !riscado); }}
+        onContextMenu={(e) => { e.preventDefault(); abrirCard(); }}
       >
         <span className="cmembro" style={{ background: corMembro(it.adicionado_por) }} title={it.adicionado_por} aria-label={it.adicionado_por} />
         <span className="cnwrap">
@@ -3344,63 +3338,12 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onRenomear, onVariantes 
               {eur(preco)}{it.unidade_base ? `/${it.unidade_base}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}
             </span>
           )}
-          {temChips && (
-            <span className="cchips" onClick={(e) => e.stopPropagation()}>
-              {sugestao && (
-                <button type="button" className="cchip sug" onClick={() => { onRenomear(it.id, sugestao); track('lista_sugestao_aceitar'); }}>
-                  → {sugestao}
-                </button>
-              )}
-              {it.variantes_n > 1 && (
-                <button type="button" className="cchip" onClick={() => onVariantes(it)}>
-                  {t('lista.opcoes', { n: it.variantes_n })}
-                </button>
-              )}
-              {sugereQtd && (
-                <button type="button" className="cchip" onClick={() => { onQtd(it.id, it.qtd_habitual); track('lista_qtd_habitual'); }}>
-                  {t('lista.costuma', { n: it.qtd_habitual })}
-                </button>
-              )}
-            </span>
-          )}
         </span>
         <span className="cqtd" onClick={(e) => e.stopPropagation()}>
           <button type="button" onClick={() => onQtd(it.id, Math.max(1, (it.quantidade || 1) - 1))} aria-label="-">−</button>
           <button type="button" onClick={() => onQtd(it.id, (it.quantidade || 1) + 1)} aria-label="+">+</button>
         </span>
-        <button
-          type="button"
-          className={`cp-hist ${hist ? 'on' : ''}`}
-          onClick={alternarHist}
-          aria-label={t('cart.hist')}
-        >
-          <Ico name="receipt" size={15} />
-        </button>
       </div>
-      {hist && (
-        <div className="crow-hist">
-          {carregando ? (
-            <div className="ch-vazio">{t('cart.histLoad')}</div>
-          ) : hist.length === 0 ? (
-            <div className="ch-vazio">{t('cart.histEmpty')}</div>
-          ) : (
-            hist.map((h, i) => (
-              <div key={i} className="ch-row">
-                <span className="ch-data">{h.data}</span>
-                <span className="ch-loja">{h.cadeia || h.loja}</span>
-                <span className="ch-preco">
-                  {eur(h.preco_por_base)}
-                  <span className="ch-un">/{h.unidade_base || 'un'}</span>
-                  {Math.abs(Number(h.preco_por_base) - Number(h.preco)) > 0.01 && (
-                    <span className="ch-pago"> · {eur(h.preco)}</span>
-                  )}
-                  {h.is_clearance ? <span className="ch-promo"> ⚡</span> : null}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -3422,6 +3365,17 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
     if (v.qtd_habitual > 1 && (varItem.quantidade || 1) === 1) onQtd(varItem.id, v.qtd_habitual);
     track('lista_variante_escolher');
     setVarItem(null);
+  }
+  // CARD do item (abre por LONG-PRESS na linha): sugestão, variantes, qtd
+  // habitual, histórico de preços e remover — tudo o que saiu da linha.
+  const [cardItem, setCardItem] = useState(null);
+  const [histCard, setHistCard] = useState(null); // null = a carregar
+  const [dicaVista, setDicaVista] = useState(() => { try { return localStorage.getItem('bb_dica_card') === '1'; } catch { return true; } });
+  function abrirCard(it) {
+    setCardItem(it); setHistCard(null);
+    track('lista_card_abrir');
+    if (!dicaVista) { try { localStorage.setItem('bb_dica_card', '1'); } catch { /* sem storage */ } setDicaVista(true); }
+    historicoProduto(it.nome).then(setHistCard).catch(() => setHistCard([]));
   }
   // ditar produtos por VOZ: gravar → /api/voz/lista extrai os nomes → adiciona todos
   const [gravando, setGravando] = useState(false);
@@ -3498,11 +3452,12 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
           const { secoes, noCarrinho } = organizarCarrinho(lista);
           return (
             <div className="cart-list">
+              {!dicaVista && lista.length > 0 && <p className="cart-dica">{t('card.dica')}</p>}
               {secoes.map(({ g, itens: its }) => (
                 <div key={g.id}>
                   <div className="cart-cat">{g.label}</div>
                   {its.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onRenomear={onRenomear} onVariantes={abrirVariantes} />
+                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onCard={abrirCard} />
                   ))}
                 </div>
               ))}
@@ -3510,7 +3465,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                 <div className="cart-feito">
                   <div className="cart-cat cart-cat-feito"><Ico name="cart" size={22} /> <span>{noCarrinho.length}</span></div>
                   {noCarrinho.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onRenomear={onRenomear} onVariantes={abrirVariantes} />
+                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onCard={abrirCard} />
                   ))}
                 </div>
               )}
@@ -3547,6 +3502,58 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
             {t('cart.clear')}
           </button>
         </div>
+        {cardItem && (() => {
+          const it = (lista || []).find((x) => x.id === cardItem.id) || cardItem;
+          const sug = it.produto_sugerido && it.produto_sugerido.toLowerCase() !== String(it.nome).toLowerCase() ? it.produto_sugerido : null;
+          return (
+            <div className="cvars-scrim" onClick={() => setCardItem(null)}>
+              <div className="cvars" onClick={(e) => e.stopPropagation()}>
+                <h4>{it.nome}{textoQtd(it)}</h4>
+                {sug && (
+                  <button type="button" className="icard-acao sug" onClick={() => { onRenomear(it.id, sug); track('lista_sugestao_aceitar'); setCardItem(null); }}>
+                    → {sug}
+                  </button>
+                )}
+                {it.variantes_n > 1 && (
+                  <button type="button" className="icard-acao" onClick={() => { setCardItem(null); abrirVariantes(it); }}>
+                    {t('lista.opcoes', { n: it.variantes_n })}…
+                  </button>
+                )}
+                {it.qtd_habitual > 1 && (it.quantidade || 1) === 1 && (
+                  <button type="button" className="icard-acao" onClick={() => { onQtd(it.id, it.qtd_habitual); track('lista_qtd_habitual'); setCardItem(null); }}>
+                    {t('lista.costuma', { n: it.qtd_habitual })}
+                  </button>
+                )}
+                <div className="icard-hist">
+                  <div className="icard-hist-t">{t('cart.hist')}</div>
+                  {histCard === null ? (
+                    <div className="ch-vazio">{t('cart.histLoad')}</div>
+                  ) : histCard.length === 0 ? (
+                    <div className="ch-vazio">{t('cart.histEmpty')}</div>
+                  ) : (
+                    histCard.slice(0, 6).map((h, i) => (
+                      <div key={i} className="ch-row">
+                        <span className="ch-data">{h.data}</span>
+                        <span className="ch-loja">{h.cadeia || h.loja}</span>
+                        <span className="ch-preco">
+                          {eur(h.preco_por_base)}
+                          <span className="ch-un">/{h.unidade_base || 'un'}</span>
+                          {Math.abs(Number(h.preco_por_base) - Number(h.preco)) > 0.01 && (
+                            <span className="ch-pago"> · {eur(h.preco)}</span>
+                          )}
+                          {h.is_clearance ? <span className="ch-promo"> ⚡</span> : null}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <button type="button" className="icard-acao perigo" onClick={() => { onRemover(it.id); setCardItem(null); }}>
+                  {t('card.remover')}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
         {varItem && (
           <div className="cvars-scrim" onClick={() => setVarItem(null)}>
             <div className="cvars" onClick={(e) => e.stopPropagation()}>

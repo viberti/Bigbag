@@ -76,6 +76,8 @@ const STRINGS = {
     'lista.varTitulo': 'Qual "{nome}" você quer?',
     'lista.varSub': 'comprado {n} {n|vez|vezes}',
     'lista.varNenhuma': 'Ainda sem histórico para sugerir — o nome fica como está.',
+    'card.remover': 'Remover da lista',
+    'card.dica': '💡 Segure um item para ver opções e histórico',
     'alt.titulo': 'Alternativas similares',
     'alt.nota': 'Produtos parecidos · nutrição por 100 g comparada com este',
     'plista.title': 'Minha lista',
