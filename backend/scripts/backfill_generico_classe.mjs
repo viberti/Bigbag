@@ -23,14 +23,15 @@ const APLICAR = process.argv.includes('--aplicar');
 async function main() {
   const pool = getPool();
   // staples sem nutrição de classe ainda (sem generico, ou generico sem nutrição)
+  // REGEXP interpolado (constante de confiança) — o \\b é para o literal de string
+  // do MySQL; ligado como parâmetro não sofreria o unescape e não casaria nada.
   const [skus] = await pool.query(
     `SELECT s.id, s.nome_canonico, pg.tipo, (pg.nutricao IS NOT NULL) tem_nut
        FROM sku_normalizado s
        LEFT JOIN produto_generico pg ON pg.sku_id = s.id
-      WHERE s.nome_canonico REGEXP ?
+      WHERE s.nome_canonico REGEXP '${DISPENSA_CLASSE_RE}'
         AND (pg.sku_id IS NULL OR pg.nutricao IS NULL)
       ORDER BY s.nome_canonico`,
-    [DISPENSA_CLASSE_RE],
   );
   console.log(`[backfill] staples sem nutrição de classe: ${skus.length}`);
   let basico = 0, fresco = 0, processado = 0, erro = 0;
