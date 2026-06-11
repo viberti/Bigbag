@@ -3334,9 +3334,7 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onRenomear, onVariantes 
         onTouchEnd={end}
         onClick={() => onMarcar(it.id, !riscado)}
       >
-        <span className="cmembro" style={{ background: corMembro(it.adicionado_por) }} title={it.adicionado_por}>
-          {(it.adicionado_por || '?')[0].toUpperCase()}
-        </span>
+        <span className="cmembro" style={{ background: corMembro(it.adicionado_por) }} title={it.adicionado_por} aria-label={it.adicionado_por} />
         <span className="cnwrap">
           <span className="cn" style={riscado ? { textDecorationColor: corMembro(it.marcado_por) } : undefined}>
             {it.nome}{textoQtd(it)}
@@ -3477,7 +3475,6 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
       <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('cart.title')}>
         <div className="sheet-h">
           <span className="t">{t('cart.sheetTitle')}</span>
-          {lista.length > 0 && <span className="cart-count">{t('cart.left', { n: lista.length })}</span>}
           {lista.length > 0 && (
             <button className="sheet-x" onClick={() => { partilharWhatsApp(textoLista()); track('partilhar', { tipo: 'lista' }); }} aria-label={t('share.whatsapp')} title={t('share.whatsapp')}>
               <Ico name="partilhar" size={18} />
