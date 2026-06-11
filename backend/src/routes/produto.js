@@ -637,31 +637,31 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
         JOIN fatura f ON f.id = i.fatura_id
         JOIN loja l ON l.id = f.loja_id
        WHERE i.is_non_product = 0
-         AND i.ean IS NULL
          AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
-         -- identificado se QUALQUER compra com o mesmo nome E na mesma cadeia já
-         -- ganhou EAN **ou uma ficha com dados** (foto/VLM ou OFF). Identificar uma
-         -- "Salada Gourmet" do Continente vale para todas as do Continente com esse
-         -- nome; entre cadeias não (pode ser outra marca-própria). A ficha por foto
-         -- (sem EAN — ex.: alperces desidratados a granel) também resolve: o produto
-         -- já tem nutrição/rótulo, não precisa de voltar à worklist.
+         AND pg.nutricao IS NULL
+         -- "Identificado" = EXATAMENTE o critério do `tem_dados` no detalhe da nota
+         -- (faturas.js) — as duas superfícies TÊM de concordar. Vale ter:
+         --   (A) ficha COM DADOS (foto/VLM ou OFF) para a mesma descrição+cadeia
+         --       (identificar uma "Salada Gourmet" do Continente vale p/ todas as do
+         --       Continente; entre cadeias não — pode ser marca-própria diferente; a
+         --       ficha por foto sem EAN também resolve), ou
+         --   (B) nutrição no genérico (pg.nutricao), ou
+         --   (C) o EAN da PRÓPRIA linha já com ficha (OFF/VLM).
+         -- Ter só um EAN na linha SEM ficha NÃO conta — senão o ícone de câmara do
+         -- detalhe e esta worklist discordam (ex.: "BIO KEFIR NATURAL" do Lidl: EAN
+         -- na linha mas sem OFF/VLM → mostrava câmara mas não aparecia aqui).
          AND NOT EXISTS (
            SELECT 1 FROM produto_ean pe
              JOIN item i2 ON i2.id = pe.item_id
              JOIN fatura f2 ON f2.id = i2.fatura_id
              JOIN loja l2 ON l2.id = f2.loja_id
-            WHERE (pe.ean IS NOT NULL OR pe.vlm_json IS NOT NULL OR pe.off_json IS NOT NULL OR pe.nutricao IS NOT NULL)
+            WHERE (pe.off_json IS NOT NULL OR pe.vlm_json IS NOT NULL)
               AND i2.descricao_original = i.descricao_original
               AND COALESCE(l2.cadeia, l2.nome) = COALESCE(l.cadeia, l.nome))
-         -- REUSO POR MESMO EAN: se a descrição deste talão é nome conhecido de UM ÚNICO
-         -- EAN (produto_nome), é esse produto sem ambiguidade → não re-identificar. Se o
-         -- mesmo nome se liga a VÁRIOS EANs (genérico/marca-própria de lojas diferentes,
-         -- ex.: "LEITE MEIO GORDO" ou "IOGURTE GREGO NATURAL" com EANs distintos por
-         -- cadeia) → ambíguo, FICA na lista. É o critério do mesmo EAN: "CARLSBERG LATA"
-         -- (1 EAN) e "...TP" (outro EAN) resolvem cada um o seu; "SERRAMEL ROSMANINHO" e
-         -- "SERRAMEL MEL ROSMANINHO" partilham o mesmo EAN.
-         AND (SELECT COUNT(DISTINCT pn.ean) FROM produto_nome pn
-               WHERE pn.nome = i.descricao_original AND pn.ean IS NOT NULL) <> 1
+         AND NOT EXISTS (
+           SELECT 1 FROM produto_ean pe0
+            WHERE pe0.ean = i.ean
+              AND (pe0.off_json IS NOT NULL OR pe0.vlm_json IS NOT NULL))
        GROUP BY COALESCE(l.cadeia, l.nome), i.descricao_original
        ORDER BY loja, produto`);
     res.json({ itens });
