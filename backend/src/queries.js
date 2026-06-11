@@ -52,29 +52,70 @@ export function expandirAlvo(alvo) {
   return [String(alvo).trim()];
 }
 
+// Termos amplos → GRUPO fechado (B1/B2): "quanto gastei em laticínios" casa pelo
+// `sku.grupo` (estável, por SKU) em vez de LIKE sobre categorias texto-livre.
+const GRUPO_ALVOS = {
+  laticinio: 'lacticinios', laticinios: 'lacticinios', lacticinios: 'lacticinios',
+  bebida: 'bebidas', bebidas: 'bebidas',
+  fruta: 'frutas', frutas: 'frutas', legume: 'frutas', legumes: 'frutas', vegetais: 'frutas', verduras: 'frutas',
+  carne: 'carne', carnes: 'carne', charcutaria: 'carne',
+  peixe: 'peixe', peixes: 'peixe', marisco: 'peixe',
+  doce: 'doces', doces: 'doces', snacks: 'doces',
+  congelado: 'congelados', congelados: 'congelados',
+  higiene: 'higiene', limpeza: 'higiene',
+  mercearia: 'mercearia',
+  padaria: 'padaria', cereais: 'padaria',
+};
+
+// B2 — match por TOKENS (palavra, não substring): "leite" casa "Leite Meio-Gordo"
+// mas NÃO mistura "Doce de Leite" quando há leites a sério ("fortes" = o 1.º token
+// do pedido é o SUBSTANTIVO-CABEÇA do nome; "fracos" só entram sem fortes). A
+// tabela de SKUs é pequena (~centenas) → resolve em JS, devolve sku_ids exatos.
+async function tokensSkuIds(db, produto) {
+  const toksQ = normaliza(produto).split(/\s+/).filter((t) => t.length >= 2);
+  if (!toksQ.length) return [];
+  const [skus] = await db.query('SELECT id, nome_canonico, marca FROM sku_normalizado');
+  const fortes = [], fracos = [];
+  for (const s of skus) {
+    const toksN = normaliza(`${s.nome_canonico} ${s.marca || ''}`).split(/\s+/).filter(Boolean);
+    // todos os tokens do pedido têm de aparecer como PALAVRA (prefixo p/ plurais)
+    const casa = toksQ.every((qt) => toksN.some((nt) => nt.startsWith(qt) || (qt.startsWith(nt) && nt.length >= 4)));
+    if (!casa) continue;
+    const headN = normaliza(s.nome_canonico).split(/\s+/)[0] || '';
+    (headN.startsWith(toksQ[0]) ? fortes : fracos).push(s.id);
+  }
+  return fortes.length ? fortes : fracos;
+}
+
 // Fragmento WHERE + params para casar um produto/categoria em linguagem natural.
-// Procura em nome_canonico, marca, categoria e descricao_original, com expansão
-// de sinónimos para termos amplos.
+// Cascata (B2): grupo fechado p/ termos amplos → sinónimos expandidos (álcool,
+// pastelaria) → TOKENS sobre os SKUs → fuzzy (typos) → LIKE como último recurso
+// (apanha itens ainda sem SKU pela descrição do talão).
 async function matchProduto(db, produto) {
+  const alvoNorm = normaliza(produto);
+  if (GRUPO_ALVOS[alvoNorm]) return { sql: '(s.grupo = ?)', params: [GRUPO_ALVOS[alvoNorm]] };
+
   const termos = expandirAlvo(produto);
-  const conds = [];
-  const params = [];
-  for (const t of termos) {
-    const like = `%${t}%`;
-    conds.push('(s.nome_canonico LIKE ? OR s.marca LIKE ? OR s.categoria LIKE ? OR i.descricao_original LIKE ?)');
-    params.push(like, like, like, like);
-  }
-  // Fallback fuzzy: só para alvo ÚNICO (não para categorias já expandidas) e
-  // termos com ≥4 letras (curtos, o LIKE substring já chega). Resolve sku_ids
-  // por semelhança de caractere e injeta-os no match.
-  if (db && termos.length === 1) {
-    const ids = await resolverFuzzy(db, produto);
-    if (ids.length) {
-      conds.push(`i.sku_id IN (${ids.map(() => '?').join(',')})`);
-      params.push(...ids);
+  if (termos.length > 1) {
+    // categoria ampla com sinónimos (ex.: álcool) — mantém o LIKE expandido
+    const conds = [], params = [];
+    for (const t of termos) {
+      const like = `%${t}%`;
+      conds.push('(s.nome_canonico LIKE ? OR s.marca LIKE ? OR s.categoria LIKE ? OR i.descricao_original LIKE ?)');
+      params.push(like, like, like, like);
     }
+    return { sql: `(${conds.join(' OR ')})`, params };
   }
-  return { sql: `(${conds.join(' OR ')})`, params };
+
+  if (db) {
+    const ids = await tokensSkuIds(db, produto);
+    if (ids.length) return { sql: `(i.sku_id IN (${ids.map(() => '?').join(',')}))`, params: ids };
+    const fz = await resolverFuzzy(db, produto);
+    if (fz.length) return { sql: `(i.sku_id IN (${fz.map(() => '?').join(',')}))`, params: fz };
+  }
+  // último recurso: substring (cobre itens sem SKU / nomes só na descrição crua)
+  const like = `%${String(produto).trim()}%`;
+  return { sql: '(s.nome_canonico LIKE ? OR s.marca LIKE ? OR s.categoria LIKE ? OR i.descricao_original LIKE ?)', params: [like, like, like, like] };
 }
 
 // Encontra sku_ids cujo nome canónico se PARECE com o termo (Levenshtein), mas
