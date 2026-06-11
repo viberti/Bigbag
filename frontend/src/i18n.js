@@ -12,6 +12,7 @@ const STRINGS = {
     'chat.intro': 'Olá {nome}, o que posso fazer por você?',
     'chat.logout': 'sair',
     'chat.placeholder': 'Escreva uma pergunta…',
+    'chat.send': 'Enviar',
     'chat.thinking': '…',
     'chat.newConv': 'Nova conversa',
     'cap.scan': 'Digitalizar documento',
@@ -101,6 +102,15 @@ const STRINGS = {
     'err.upload': 'Falha ao enviar a nota.',
     'err.voice': 'Falha na consulta por voz.',
     'err.mic': 'Sem acesso ao microfone.',
+    // barra de ações (ícone + legenda)
+    'act.camera': 'Câmera',
+    'act.scanner': 'Scanner',
+    'act.comparar': 'Comparar',
+    'act.voz': 'Voz',
+    'menu.mais': 'Mais opções',
+    'conta.title': 'Minha conta',
+    'conta.sair': 'Sair',
+    'menu.notas': 'Minhas compras',
     // menu (⋯)
     'menu.perfil': 'Perfil nutricional',
     'menu.consultar': 'Consultar produto',

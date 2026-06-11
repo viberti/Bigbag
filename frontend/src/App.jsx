@@ -199,6 +199,7 @@ function Chat({ onSair, nome }) {
   const [aGravar, setAGravar] = useState(false);
   const [camAberta, setCamAberta] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [contaAberta, setContaAberta] = useState(false); // popover do avatar (conta)
   // Lista de compras PARTILHADA da família (servidor = fonte de verdade).
   // Sincroniza por polling curto enquanto a folha está aberta; alterações são
   // otimistas; adicionar OFFLINE vai para uma fila (localStorage) e segue depois.
@@ -609,6 +610,10 @@ function Chat({ onSair, nome }) {
   function novaConversa() {
     setMsgs([{ id: 'intro', lado: 'bot', tipo: 'resposta', texto: t('chat.intro', { nome }), hora: hora() }]);
   }
+  function sair() {
+    clearAuth();
+    window.location.reload();
+  }
 
   const catPorNome = Object.fromEntries((habituaisLista || []).map((p) => [p.produto, p.categoria]));
 
@@ -627,12 +632,16 @@ function Chat({ onSair, nome }) {
           </span>
         </div>
         <span className="sp" />
-        <button className="ibtn" onClick={novaConversa} title={t('chat.newConv')} aria-label={t('chat.newConv')}>
-          <Ico name="sync" size={21} />
+        {/* Lista — feature principal: prevalência por tamanho + cor (sem caixa) */}
+        <button className="listbtn" onClick={abrirCarrinho} title={t('cart.title')} aria-label={t('cart.title')}>
+          <span className="li-ic"><Ico name="list" size={32} stroke={2} /></span>
+          {(lista?.length || 0) > 0 && <span className="li-n pop" key={lista.length}>{lista.length}</span>}
         </button>
-        <button className="ibtn" onClick={abrirCarrinho} title={t('cart.title')} aria-label={t('cart.title')}>
-          <Ico name="cart" size={21} />
-          {(lista?.length || 0) > 0 && <span className="badge">{lista.length}</span>}
+        <button className="kebab" onClick={() => { setMenuAberto(true); track('menu_abrir'); }} title={t('menu.mais')} aria-label={t('menu.mais')}>
+          <Ico name="kebab" size={22} />
+        </button>
+        <button className="avatar" onClick={() => setContaAberta(true)} title={t('conta.title')} aria-label={t('conta.title')}>
+          <Ico name="pessoa" size={22} />
         </button>
       </header>
 
@@ -658,7 +667,7 @@ function Chat({ onSair, nome }) {
           perguntar();
         }}
       >
-        {/* Linha 1: campo de escrita a largura toda */}
+        {/* Linha 1: campo a largura toda, com ENVIAR embutido (aparece ao escrever) */}
         <div className="field">
           <input
             placeholder={t('chat.placeholder')}
@@ -666,41 +675,32 @@ function Chat({ onSair, nome }) {
             onChange={(e) => setTexto(e.target.value)}
             disabled={ocupado}
           />
-        </div>
-        {/* Linha 2: ações (câmara/mais à esquerda; voz+enviar à direita) */}
-        <div className="input-actions">
-          <button type="button" className="round" onClick={() => fotoRef.current?.click()} disabled={ocupado} aria-label="tirar foto">
-            <Ico name="camera" size={21} />
-          </button>
-          <button type="button" className="round" onClick={() => { setMenuAberto(true); track('menu_abrir'); }} disabled={ocupado} aria-label="mais opções">
-            <Ico name="more" size={21} />
-          </button>
-          <button type="button" className="round" onClick={abrirNotas} disabled={ocupado} aria-label="as minhas compras">
-            <Ico name="notas" size={21} />
-          </button>
-          <button type="button" className="round" onClick={() => { setCompararAberto(true); track('comparar_abrir'); }} disabled={ocupado} aria-label={t('comp.title')}>
-            <Ico name="comparar" size={21} />
-          </button>
-          <button type="button" className="round scan" onClick={() => { setScannerAberto(true); track('scanner_abrir'); }} disabled={ocupado} aria-label="consultar produto (código de barras)">
-            <Ico name="barras" size={21} />
-          </button>
-          <span className="ia-sp" />
-          <button
-            type="button"
-            className={`voice ${aGravar ? 'rec' : ''}`}
-            onClick={aGravar ? pararVoz : iniciarVoz}
-            disabled={ocupado}
-            aria-label="gravar"
-          >
-            <Ico name={aGravar ? 'stop' : 'mic'} size={22} />
-          </button>
           <button
             type="submit"
             className={`send ${texto.trim() ? '' : 'hidden'}`}
             disabled={ocupado || !texto.trim()}
-            aria-label="enviar"
+            aria-label={t('chat.send')}
           >
-            <Ico name="send" size={22} />
+            <Ico name="send" size={20} />
+          </button>
+        </div>
+        {/* Linha 2: ações ícone+legenda, espalhadas (legível ao sol); Voz preenchida */}
+        <div className="input-actions">
+          <button type="button" className="act" onClick={() => fotoRef.current?.click()} disabled={ocupado}>
+            <span className="act-ic"><Ico name="camera" size={25} stroke={2.2} /></span>
+            <span className="act-lb">{t('act.camera')}</span>
+          </button>
+          <button type="button" className="act" onClick={() => { setScannerAberto(true); track('scanner_abrir'); }} disabled={ocupado}>
+            <span className="act-ic"><Ico name="barras" size={25} stroke={2.2} /></span>
+            <span className="act-lb">{t('act.scanner')}</span>
+          </button>
+          <button type="button" className="act" onClick={() => { setCompararAberto(true); track('comparar_abrir'); }} disabled={ocupado}>
+            <span className="act-ic"><Ico name="comparar" size={25} stroke={2.2} /></span>
+            <span className="act-lb">{t('act.comparar')}</span>
+          </button>
+          <button type="button" className={`act voice ${aGravar ? 'rec' : ''}`} onClick={aGravar ? pararVoz : iniciarVoz} disabled={ocupado}>
+            <span className="act-ic"><Ico name={aGravar ? 'stop' : 'mic'} size={23} stroke={2.1} /></span>
+            <span className="act-lb">{t('act.voz')}</span>
           </button>
           {/* inputs de ficheiro ocultos */}
           <input
@@ -796,11 +796,22 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); galeriaRef.current?.click(); }}><Ico name="galeria" size={18} /> {t('cap.gallery')}</button>
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
+            <button onClick={() => { setMenuAberto(false); abrirNotas(); }}><Ico name="notas" size={18} /> {t('menu.notas')}</button>
             <button onClick={() => { setMenuAberto(false); setScannerAberto(true); track('scanner_abrir', { via: 'menu' }); }}><Ico name="search" size={18} /> {t('menu.consultar')}</button>
             <button onClick={() => { setMenuAberto(false); setPerfilAberto(true); }}><Ico name="spark" size={18} /> {t('menu.perfil')}</button>
             <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> {t('menu.despensa')}</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> {t('menu.gastos')}</button>
             <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> {t('menu.porident')}</button>
+          </div>
+        </>
+      )}
+
+      {contaAberta && (
+        <>
+          <div className="cap-menu-bd" onClick={() => setContaAberta(false)} />
+          <div className="cap-menu conta-menu">
+            <button onClick={() => { setContaAberta(false); novaConversa(); }}><Ico name="sync" size={18} /> {t('chat.newConv')}</button>
+            <button onClick={() => { setContaAberta(false); sair(); }}><Ico name="logout" size={18} /> {t('conta.sair')}</button>
           </div>
         </>
       )}

@@ -43,6 +43,12 @@ const P = {
   cart: `<circle cx="9.5" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 4h2.2l1.6 11.2a1.5 1.5 0 0 0 1.5 1.3h9.1a1.5 1.5 0 0 0 1.47-1.2L21 8H6.2"/>`,
   camera: `<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H7l1.2-1.7A1.5 1.5 0 0 1 9.4 4.6h5.2a1.5 1.5 0 0 1 1.2.7L17 7h1.5A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.5" r="3.2"/>`,
   more: `<circle cx="5.5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18.5" cy="12" r="1.5"/>`,
+  // mais opções (vertical / kebab)
+  kebab: `<circle cx="12" cy="5" r="1.9" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.9" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.9" fill="currentColor" stroke="none"/>`,
+  // sair / logout
+  logout: `<path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8"/><path d="M16 16l4-4-4-4"/><path d="M20 12H10"/>`,
+  // lista de compras (clipboard com itens marcados) — botão Lista do cabeçalho
+  list: `<path d="M9 4.2H7.4A2.4 2.4 0 0 0 5 6.6V18.6A2.4 2.4 0 0 0 7.4 21h9.2A2.4 2.4 0 0 0 19 18.6V6.6A2.4 2.4 0 0 0 16.6 4.2H15"/><rect x="9" y="2.6" width="6" height="3.4" rx="1.2"/><path d="M8.4 10.6l1.2 1.2 2.1-2.2"/><path d="M14 10.6h2.4"/><path d="M8.4 15.4l1.2 1.2 2.1-2.2"/><path d="M14 15.4h2.4"/>`,
   info: `<circle cx="12" cy="12" r="9"/><path d="M12 11.2v5"/><path d="M12 7.8v.01"/>`,
   despensa: `<rect x="4.5" y="3.5" width="15" height="17" rx="1.5"/><path d="M12 3.5v17"/><path d="M4.5 9.5h15M4.5 14.5h15"/><path d="M10 6.3v1.4M14 6.3v1.4"/>`,
   gastos: `<circle cx="12" cy="12" r="8.5"/><path d="M14.7 9.3a3.4 3.4 0 1 0 0 5.4"/><path d="M7.8 11.2h4.4M7.8 13h4"/>`,
