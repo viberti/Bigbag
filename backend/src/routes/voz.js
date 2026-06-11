@@ -60,7 +60,7 @@ vozRouter.post('/lista', requireAuth, upload.single('audio'), async (req, res) =
           content: [
             {
               type: 'text',
-              text: 'O áudio dita itens para uma lista de compras de supermercado (português). Extrai os PRODUTOS ditados e devolve SÓ JSON: {"produtos": ["..."]} — um elemento por produto, nome curto com a 1.ª letra maiúscula (ex.: "Bananas", "Papel higiênico"), sem quantidades nem comentários. Se não houver produtos no áudio, {"produtos": []}.',
+              text: 'O áudio dita itens para uma lista de compras de supermercado (português). Extrai os PRODUTOS e as QUANTIDADES ditadas e devolve SÓ JSON: {"produtos": [{"nome": "...", "quantidade": N}]}. Regras: nome curto com a 1.ª letra maiúscula, SEM a embalagem nem a quantidade no nome ("2 latas de coca-cola" → nome "Coca-Cola", quantidade 2; "3 dúzias de ovos" → nome "Ovos", quantidade 3; "3 cervejas" → nome "Cerveja", quantidade 3). Sem quantidade dita → 1. Se não houver produtos no áudio, {"produtos": []}.',
             },
             { type: 'input_audio', input_audio: { data: req.file.buffer.toString('base64'), format: formatoDeMime(mime) } },
           ],
@@ -73,7 +73,13 @@ vozRouter.post('/lista', requireAuth, upload.single('audio'), async (req, res) =
     });
     let produtos = [];
     try { produtos = JSON.parse(conteudo)?.produtos || []; } catch { produtos = []; }
-    produtos = produtos.map((p) => String(p).trim()).filter(Boolean).slice(0, 20);
+    // normaliza: aceita objetos {nome, quantidade} (atual) e strings (retrocompat)
+    produtos = produtos
+      .map((p) => (typeof p === 'string'
+        ? { nome: p.trim(), quantidade: 1 }
+        : { nome: String(p?.nome || '').trim(), quantidade: Math.max(1, Math.min(99, Number(p?.quantidade) || 1)) }))
+      .filter((p) => p.nome)
+      .slice(0, 20);
     res.json({ produtos });
   } catch (e) {
     console.error('[voz/lista] erro:', e.message);

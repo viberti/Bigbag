@@ -3445,7 +3445,11 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
         try {
           const blob = new Blob(pedacos, { type: mr.mimeType || 'audio/webm' });
           const { produtos } = await vozParaLista(blob);
-          for (const p of produtos || []) onAdicionar(p);
+          // objetos {nome, quantidade} ("3 cervejas" → Cerveja ×3); strings = retrocompat
+          for (const p of produtos || []) {
+            if (typeof p === 'string') onAdicionar(p);
+            else onAdicionar(p.nome, null, p.quantidade || 1);
+          }
           if (!produtos?.length) setErroVoz(t('voz.nadaOuvido'));
         } catch { setErroVoz(t('err.query')); }
         setAOuvir(false);
@@ -3508,7 +3512,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
             <div className="cart-list">
               {secoes.map(({ g, itens: its }) => (
                 <div key={g.id}>
-                  <div className="cart-cat"><span className="cart-cat-ic">{g.ic}</span> {g.label}</div>
+                  <div className="cart-cat">{g.label}</div>
                   {its.map((it) => (
                     <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onRenomear={onRenomear} onVariantes={abrirVariantes} />
                   ))}
