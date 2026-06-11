@@ -686,7 +686,7 @@ adminRouter.get('/mercadona', async (req, res) => {
         GROUP BY i.descricao_original ORDER BY compras DESC, d`);
     const out = [];
     for (const it of itens) {
-      const m = await buscarCatalogo(pool, it.d, { cadeia: 'Mercadona', fonteUnica: 'mercadona', limiar: 0.45 });
+      const m = await buscarCatalogo(pool, it.d, { cadeia: 'Mercadona', fonteUnica: ['mercadona', 'mercadona-off'], limiar: 0.45 });
       const candidatos = m
         ? [{ ean: m.ean, nome: m.nome, formato: m.formato, preco_por_base: m.preco_por_base, score: m.score }, ...(m.alternativas || [])]
         : [];

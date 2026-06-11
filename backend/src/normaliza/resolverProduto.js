@@ -311,9 +311,12 @@ export async function buscarCatalogo(pool, descricao, { cadeia, limiar = 0.6, fo
   if (!q.length) return null;
   const fmtQ = extrairFormato(descricao); // formato lido do talão (p/ desempate de tamanho)
   const fontePref = FONTE_POR_CADEIA[norm(cadeia || '')] || null;
+  // fonteUnica: string OU lista — restringe o universo de candidatos (ex.: o match
+  // do talão Mercadona só sobre ['mercadona','mercadona-off'], nunca Continente/Auchan).
+  const fontesOk = fonteUnica ? new Set(Array.isArray(fonteUnica) ? fonteUnica : [fonteUnica]) : null;
   const marcados = [];
   for (const r of cat) {
-    if (fonteUnica && r.fonte !== fonteUnica) continue; // restringe a 1 catálogo (ex.: só Mercadona)
+    if (fontesOk && !fontesOk.has(r.fonte)) continue;
     let s = pontuarBusca(q, r.t, idf);
     if (s < 0.45) continue;
     // Só CONFLITO bloqueia (morango ≠ baunilha); faceta AUSENTE passa — o talão
