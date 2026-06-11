@@ -527,14 +527,19 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
         GROUP BY i.descricao_original
         LIMIT ?`, [limite]);
 
+    // Cadeias com catálogo PRÓPRIO → caminho mesma-loja (sem porta de marca: os
+    // discounters não imprimem marca; o catálogo da casa é o prior). Mercadona e
+    // Lidl entraram a 2026-06-11 (API + lista QCE FR) — antes só o Continente.
+    const FONTE_MESMA_LOJA = { 'Continente': 'continente', 'Mercadona': 'mercadona', 'Lidl': 'lidl-fr', 'Auchan': 'auchan' };
     let novas = 0, semCand = 0;
     for (const it of itens) {
       let prop;
-      if (it.cadeia === 'Continente') {
+      const fonteCasa = FONTE_MESMA_LOJA[it.cadeia];
+      if (fonteCasa) {
         // MESMA LOJA: comida + preço-embalagem + marca-própria (frescos já excluídos).
         prop = await proporMesmaLoja(pool, {
           descricao: it.canon || it.d, descricaoRaw: it.d, marca: it.marca, preco: it.preco, preco_por_base: it.ppb,
-        }, 'continente');
+        }, fonteCasa);
       } else {
         // Outras cadeias: porta de marca (cross-cadeia só com marca nacional explícita).
         const cand = await candidatosCatalogo(pool, { descricao: it.canon || it.d, marca: it.marca, preco_por_base: it.ppb });
