@@ -53,37 +53,48 @@ async function resolverItensLista(pool, itens, mercado) {
   // últimas 3 compras (por SKU) — para cada item escolhemos o melhor entre os seus SKUs.
   // PREÇO = preco_por_base (€/L, €/kg, €/un): comparável entre tamanhos de embalagem.
   // preco_liquido/quantidade dava o preço POR UNIDADE DO PACK (9 mini-garrafas de
-  // 200ml a 0,31 contaminavam o mínimo do "leite"). Filtra clearance e ppb nulo.
+  // 200ml a 0,31 contaminavam o mínimo do "leite"). Quando não há ppb (peso não
+  // extraído, ex.: Farinha) cai para preco_unitario (preço da embalagem, sem unidade).
   const [rows] = await pool.query(
-    `SELECT sku_id, unit, unidade, loja, data FROM (
-       SELECT i.sku_id, i.preco_por_base AS unit, s.unidade_base AS unidade, COALESCE(l.cadeia,l.nome) AS loja,
+    `SELECT sku_id, ppb, pu, unidade, loja, data FROM (
+       SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario AS pu, s.unidade_base AS unidade, COALESCE(l.cadeia,l.nome) AS loja,
               f.data_compra AS data, ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
          FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id JOIN sku_normalizado s ON s.id=i.sku_id
-        WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND i.preco_por_base IS NOT NULL
+        WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND (i.preco_por_base IS NOT NULL OR i.preco_unitario IS NOT NULL)
      ) t WHERE t.rn <= 3`, ids);
   // preço no mercado selecionado (a compra mais recente nesse mercado), por SKU
   let noMercado = new Map();
   if (mercado) {
     const [mrows] = await pool.query(
-      `SELECT sku_id, unit, unidade FROM (
-         SELECT i.sku_id, i.preco_por_base AS unit, s.unidade_base AS unidade,
+      `SELECT sku_id, ppb, pu, unidade FROM (
+         SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario AS pu, s.unidade_base AS unidade,
                 ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
            FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id AND COALESCE(l.cadeia,l.nome)=? JOIN sku_normalizado s ON s.id=i.sku_id
-          WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND i.preco_por_base IS NOT NULL
+          WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND (i.preco_por_base IS NOT NULL OR i.preco_unitario IS NOT NULL)
        ) t WHERE t.rn=1`, [mercado, ...ids]);
-    noMercado = new Map(mrows.map((r) => [r.sku_id, { unit: num(r.unit), unidade: r.unidade }]));
+    noMercado = new Map(mrows.map((r) => [r.sku_id, r]));
   }
-  const recentePorSku = new Map(); // sku_id → [{unit, unidade, loja}]
+  const recentePorSku = new Map(); // sku_id → [{ppb, pu, unidade, loja}]
   for (const r of rows) (recentePorSku.get(r.sku_id) || recentePorSku.set(r.sku_id, []).get(r.sku_id)).push(r);
+  // Por item: preferimos €/base (comparável) ao preço de embalagem. Só caímos para
+  // a embalagem (pu) se NENHUM dos SKUs casados tiver ppb — evita misturar unidades.
   for (const it of itens) {
+    let base = null, emb = null;  // {v, loja, unidade}
+    const considera = (r, loja) => {
+      if (r.ppb != null) { if (!base || num(r.ppb) < base.v) base = { v: num(r.ppb), loja, unidade: r.unidade }; }
+      else if (r.pu != null) { if (!emb || num(r.pu) < emb.v) emb = { v: num(r.pu), loja, unidade: null }; }
+    };
     for (const sid of skuIdsPorItem.get(it.id) || []) {
-      for (const r of recentePorSku.get(sid) || []) {
-        if (it.melhor_preco == null || Number(r.unit) < it.melhor_preco) {
-          it.melhor_preco = num(r.unit); it.melhor_loja = r.loja; it.unidade_base = r.unidade;
-        }
-      }
+      for (const r of recentePorSku.get(sid) || []) considera(r, r.loja);
+    }
+    const esc = base || emb;
+    if (esc) { it.melhor_preco = esc.v; it.melhor_loja = esc.loja; it.unidade_base = esc.unidade; }
+    for (const sid of skuIdsPorItem.get(it.id) || []) {
       const m = mercado ? noMercado.get(sid) : null;
-      if (m && (it.preco_mercado == null || m.unit < it.preco_mercado)) { it.preco_mercado = m.unit; it.unidade_base = m.unidade; }
+      if (!m) continue;
+      const mv = m.ppb != null ? num(m.ppb) : (m.pu != null ? num(m.pu) : null);
+      const mu = m.ppb != null ? m.unidade : null;
+      if (mv != null && (it.preco_mercado == null || mv < it.preco_mercado)) { it.preco_mercado = mv; it.unidade_base = mu; }
     }
   }
 }
