@@ -178,9 +178,16 @@ Cascata determinística com **um** passo LLM opcional:
 - **IVA por produto**: `taxa_iva` (lida do código + legenda do talão) +
   `fatura.precos_com_iva` (grossista distingue-se por aritmética, robusto a erro do LLM).
 
-A correspondência **produto em linguagem natural → SKU** no tempo de **consulta** é
-mais simples (`queries.js`): `LIKE` sobre nome/marca/categoria/descrição + fallback
-fuzzy ao nível do caractere (Levenshtein) quando o LIKE não acha nada.
+A correspondência **produto em linguagem natural → SKU** no tempo de **consulta**
+(`queries.js`, `matchProduto`) passou a uma **cascata** (B2 + facetas, 2026-06-11):
+1. **valor de faceta** no pedido ("iogurte **magro**", "grego de **morango**") →
+   filtra pelas **colunas** do `produto_mestre` (`teor`/`sabor` canónicos) — apanha
+   "…Natural **Ligeiro**" pela coluna `teor=magro`, que o nome nunca traria;
+2. **termo amplo** ("laticínios", "bebidas") → `sku.grupo` (vocabulário fechado, B1);
+3. **tokens-palavra** sobre os SKUs, com prioridade ao **substantivo-cabeça** —
+   "leite" já **não** mistura "Doce de Leite";
+4. **fuzzy** (Levenshtein) para typos/plurais; 5. `LIKE` substring só como último
+   recurso (apanha itens ainda sem SKU, pelo nome cru do talão).
 
 ## 4. Dificuldades encontradas (casos reais)
 
@@ -346,9 +353,11 @@ marca-no-nome) que escondiam produtos diferentes.
    "Maçã Royal Gala", "Iogurte Grego" vs "Iogurte Grego Natural". A auto-fusão (nome
    idêntico) não os apanha — e fundir por similaridade automaticamente arrisca juntar
    produtos diferentes. Fica para fusão **manual** no `/admin`.
-4. **Match na consulta por substring** (`LIKE '%termo%'`): impreciso (mistura
-   produtos). O passo seguinte seria **embeddings** sobre `nome_canonico`, ou casar
-   pelo SKU em vez de pelo nome.
+4. ~~**Match na consulta por substring** (`LIKE '%termo%'`)~~ **resolvido (2026-06-11):**
+   `matchProduto` em cascata (facetas-colunas → grupo fechado → tokens-cabeça →
+   fuzzy → LIKE só em último recurso) — "leite" já não mistura "Doce de Leite",
+   "iogurte magro" casa pela coluna `teor`. Embeddings ficam para se o resíduo o
+   justificar (Fase C), mas o token+faceta cobre o caso comum sem custo.
 5. **€/kg irrecuperável na origem** (mitigado): lojas que não imprimem €/kg
    (Mercadona/Aldi a granel) e pré-embalados a peso sem peso impresso. Investigação
    (2026-06-07): re-ler as notas recuperou **só 1 item** — o resto é mesmo ausência

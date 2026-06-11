@@ -36,7 +36,14 @@ CREATE TABLE sku_normalizado (
   -- gazetteer (marca impressa, dicionário do catálogo) | catalogo | ean | prior |
   -- llm (palpite) | manual. NULL = pré-036. Marca lida ≠ marca adivinhada.
   marca_origem  VARCHAR(12),
-  categoria     VARCHAR(80),                     -- 'Mercearia Doce', 'Laticínios'...
+  categoria     VARCHAR(80),                     -- 'Mercearia Doce', 'Laticínios'... (texto livre, detalhe)
+  -- GRUPO de alto nível, vocabulário FECHADO (migração 041, B1): 11 valores
+  -- (frutas|carne|peixe|lacticinios|padaria|bebidas|doces|congelados|higiene|
+  -- mercearia|outros), determinístico (food_groups do OFF → categoria → nome,
+  -- normaliza/categoria.js). É o eixo estável para agrupar/filtrar; a `categoria`
+  -- texto-livre fica como detalhe. mestre_id liga ao Produto Mestre facetado (§1d).
+  grupo         VARCHAR(16),
+  mestre_id     BIGINT UNSIGNED,                 -- → produto_mestre (agrupar p/ comparar marcas)
   -- unidade-base para comparação de preço (ver nota de design sobre quantidades).
   -- DECIDIDA determinística-primeiro: se a descrição traz peso/volume EXPLÍCITO
   -- (g/kg/ml/cl/L, incl. multipack "4X125G"=500g), o formato GANHA ao LLM
@@ -69,6 +76,9 @@ CREATE TABLE fatura (
   id                  BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   loja_id             BIGINT UNSIGNED NOT NULL,
   data_compra         DATETIME NOT NULL,
+  numero_fatura       VARCHAR(60),               -- nº do documento fiscal (ATCUD/FS/Nº) p/ dedup
+  nif_comprador       VARCHAR(20),               -- NIF do CLIENTE quando impresso (migração 042) → atribuir compra ao membro do agregado; dígitos
+  forma_pagamento     VARCHAR(20),               -- dinheiro|cartao|mbway|outro (migração 042) — completa os Gastos
   total_impresso      DECIMAL(10,2) NOT NULL,    -- o que vinha escrito na fatura
   total_reconciliado  DECIMAL(10,2),             -- Σbase − desconto_global (calculado); deve ≈ total_impresso
   discrepancia        DECIMAL(10,2),             -- Σbase − desconto − total; 0 = extração bate (migração 003)
@@ -274,6 +284,15 @@ CREATE TABLE perfil_membro (
 - **`catalogo_produto` (028/029):** catálogo multi-fonte com **EAN por nome PT** (scrapes Auchan/Continente — só esses expõem EAN em HTML estático). Chave `fonte`+`sku_fonte` UNIQUE; campos `nome, marca, categoria_path, ean, formato/formato_valor, preco, url, imagem`. Dá candidatos de EAN/ficha aos itens do talão **sem EAN** (`src/normaliza/resolverProduto.js`, `mestreEan.js`).
 - **`match_ean_sugestao` (030, +métricas 031):** propostas de EAN por matching de nome do talão → catálogo, para o operador rever na **aba EANs** (uma por descrição; estado pendente/aprovado/rejeitado, **sem LLM — o operador é o juiz**). A 031 acrescenta `preco_pago/preco_cand/formato_pago/formato_cand` para comparar (mesma loja: preço≈preço e formato≈formato confirmam).
 - **`evento_uso` (032):** **telemetria de USO** self-hosted (sem terceiros, NUNCA conteúdo — só QUAL ação). Campos `fonte` (api|ui), `utilizador`, `sessao` (id por visita, sem fingerprint), `evento`, `props` JSON, `criado_em`. `api` = middleware (`src/telemetria.js`) regista o **padrão da rota** de cada pedido `/api`; `ui` = ações só-frontend (`track()`) via `POST /api/telemetria`. Mapa na **aba Uso** do `/admin` (`GET /admin/uso?dias=`).
+
+### 1d. Tabelas e colunas posteriores (migrações 033–043; DDL nas próprias migrações)
+- **`produto_mestre` (017, facetas-colunas em 043):** o **Produto Mestre facetado** — agrupa SKUs comparáveis (várias marcas/tamanhos do mesmo equivalente). `chave` UNIQUE = tuplo de 10 slots por `|` (`categoria|apresentacao|corte|processamento|variedade|sabor|teor|estilo|funcao|fonte`, `normaliza/mestre.js chaveMestre`); a 043 **materializou os 9 slots não-categoria como COLUNAS** (`facetasDaChave` = split puro, sem LLM) → SQL pode filtrar/agrupar por `teor='magro'`, `estilo='grego'`, `sabor='morango'`. `sku_normalizado.mestre_id` liga. **Resolve a crítica "string ≠ taxonomia" pela via facetada** (níveis = projeções de colunas, não árvore): "iogurte magro" casa "…Natural **Ligeiro**" pela coluna `teor`, impossível pelo nome. Ver `Taxonomia_Produto.md §11`.
+- **`produto_ean` — `nutricao_confirmada` (033)** + **conteúdo estruturado (035):** `nutricao_confirmada=0` isola nutrição lida só por VLM (provisória) até operador/OFF confirmar; `conteudo_valor/unidade/pack` (parse de `quantidade` por `conteudo.js`) entram na cadeia do ppb.
+- **`lista_item` / `lista_pessoal` (034):** lista de compras PARTILHADA da família (servidor é fonte de verdade); estados `ativo|carrinho|comprado|removido`, `adicionado_por`/`marcado_por` (cor do membro), `fatura_id` (reconciliação). `lista_pessoal` = listas individuais (UNIQUE user+nome).
+- **`verificacao_nome` (037):** registo da 2.ª opinião de leitura (`lido`/`opiniao`/scores/`resultado` confirmado|corrigido|duvida) — ground truth p/ harness de leitores.
+- **`off_produto` (038):** extrato LOCAL do dump do Open Food Facts (~27k: PT + marcas próprias dos mercados); `consultarOFF` é **local-first** (esta tabela antes da API). DAG de categorias em `categorias_tags`/`grupos_alimento`.
+- **`catalogo_produto.nome_pt` (040):** tradução PT do nome (catálogos em ES, ex. Mercadona) — `buscarCatalogo` tokeniza `nome_pt||nome` para o talão PT casar na própria cadeia.
+- **`custo_chamada`:** custo de CADA chamada LLM/VLM (`contexto`=feature, `modelo`, tokens, `custo`). **Todas** as chamadas registam (incl. as que usavam fetch direto). Aba **Custos** do `/admin` (`GET /admin/custos?dias=`): gasto por feature/modelo/dia.
 
 ### Notas de design
 - **`preco_por_base` é o que faz a comparação funcionar.** Para itens por peso (fruta a granel), `preco_liquido` sozinho não é comparável; `preco_por_base` (€/kg) é. Para itens por unidade, é o preço por unidade. As funções de comparação consultam sempre `preco_por_base`.
