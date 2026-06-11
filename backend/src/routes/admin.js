@@ -728,6 +728,33 @@ adminRouter.post('/mercadona/ean', async (req, res) => {
   }
 });
 
+// ───────── Custos OpenRouter: agregação por contexto, modelo e dia ──────────
+adminRouter.get('/custos', async (req, res) => {
+  try {
+    const pool = getPool();
+    const dias = Math.min(Math.max(Number(req.query.dias) || 30, 1), 365);
+    const desde = `AND criado_em >= DATE_SUB(NOW(), INTERVAL ${dias} DAY)`;
+    const [[tot]] = await pool.query(
+      `SELECT COUNT(*) chamadas, ROUND(SUM(custo),4) usd, SUM(prompt_tokens) tin, SUM(completion_tokens) tout
+         FROM custo_chamada WHERE 1=1 ${desde}`);
+    const [[geral]] = await pool.query('SELECT COUNT(*) chamadas, ROUND(SUM(custo),4) usd FROM custo_chamada');
+    const [porContexto] = await pool.query(
+      `SELECT contexto, COUNT(*) chamadas, ROUND(SUM(custo),5) usd, ROUND(AVG(custo),6) media,
+              SUM(prompt_tokens) tin, SUM(completion_tokens) tout
+         FROM custo_chamada WHERE 1=1 ${desde} GROUP BY contexto ORDER BY usd DESC`);
+    const [porModelo] = await pool.query(
+      `SELECT modelo, COUNT(*) chamadas, ROUND(SUM(custo),5) usd
+         FROM custo_chamada WHERE 1=1 ${desde} GROUP BY modelo ORDER BY usd DESC`);
+    const [porDia] = await pool.query(
+      `SELECT DATE(criado_em) dia, COUNT(*) chamadas, ROUND(SUM(custo),5) usd
+         FROM custo_chamada WHERE 1=1 ${desde} GROUP BY DATE(criado_em) ORDER BY dia`);
+    res.json({ dias, total: tot, geral, por_contexto: porContexto, por_modelo: porModelo, por_dia: porDia });
+  } catch (e) {
+    console.error('[admin/custos] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar custos' });
+  }
+});
+
 // ───────────────────────── Painel (Admin v2) ─────────────────────────
 
 // Cards do dashboard: nº de notas, por mercado, nº de produtos crus (antes da

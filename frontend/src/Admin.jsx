@@ -74,6 +74,9 @@ export default function Admin() {
           <button className={aba === 'uso' ? 'on' : ''} onClick={() => setAba('uso')}>
             Uso
           </button>
+          <button className={aba === 'custos' ? 'on' : ''} onClick={() => setAba('custos')}>
+            Custos
+          </button>
         </nav>
         <a className="adm-link" href="/">
           ← app
@@ -109,6 +112,8 @@ export default function Admin() {
         <TabSaude />
       ) : aba === 'uso' ? (
         <TabUso />
+      ) : aba === 'custos' ? (
+        <TabCustos />
       ) : (
         <TabNotas notaAlvo={notaAlvo} onConsumir={() => setNotaAlvo(null)} />
       )}
@@ -1174,6 +1179,85 @@ function TabUso() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// CUSTOS OpenRouter: quanto gastamos em LLM/VLM, por contexto (que função),
+// por modelo e por dia. Os dados vêm de custo_chamada (registado a cada chamada).
+function TabCustos() {
+  const [dias, setDias] = useState(30);
+  const [d, setD] = useState(null);
+  useEffect(() => { setD(null); adm.custos(dias).then(setD).catch(() => setD(false)); }, [dias]);
+
+  const usd = (v) => (v == null ? '—' : '$' + Number(v).toFixed(v < 0.01 ? 5 : v < 1 ? 4 : 2));
+  const maxDia = Math.max(1, ...((d?.por_dia || []).map((x) => Number(x.usd) || 0)));
+  const t = d?.total || {};
+  return (
+    <div className="adm-itens">
+      <div className="adm-cards adm-it-cards">
+        <div className="adm-card"><span className="adm-card-n">{usd(t.usd)}</span><span className="adm-card-l">gasto na janela</span></div>
+        <div className="adm-card"><span className="adm-card-n">{t.chamadas ?? '—'}</span><span className="adm-card-l">chamadas</span></div>
+        <div className="adm-card"><span className="adm-card-n">{usd(d?.geral?.usd)}</span><span className="adm-card-l">total desde sempre</span></div>
+        <div className="adm-card"><span className="adm-card-n">{t.tin != null ? ((Number(t.tin) + Number(t.tout || 0)) / 1e6).toFixed(2) + 'M' : '—'}</span><span className="adm-card-l">tokens (in+out)</span></div>
+      </div>
+      <div className="adm-sug-top">
+        <span className="adm-it-ord">janela:</span>
+        {[7, 30, 365].map((dd) => (
+          <button key={dd} className={dias === dd ? 'on' : ''} onClick={() => setDias(dd)}>{dd === 365 ? 'ano' : `${dd} dias`}</button>
+        ))}
+        <span className="adm-sug-dica">contexto = a função que chamou o LLM/VLM (extração, consulta, verificar nomes, comparar…). Custo em USD do OpenRouter.</span>
+      </div>
+      {d === null ? (
+        <p className="adm-vazio">a carregar…</p>
+      ) : d === false ? (
+        <p className="adm-vazio">Falha a carregar.</p>
+      ) : (
+        <div className="adm-custos-grid">
+          <div className="adm-custos-col">
+            <h3>Por função (contexto)</h3>
+            <table className="adm-tabela">
+              <thead><tr><th>contexto</th><th>chamadas</th><th>custo</th><th>média/chamada</th></tr></thead>
+              <tbody>
+                {(d.por_contexto || []).map((c) => (
+                  <tr key={c.contexto}>
+                    <td className="adm-it-nome">{c.contexto}</td>
+                    <td>{c.chamadas}</td>
+                    <td className="adm-custo-usd">{usd(c.usd)}</td>
+                    <td className="adm-it-peso">{usd(c.media)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <h3>Por modelo</h3>
+            <table className="adm-tabela">
+              <thead><tr><th>modelo</th><th>chamadas</th><th>custo</th></tr></thead>
+              <tbody>
+                {(d.por_modelo || []).map((m) => (
+                  <tr key={m.modelo || '—'}>
+                    <td className="adm-it-nome">{m.modelo || '—'}</td>
+                    <td>{m.chamadas}</td>
+                    <td className="adm-custo-usd">{usd(m.usd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="adm-custos-col">
+            <h3>Por dia</h3>
+            <div className="adm-custos-dias">
+              {(d.por_dia || []).slice().reverse().map((x) => (
+                <div key={x.dia} className="adm-custo-dia">
+                  <span className="adm-custo-dia-data">{dataCurta(x.dia)}</span>
+                  <span className="adm-custo-dia-barra"><i style={{ width: `${Math.round(100 * (Number(x.usd) / maxDia))}%` }} /></span>
+                  <span className="adm-custo-dia-usd">{usd(x.usd)}</span>
+                  <span className="adm-custo-dia-n">{x.chamadas}×</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
