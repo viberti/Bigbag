@@ -498,6 +498,28 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
   try {
     const pool = getPool();
     const limite = Math.min(Math.max(Number(req.body?.limite) || 60, 1), 200);
+    // PASS 0 — VERBATIM Pingo Doce (determinístico, antes de qualquer scoring):
+    // a descricao_curta do catálogo PD (046) é a ABREVIATURA OFICIAL de talão; se
+    // a descrição comprada bate LETRA-A-LETRA e essa entrada herdou um EAN
+    // (ean_inferido, 045), propõe-o com confiança alta. Cresce sozinho com os
+    // re-scrapes e os reruns do matcher catálogo↔catálogo.
+    let verbatim = 0;
+    try {
+      const [r0] = await pool.query(`
+        INSERT INTO match_ean_sugestao (descricao, ean, nome_cand, marca, fonte, confianca, formato_cand, estado)
+        SELECT DISTINCT i.descricao_original, c.ean_inferido, c.nome, c.marca,
+               CONCAT('pd-verbatim·', c.ean_inferido_de), 0.92, c.formato, 'pendente'
+          FROM item i
+          JOIN fatura f ON f.id = i.fatura_id JOIN loja l ON l.id = f.loja_id
+          JOIN catalogo_produto c ON c.fonte = 'pingodoce'
+               AND c.descricao_curta = i.descricao_original
+               AND c.ean_inferido IS NOT NULL
+         WHERE COALESCE(l.cadeia, l.nome) = 'Pingo Doce' AND i.is_non_product = 0 AND i.ean IS NULL
+           AND NOT EXISTS (SELECT 1 FROM match_ean_sugestao m WHERE m.descricao = i.descricao_original)
+           AND NOT EXISTS (SELECT 1 FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
+                            WHERE i2.descricao_original = i.descricao_original AND pe.ean IS NOT NULL)`);
+      verbatim = r0.affectedRows || 0;
+    } catch (e) { console.error('[match-eans/gerar] pass verbatim PD:', e.message); }
     // produtos distintos comprados, sem EAN (nem na linha nem identificado) e sem
     // proposta/rejeição já registada. Usa o nome canónico para pontuar se houver.
     // exclui frescos (fruta/legume/carne): não têm GTIN real — a nutrição vem do
@@ -567,7 +589,7 @@ adminRouter.post('/match-eans/gerar', async (req, res) => {
       );
       novas++;
     }
-    res.json({ novas, analisados: itens.length, sem_candidato: semCand });
+    res.json({ novas: novas + verbatim, verbatim, analisados: itens.length, sem_candidato: semCand });
   } catch (e) {
     console.error('[admin/match-eans/gerar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a gerar propostas' });
