@@ -393,7 +393,18 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     }
     if (!grupo || grupo === 'outros') return res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
 
-    const [cands] = await getPool().query(
+    // GRANULARIDADE: frescos cruzam pelo GRUPO (carne de porco → outras carnes;
+    // banana → outras frutas — a categoria do fresco É o item, o útil é variar);
+    // processados cruzam pela CATEGORIA do mestre (iogurte → outros iogurtes, não
+    // queijo/manteiga). Sinal = produto_generico.tipo. Sem categoria → grupo.
+    let mestreCat = null;
+    if (info.skuId) {
+      const [[m]] = await getPool().query(
+        'SELECT m.categoria FROM sku_normalizado s JOIN produto_mestre m ON m.id = s.mestre_id WHERE s.id = ?', [info.skuId]);
+      mestreCat = m?.categoria || null;
+    }
+    const processado = info.generico?.tipo !== 'fresco';
+    const QUERY = (porCategoria) => getPool().query(
       `SELECT s.id, s.nome_canonico AS nome, m.corte, m.variedade, m.sabor, m.teor,
               COALESCE(pg.nutricao, (SELECT pe.nutricao FROM item i JOIN produto_ean pe ON pe.ean = i.ean
                  WHERE i.sku_id = s.id AND pe.nutricao IS NOT NULL LIMIT 1)) AS nutricao,
@@ -402,11 +413,14 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
          FROM sku_normalizado s
          LEFT JOIN produto_mestre m ON m.id = s.mestre_id
          LEFT JOIN produto_generico pg ON pg.sku_id = s.id
-        WHERE s.grupo = ? AND s.id <> ?
+        WHERE ${porCategoria ? 'm.categoria = ?' : 's.grupo = ?'} AND s.id <> ?
        HAVING nutricao IS NOT NULL
         LIMIT 30`,
-      [grupo, info.skuId || 0],
+      [porCategoria ? mestreCat : grupo, info.skuId || 0],
     );
+    let [cands] = (processado && mestreCat) ? await QUERY(true) : await QUERY(false);
+    let nivel = (processado && mestreCat) ? 'categoria' : 'grupo';
+    if (nivel === 'categoria' && cands.filter((c) => c.nutricao).length < 2) { [cands] = await QUERY(false); nivel = 'grupo'; }
     // parse + dedup por nome canónico; prioriza os que têm preço no histórico
     const vistos = new Set();
     const alternativas = cands.map((c) => ({
@@ -418,7 +432,7 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       if (vistos.has(k) || !a.nutricao) return false; vistos.add(k); return true;
     }).sort((a, b) => (b.eur_base != null) - (a.eur_base != null)).slice(0, 6);
 
-    res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas });
+    res.json({ grupo, nivel, categoria: mestreCat, produto: { nome: info.nome, nutricao: nutAtual }, alternativas });
   } catch (e) {
     console.error('[produto/alternativas] erro:', e.message);
     res.status(500).json({ erro: 'Falha a obter alternativas' });
