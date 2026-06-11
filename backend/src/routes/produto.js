@@ -639,7 +639,7 @@ produtoRouter.get('/por-identificar', requireAuth, async (req, res) => {
        WHERE i.is_non_product = 0
          AND (pg.tipo IS NULL OR pg.tipo <> 'fresco')
          AND pg.nutricao IS NULL
-         -- "Identificado" = EXATAMENTE o critério do `tem_dados` no detalhe da nota
+         -- "Identificado" = EXATAMENTE o critério do tem_dados no detalhe da nota
          -- (faturas.js) — as duas superfícies TÊM de concordar. Vale ter:
          --   (A) ficha COM DADOS (foto/VLM ou OFF) para a mesma descrição+cadeia
          --       (identificar uma "Salada Gourmet" do Continente vale p/ todas as do
