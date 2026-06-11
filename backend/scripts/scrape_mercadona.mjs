@@ -7,6 +7,14 @@
 //
 // Uso:  node scripts/scrape_mercadona.mjs [limite]
 //       SO_NOVOS=0 DELAY=500 node scripts/scrape_mercadona.mjs
+//       WH=mad1,bcn1,vlc1,svq1 node scripts/scrape_mercadona.mjs
+//
+// WH = warehouses (armazéns) a unir. A API serve sortidos LIGEIRAMENTE diferentes
+// por zona (?wh=mad1|bcn1|vlc1|svq1|alc1…): ~4% de produtos regionais extra por
+// warehouse (medido 2026-06-11; preços são iguais — preço único nacional). Sem WH
+// fica o default da API (≈ Madrid), o comportamento antigo. Com vários, a
+// enumeração corre por warehouse e UNE os ids; o detalhe usa o 1.º wh onde o id
+// apareceu. Com SO_NOVOS=1 (default) é incremental: só os ids novos custam chamadas.
 import { getPool } from '../src/db.js';
 import { tituloProduto } from '../src/normaliza/titulo.js';
 
@@ -15,6 +23,8 @@ const UA = 'Mozilla/5.0 (compatible; BigbagBot/0.1; catalogo pessoal)';
 const LIMITE = Number(process.argv[2] || 0);
 const DELAY = Number(process.env.DELAY || 400);
 const SO_NOVOS = process.env.SO_NOVOS !== '0';
+const WHS = String(process.env.WH || '').split(',').map((s) => s.trim()).filter(Boolean);
+if (!WHS.length) WHS.push(''); // sem WH → default da API (comportamento antigo)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 
@@ -42,23 +52,29 @@ const UNIDADE = { kg: 'kg', g: 'kg', l: 'L', ml: 'L', cl: 'L', ud: 'un', u: 'un'
 
 async function main() {
   const pool = getPool();
-  console.log('[mercadona] a enumerar categorias…');
-  const raiz = await getJson(`${BASE}/categories/`);
-  if (!raiz?.results) throw new Error('API de categorias indisponível');
-
-  // nível 0 → subcategorias (nível 1); cada uma lista grupos (nível 2) com produtos
-  const produtos = new Map(); // id → { n1, n2, n3 }
-  for (const c0 of raiz.results) {
-    for (const c1 of c0.categories || []) {
-      const det = await getJson(`${BASE}/categories/${c1.id}/`);
-      await sleep(DELAY);
-      if (!det) continue;
-      for (const c2 of det.categories || []) {
-        for (const p of c2.products || []) {
-          if (!produtos.has(p.id)) produtos.set(p.id, { n1: c0.name, n2: c1.name, n3: c2.name });
+  // nível 0 → subcategorias (nível 1); cada uma lista grupos (nível 2) com produtos.
+  // Enumera por WAREHOUSE e une: o 1.º wh onde o id aparece "ganha" (categorias e
+  // detalhe vêm desse wh — irrelevante na prática, os dados do produto são iguais).
+  const produtos = new Map(); // id → { n1, n2, n3, wh }
+  for (const wh of WHS) {
+    const q = wh ? `?wh=${wh}` : '';
+    console.log(`[mercadona] a enumerar categorias${wh ? ` (wh=${wh})` : ''}…`);
+    const raiz = await getJson(`${BASE}/categories/${q}`);
+    if (!raiz?.results) throw new Error('API de categorias indisponível' + (wh ? ` (wh=${wh})` : ''));
+    const antes = produtos.size;
+    for (const c0 of raiz.results) {
+      for (const c1 of c0.categories || []) {
+        const det = await getJson(`${BASE}/categories/${c1.id}/${q}`);
+        await sleep(DELAY);
+        if (!det) continue;
+        for (const c2 of det.categories || []) {
+          for (const p of c2.products || []) {
+            if (!produtos.has(p.id)) produtos.set(p.id, { n1: c0.name, n2: c1.name, n3: c2.name, wh });
+          }
         }
       }
     }
+    console.log(`[mercadona]   ${wh || '(default)'}: +${produtos.size - antes} novos (total ${produtos.size})`);
   }
   console.log(`[mercadona] produtos enumerados: ${produtos.size}`);
 
@@ -76,7 +92,8 @@ async function main() {
   let ok = 0, semEan = 0, erro = 0, feitos = 0;
   for (const id of ids) {
     try {
-      const d = await getJson(`${BASE}/products/${id}/?lang=es`);
+      const whP = produtos.get(id)?.wh;
+      const d = await getJson(`${BASE}/products/${id}/?lang=es${whP ? `&wh=${whP}` : ''}`);
       if (d?.display_name) {
         const cat = produtos.get(id);
         const pi = d.price_instructions || {};
