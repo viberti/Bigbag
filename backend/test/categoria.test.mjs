@@ -1,6 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { grupoDeTexto, grupoDe } from '../src/normaliza/categoria.js';
+import { grupoDeTexto, grupoDe, tokenCasa } from '../src/normaliza/categoria.js';
+
+test('tokenCasa: igualdade e plural casam, prefixo curto NÃO (sal≠salmão)', () => {
+  assert.ok(tokenCasa('leite', 'leite'));        // igual
+  assert.ok(tokenCasa('iogurtes', 'iogurte'));   // plural (nome +1)
+  assert.ok(tokenCasa('queijos', 'queijo'));     // plural
+  assert.ok(tokenCasa('iogurte', 'iogurtes'));   // pedido no plural, nome raiz ≥4
+  assert.ok(!tokenCasa('salmao', 'sal'));        // o bug: "sal" não casa "salmão"
+  assert.ok(!tokenCasa('salsicha', 'sal'));
+  assert.ok(!tokenCasa('salada', 'sal'));
+  assert.ok(!tokenCasa('arroz', 'arr'));         // prefixo curto genérico
+  assert.ok(tokenCasa('sal', 'sal'));            // "sal" casa "sal"
+});
 
 test('mapeia categorias texto-livre conhecidas', () => {
   assert.equal(grupoDeTexto('Frutas e Legumes'), 'frutas');

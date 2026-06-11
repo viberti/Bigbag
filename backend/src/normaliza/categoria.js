@@ -48,6 +48,22 @@ export function grupoDeTexto(texto) {
   return GRUPO_OUTROS;
 }
 
+// Um token do PEDIDO casa um token do NOME quando: são iguais; o nome é o pedido
+// no plural (prefixo +"s", ou +"es" só em palavras ≥4); ou o nome é a raiz de um
+// pedido mais longo (nome ≥4). O plural +"es" limita-se a palavras ≥4 porque em
+// tokens curtos a diferença de 2 não é plural mas palavra distinta: "mel"→"melão",
+// "sal"→"salmão", "arr"→"arroz". "uva"→"uvas" (diferença 1) continua a casar.
+// Partilhado pelos matchers por token (lista, consulta, ficha) para não divergirem.
+export function tokenCasa(nomeTok, pedidoTok) {
+  if (nomeTok === pedidoTok) return true;
+  if (nomeTok.startsWith(pedidoTok)) {
+    const d = nomeTok.length - pedidoTok.length;
+    if (d === 1 || (d === 2 && pedidoTok.length >= 4)) return true;
+  }
+  if (pedidoTok.startsWith(nomeTok) && nomeTok.length >= 4) return true;
+  return false;
+}
+
 // Grupo de um SKU a partir das fontes disponíveis, por força decrescente:
 // food_groups do OFF (autoritativo) → NOME → categoria (texto). O nome do produto
 // é mais fiável que a categoria de LOJA, que mistura prateleiras: "Charcutaria e

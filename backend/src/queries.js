@@ -15,6 +15,7 @@
 // ("manteigas"→"manteiga", "iorgute"→"iogurte") sem o custo de embeddings.
 import { similaridadeTermo } from './normaliza/similaridade.js';
 import { facetasDe } from './normaliza/facetas.js';
+import { tokenCasa } from './normaliza/categoria.js';
 
 // Limiar do fallback fuzzy: ≥ casa; abaixo ignora (evita falsos positivos).
 const LIMIAR_FUZZY = 0.7;
@@ -88,7 +89,7 @@ async function facetasSkuIds(db, produto) {
     if (teor && normaliza(r.teor) !== teor) continue;
     if (sabor && normaliza(r.sabor) !== sabor) continue;
     const campos = [r.categoria, r.estilo, r.variedade].filter(Boolean).map(normaliza);
-    if (!resto.every((t) => campos.some((c) => c.split(/\s+/).some((w) => w.startsWith(t))))) continue;
+    if (!resto.every((t) => campos.some((c) => c.split(/\s+/).some((w) => tokenCasa(w, t))))) continue;
     ids.push(r.id);
   }
   return ids;
@@ -106,7 +107,7 @@ async function tokensSkuIds(db, produto) {
   for (const s of skus) {
     const toksN = normaliza(`${s.nome_canonico} ${s.marca || ''}`).split(/\s+/).filter(Boolean);
     // todos os tokens do pedido têm de aparecer como PALAVRA (prefixo p/ plurais)
-    const casa = toksQ.every((qt) => toksN.some((nt) => nt.startsWith(qt) || (qt.startsWith(nt) && nt.length >= 4)));
+    const casa = toksQ.every((qt) => toksN.some((nt) => tokenCasa(nt, qt)));
     if (!casa) continue;
     const headN = normaliza(s.nome_canonico).split(/\s+/)[0] || '';
     (headN.startsWith(toksQ[0]) ? fortes : fracos).push(s.id);

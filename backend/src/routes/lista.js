@@ -6,7 +6,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { grupoDeTexto } from '../normaliza/categoria.js';
+import { grupoDeTexto, tokenCasa } from '../normaliza/categoria.js';
 
 export const listaRouter = Router();
 listaRouter.use(requireAuth);
@@ -24,7 +24,7 @@ function skusDoNome(nome, skus) {
   const fortes = [], fracos = [];
   for (const s of skus) {
     const nt = norm(`${s.nome_canonico} ${s.nome_simplificado || ''}`).split(' ').filter(Boolean);
-    const casa = q.every((qt) => nt.some((w) => w.startsWith(qt) || (qt.startsWith(w) && w.length >= 4)));
+    const casa = q.every((qt) => nt.some((w) => tokenCasa(w, qt)));
     if (!casa) continue;
     const head = norm(s.nome_canonico).split(' ')[0] || '';
     (head.startsWith(q[0]) ? fortes : fracos).push(s);
