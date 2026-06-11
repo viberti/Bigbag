@@ -62,7 +62,7 @@ const STRINGS = {
     'habituais.footer': 'Sua lista tem {n|item|itens}',
     'habituais.footerHint': '· toque para adicionar ou remover',
     'cart.title': 'Lista de compras',
-    'cart.sheetTitle': 'Lista',
+    'cart.sheetTitle': 'Lista de Compras',
     'cart.empty': 'Sua lista está vazia. Abra “produtos que compro sempre” e toque para adicionar.',
     'cart.clear': 'Esvaziar lista',
     'cart.left': '{n|item|itens}',

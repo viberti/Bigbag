@@ -3476,9 +3476,6 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
       <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('cart.title')}>
         <div className="sheet-h">
-          <span className="cart-ic">
-            <Ico name="cart" size={20} />
-          </span>
           <span className="t">{t('cart.sheetTitle')}</span>
           {lista.length > 0 && <span className="cart-count">{t('cart.left', { n: lista.length })}</span>}
           {lista.length > 0 && (
