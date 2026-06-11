@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { grupoDeTexto, grupoDe, tokenCasa, singularizar } from '../src/normaliza/categoria.js';
+import { grupoDeTexto, grupoDe, grupoDeNome, tokenCasa, singularizar } from '../src/normaliza/categoria.js';
+
+test('grupoDeNome: substantivo-cabeça vence palavra forte de outro grupo (achados do LLM-juiz)', () => {
+  assert.equal(grupoDeNome('Croissant de Manteiga'), 'padaria');     // não lacticinios
+  assert.equal(grupoDeNome('Esparguete com Ovo'), 'padaria');        // não lacticinios
+  assert.equal(grupoDeNome('Batata Doce'), 'frutas');                // não doces
+  assert.equal(grupoDeNome('Abóbora Manteiga (Butternut)'), 'frutas'); // não lacticinios
+  assert.equal(grupoDeNome('Patê de Alho e Salsa'), 'carne');        // não frutas (salsa)
+  assert.equal(grupoDeNome('Gorgonzola Picante'), 'lacticinios');
+  assert.equal(grupoDeNome('Massa Fresca de Ovo com Ricotta'), 'padaria');
+  // e os normais continuam certos
+  assert.equal(grupoDeNome('Leite Meio Gordo'), 'lacticinios');
+  assert.equal(grupoDeNome('Doce de Leite'), 'doces');               // cabeça = doce ✓
+  assert.equal(grupoDeNome('Queijo Gouda'), 'lacticinios');
+  assert.equal(grupoDeNome('Sumo de Laranja'), 'bebidas');
+  assert.equal(grupoDeNome('Salada de Frutas'), 'frutas');
+  // 'milk_' = palavra inteira: "Milka" não é leite (era lacticinios)
+  assert.notEqual(grupoDeNome('Milka Confetti'), 'lacticinios');
+  assert.equal(grupoDeTexto('milk'), 'lacticinios'); // a palavra inteira continua a casar
+});
 
 test('singularizar: classes do português que aparecem em produtos', () => {
   assert.equal(singularizar('paes'), 'pao');         // pães → pão

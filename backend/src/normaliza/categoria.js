@@ -28,16 +28,16 @@ export const DISPENSA_FICHA_RE = `\\\\b(${[...DISPENSA_ALCOOL_KW, ...DISPENSA_CL
 export const DISPENSA_CLASSE_RE = `\\\\b(${DISPENSA_CLASSE_KW.join('|')})\\\\b`;
 
 export const GRUPOS = [
-  { id: 'frutas', t: ['fruta', 'fruit', 'legume', 'vegetal', 'vegetable', 'verdura', 'hortic', 'hortofrut', 'salada', 'cogumelo', 'meloa', 'melao', 'melancia', 'salsa'] },
-  { id: 'carne', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'salam', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru', 'presunto', 'chourico'] },
+  { id: 'frutas', t: ['fruta', 'fruit', 'legume', 'vegetal', 'vegetable', 'verdura', 'hortic', 'hortofrut', 'salada', 'cogumelo', 'meloa', 'melao', 'melancia', 'salsa', 'batata', 'abobora'] },
+  { id: 'carne', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'salam', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru', 'presunto', 'chourico', 'pate'] },
   { id: 'peixe', t: ['peixe', 'fish', 'marisco', 'seafood', 'bacalhau', 'atum', 'tuna', 'salmao', 'salmon', 'pescado', 'sardinha', 'cavala', 'biqueir'] },
-  { id: 'lacticinios', t: ['laticinio', 'lacteo', 'lacte', 'dair', 'leite', 'milk', 'queijo', 'cheese', 'iogurte', 'yogurt', 'yoghurt', 'manteiga', 'butter', 'nata', 'ovo', 'ovos', 'egg', 'eggs', 'requeijao', 'kefir', 'skyr', 'burrata', 'mozzarella'] },
-  { id: 'padaria', t: ['cereai', 'cereal', 'breakfast', 'pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'tosta', 'wrap', 'croissant', 'muesli', 'granola', 'aveia'] },
+  { id: 'lacticinios', t: ['laticinio', 'lacteo', 'lacte', 'dair', 'leite', 'milk_', 'queijo', 'cheese', 'iogurte', 'yogurt', 'yoghurt', 'manteiga', 'butter', 'nata', 'ovo', 'ovos', 'egg', 'eggs', 'requeijao', 'kefir', 'skyr', 'burrata', 'mozzarella', 'gorgonzola'] },
+  { id: 'padaria', t: ['cereai', 'cereal', 'breakfast', 'pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'tosta', 'wrap', 'croissant', 'muesli', 'granola', 'aveia', 'esparguete', 'espaguete'] },
   { id: 'bebidas', t: ['bebida', 'beverage', 'drink', 'agua', 'water', 'sumo', 'juice', 'refrigerante', 'soda', 'cerveja', 'beer', 'vinho', 'wine', 'cafe', 'coffee', 'cha', 'tea', 'alcool', 'alcohol'] },
   { id: 'doces', t: ['chocolate', 'doce', 'sweet', 'guloseima', 'candy', 'gelado', 'ice cream', 'snack', 'bolacha', 'biscuit', 'biscoito', 'cookie', 'sobremesa', 'dessert', 'mel', 'honey', 'compota', 'marmelada', 'jam'] },
   { id: 'congelados', t: ['congelado', 'frozen', 'ultracongelado'] },
   { id: 'higiene', t: ['higiene', 'hygiene', 'limpeza', 'cleaning', 'nao alimentar', 'detergente', 'detergent', 'papel', 'paper', 'cosmetic', 'sabonete', 'champo', 'beleza', 'lixivia', 'amaciador'] },
-  { id: 'mercearia', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'leguminosa', 'feijao', 'grao'] },
+  { id: 'mercearia', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'leguminosa', 'feijao', 'grao', 'tofu'] },
 ];
 export const GRUPO_OUTROS = 'outros';
 export const GRUPOS_IDS = [...GRUPOS.map((g) => g.id), GRUPO_OUTROS];
@@ -46,7 +46,10 @@ export const GRUPOS_IDS = [...GRUPOS.map((g) => g.id), GRUPO_OUTROS];
 const FOOD_GROUPS = {
   'fruits-and-vegetables': 'frutas', 'fruits': 'frutas', 'vegetables': 'frutas',
   'meat': 'carne', 'meat-other-than-poultry': 'carne', 'poultry': 'carne', 'processed-meat': 'carne',
-  'fish-and-seafood': 'peixe', 'fish-meat-eggs': 'carne',
+  // NB: 'fish-meat-eggs' (pai agregado no DAG do OFF) foi REMOVIDO de propósito:
+  // mapeá-lo a carne engolia atum/claras-de-ovo (auditoria 2026-06-11) — quando o
+  // OFF só dá o pai, deixa o NOME decidir.
+  'fish-and-seafood': 'peixe',
   'milk-and-dairy-products': 'lacticinios', 'dairy-desserts': 'lacticinios', 'cheese': 'lacticinios', 'eggs': 'lacticinios',
   'cereals-and-potatoes': 'padaria', 'bread': 'padaria', 'breakfast-cereals': 'padaria', 'cereals': 'padaria',
   'beverages': 'bebidas', 'alcoholic-beverages': 'bebidas', 'unsweetened-beverages': 'bebidas', 'sweetened-beverages': 'bebidas',
@@ -59,7 +62,15 @@ const FOOD_GROUPS = {
 const _re = new Map();
 function termRe(term) {
   let re = _re.get(term);
-  if (!re) { re = new RegExp(`(^|[^a-z0-9])${term}${term.length <= 3 ? '(?![a-z0-9])' : ''}`); _re.set(term, re); }
+  if (!re) {
+    // sufixo '_' no termo = PALAVRA INTEIRA obrigatória (ex.: 'milk_' não pode
+    // casar "Milka" — apanhado pelo LLM-juiz). Sem sufixo, termos >3 continuam
+    // a aceitar continuação ('iogurte'→'iogurtes', 'hortic'→'hortícolas').
+    const inteira = term.endsWith('_');
+    const t = inteira ? term.slice(0, -1) : term;
+    re = new RegExp(`(^|[^a-z0-9])${t}${inteira || t.length <= 3 ? '(?![a-z0-9])' : ''}`);
+    _re.set(term, re);
+  }
   return re;
 }
 
@@ -113,12 +124,31 @@ export function tokenCasa(nomeTok, pedidoTok) {
 // é mais fiável que a categoria de LOJA, que mistura prateleiras: "Charcutaria e
 // Queijos" casava 'charcutaria'→carne ANTES de 'queijo'→lacticínios, e punha os
 // queijos na carne. O nome ("Queijo Grana Padano") desambigua; a categoria é a rede.
+// Grupo a partir do NOME de um produto, com prioridade ao SUBSTANTIVO-CABEÇA:
+// "Croissant de Manteiga" é padaria (croissant), não lacticínios (manteiga);
+// "Esparguete com Ovo" é massa, não ovo; "Patê de Alho e Salsa" é carne, não
+// salsa. Era a fraqueza nº 1 apanhada pelo LLM-juiz (auditoria 2026-06-11):
+// uma palavra forte de OUTRO grupo no meio do nome vencia, porque grupoDeTexto
+// devolve o 1.º grupo cujo termo apareça em QUALQUER posição. Tenta primeiro o
+// segmento antes do 1.º conector (de/com/em/para/e); só depois o texto todo.
+// NB: para CATEGORIAS de loja continua o full-text (não têm cabeça única).
+export function grupoDeNome(nome) {
+  const n = norm(nome);
+  if (!n) return GRUPO_OUTROS;
+  const cabeca = n.split(/\s(?:de|do|da|dos|das|com|em|para|e)\s/)[0].trim();
+  if (cabeca && cabeca !== n) {
+    const g = grupoDeTexto(cabeca);
+    if (g !== GRUPO_OUTROS) return g;
+  }
+  return grupoDeTexto(n);
+}
+
 export function grupoDe({ foodGroups = null, categoria = null, nome = null } = {}) {
   for (const fg of Array.isArray(foodGroups) ? foodGroups : []) {
     const slug = String(fg).replace(/^en:/, '');
     if (FOOD_GROUPS[slug]) return FOOD_GROUPS[slug];
   }
-  const porNome = grupoDeTexto(nome);
+  const porNome = grupoDeNome(nome);
   if (porNome !== GRUPO_OUTROS) return porNome;
   return grupoDeTexto(categoria);
 }
