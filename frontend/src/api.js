@@ -257,6 +257,13 @@ export async function adicionarListaItem({ nome, quantidade, categoria, somar })
   if (!r.ok) throw new Error(`lista add ${r.status}`);
   return r.json();
 }
+// Variantes habituais de um item ("iogurte" → os iogurtes que a casa compra).
+export async function variantesLista(nome) {
+  const r = await call(`/api/lista/variantes?nome=${encodeURIComponent(nome)}`);
+  if (!r.ok) throw new Error(`lista variantes ${r.status}`);
+  const { variantes } = await r.json();
+  return variantes || [];
+}
 export async function atualizarListaItem(id, dados) {
   const r = await call(`/api/lista/${id}`, {
     method: 'PATCH',

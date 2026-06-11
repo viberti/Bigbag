@@ -32,6 +32,24 @@ function skusDoNome(nome, skus) {
   return fortes.length ? fortes : fracos;
 }
 
+// Hábitos de compra por SKU: nº de idas em que apareceu e unidades por ida.
+// Base do "produto sugerido" e da "quantidade habitual" da lista inteligente.
+async function habitosDosSkus(pool, skuIds) {
+  if (!skuIds.length) return new Map();
+  const ph = skuIds.map(() => '?').join(',');
+  const [hist] = await pool.query(
+    `SELECT i.sku_id, i.fatura_id, SUM(GREATEST(i.quantidade,1)) AS q
+       FROM item i WHERE i.sku_id IN (${ph}) AND i.is_non_product = 0
+      GROUP BY i.sku_id, i.fatura_id`, skuIds);
+  const habito = new Map(); // sku_id → {idas, soma}
+  for (const r of hist) {
+    const h = habito.get(r.sku_id) || { idas: 0, soma: 0 };
+    h.idas++; h.soma += Number(r.q) || 1;
+    habito.set(r.sku_id, h);
+  }
+  return habito;
+}
+
 // Resolve preço + GRUPO de cada item da lista. Carrega os SKUs uma vez (tabela
 // pequena), casa por tokens, e pede os preços recentes desses SKUs numa query só.
 async function resolverItensLista(pool, itens, mercado) {
@@ -46,6 +64,7 @@ async function resolverItensLista(pool, itens, mercado) {
     // GRUPO (ponto 3): do SKU casado (1.º com grupo definido); senão do NOME.
     it.grupo = matched.find((s) => s.grupo && s.grupo !== 'outros')?.grupo || grupoDeTexto(it.nome);
     it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null; it.unidade_base = null;
+    it.produto_sugerido = null; it.variantes_n = 0; it.qtd_habitual = null;
   }
   if (!allSkuIds.size) return;
   const ids = [...allSkuIds];
@@ -76,6 +95,12 @@ async function resolverItensLista(pool, itens, mercado) {
   }
   const recentePorSku = new Map(); // sku_id → [{ppb, pu, unidade, loja}]
   for (const r of rows) (recentePorSku.get(r.sku_id) || recentePorSku.set(r.sku_id, []).get(r.sku_id)).push(r);
+  // HÁBITOS da casa (lista inteligente, fase 1): por SKU casado, em quantas idas
+  // foi comprado e quantas unidades por ida. Alimenta o "produto sugerido" (o que
+  // ESTA casa compra quando escreve "iogurte"), o nº de opções (abre o seletor de
+  // variantes) e a quantidade habitual. Determinístico — o histórico é a inteligência.
+  const habitoPorSku = await habitosDosSkus(pool, ids);
+  const skuById = new Map(skus.map((s) => [s.id, s]));
   // Por item: preferimos €/base (comparável) ao preço de embalagem. Só caímos para
   // a embalagem (pu) se NENHUM dos SKUs casados tiver ppb — evita misturar unidades.
   for (const it of itens) {
@@ -89,6 +114,17 @@ async function resolverItensLista(pool, itens, mercado) {
     }
     const esc = base || emb;
     if (esc) { it.melhor_preco = esc.v; it.melhor_loja = esc.loja; it.unidade_base = esc.unidade; }
+    // produto sugerido = a variante MAIS comprada entre os SKUs casados (idas);
+    // qtd habitual = unidades/ida dessa variante. Só variantes com compras contam.
+    const compr = [...(skuIdsPorItem.get(it.id) || [])]
+      .map((sid) => ({ sid, h: habitoPorSku.get(sid) }))
+      .filter((x) => x.h)
+      .sort((a, b) => b.h.idas - a.h.idas);
+    it.variantes_n = compr.length;
+    if (compr.length) {
+      it.produto_sugerido = skuById.get(compr[0].sid)?.nome_canonico || null;
+      it.qtd_habitual = Math.max(1, Math.round(compr[0].h.soma / compr[0].h.idas));
+    }
     for (const sid of skuIdsPorItem.get(it.id) || []) {
       const m = mercado ? noMercado.get(sid) : null;
       if (!m) continue;
@@ -98,6 +134,53 @@ async function resolverItensLista(pool, itens, mercado) {
     }
   }
 }
+
+// Variantes HABITUAIS de um item da lista ("iogurte" → os iogurtes que ESTA casa
+// compra, por frequência, com preço e loja) — o utilizador escolhe e o item
+// concretiza-se (PATCH nome). Determinístico: histórico + matching por tokens.
+listaRouter.get('/variantes', async (req, res) => {
+  try {
+    const nome = String(req.query.nome || '').trim();
+    if (!nome) return res.status(400).json({ erro: 'nome em falta' });
+    const pool = getPool();
+    const [skus] = await pool.query('SELECT id, nome_canonico, nome_simplificado, grupo FROM sku_normalizado');
+    const matched = skusDoNome(nome, skus);
+    if (!matched.length) return res.json({ variantes: [] });
+    const ids = matched.map((s) => s.id);
+    const ph = ids.map(() => '?').join(',');
+    const habito = await habitosDosSkus(pool, ids);
+    // preço mais recente por SKU (€/base quando há; senão preço de embalagem)
+    const [prec] = await pool.query(
+      `SELECT sku_id, ppb, pu, unidade, loja FROM (
+         SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario AS pu, s.unidade_base AS unidade,
+                COALESCE(l.cadeia,l.nome) AS loja,
+                ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
+           FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id JOIN sku_normalizado s ON s.id=i.sku_id
+          WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0
+       ) t WHERE rn = 1`, ids);
+    const precoPorSku = new Map(prec.map((r) => [r.sku_id, r]));
+    const variantes = matched
+      .map((s) => {
+        const h = habito.get(s.id);
+        if (!h) return null; // só o que a casa já comprou
+        const p = precoPorSku.get(s.id);
+        return {
+          sku_id: s.id, nome: s.nome_canonico, idas: h.idas,
+          qtd_habitual: Math.max(1, Math.round(h.soma / h.idas)),
+          preco: p ? num(p.ppb ?? p.pu) : null,
+          unidade: p?.ppb != null ? p.unidade : null,
+          loja: p?.loja || null,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.idas - a.idas)
+      .slice(0, 8);
+    res.json({ variantes });
+  } catch (e) {
+    console.error('[lista/variantes] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar variantes' });
+  }
+});
 
 // Lista atual (ativos + riscados) com preços + GRUPO, e as lojas p/ o seletor.
 listaRouter.get('/', async (req, res) => {
@@ -197,6 +280,11 @@ listaRouter.patch('/:id', async (req, res) => {
       const q = Math.max(1, Math.min(99, Number(req.body.quantidade) || 1));
       sets.push('quantidade = ?');
       vals.push(q);
+    }
+    if ('nome' in (req.body || {})) {
+      // concretizar o item (ex.: escolher a variante "Iogurte Grego Natural")
+      const n = String(req.body.nome || '').trim().slice(0, 160);
+      if (n) { sets.push('nome = ?'); vals.push(n); }
     }
     if ('marcado' in (req.body || {})) {
       if (req.body.marcado) {

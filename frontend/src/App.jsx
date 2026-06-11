@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, variantesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -538,6 +538,13 @@ function Chat({ onSair, nome }) {
     if (String(id).startsWith('tmp')) return;
     try { await removerListaItem(id); } catch { setListaOffline(true); }
   }
+  // Concretizar um item (sugestão/variante escolhida): renomeia e recarrega para
+  // os preços/chips refletirem o produto agora exato.
+  async function renomearItemLista(id, nome) {
+    setLista((xs) => (xs || []).map((i) => (i.id === id ? { ...i, nome } : i)));
+    if (String(id).startsWith('tmp')) return;
+    try { await atualizarListaItem(id, { nome }); carregarLista(); } catch { setListaOffline(true); }
+  }
   async function limparCarrinho() {
     setLista([]);
     try { await limparListaCompras(); } catch { setListaOffline(true); }
@@ -832,6 +839,7 @@ function Chat({ onSair, nome }) {
         onMarcar={marcarItemLista}
         onQtd={qtdItemLista}
         onRemover={removerItemLista}
+        onRenomear={renomearItemLista}
         onLimpar={limparCarrinho}
         onAbrirHabituais={abrirHabituais}
         onAbrirMinha={abrirMinhaLista}
@@ -3233,7 +3241,7 @@ function TabNut({ n }) {
 // Linha da lista partilhada: TOQUE risca/desrisca ("no carrinho", com a cor de
 // quem riscou); arrasta para a DIREITA para remover; − / + altera a quantidade;
 // mostra quem adicionou (inicial colorida) e o melhor preço recente (e onde).
-function ItemCarrinho({ it, onRemover, onMarcar, onQtd }) {
+function ItemCarrinho({ it, onRemover, onMarcar, onQtd, onRenomear, onVariantes }) {
   const [dx, setDx] = useState(0);
   const [hist, setHist] = useState(null); // null = fechado; array = aberto
   const [carregando, setCarregando] = useState(false);
@@ -3274,6 +3282,12 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd }) {
   }
   const riscado = it.estado === 'carrinho';
   const preco = it.preco_mercado ?? it.melhor_preco;
+  // chips inteligentes (do histórico da casa): sugestão do produto real, seletor
+  // de variantes e quantidade habitual. Discretos, e só em itens ainda ativos.
+  const sugestao = !riscado && it.produto_sugerido && it.produto_sugerido.toLowerCase() !== String(it.nome).toLowerCase()
+    ? it.produto_sugerido : null;
+  const sugereQtd = !riscado && it.qtd_habitual > 1 && (it.quantidade || 1) === 1;
+  const temChips = sugestao || it.variantes_n > 1 || sugereQtd;
   return (
     <div className="crow-li">
       <div className="crow-bg">
@@ -3297,6 +3311,25 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd }) {
           {preco != null && (
             <span className="csub">
               {eur(preco)}{it.unidade_base ? `/${it.unidade_base}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}
+            </span>
+          )}
+          {temChips && (
+            <span className="cchips" onClick={(e) => e.stopPropagation()}>
+              {sugestao && (
+                <button type="button" className="cchip sug" onClick={() => { onRenomear(it.id, sugestao); track('lista_sugestao_aceitar'); }}>
+                  → {sugestao}
+                </button>
+              )}
+              {it.variantes_n > 1 && (
+                <button type="button" className="cchip" onClick={() => onVariantes(it)}>
+                  {t('lista.opcoes', { n: it.variantes_n })}
+                </button>
+              )}
+              {sugereQtd && (
+                <button type="button" className="cchip" onClick={() => { onQtd(it.id, it.qtd_habitual); track('lista_qtd_habitual'); }}>
+                  {t('lista.costuma', { n: it.qtd_habitual })}
+                </button>
+              )}
             </span>
           )}
         </span>
@@ -3341,9 +3374,24 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd }) {
   );
 }
 
-function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onRemover, onLimpar, onAbrirHabituais, onAbrirMinha, onFechar }) {
+function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onRemover, onRenomear, onLimpar, onAbrirHabituais, onAbrirMinha, onFechar }) {
   const [novo, setNovo] = useState('');
   const adicionar = () => { if (novo.trim()) { onAdicionar(novo); setNovo(''); } };
+  // seletor de VARIANTES habituais ("iogurte" → os iogurtes que a casa compra)
+  const [varItem, setVarItem] = useState(null);   // item da lista em escolha
+  const [variantes, setVariantes] = useState(null); // null = a carregar
+  function abrirVariantes(it) {
+    setVarItem(it); setVariantes(null);
+    track('lista_variantes_abrir');
+    variantesLista(it.nome).then(setVariantes).catch(() => setVariantes([]));
+  }
+  function escolherVariante(v) {
+    onRenomear(varItem.id, v.nome);
+    // aplica também a quantidade habitual, se o utilizador ainda não mexeu nela
+    if (v.qtd_habitual > 1 && (varItem.quantidade || 1) === 1) onQtd(varItem.id, v.qtd_habitual);
+    track('lista_variante_escolher');
+    setVarItem(null);
+  }
   // ditar produtos por VOZ: gravar → /api/voz/lista extrai os nomes → adiciona todos
   const [gravando, setGravando] = useState(false);
   const [aOuvir, setAOuvir] = useState(false); // a processar o áudio
@@ -3423,7 +3471,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                 <div key={g.id}>
                   <div className="cart-cat"><span className="cart-cat-ic">{g.ic}</span> {g.label}</div>
                   {its.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} />
+                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onRenomear={onRenomear} onVariantes={abrirVariantes} />
                   ))}
                 </div>
               ))}
@@ -3431,7 +3479,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                 <div className="cart-feito">
                   <div className="cart-cat cart-cat-feito"><Ico name="cart" size={15} /> <span>{noCarrinho.length}</span></div>
                   {noCarrinho.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} />
+                    <ItemCarrinho key={it.id} it={it} onRemover={onRemover} onMarcar={onMarcar} onQtd={onQtd} onRenomear={onRenomear} onVariantes={abrirVariantes} />
                   ))}
                 </div>
               )}
@@ -3467,6 +3515,36 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
             {t('cart.clear')}
           </button>
         </div>
+        {varItem && (
+          <div className="cvars-scrim" onClick={() => setVarItem(null)}>
+            <div className="cvars" onClick={(e) => e.stopPropagation()}>
+              <h4>{t('lista.varTitulo', { nome: varItem.nome })}</h4>
+              {variantes === null ? (
+                <p className="cvars-vazio">{t('chat.thinking')}</p>
+              ) : variantes.length === 0 ? (
+                <p className="cvars-vazio">{t('lista.varNenhuma')}</p>
+              ) : (
+                variantes.map((v) => (
+                  <button key={v.sku_id} type="button" className="cvar" onClick={() => escolherVariante(v)}>
+                    <span className="cvar-n">
+                      <b>{v.nome}</b>
+                      <span>
+                        {t('lista.varSub', { n: v.idas })}
+                        {v.qtd_habitual > 1 ? ` · ${t('lista.costuma', { n: v.qtd_habitual })}` : ''}
+                      </span>
+                    </span>
+                    {v.preco != null && (
+                      <span className="cvar-p">
+                        {eur(v.preco)}{v.unidade ? `/${v.unidade}` : ''}
+                        {v.loja ? <span className="cvar-l">{v.loja}</span> : null}
+                      </span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </>
   );
