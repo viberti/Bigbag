@@ -128,15 +128,22 @@ export async function persistirFatura(
       }
     }
 
+    // B5: NIF do comprador (atribuição ao membro) e forma de pagamento — campos
+    // que o talão dá de graça. NIF normalizado a dígitos; pagamento numa whitelist.
+    const nifComprador = String(dados.nif_comprador || '').replace(/\D/g, '').slice(0, 20) || null;
+    const formaPag = ['dinheiro', 'cartao', 'mbway', 'outro'].includes(String(dados.forma_pagamento || '').toLowerCase())
+      ? String(dados.forma_pagamento).toLowerCase() : null;
     const [rf] = await conn.query(
       `INSERT INTO fatura
-         (loja_id, data_compra, numero_fatura, total_impresso, total_reconciliado, discrepancia, needs_review,
+         (loja_id, data_compra, numero_fatura, nif_comprador, forma_pagamento, total_impresso, total_reconciliado, discrepancia, needs_review,
           desconto_global, precos_com_iva, ficheiro_original, metodo_extracao, origem_captura, modelo, extracao_json)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         lojaId,
         data,
         numero,
+        nifComprador,
+        formaPag,
         total,
         totalReconciliado != null ? num(totalReconciliado) : null,
         discrepancia != null ? num(discrepancia) : null,

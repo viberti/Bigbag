@@ -122,6 +122,13 @@ export async function reprocessarFatura(pool, faturaId) {
         ],
       );
     }
+    const nifComprador = String(dados.nif_comprador || '').replace(/\D/g, '').slice(0, 20) || null;
+    const formaPag = ['dinheiro', 'cartao', 'mbway', 'outro'].includes(String(dados.forma_pagamento || '').toLowerCase())
+      ? String(dados.forma_pagamento).toLowerCase() : null;
+    await conn.query(
+      'UPDATE fatura SET nif_comprador = COALESCE(?, nif_comprador), forma_pagamento = COALESCE(?, forma_pagamento) WHERE id = ?',
+      [nifComprador, formaPag, faturaId],
+    );
     await conn.query(
       `UPDATE fatura SET total_impresso = ?, total_reconciliado = ?, discrepancia = ?, needs_review = ?,
          desconto_global = ?, precos_com_iva = ?, extracao_json = ? WHERE id = ?`,

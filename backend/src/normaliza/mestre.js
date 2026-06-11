@@ -18,6 +18,11 @@ const ln = (x) => {
   return VAZIOS.has(s) ? '' : s;
 };
 
+// Cabeçalhos de SECÇÃO da loja que o VLM às vezes cola ao nome do item seguinte
+// (o Pingo Doce imprime-os em linha própria: "MERCEARIA", "TAKE-AWAY"…). Só no
+// INÍCIO e só se sobrar nome a sério (≥3 chars) — lista conservadora, B5.
+const SECCOES = /^(MERCEARIA(\s*\+\s*PET\s*FOOD(\s+E)?)?|CONGELADOS|TAKE[\s-]?AWAY|PET\s*FOOD|PADARIA|PASTELARIA|TALHO|PEIXARIA|CHARCUTARIA|LA[CT]TIC[IÍ]NIOS|FRUTAS\s+E\s+VEGETAIS|HIGIENE\s+E\s+BELEZA|FRESCOS|BEBIDAS)\s+(?=\S{3})/i;
+
 // (1) LIMPEZA determinística da descrição (antes do LLM). Remove lixo estrutural:
 // linha de peso colada, prefixos de quantidade, códigos de IVA, duplicações de OCR.
 export function limparDescricao(d) {
@@ -25,6 +30,7 @@ export function limparDescricao(d) {
   // Itera até estabilizar: prefixos podem empilhar ("1 1 X", "(A) 1 X").
   for (let i = 0; i < 4; i++) {
     const antes = s;
+    s = s.replace(SECCOES, ''); // cabeçalho de secção colado ao nome
     s = s.replace(/\s+[A-Z]?\s*kg\s*x[\d.,]+\s+[\d.,]+\s*EUR\/kg(EUR)?/gi, ''); // "B kg x0,534 6,29 EUR/kg"
     s = s.replace(/\s+[\d.,]+\s*EUR\/kg(EUR)?/gi, '');
     s = s.replace(/kgEUR/gi, 'kg'); // duplicação de OCR
