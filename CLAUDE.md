@@ -95,4 +95,5 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Custo:** ~97% é a ingestão de talões — metade leitura-VLM, metade normalização item-a-item por LLM. A alavanca de poupança é o **catálogo determinístico** (cada item resolvido sem LLM corta canonicalizar+mestre); a aba Custos mede por feature.
 - `OPENROUTER_TIMEOUT_MS` — vigiar; pode ser curto para imagem grande num VLM.
 - Comparações de preço usam sempre `preco_por_base` (€/kg, €/L, €/un); filtrar `is_clearance` e `is_non_product`.
+- **Preço de CATÁLOGO (online) é só referência, nunca critério** (decisão do dono, 2026-06-11): pode divergir da loja física e mudar de um dia para o outro. No matching entra apenas como **bónus de desempate** (nunca penaliza nem decide — `bonusPreco`, marca manda sobre preço); o **histórico de preços vem exclusivamente dos talões** (preço pago, facto). Mostrar preço de catálogo sempre como aproximação.
 - PWA: testar câmara e microfone em **dispositivo real** (sobretudo iOS/Safari), não só no desktop.
