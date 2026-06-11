@@ -183,6 +183,24 @@ PREPARADO CARNE PICADA PORC</pre>
   </ul>
 </section>
 
+<!-- 4b · NUTRIÇÃO CLASSE vs PRODUTO -->
+<section class="slide">
+  <span class="kicker">Nutrição herdada — o eixo certo</span>
+  <h2>Da <span class="acc">classe</span> ou do <span class="acc">produto</span>? O EAN não decide</h2>
+  <table>
+    <tr><th>Fonte da nutrição</th><th>Quando</th><th>Exemplos</th></tr>
+    <tr><td><b class="acc">CLASSE</b> (por nome)</td><td>é propriedade do <i>tipo</i> de alimento</td><td>frutas · carne · <b>cereais</b> (arroz, farinha, massa) · <b>pão</b></td></tr>
+    <tr><td><b>PRODUTO</b> (EAN→OFF)</td><td>a <i>marca/receita</i> muda a nutrição</td><td>bolacha Oreo ≠ genérica · cereais de marca</td></tr>
+    <tr><td class="faint">irrelevante</td><td class="faint">—</td><td class="faint">álcool · não-alimentar</td></tr>
+  </table>
+  <div class="card bad">
+    <h3>Os dois enganos que isto desfaz</h3>
+    <p>① Um <b>fresco pode ter EAN</b> (ovos em caixa, salada em saco, pão industrial) — herda pela classe na mesma.
+       ② Um item de classe pode <b>não ter EAN</b> (pão da padaria) — por isso a worklist <b class="warn">nunca depende do EAN</b>,
+       senão o pão da padaria ficava preso para sempre. Decide a <b>natureza</b>, não o código de barras.</p>
+  </div>
+</section>
+
 <!-- 5 · PIPELINE -->
 <section class="slide">
   <span class="kicker">Arquitetura</span>
@@ -338,7 +356,7 @@ doces · congelados · higiene · mercearia · outros</pre>
     <tr><td>Preços comparáveis</td><td>tudo em <span class="eur">€/base</span> (€/kg, €/L, €/un) — packs não enganam</td></tr>
     <tr><td>Agrupamento entre lojas</td><td>o "Leite Meio Gordo" do Lidl, Continente e Mercadona é <b>o mesmo SKU</b></td></tr>
     <tr><td>Consultas por atributo</td><td><span class="mint">teor='magro'</span>, <span class="mint">estilo='grego'</span> — impossível por string</td></tr>
-    <tr><td>Nutrição herdada</td><td>frescos pela <b>classe</b> (nome); embalados pelo <b>EAN → OFF</b></td></tr>
+    <tr><td>Nutrição herdada</td><td>da <b>classe</b> (banana, arroz, pão — mesmo com EAN) ou do <b>produto</b> (marca, EAN→OFF)</td></tr>
     <tr><td>Barato e auditável</td><td>determinístico: rápido, custo ~zero, cada decisão é explicável</td></tr>
     <tr><td>LLM só onde paga</td><td>extração de imagem + texto livre, sempre com <b>cache</b> (a 2.ª vez é grátis)</td></tr>
   </table>

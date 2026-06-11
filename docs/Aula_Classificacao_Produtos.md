@@ -51,6 +51,26 @@ A mesma compra tem **três nomes**, e os três importam:
 - **Frescos** (banana, carne picada) não têm EAN útil → a identidade é o **nome**,
   e a nutrição vem da **classe** ("banana" tem nutrição conhecida por 100 g).
 
+### Nutrição: da CLASSE ou do PRODUTO (e o EAN não decide)
+
+Erro comum (que tínhamos no 1.º modelo): "fresco → classe; embalado → EAN". A
+fronteira **não é a embalagem nem o EAN** — é a **natureza do alimento**:
+
+| | Fonte da nutrição | Exemplos |
+|---|---|---|
+| **Da CLASSE** (por nome) | a nutrição é uma propriedade do *tipo* de alimento | frescos (banana), **cereais/staples** (arroz, farinha, massa), **pão** |
+| **Do PRODUTO** (por EAN→OFF) | a *receita/marca* muda a nutrição | bolacha Oreo ≠ bolacha genérica; cereais de pequeno-almoço de marca |
+| **Irrelevante** | — | álcool, não-alimentar (lixívia) |
+
+Os dois enganos que isto desfaz:
+1. **Um fresco pode ter EAN** (ovos em caixa, salada em saco, pão industrial) —
+   **mesmo assim herda pela classe**. O EAN serve a identidade e o preço, não muda
+   a nutrição de "ovo".
+2. **Um item de classe pode NÃO ter EAN** (pão da padaria do mercado) — herda pela
+   classe na mesma. **Por isso a worklist "por identificar" nunca pode depender do
+   EAN**: senão o pão da padaria ficaria preso para sempre. O critério decide pela
+   *natureza* (classe/álcool/não-alimentar), não pela presença de código de barras.
+
 ### O pipeline completo
 
 ```
@@ -177,7 +197,7 @@ entra só onde texto livre exige interpretação — e com resultado cacheado.**
 | **Preços comparáveis** | tudo em €/base (€/kg, €/L, €/un) sobre o mesmo SKU — packs de tamanhos diferentes não enganam |
 | **Agrupamento entre lojas** | "Leite Meio Gordo" do Lidl, Continente e Mercadona caem no mesmo SKU/Mestre |
 | **Consultas por atributo** | `teor='magro'`, `estilo='grego'` — impossível por string |
-| **Nutrição herdada** | frescos sem EAN ganham nutrição pela classe (nome); embalados, pelo EAN→OFF |
+| **Nutrição herdada** | da CLASSE (banana, arroz, pão — mesmo com EAN) ou do PRODUTO (marca, via EAN→OFF); decide a natureza do alimento, não a embalagem |
 | **Barato e auditável** | classificação determinística: rápida, custo ~zero, e cada decisão é explicável (qual regra disparou) |
 | **LLM só onde paga** | extração da imagem e interpretação de texto livre — sempre com cache (a 2.ª vez é grátis) |
 
