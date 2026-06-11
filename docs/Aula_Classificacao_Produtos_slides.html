@@ -344,6 +344,28 @@ doces · congelados · higiene · mercearia · outros</pre>
   </table>
 </section>
 
+<!-- 10b · QUALIDADE -->
+<section class="slide">
+  <span class="kicker">Um classificador sem métrica é uma opinião</span>
+  <h2>Medir a qualidade — em 3 camadas</h2>
+  <ul style="gap:1.6vh">
+    <li><span class="num">1</span><b>Fonte independente (grátis):</b> concordância com os <i>food_groups</i> do OFF
+        por EAN → <b class="acc">76%</b>. Discordância <b>não diz quem errou — diz onde olhar</b>.</li>
+    <li><span class="num">2</span><b>LLM-juiz</b>, com 4 regras: <b>outra família</b> que o pipeline ·
+        <b>lotes pequenos</b> (40) · juiz é <b>triagem, não veredicto</b> (36 flags → 25 falsos alarmes;
+        o humano decide) · e <b class="warn">calibrar com canários</b> (5 erros plantados — tem de os apanhar).</li>
+    <li><span class="num">3</span><b>Resultado:</b> <b class="acc">10 erros reais em 324 (~3%)</b>, com padrão comum —
+        palavra forte de outro grupo vence o substantivo-cabeça (<i>Croissant de <b>Manteiga</b></i>→lacticínios,
+        <i>Batata <b>Doce</b></i>→doces, <i><b>Milka</b></i> casa "milk"). Custo: <b>cêntimos</b>.</li>
+  </ul>
+  <div class="card bad">
+    <h3>A armadilha que quase nos enganou</h3>
+    <p>As 3 primeiras rondas deram <b>"0 erros em 324"</b> — perfeição! Era um <b>bug de parsing nosso</b>:
+       o juiz respondia, nós líamos vazio. Só os <b class="warn">canários</b> o denunciaram (0/5 apanhados = impossível).
+       <b>Moral: o auditor também precisa de auditoria.</b></p>
+  </div>
+</section>
+
 <!-- 11 · PROBLEMAS -->
 <section class="slide">
   <span class="kicker">Honestidade científica</span>

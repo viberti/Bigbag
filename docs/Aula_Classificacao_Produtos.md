@@ -183,7 +183,34 @@ entra só onde texto livre exige interpretação — e com resultado cacheado.**
 
 ---
 
-## 5. Problemas ainda não resolvidos
+## 5. Como medir a qualidade (e a armadilha do juiz)
+
+Um classificador sem métrica de qualidade é uma opinião. Medimos em **3 camadas**
+(números reais de 2026-06-11, 324 SKUs):
+
+1. **Concordância com fonte independente (grátis).** O OFF traz `food_groups`
+   próprios por EAN → comparar com o nosso grupo: **76%**. A leitura certa:
+   a discordância **não diz quem errou — diz onde olhar** (das 13, a maioria
+   éramos nós certos; mas apanhou um "Muesli" nosso em *frutas*).
+2. **LLM-juiz** (a ideia óbvia — e funciona, com 4 regras de ouro):
+   **outra família** de modelo que o pipeline (erros não correlacionados);
+   **lotes pequenos** (40 — em listas grandes a atenção dilui);
+   o juiz é **triagem, não veredicto** (36 flags → 25 falsos alarmes; o humano decide);
+   e sobretudo: **calibrar com canários** — plantar 5 erros óbvios ("leite→peixe")
+   e exigir que os apanhe.
+3. **Resultado:** **10 erros reais em 324 (~3%)** — e com padrão comum, ouro para
+   melhorar o classificador: uma palavra forte de outro grupo no nome vence o
+   substantivo-cabeça (*Croissant de **Manteiga***→lacticínios, *Batata **Doce***→doces,
+   ***Milka*** casa "milk"). Custo da auditoria inteira: cêntimos.
+
+> **A armadilha que quase nos enganou:** as 3 primeiras rondas do juiz deram
+> **"0 erros em 324"** — perfeição! Era um **bug de parsing nosso** (o juiz recebia
+> a pergunta, mas nós líamos sempre uma resposta vazia). Só o teste de canários o
+> denunciou: 0/5 erros plantados apanhados = impossível. Corrigido: 5/5.
+> **Moral: o auditor também precisa de auditoria** — sem canários, teríamos
+> reportado qualidade perfeita com um juiz que não estava a ler nada.
+
+## 6. Problemas ainda não resolvidos
 
 1. **Granularidade desigual do Mestre.** `categoria` é específica na carne
    ("carne de porco", "frango") e genérica nos laticínios ("iogurte"). Resolvido
@@ -207,7 +234,7 @@ entra só onde texto livre exige interpretação — e com resultado cacheado.**
 
 ---
 
-## 6. A lição de arquitetura (para levar para casa)
+## 7. A lição de arquitetura (para levar para casa)
 
 > **String não é taxonomia.** O nome do produto é uma *evidência*, não a
 > *identidade*. A identidade é (1) o EAN quando existe, (2) um vetor de facetas
