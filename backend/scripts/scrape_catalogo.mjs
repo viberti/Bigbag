@@ -169,6 +169,9 @@ const FONTES = {
   // Pingo Doce: SFCC (como Auchan/Continente), ~20k produtos, categoria no path
   // do URL, nome/marca no JSON-LD. SEM EAN (não o publica). Útil para nome+categoria
   // dos itens de talões DO Pingo Doce (cadeia grande). Aceita o nosso UA de bot.
+  // BÓNUS (2026-06-11): o `description` do JSON-LD é a ABREVIATURA DE TALÃO oficial
+  // ("IOG MAG PD NAT 125G") → guarda-se em `descricao_curta` (matching verbatim
+  // talão↔catálogo) e dela extrai-se o TAMANHO que falta aos nomes do site.
   pingodoce: {
     sitemapIndex: 'https://www.pingodoce.pt/home/sitemap_index.xml',
     sitemapMatch: /-product\.xml/i,
@@ -179,13 +182,21 @@ const FONTES = {
       const nome = String(p.name || '').trim(); if (!nome) return null;
       const preco = num(Array.isArray(p.offers) ? p.offers[0]?.price : p.offers?.price);
       const niveis = new URL(url).pathname.split('/').filter(Boolean).slice(2, -1); // tira 'home','produtos' e o slug do produto
+      const desc = typeof p.description === 'string' ? decode(p.description).slice(0, 80) || null : null;
+      // formato: o nome do site não tem tamanho (vira "1un" degenerado); a abreviatura
+      // de talão tem ("125G", "6X1,5L") → prefere o formato dela quando é real.
+      const fmtNome = comporFormatoPreco(p, nome, preco);
+      const fmtDesc = desc ? comporFormatoPreco(p, desc, preco) : null;
+      const degenerado = (f) => !f?.formato_valor || (f.formato_valor === 1 && f.unidade_base === 'un');
+      const fmt = degenerado(fmtNome) && !degenerado(fmtDesc) ? fmtDesc : fmtNome;
       return {
         ean: null, // o Pingo Doce não publica EAN
         nome: nome.slice(0, 255), marca: ((typeof p.brand === 'object' ? p.brand?.name : p.brand) || null)?.toString().slice(0, 140) || null,
+        descricao_curta: desc,
         ...niveisToCat(niveis.map((n) => n.slice(0, 90))),
         preco, moeda: (Array.isArray(p.offers) ? p.offers[0]?.priceCurrency : p.offers?.priceCurrency) || 'EUR',
         imagem_url: ((Array.isArray(p.image) ? p.image[0] : p.image) || null)?.toString().slice(0, 600) || null,
-        ...comporFormatoPreco(p, nome, preco),
+        ...fmt,
       };
     },
   },
@@ -194,14 +205,15 @@ const FONTES = {
 async function upsert(pool, fonte, sku, url, f) {
   await pool.query(
     `INSERT INTO catalogo_produto
-       (fonte, sku_fonte, ean, nome, marca, categoria_path, categoria, cat_n1, cat_n2, cat_n3, cat_n4,
+       (fonte, sku_fonte, ean, nome, marca, descricao_curta, categoria_path, categoria, cat_n1, cat_n2, cat_n3, cat_n4,
         formato, unidade_base, formato_valor, preco, moeda, preco_por_base, url, imagem_url, scraped_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())
-     ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome=VALUES(nome), marca=VALUES(marca), categoria_path=VALUES(categoria_path),
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())
+     ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome=VALUES(nome), marca=VALUES(marca),
+       descricao_curta=COALESCE(VALUES(descricao_curta), descricao_curta), categoria_path=VALUES(categoria_path),
        categoria=VALUES(categoria), cat_n1=VALUES(cat_n1), cat_n2=VALUES(cat_n2), cat_n3=VALUES(cat_n3), cat_n4=VALUES(cat_n4),
        formato=VALUES(formato), unidade_base=VALUES(unidade_base), formato_valor=VALUES(formato_valor), preco=VALUES(preco),
        moeda=VALUES(moeda), preco_por_base=VALUES(preco_por_base), url=VALUES(url), imagem_url=VALUES(imagem_url), scraped_at=NOW()`,
-    [fonte, sku, f.ean, tituloProduto(f.nome), tituloProduto(f.marca), f.categoria_path, f.categoria, f.cat_n1, f.cat_n2, f.cat_n3, f.cat_n4,
+    [fonte, sku, f.ean, tituloProduto(f.nome), tituloProduto(f.marca), f.descricao_curta || null, f.categoria_path, f.categoria, f.cat_n1, f.cat_n2, f.cat_n3, f.cat_n4,
       f.formato, f.unidade_base, f.formato_valor, f.preco, f.moeda, f.preco_por_base, url, f.imagem_url],
   );
 }
