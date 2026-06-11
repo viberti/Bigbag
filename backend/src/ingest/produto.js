@@ -5,6 +5,7 @@
 import { config } from '../config.js';
 import { parseJsonLoose } from './extract.js';
 import { getPool } from '../db.js';
+import { registrarCusto } from '../custo.js';
 
 const PROMPT = `És um extrator de RÓTULOS de produtos de supermercado. Vês uma ou mais fotos do MESMO produto, possivelmente de FACES DIFERENTES (frente, verso, lista de ingredientes, tabela nutricional, código de barras, fundo/aba com a validade). COMBINA a informação de todas as fotos. Descobre o MÁXIMO possível e devolve SÓ um objeto JSON, sem texto à volta:
 {
@@ -56,6 +57,7 @@ export async function extrairProdutoFotos(fotos, { timeoutMs } = {}) {
     });
     if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
     const data = await res.json();
+    registrarCusto({ contexto: 'identificar_foto', modelo: data.model, usage: data.usage });
     const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
     return { dados, custo: Number(data.usage?.cost) || 0 };
   } finally {
@@ -125,6 +127,7 @@ export async function analisarProduto(p, { timeoutMs } = {}) {
     });
     if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
     const data = await res.json();
+    registrarCusto({ contexto: 'analise_produto', modelo: data.model, usage: data.usage });
     const analise = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
     return { analise, custo: Number(data.usage?.cost) || 0 };
   } finally {
@@ -170,6 +173,7 @@ export async function caracterizarProdutoNome(nome, { timeoutMs } = {}) {
       });
       if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
       const data = await res.json();
+      registrarCusto({ contexto: 'caracterizar', modelo: data.model, usage: data.usage });
       const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
       if (dados.tipo !== 'fresco') dados.nutricao_100g = null; // processado → nutrição vem do rótulo
       return { dados, custo: Number(data.usage?.cost) || 0 };
@@ -235,6 +239,7 @@ export async function sugerirNomeCanonico(variantes, { timeoutMs } = {}) {
     });
     if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
     const data = await res.json();
+    registrarCusto({ contexto: 'sugerir_nome', modelo: data.model, usage: data.usage });
     const j = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
     return { nome: (j.nome || '').trim() || null, custo: Number(data.usage?.cost) || 0 };
   } finally {
@@ -260,6 +265,7 @@ export async function lerEanDeFoto(foto, { timeoutMs } = {}) {
     });
     if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
     const data = await res.json();
+    registrarCusto({ contexto: 'ler_ean_foto', modelo: data.model, usage: data.usage });
     const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
     return { ean: dados.ean ? String(dados.ean).replace(/\D/g, '') : null, custo: Number(data.usage?.cost) || 0 };
   } finally {
@@ -288,6 +294,7 @@ export async function analisarFotoProduto(foto, { timeoutMs } = {}) {
     });
     if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
     const data = await res.json();
+    registrarCusto({ contexto: 'analise_foto', modelo: data.model, usage: data.usage });
     return { dados: parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}'), custo: Number(data.usage?.cost) || 0 };
   } finally {
     clearTimeout(to);

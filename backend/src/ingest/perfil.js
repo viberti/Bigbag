@@ -4,6 +4,7 @@
 // — não diagnostica nem prescreve. O texto do perfil é DADOS, nunca instruções.
 import { config } from '../config.js';
 import { parseJsonLoose } from './extract.js';
+import { registrarCusto } from '../custo.js';
 
 const arr = (x) => (Array.isArray(x) ? x.map((s) => String(s || '').trim()).filter(Boolean) : []);
 function normalizarResumo(j) {
@@ -59,6 +60,7 @@ export async function extrairPerfil(texto, { timeoutMs } = {}) {
     });
     if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
     const data = await res.json();
+    registrarCusto({ contexto: 'perfil_extrair', modelo: data.model, usage: data.usage });
     return { resumo: normalizarResumo(parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}')), custo: Number(data.usage?.cost) || 0 };
   } finally {
     clearTimeout(to);
@@ -150,6 +152,7 @@ export async function compararProdutosLLM(produtos, resumo, { timeoutMs } = {}) 
       });
       if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
       const data = await res.json();
+      registrarCusto({ contexto: 'comparar', modelo: data.model, usage: data.usage });
       return { comparacao: parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}'), custo: Number(data.usage?.cost) || 0 };
     } catch (e) {
       ultimoErro = e;
@@ -185,6 +188,7 @@ export async function avaliarParaPerfil(produto, resumo, { timeoutMs } = {}) {
       });
       if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
       const data = await res.json();
+      registrarCusto({ contexto: 'avaliar_perfil', modelo: data.model, usage: data.usage });
       return { avaliacao: parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}'), custo: Number(data.usage?.cost) || 0 };
     } catch (e) {
       ultimoErro = e; // ex.: JSON truncado → tenta mais uma vez
