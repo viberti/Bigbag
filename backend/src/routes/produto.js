@@ -20,6 +20,12 @@ import { garantirFichaPT } from '../ingest/traduz.js';
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
 
+// Trunca um valor ao tamanho da coluna. Guarda dura: o OFF/VLM podem devolver
+// strings mais longas que a coluna (ex.: a hierarquia de categorias do OFF, ou
+// uma validade verbosa do VLM) e um "Data too long" abortava o INSERT INTEIRO,
+// perdendo a ficha toda. Truncar é sempre melhor que perder a identificação.
+const lim = (s, n) => (s == null ? null : String(s).slice(0, n));
+
 const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
 
 // Consulta o CATÁLOGO LOCAL (scrapes Auchan/Continente) por EAN: nome/marca/
@@ -59,7 +65,7 @@ export async function consultarOuGuardar(ean) {
            VALUES (?,NULL,NULL,?,?,?,?, 'catalogo')
          ON DUPLICATE KEY UPDATE nome=COALESCE(produto_ean.nome, VALUES(nome)), marca=COALESCE(produto_ean.marca, VALUES(marca)),
            quantidade=COALESCE(produto_ean.quantidade, VALUES(quantidade)), categoria=COALESCE(produto_ean.categoria, VALUES(categoria))`,
-        [ean, tituloProduto(cat.nome), tituloProduto(cat.marca), cat.quantidade, cat.categoria],
+        [ean, lim(tituloProduto(cat.nome), 200), lim(tituloProduto(cat.marca), 120), lim(cat.quantidade, 60), lim(cat.categoria, 255)],
       );
       await guardarNomes(ean, null, [{ nome: cat.nome, origem: 'catalogo' }]);
       await atualizarConteudoFicha(getPool(), ean);
@@ -74,7 +80,7 @@ export async function consultarOuGuardar(ean) {
          VALUES (?,NULL,NULL,?,?,?,?,?,?,?,1,?,?)
        ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
          ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), nutricao_confirmada=1, fonte=VALUES(fonte), off_json=VALUES(off_json)`,
-      [ean, tituloProduto(off.nome), tituloProduto(off.marca), off.quantidade, off.categoria, off.ingredientes, off.alergenios,
+      [ean, lim(tituloProduto(off.nome), 200), lim(tituloProduto(off.marca), 120), lim(off.quantidade, 60), lim(off.categoria, 255), off.ingredientes, off.alergenios,
         off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
     );
     await guardarNomes(ean, null, [{ nome: off.nome, origem: 'off' }]);
@@ -292,8 +298,8 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
          ON DUPLICATE KEY UPDATE sku_id=COALESCE(VALUES(sku_id),sku_id), item_id=COALESCE(VALUES(item_id),item_id), nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade),
            categoria=VALUES(categoria), ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), validade=VALUES(validade),
            nutricao=VALUES(nutricao), nutricao_confirmada=VALUES(nutricao_confirmada), fonte=VALUES(fonte), vlm_json=VALUES(vlm_json), off_json=VALUES(off_json)`,
-        [ean, skuId, itemId, tituloProduto(nome), tituloProduto(off?.marca || vlm?.marca), off?.quantidade || vlm?.quantidade || null, off?.categoria || vlm?.categoria || null,
-          off?.ingredientes || vlm?.ingredientes || null, off?.alergenios || vlm?.alergenios || null, vlm?.validade || null,
+        [ean, skuId, itemId, lim(tituloProduto(nome), 200), lim(tituloProduto(off?.marca || vlm?.marca), 120), lim(off?.quantidade || vlm?.quantidade || null, 60), lim(off?.categoria || vlm?.categoria || null, 255),
+          off?.ingredientes || vlm?.ingredientes || null, off?.alergenios || vlm?.alergenios || null, lim(vlm?.validade || null, 60),
           nutricao ? JSON.stringify(nutricao) : null, nutConfirmada, fonte, vlm ? JSON.stringify(vlm) : null, off ? JSON.stringify(off) : null],
       );
     } catch (e) { console.error('[produto/identificar] guardar:', e.message); }

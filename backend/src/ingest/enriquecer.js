@@ -7,6 +7,11 @@ import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from './traduz.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 
+// Trunca ao tamanho da coluna: o OFF devolve a hierarquia COMPLETA de categorias
+// (>120 chars) e um "Data too long for column 'categoria'" abortava este INSERT,
+// deixando o EAN do talão SEM ficha (o kefir Milbona do Lidl era exatamente isto).
+const lim = (s, n) => (s == null ? null : String(s).slice(0, n));
+
 export async function enriquecerEansFatura(pool, faturaId) {
   const [eans] = await pool.query('SELECT DISTINCT ean FROM item WHERE fatura_id = ? AND ean IS NOT NULL', [faturaId]);
   for (const { ean } of eans) {
@@ -20,7 +25,7 @@ export async function enriquecerEansFatura(pool, faturaId) {
            VALUES (?,NULL,'off',?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
            ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), nutricao_confirmada=1, off_json=VALUES(off_json)`,
-        [ean, tituloProduto(off.nome), tituloProduto(off.marca), off.quantidade, off.categoria, off.ingredientes, off.alergenios,
+        [ean, lim(tituloProduto(off.nome), 200), lim(tituloProduto(off.marca), 120), lim(off.quantidade, 60), lim(off.categoria, 255), off.ingredientes, off.alergenios,
           off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, JSON.stringify(off)],
       );
       await atualizarConteudoFicha(pool, ean);
