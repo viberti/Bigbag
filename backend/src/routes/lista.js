@@ -45,39 +45,45 @@ async function resolverItensLista(pool, itens, mercado) {
     for (const s of matched) allSkuIds.add(s.id);
     // GRUPO (ponto 3): do SKU casado (1.º com grupo definido); senão do NOME.
     it.grupo = matched.find((s) => s.grupo && s.grupo !== 'outros')?.grupo || grupoDeTexto(it.nome);
-    it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null;
+    it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null; it.unidade_base = null;
   }
   if (!allSkuIds.size) return;
   const ids = [...allSkuIds];
   const ph = ids.map(() => '?').join(',');
   // últimas 3 compras (por SKU) — para cada item escolhemos o melhor entre os seus SKUs.
+  // PREÇO = preco_por_base (€/L, €/kg, €/un): comparável entre tamanhos de embalagem.
+  // preco_liquido/quantidade dava o preço POR UNIDADE DO PACK (9 mini-garrafas de
+  // 200ml a 0,31 contaminavam o mínimo do "leite"). Filtra clearance e ppb nulo.
   const [rows] = await pool.query(
-    `SELECT sku_id, unit, loja, data FROM (
-       SELECT i.sku_id, i.preco_liquido / GREATEST(i.quantidade,1) AS unit, COALESCE(l.cadeia,l.nome) AS loja,
+    `SELECT sku_id, unit, unidade, loja, data FROM (
+       SELECT i.sku_id, i.preco_por_base AS unit, s.unidade_base AS unidade, COALESCE(l.cadeia,l.nome) AS loja,
               f.data_compra AS data, ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
-         FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id
-        WHERE i.sku_id IN (${ph}) AND i.is_non_product=0
+         FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id JOIN sku_normalizado s ON s.id=i.sku_id
+        WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND i.preco_por_base IS NOT NULL
      ) t WHERE t.rn <= 3`, ids);
   // preço no mercado selecionado (a compra mais recente nesse mercado), por SKU
   let noMercado = new Map();
   if (mercado) {
     const [mrows] = await pool.query(
-      `SELECT sku_id, unit FROM (
-         SELECT i.sku_id, i.preco_liquido / GREATEST(i.quantidade,1) AS unit,
+      `SELECT sku_id, unit, unidade FROM (
+         SELECT i.sku_id, i.preco_por_base AS unit, s.unidade_base AS unidade,
                 ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
-           FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id AND COALESCE(l.cadeia,l.nome)=?
-          WHERE i.sku_id IN (${ph}) AND i.is_non_product=0
+           FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id AND COALESCE(l.cadeia,l.nome)=? JOIN sku_normalizado s ON s.id=i.sku_id
+          WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND i.preco_por_base IS NOT NULL
        ) t WHERE t.rn=1`, [mercado, ...ids]);
-    noMercado = new Map(mrows.map((r) => [r.sku_id, num(r.unit)]));
+    noMercado = new Map(mrows.map((r) => [r.sku_id, { unit: num(r.unit), unidade: r.unidade }]));
   }
-  const recentePorSku = new Map(); // sku_id → [{unit, loja}]
+  const recentePorSku = new Map(); // sku_id → [{unit, unidade, loja}]
   for (const r of rows) (recentePorSku.get(r.sku_id) || recentePorSku.set(r.sku_id, []).get(r.sku_id)).push(r);
   for (const it of itens) {
     for (const sid of skuIdsPorItem.get(it.id) || []) {
       for (const r of recentePorSku.get(sid) || []) {
-        if (it.melhor_preco == null || Number(r.unit) < it.melhor_preco) { it.melhor_preco = num(r.unit); it.melhor_loja = r.loja; }
+        if (it.melhor_preco == null || Number(r.unit) < it.melhor_preco) {
+          it.melhor_preco = num(r.unit); it.melhor_loja = r.loja; it.unidade_base = r.unidade;
+        }
       }
-      if (mercado && noMercado.has(sid) && (it.preco_mercado == null || noMercado.get(sid) < it.preco_mercado)) it.preco_mercado = noMercado.get(sid);
+      const m = mercado ? noMercado.get(sid) : null;
+      if (m && (it.preco_mercado == null || m.unit < it.preco_mercado)) { it.preco_mercado = m.unit; it.unidade_base = m.unidade; }
     }
   }
 }

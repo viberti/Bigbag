@@ -3268,7 +3268,7 @@ function ItemCarrinho({ it, onRemover, onMarcar, onQtd }) {
           </span>
           {preco != null && (
             <span className="csub">
-              {eur(preco)}{it.quantidade > 1 ? ` · ${eur(preco * it.quantidade)}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}
+              {eur(preco)}{it.unidade_base ? `/${it.unidade_base}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}
             </span>
           )}
         </span>
