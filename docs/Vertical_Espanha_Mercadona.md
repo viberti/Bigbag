@@ -76,6 +76,47 @@ produto certo). (2) Para o **vertical ES**, onde ~tudo é Hacendado, isto é o c
 inteiro a resolver corretamente — reforça a tese. (3) Um léxico ES→PT (sem LLM) chega
 para o matching; tradução fluente (LLM) só seria precisa para o nome de exibição.
 
+## Aprofundamento da análise (2026-06-11) — harness de verdade-no-terreno
+
+Os produtos que o dono **scaneou** (item.ean) são pares *nome↔EAN* reais →
+`scripts/exp_mercadona_groundtruth.mjs` mede se o matcher (restrito ao universo
+Mercadona) acerta. Achados:
+
+- **Universo restrito** (decisão do dono): o match Mercadona corre só sobre
+  `['mercadona','mercadona-off']`, **nunca** Continente/Auchan — em vez de pesar a
+  marca (ausente no talão + ~não-discriminativa), limita-se o universo. `buscarCatalogo`
+  ganhou `fonteUnica` (lista). A **marca não entra no match** (o talão não a mostra).
+- **off_produto own-brand integrado** (`importar_off_mercadona.mjs`, fonte
+  `mercadona-off`): +586 produtos que o scrape não tinha, **540 com nome PT da
+  comunidade** (dispensam léxico). Cobertura avaliável 10→21.
+- **BUG do formato (corrigido, grande impacto):** `extrairFormato` devolve o default
+  `{un,1}` quando o talão não traz tamanho — e isso era tratado como um formato real
+  que **conflituava (−0,3)** com todo o candidato dimensionado ("LEITE MEIO GORDO" sem
+  litros perdia para o leite de 6 L). Só se compara formato quando o talão o declara.
+  **Acerto-no-topo 3→10/21.**
+- **Prior do "simples":** candidato que acrescenta faceta de dieta que o talão não
+  pede (sem lactose · bio · zero) fica abaixo do normal (`buscarCatalogo`, −0,06/faceta).
+- **Léxico ES→PT alargado** com os casos que o harness expôs: `aceite`→óleo (só
+  "aceite de oliva"→azeite, via frase), `girasol`→girassol, `griego`→grego,
+  `boquerones`/`caballa`/`aliñados`, + ~40 palavras completamente diferentes.
+
+**Resultado:** ~14/21 produto certo (10 no topo + 4 mesmo-produto-EAN-irmão); o resto
+tem o certo nas alternativas ou é ruído. **O que resta NÃO é defeito do matcher:**
+- **Múltiplos EANs por produto** — o código de barras do produto FÍSICO em PT ≠ o do
+  catálogo online ES (re-embalamento / SKU regional). O matcher dá o produto certo
+  (nome idêntico), EAN-irmão. **O EAN que o dono scaneia é o autoritativo** → não é
+  problema no fluxo real (scan resolve; o match por nome é p/ os não-scaneados).
+- **Cobertura no teto** do catálogo online (4.375 = sortido online completo, sem mais
+  nível na API): 9/30 EANs são só-da-loja-física ou códigos de balança (prefixo 2) —
+  irrecuperáveis por scraping. (FatSecret tem alguns, mas SEM EAN e licença restritiva
+  → rejeitado como fonte; ver análise no histórico.)
+- **Fossos de vocabulário descritivo** (não de cobertura): "BATATA PALITOS FINOS"
+  existe como "Patatas Prefritas Corte Fino" mas "palitos"≠"prefritas corte"; "SALEIRO
+  SAL DE MESA" o "saleiro" à frente atrapalha. Casos para o operador resolver à mão.
+
+→ **Reforça a tese ES**: lá o talão é espanhol, o catálogo é espanhol, e o código de
+barras do produto físico **é** o do catálogo online — múltiplos-EANs e léxico desaparecem.
+
 ## Notas
 
 - O preço do **histórico** continua a vir do **talão real** (como em PT) — o catálogo
