@@ -13,7 +13,12 @@ const APLICAR = process.argv.includes('--aplicar');
 const LEX = {
   // substantivos-cabeça (alimentar)
   queso: 'queijo', quesos: 'queijos', leche: 'leite', pan: 'pão', panecillos: 'pãezinhos',
-  galleta: 'bolacha', galletas: 'bolachas', aceite: 'azeite', aceites: 'azeites', zumo: 'sumo', zumos: 'sumos',
+  galleta: 'bolacha', galletas: 'bolachas', zumo: 'sumo', zumos: 'sumos',
+  // "aceite" sozinho = ÓLEO (girassol, etc.); só "aceite de oliva" é azeite (tratado
+  // como FRASE abaixo). Traduzir sempre p/ azeite estava errado (óleo de girassol).
+  aceite: 'óleo', aceites: 'óleos',
+  griego: 'grego', griega: 'grega', boquerones: 'biqueirões', boquerón: 'biqueirão',
+  caballa: 'cavala', aliñado: 'temperado', aliñada: 'temperada', aliñados: 'temperados', aliñadas: 'temperadas',
   pollo: 'frango', cerdo: 'porco', ternera: 'vitela', vacuno: 'bovino', buey: 'boi', atún: 'atum',
   huevo: 'ovo', huevos: 'ovos', agua: 'água', vino: 'vinho', cerveza: 'cerveja', yogur: 'iogurte', yogures: 'iogurtes',
   mantequilla: 'manteiga', harina: 'farinha', azúcar: 'açúcar', pescado: 'peixe', pescados: 'peixes',
@@ -21,6 +26,7 @@ const LEX = {
   patatas: 'batatas', patata: 'batata', cebolla: 'cebola', cebollas: 'cebolas', ajo: 'alho',
   manzana: 'maçã', manzanas: 'maçãs', plátano: 'banana', plátanos: 'bananas', naranja: 'laranja', naranjas: 'laranjas',
   fresa: 'morango', fresas: 'morangos', limón: 'limão', melocotón: 'pêssego', sandía: 'melancia', melón: 'melão',
+  girasol: 'girassol', mantequilla: 'manteiga',
   piña: 'ananás', helado: 'gelado', helados: 'gelados', refresco: 'refrigerante', refrescos: 'refrigerantes',
   infusión: 'infusão', mermelada: 'compota', miel: 'mel', aceitunas: 'azeitonas', aceituna: 'azeitona',
   garbanzos: 'grão', lentejas: 'lentilhas', judías: 'feijão', alubias: 'feijão', guisantes: 'ervilhas', maíz: 'milho',
@@ -55,8 +61,14 @@ const LEX = {
 const norm = (w) => w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const LEXN = new Map(Object.entries(LEX).map(([k, v]) => [norm(k), v]));
 
-function traduzir(nome) {
-  let mudou = false;
+// FRASES (aplicadas antes da tradução palavra-a-palavra): casos onde o sentido
+// depende do conjunto. "aceite de oliva" = azeite (a palavra solta vira óleo).
+const FRASES = [[/aceite\s+de\s+oliva/gi, 'azeite']];
+
+function traduzir(nomeOrig) {
+  let nome = String(nomeOrig || '');
+  for (const [re, pt] of FRASES) nome = nome.replace(re, pt);
+  let mudou = nome !== String(nomeOrig || '');
   const out = String(nome || '').split(/(\s+)/).map((tok) => {
     if (/^\s+$/.test(tok)) return tok;
     const m = tok.match(/^([^\wáéíóúñ]*)([\wáéíóúñ]+)([^\wáéíóúñ]*)$/i);
@@ -70,7 +82,10 @@ function traduzir(nome) {
 }
 
 const pool = getPool();
-const [rows] = await pool.query("SELECT sku_fonte, nome FROM catalogo_produto WHERE fonte='mercadona' AND nome IS NOT NULL");
+// Mercadona (scrape, ES) + mercadona-off SEM nome PT (o OFF que já tem PT da
+// comunidade fica intacto — é melhor que o léxico).
+const [rows] = await pool.query(
+  "SELECT fonte, sku_fonte, nome FROM catalogo_produto WHERE nome IS NOT NULL AND (fonte='mercadona' OR (fonte='mercadona-off' AND nome_pt IS NULL))");
 let traduzidos = 0;
 const exemplos = [];
 for (const r of rows) {
@@ -78,7 +93,7 @@ for (const r of rows) {
   if (!pt) continue;
   traduzidos++;
   if (exemplos.length < 12 && norm(pt) !== norm(r.nome)) exemplos.push([r.nome, pt]);
-  if (APLICAR) await pool.query("UPDATE catalogo_produto SET nome_pt=? WHERE fonte='mercadona' AND sku_fonte=?", [tituloProduto(pt), r.sku_fonte]);
+  if (APLICAR) await pool.query("UPDATE catalogo_produto SET nome_pt=? WHERE fonte=? AND sku_fonte=?", [tituloProduto(pt), r.fonte, r.sku_fonte]);
 }
 console.log(`${APLICAR ? 'APLICADO' : 'DRY-RUN'}: ${traduzidos}/${rows.length} nomes Mercadona com pelo menos 1 palavra traduzida.\n`);
 for (const [es, pt] of exemplos) console.log(`  ${es}\n  → ${pt}\n`);
