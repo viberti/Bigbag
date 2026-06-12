@@ -3715,15 +3715,16 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
             <button type="button" className="cart-inico" onClick={onAbrirMinha} aria-label={t('plista.title')} title={t('plista.title')}>
               <Ico name="pessoa" size={18} />
             </button>
-            <button type="button" className="cart-inico" onClick={onScan} aria-label={t('cart.scan')} title={t('cart.scan')}>
-              <Ico name="barras" size={18} />
-            </button>
             <input
               placeholder={t('cart.addPh')}
               value={novo}
               onChange={(e) => setNovo(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') adicionar(); }}
             />
+            {/* scan à DIREITA (a esquerda já tem habituais·pessoal) */}
+            <button type="button" className="cart-inico" onClick={onScan} aria-label={t('cart.scan')} title={t('cart.scan')}>
+              <Ico name="barras" size={18} />
+            </button>
           </div>
           <button type="button" className={`voz${gravando ? ' rec' : ''}`} onClick={alternarVoz} disabled={aOuvir} aria-label={t('cart.voz')} title={t('cart.voz')}>
             {aOuvir ? '…' : <Ico name={gravando ? 'stop' : 'mic'} size={18} />}
