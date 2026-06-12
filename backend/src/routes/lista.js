@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { createHash } from 'crypto';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista, norm } from '../normaliza/categoria.js';
+import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista, norm, tipoConsumidor, TIPOS_NOME } from '../normaliza/categoria.js';
 import { marcaDeterministica } from '../normaliza/marca.js';
 import { pesoPelaImagem, versaoPesoImg } from '../ingest/pesoImagem.js';
 import { chatCompletion } from '../openrouter.js';
@@ -103,6 +103,7 @@ async function resolverItensLista(pool, itens, mercado) {
   }
   await aplicarDadosEan(pool, itens); // preço-ref + marca da ficha (corre haja ou não SKU casado)
   await aplicarTamanhoPorNome(pool, itens); // peso em falta → match por nome no catálogo
+  await aplicarPrecoPorIrmao(pool, itens); // sem preço? estima pelo €/kg do IRMÃO (mesma marca/família)
   // ainda sem peso? → ferramenta "peso pela imagem" EM FUNDO (VLM lê a foto do
   // catálogo/OFF, 1x por EAN, ~$0,001). Não bloqueia; o poll seguinte traz o peso.
   for (const it of itens) {
@@ -273,6 +274,47 @@ async function aplicarTamanhoPorNome(pool, itens) {
     }
   }
 }
+
+// PREÇO ESTIMADO pelo IRMÃO (compromisso do dono, 2026-06-13 — caso Passata
+// Mutti 700g, órfã de catálogo, mas o Auchan tem a de 400g): sem preço por EAN,
+// procura no catálogo um irmão da MESMA MARCA e MESMA FAMÍLIA (tipoConsumidor
+// saliente) cujos tokens DISTINTIVOS do nosso nome (fora os genéricos da família,
+// ex.: "manjericão") ele contenha; estima = MENOR €/base compatível × nosso peso.
+// SEMPRE rotulado "estimado" (preco_ref_tipo) — é aproximação assumida, nunca facto.
+async function aplicarPrecoPorIrmao(pool, itens) {
+  const alvos = itens.filter((it) => it.preco_ref == null && it.melhor_preco == null && it.marca && it.tamanho);
+  if (!alvos.length) return;
+  for (const it of alvos) {
+    const tipo = tipoConsumidor(it.grupo, it.nome, it.marca);
+    if (!['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipo)) continue; // famílias com semântica clara
+    // peso do item em kg/L (do tamanho já normalizado: "700 g" / "1,5 kg" / "330 ml")
+    const m = String(it.tamanho).replace(',', '.').match(/^([\d.]+)\s*(kg|g|l|ml)$/i);
+    if (!m) continue;
+    const v = parseFloat(m[1]); const u = m[2].toLowerCase();
+    const pesoBase = u === 'kg' || u === 'l' ? v : v / 1000;
+    // distintivos: tokens do nosso nome fora da marca e fora dos termos da família
+    const reFam = (TIPOS_NOME_MAP[tipo] || null);
+    const marcaToks = new Set(norm(it.marca).split(' '));
+    const dist = norm(it.nome).split(' ').filter((t) => t.length >= 4 && !marcaToks.has(t) && !(reFam && reFam.test(' ' + t)) && !['tomate', 'fresco', 'fresca'].includes(t));
+    const [cands] = await pool.query(
+      `SELECT nome, fonte, preco_por_base, unidade_base FROM catalogo_produto
+        WHERE marca = ? AND preco_por_base IS NOT NULL AND preco_por_base > 0 AND unidade_base IN ('kg','l')`, [it.marca]);
+    let melhor = null;
+    for (const c of cands) {
+      if (tipoConsumidor(null, c.nome, it.marca) !== tipo) continue;          // mesma família
+      const ct = norm(c.nome);
+      if (!dist.every((t) => ct.includes(t))) continue;                        // distintivos presentes
+      const ppb = Number(c.preco_por_base);
+      if (!melhor || ppb < melhor.ppb) melhor = { ppb, fonte: c.fonte, nome: c.nome };
+    }
+    if (melhor) {
+      it.preco_ref = Math.round(melhor.ppb * pesoBase * 100) / 100;
+      it.preco_ref_loja = melhor.fonte;
+      it.preco_ref_tipo = 'estimado'; // o cliente rotula diferente do "online"
+    }
+  }
+}
+const TIPOS_NOME_MAP = Object.fromEntries(TIPOS_NOME.map(([id, re]) => [id, re]));
 
 // Tamanho legível e NORMALIZADO para a linha do item: extrai o peso/volume do
 // texto da ficha e mostra na escala certa ("0.25kg" → "250 g", "500 g" → "500 g",
@@ -458,8 +500,11 @@ async function montarLista(pool, mercado) {
 // Assinatura barata do estado visível da lista — muda quando muda um item
 // (nome/qtd/estado/quem riscou), o mercado selecionado, ou quando entra uma
 // compra nova (maxItemId: invalida os preços). É a base do 304.
+// Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
+// muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
+const RESOLVER_V = 2; // 2: preço estimado por irmão (2026-06-13)
 function listaSig(itens, mercado, maxItemId) {
-  const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|` +
+  const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
   return createHash('sha1').update(s).digest('base64').slice(0, 22);
 }
