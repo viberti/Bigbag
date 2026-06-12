@@ -46,6 +46,12 @@
 - **O prefixo GS1 identifica o FABRICANTE, não a marca de consumo.** No nosso catálogo: prefixo-7 `8000270` = Delverde ×11 (+3 Bimbo, prováveis erros nossos). Prefixo→marca é **limpo em ~56%** (1047/1886); 44% ambíguos — porque **retalhistas usam 1 prefixo para dezenas de marcas próprias** (Lidl `4056489`→Cien/Alesto/Deluxe…; Continente `5601312`→50+; Mercadona `8480000`→Hacendado+).
 - **Proposta:** guarda de marca por prefixo — do catálogo (marca fiável) mapear prefixo→marca DOMINANTE; quando o OFF é a única fonte e dá uma marca que contradiz um prefixo claramente de-uma-marca, desconfiar do OFF. Funciona p/ **marcas independentes** (Delverde/Barilla/Rummo), ignora prefixos ambíguos (retalho) sem risco. Construir como **correção em lote REVISTA** (gera "que mudaria e porquê" → revisão → aplica), não às cegas na ingestão. Heurística (prefixo-7 fixo, limiar de dominância) — validar antes de confiar.
 
+### Peso em falta → ler da IMAGEM do catálogo pelo VLM (ACHADO 2026-06-12)
+- Muitos produtos **Continente/Pingo Doce** ficam com `formato="1un"` (sem peso) porque **o peso não está no TÍTULO** — está num atributo/na imagem. (O Auchan mete o peso no título, daí ter peso.) A página é JS+anti-bot (WebFetch só vê o menu), MAS a **`imagem_url` é pública** (CDN).
+- Prova: Tagliatelle Rummo (EAN 8008343201070), Continente `1un` → fetch da `imagem_url` → `extrairProdutoFotos` (VLM) leu **"500 g"** → gravado. Correu na lista.
+- **Escala:** **29.748** produtos com imagem mas sem peso ("Nun"): Continente 18.630 · Pingo Doce 8.534 · Auchan 2.195 · Lidl 389. Custo VLM ~\$0,001/imagem.
+- **Proposta:** ferramenta "peso pela imagem" — (a) **on-demand/lazy**: quando a lista precisa do peso e o catálogo tem imagem mas não formato, o VLM lê a imagem 1x e **grava no catálogo** (self-healing, só paga os produtos usados, sem latência na lista — correr em fundo); (b) **lote**: enriquecer os 29,7k de uma vez (~\$30). Começar pela (a).
+
 ## 2. Propostas em aberto (minhas sugestões durante a exploração — para retomar)
 
 1. **Priorizar o catálogo de loja na ficha factual** (ingredientes/categoria/nutrição), em vez de buscar fontes novas. Detetadas 2 fugas na própria Penne: `produto_ean.categoria` em inglês ("Dry durum wheat pasta…") quando o Auchan tem `mercearia/arroz-e-massa/massas-especialidades`; ingredientes na versão curta quando o Auchan tem a completa com alergénios. Determinístico, sem scraping novo.
