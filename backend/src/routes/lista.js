@@ -97,7 +97,7 @@ async function resolverItensLista(pool, itens, mercado) {
     // parte, noutra cor (formato do talão: nome sem marca + marca destacada).
     it.marca = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
   }
-  await aplicarPrecoRef(pool, itens); // referência de catálogo (corre haja ou não SKU casado)
+  await aplicarDadosEan(pool, itens); // preço-ref + marca da ficha (corre haja ou não SKU casado)
   if (!allSkuIds.size) return;
   const ids = [...allSkuIds];
   const ph = ids.map(() => '?').join(',');
@@ -167,21 +167,28 @@ async function resolverItensLista(pool, itens, mercado) {
   }
 }
 
-// PREÇO DE REFERÊNCIA (catálogo online) por EAN — MENOR preço de embalagem entre
-// lojas, marcado como aproximação (decisão do dono: catálogo nunca é critério, só
-// referência). Corre p/ todos os itens com ean; o cliente só o mostra quando NÃO
-// há preço-facto (nunca comprado). Independente de haver SKU casado (a Penne não tem).
-async function aplicarPrecoRef(pool, itens) {
+// Dados por EAN (itens scaneados): (1) PREÇO DE REFERÊNCIA do catálogo — MENOR
+// preço de embalagem entre lojas, aproximação (catálogo nunca é critério, só
+// referência); (2) MARCA AUTORITATIVA da ficha (produto_ean) — vence a deteção
+// pelo nome, que falha quando a marca não está escrita no nome (caso Rummo: nome
+// "Penne Rigate" sem marca, mas a ficha tem marca=Rummo). Corre haja ou não SKU.
+async function aplicarDadosEan(pool, itens) {
   const eans = [...new Set(itens.filter((it) => it.ean).map((it) => it.ean))];
   if (!eans.length) return;
   const ph = eans.map(() => '?').join(',');
   const [refs] = await pool.query(
     `SELECT ean, MIN(preco) AS preco, SUBSTRING_INDEX(GROUP_CONCAT(fonte ORDER BY preco ASC), ',', 1) AS fonte
        FROM catalogo_produto WHERE ean IN (${ph}) AND preco IS NOT NULL AND preco > 0 GROUP BY ean`, eans);
-  const porEan = new Map(refs.map((r) => [String(r.ean), r]));
+  const precoPorEan = new Map(refs.map((r) => [String(r.ean), r]));
+  const [marcas] = await pool.query(
+    `SELECT ean, MAX(NULLIF(marca,'')) AS marca FROM produto_ean WHERE ean IN (${ph}) GROUP BY ean`, eans);
+  const marcaPorEan = new Map(marcas.map((r) => [String(r.ean), r.marca]));
   for (const it of itens) {
-    const r = it.ean ? porEan.get(String(it.ean)) : null;
+    if (!it.ean) continue;
+    const r = precoPorEan.get(String(it.ean));
     if (r) { it.preco_ref = num(r.preco); it.preco_ref_loja = r.fonte || null; }
+    const m = marcaPorEan.get(String(it.ean));
+    if (m) it.marca = m; // ficha (por EAN) vence a deteção pelo nome
   }
 }
 
