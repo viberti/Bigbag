@@ -178,6 +178,20 @@ Estado: **B1** ✓ (migração 041 `sku.grupo`, `normaliza/categoria.js` — 11 
 | C2 | **Embeddings** p/ matching/consulta | só se o IDF+facetas (A2/A6/B2) deixar resíduo que o justifique |
 | C3 | Formato por item (`item.formato_valor`) p/ casos sem EAN | A1 resolve a maioria via ficha |
 
+### Fase D — Classificação por catálogo (estratégia do dono, 2026-06-13) — **Fase 1 ✅ EM PRODUÇÃO (v0.0.139.0)**
+
+Usar as **categorias das lojas** (Continente/PD/Auchan/Mercadona) para classificar produtos, COM ou SEM EAN — o EAN ajuda mas não é requisito. O caminho completo guarda-se para análise; ao utilizador mostra-se só a **folha** ("Mercearia > Molhos…" exibe "Molhos"). Evolução: a nossa taxonomia (facetada, `Taxonomia_Produto.md`) torna-se a fonte e as das lojas viram sinais.
+
+**O que as fontes oferecem (medido, `scripts/analisar_categorias_fontes.mjs`):** Auchan 12k a 100% com 4 níveis consistentes (a âncora); PD 15,2k a 3 níveis mas SEM EAN (só liga por nome); Continente 18k mas raso (maioria "Mercearia", 1 nível); Mercadona 5k em ES; Lidl 0%. Mapa de equivalência entre lojas é minerável por EANs partilhados (`analisar_equivalencia_categorias.mjs`): Auchan∩Continente = 3.421 EANs → 234 pares de categorias com ≥3 EANs de suporte.
+
+| Fase | O quê | Estado |
+|---|---|---|
+| D1 | **Voto-por-vizinhança** (`normaliza/classificarCatalogo.js`): com EAN votam as linhas diretas; sem EAN os top-80 vizinhos por nome (`vizinhosCatalogo`, sem gates de faceta — morango/baunilha são vizinhos legítimos p/ categoria). Peso = profundidade do caminho (folha 4-níveis > "Mercearia" raso; ES/tags ×0,5). GRUPO por voto majoritário entre todos os candidatos (não pelo path vencedor — "Tablete Chocolate LEITE…" dava lacticinios). Flag `fiavel` (conf ≥0,5 e ≥5 vizinhos). **Medido nos 325 SKUs reais:** cobertura 96%, acordo c/ `sku.grupo` 78% geral, **88% nos fiáveis**; erros concentrados nos frescos de 1 token (Banana→"Líquidos" conf 0,15 — o nome é ingrediente/aroma de centenas de processados; o gate bloqueia-os). 1.º consumidor: lista — item ainda 'outros' após nome e path-por-EAN ("Pasta de Dentes"→higiene, "Tampones"→higiene; "Húmus" voto não-fiável fica 'outros' honesto). | ✅ v0.0.139.0 |
+| D2 | **Folha como categoria de exibição** — a folha minerada PROPÕE, o vocabulário fechado (`tipoConsumidor`) DISPÕE: relatório periódico de folhas fiáveis sem tipo (no avaliador: "Arroz" conf 0,94, "Iogurtes Gregos" conf 1,0, "Queijos" conf 1,0 — candidatas claras) e adoção curada. | proposto |
+| D3 | **Taxonomia própria como fonte** — mapa loja→canónico minerado da co-ocorrência de EANs (234 pares semente) + vizinhança p/ PD/Lidl; as categorias de loja passam de fonte a sinal. | visão (= Taxonomia_Produto) |
+
+Avaliador: `scripts/avaliar_classificacao_catalogo.mjs` (cobertura/acordo/folhas candidatas — correr após mudanças de vocabulário ou crescimento do catálogo).
+
 ### Princípios (transversais ao plano)
 
 1. **Determinístico primeiro; LLM só onde só ele serve** — todas as propostas A reduzem chamadas.
