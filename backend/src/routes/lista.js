@@ -8,6 +8,7 @@ import { createHash } from 'crypto';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista, norm, tipoConsumidor, TIPOS_NOME } from '../normaliza/categoria.js';
+import { classificarPorCatalogo } from '../normaliza/classificarCatalogo.js';
 import { marcaDeterministica } from '../normaliza/marca.js';
 import { pesoPelaImagem, versaoPesoImg } from '../ingest/pesoImagem.js';
 import { chatCompletion } from '../openrouter.js';
@@ -102,6 +103,7 @@ async function resolverItensLista(pool, itens, mercado) {
     it.marca = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
   }
   await aplicarDadosEan(pool, itens); // preço-ref + marca da ficha (corre haja ou não SKU casado)
+  await aplicarGrupoPorVizinhanca(pool, itens); // ainda 'outros'? os VIZINHOS do catálogo votam (Fase 1, 2026-06-13)
   await aplicarTamanhoPorNome(pool, itens); // peso em falta → match por nome no catálogo
   await aplicarPrecoPorIrmao(pool, itens); // sem preço? estima pelo €/kg do IRMÃO (mesma marca/família)
   // ainda sem peso? → ferramenta "peso pela imagem" EM FUNDO (VLM lê a foto do
@@ -225,6 +227,29 @@ async function aplicarDadosEan(pool, itens) {
       const gPath = grupoDeTexto(pathPorEan.get(String(it.ean)));
       if (gPath !== 'outros') it.grupo = gPath; // categoria de loja resolve o que o nome não resolveu
     }
+  }
+}
+
+// GRUPO por VIZINHANÇA no catálogo (Fase 1 da classificação por catálogo,
+// 2026-06-13): item ainda 'outros' depois do nome e do path-por-EAN → os
+// vizinhos por nome votam (classificarPorCatalogo), SÓ se o voto for fiável
+// (conf ≥0.5 e ≥5 vizinhos — medido: 88% de acordo nos fiáveis vs 78% geral).
+// Cache por nome normalizado: o catálogo muda devagar e o poll é de 3s.
+const _gvCache = new Map();
+async function aplicarGrupoPorVizinhanca(pool, itens) {
+  for (const it of itens) {
+    if ((it.grupo && it.grupo !== 'outros') || !it.nome) continue;
+    const k = norm(it.nome);
+    if (!_gvCache.has(k)) {
+      if (_gvCache.size > 500) _gvCache.clear();
+      let g = null;
+      try {
+        const r = await classificarPorCatalogo(pool, { nome: it.nome, ean: it.ean || null });
+        if (r?.fiavel && r.grupo && r.grupo !== 'outros') g = r.grupo;
+      } catch { /* catálogo indisponível → fica 'outros' */ }
+      _gvCache.set(k, g);
+    }
+    if (_gvCache.get(k)) it.grupo = _gvCache.get(k);
   }
 }
 
@@ -505,7 +530,7 @@ async function montarLista(pool, mercado) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 2; // 2: preço estimado por irmão (2026-06-13)
+const RESOLVER_V = 3; // 3: grupo por vizinhança do catálogo (2026-06-13); 2: preço estimado por irmão
 function listaSig(itens, mercado, maxItemId) {
   const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
