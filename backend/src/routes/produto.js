@@ -14,6 +14,7 @@ import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, 
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { grupoDe, grupoDeNome, tokenCasa, singularizar, norm as normN, tipoConsumidor } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
+import { fundirFichaEan } from '../normaliza/fichaEan.js';
 import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
@@ -67,95 +68,58 @@ async function nomeCatalogoPt(ean) {
 }
 
 export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
-  // traduzir: espera a tradução PT antes de devolver o nome (scan-para-lista) em
-  // vez de a fazer em fundo — o nome estrangeiro do OFF (FR no Lidl, EN no
-  // Continente) nunca chega à lista. Guarda central: um EAN com dígito verificador
-  // errado (VLM/foto mal lida) nunca pode entrar na base como chave.
+  // RESOLVEDOR ÚNICO (2026-06-13): toda a escrita da ficha passa pela FUSÃO de
+  // fontes (normaliza/fichaEan.js — tabela de prioridades única, proveniência e
+  // divergências em produto_ean.fusao). OFF live só quando nada local resolve.
+  // traduzir: espera a tradução PT do nome estrangeiro (scan-para-lista).
   if (!eanValido(ean)) return { encontrado: false, ean_invalido: true };
-  const [[ja]] = await getPool().query(
-    `SELECT COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), 'null'), nome) AS nome
-       FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL OR fonte = 'catalogo') ORDER BY id LIMIT 1`,
-    [ean],
-  );
-  if (ja) {
-    // 1) nome de loja PT do catálogo (mesmo EAN) ganha ao OFF estrangeiro guardado;
-    //    cura o nome guardado em fundo (ficha/despensa/base-local convergem p/ PT).
-    const nomeCat = await nomeCatalogoPt(ean);
-    if (nomeCat) {
-      if (nomeCat !== ja.nome) getPool().query('UPDATE produto_ean SET nome = ? WHERE ean = ?', [lim(tituloProduto(nomeCat), 200), ean]).catch(() => {});
-      return { encontrado: true, fonte: 'catalogo', nome: nomeCat };
-    }
-    // 2) sem nome no catálogo → traduz o OFF: síncrono se for p/ a lista, senão em
-    //    fundo (a base converge para PT; próximo scan já vem PT mesmo em cliente antigo).
-    let nome = ja.nome || null;
-    if (traduzir) nome = (await garantirFichaPT(getPool(), ean)) || nome;
-    else garantirFichaPT(getPool(), ean).catch(() => {});
-    return { encontrado: true, fonte: 'base', nome };
+  const pool = getPool();
+  const [[atual]] = await pool.query('SELECT * FROM produto_ean WHERE ean = ? ORDER BY id LIMIT 1', [ean]);
+
+  let r = await fundirFichaEan(pool, ean, { atual });
+  if (!r.ficha.nome) {
+    // nada local com substância → OFF (dump→live; o consultarOFF é local-first e cura o dump)
+    const offLive = await consultarOFF(ean);
+    if (offLive) r = await fundirFichaEan(pool, ean, { atual, extra: { off: offLive } });
   }
-  const off = await consultarOFF(ean);
-  if (!off) {
-    // OFF não tem (típico em marcas próprias/cervejas) → catálogo local; desde a
-    // 047 a ficha do catálogo pode trazer NUTRIÇÃO oficial de loja (Auchan).
-    const cat = await consultarCatalogo(ean);
-    if (!cat) {
-      // EAN que não resolve em lado nenhum (nem OFF, nem catálogo) → REGISTAR como
-      // desconhecido (não descartar): a casa scaneou-o, fica para resolver quando o
-      // catálogo crescer / o OFF atualizar / identificação manual. No-op se já existe.
-      await getPool().query(
-        "INSERT INTO produto_ean (ean, item_id, sku_id, fonte) VALUES (?, NULL, NULL, 'pendente') ON DUPLICATE KEY UPDATE ean = ean",
-        [ean]).catch((e) => console.error('[ean-pendente]', e.message));
-      return { encontrado: false, registado: true };
-    }
+  if (!r.ficha.nome) {
+    // EAN que não resolve em lado nenhum → REGISTAR como pendente (não descartar).
+    await pool.query(
+      "INSERT INTO produto_ean (ean, item_id, sku_id, fonte) VALUES (?, NULL, NULL, 'pendente') ON DUPLICATE KEY UPDATE ean = ean",
+      [ean]).catch((e) => console.error('[ean-pendente]', e.message));
+    return { encontrado: false, registado: true };
+  }
+
+  // gravar SÓ se as fontes mudaram (fontes_hash) ou a ficha ainda não tem nome
+  const hashAtual = (() => { try { return JSON.parse(atual?.fusao || 'null')?.fontes_hash; } catch { return null; } })();
+  if (!(atual?.nome && hashAtual === r.fusao.fontes_hash)) {
+    const f = r.ficha;
     try {
-      await getPool().query(
-        `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, nutricao, nutricao_confirmada, fonte)
-           VALUES (?,NULL,NULL,?,?,?,?,?,?,?, 'catalogo')
-         ON DUPLICATE KEY UPDATE nome=COALESCE(produto_ean.nome, VALUES(nome)), marca=COALESCE(produto_ean.marca, VALUES(marca)),
-           quantidade=COALESCE(produto_ean.quantidade, VALUES(quantidade)), categoria=COALESCE(produto_ean.categoria, VALUES(categoria)),
-           ingredientes=COALESCE(produto_ean.ingredientes, VALUES(ingredientes)),
-           nutricao=COALESCE(produto_ean.nutricao, VALUES(nutricao)),
-           nutricao_confirmada=GREATEST(produto_ean.nutricao_confirmada, VALUES(nutricao_confirmada))`,
-        [ean, lim(tituloProduto(cat.nome), 200), lim(tituloProduto(cat.marca), 120), lim(cat.quantidade, 60), lim(cat.categoria, 255),
-          cat.ingredientes || null, cat.nutricao ? JSON.stringify(cat.nutricao) : null, cat.nutricao ? 1 : 0],
+      await pool.query(
+        `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, nutricao_confirmada, fonte, off_json, fusao)
+           VALUES (?,NULL,NULL,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
+           ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), validade=COALESCE(VALUES(validade), validade),
+           nutricao=VALUES(nutricao), nutricao_confirmada=VALUES(nutricao_confirmada), fonte=VALUES(fonte),
+           off_json=COALESCE(VALUES(off_json), off_json), fusao=VALUES(fusao)`,
+        [ean, lim(f.nome, 200), lim(f.marca, 120), lim(f.quantidade, 60), lim(f.categoria, 255),
+          f.ingredientes, f.alergenios, lim(f.validade, 60),
+          f.nutricao ? JSON.stringify(f.nutricao) : null, f.nutricao_confirmada,
+          (r.fusao.proveniencia.nome || 'fusao').slice(0, 10),
+          r.off ? JSON.stringify(r.off) : null, JSON.stringify(r.fusao)],
       );
-      await guardarNomes(ean, null, [{ nome: cat.nome, origem: 'catalogo' }]);
-      await atualizarConteudoFicha(getPool(), ean);
-    } catch (e) {
-      console.error('[consultarOuGuardar] catálogo:', e.message);
-    }
-    return { encontrado: true, fonte: 'catalogo', nome: cat.nome || null };
+      await guardarNomes(ean, null, [{ nome: f.nome, origem: (r.fusao.proveniencia.nome || 'fusao').slice(0, 20) }]);
+      await atualizarConteudoFicha(pool, ean);
+    } catch (e) { console.error('[consultarOuGuardar] gravar fusão:', e.message); }
   }
-  // OFF tem a ficha mas SEM nutrição (nem o live) → completa com a do catálogo (047).
-  if (!off.nutricao_100g || Object.values(off.nutricao_100g).every((v) => v == null)) {
-    const cat = await consultarCatalogo(ean);
-    if (cat?.nutricao) off.nutricao_100g = cat.nutricao;
-    if (cat?.ingredientes && !off.ingredientes) off.ingredientes = cat.ingredientes;
+
+  // tradução LLM fica FORA da fusão: só quando o nome final não é PT
+  let nome = r.ficha.nome;
+  if (r.nomeEstrangeiro) {
+    if (traduzir) nome = (await garantirFichaPT(pool, ean)) || nome;
+    else garantirFichaPT(pool, ean).catch(() => {});
   }
-  // Nome de loja PT do catálogo (mesmo EAN) ganha ao nome do OFF (ES/FR/EN).
-  const nomePT = await nomeCatalogoPt(ean);
-  const nomeFinal = nomePT || off.nome;
-  let nomeRespondido = nomeFinal; // pode ser substituído pela tradução PT (scan-lista)
-  try {
-    await getPool().query(
-      `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, nutricao_confirmada, fonte, off_json)
-         VALUES (?,NULL,NULL,?,?,?,?,?,?,?,1,?,?)
-       ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
-         ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), nutricao_confirmada=1, fonte=VALUES(fonte), off_json=VALUES(off_json)`,
-      [ean, lim(tituloProduto(nomeFinal), 200), lim(tituloProduto((await marcaCatalogo(ean)) || off.marca), 120), lim(off.quantidade, 60), lim(off.categoria, 255), off.ingredientes, off.alergenios,
-        off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
-    );
-    await guardarNomes(ean, null, [{ nome: nomeFinal, origem: nomePT ? 'catalogo' : 'off' }]);
-    await atualizarConteudoFicha(getPool(), ean);
-    // sem PT do catálogo e OFF noutra língua → traduz para PT. Para a lista (traduzir)
-    // espera-se e usa-se o resultado; nos outros fluxos vai em fundo (não atrasa a ficha).
-    if (!nomePT) {
-      if (traduzir) { nomeRespondido = (await garantirFichaPT(getPool(), ean)) || nomeFinal; }
-      else garantirFichaPT(getPool(), ean).catch(() => {});
-    }
-  } catch (e) {
-    console.error('[consultarOuGuardar] guardar:', e.message);
-  }
-  return { encontrado: true, fonte: nomePT ? 'catalogo' : 'off', nome: nomeRespondido || null };
+  return { encontrado: true, fonte: r.fusao.proveniencia.nome || 'fusao', nome };
 }
 
 // Guarda todos os nomes vistos para um produto (por EAN), para matching/canónico.
@@ -375,19 +339,38 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       if (itemId) {
         await getPool().query('DELETE FROM produto_ean WHERE item_id = ? AND ean IS NULL', [itemId]);
       }
-      // nutrição lida SÓ pelo VLM (sem OFF) fica "por confirmar" — isolada até o
-      // operador rever (aba Fichas) ou uma fonte independente (OFF) confirmar.
-      const nutConfirmada = off || nutCatalogo ? 1 : nutricao ? 0 : 1; // OFF e catálogo (fonte oficial) confirmam; só-VLM fica por confirmar
-      await getPool().query(
-        `INSERT INTO produto_ean (ean, sku_id, item_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, nutricao_confirmada, fonte, vlm_json, off_json)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-         ON DUPLICATE KEY UPDATE sku_id=COALESCE(VALUES(sku_id),sku_id), item_id=COALESCE(VALUES(item_id),item_id), nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade),
-           categoria=VALUES(categoria), ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), validade=VALUES(validade),
-           nutricao=VALUES(nutricao), nutricao_confirmada=VALUES(nutricao_confirmada), fonte=VALUES(fonte), vlm_json=VALUES(vlm_json), off_json=VALUES(off_json)`,
-        [ean, skuId, itemId, lim(tituloProduto(nome), 200), lim(tituloProduto(off?.marca || vlm?.marca), 120), lim(off?.quantidade || vlm?.quantidade || null, 60), lim(off?.categoria || vlm?.categoria || null, 255),
-          off?.ingredientes || vlm?.ingredientes || null, off?.alergenios || vlm?.alergenios || null, lim(vlm?.validade || null, 60),
-          nutricao ? JSON.stringify(nutricao) : null, nutConfirmada, fonte, vlm ? JSON.stringify(vlm) : null, off ? JSON.stringify(off) : null],
-      );
+      // RESOLVEDOR ÚNICO (2026-06-13): a ficha é a FUSÃO de todas as fontes, com o
+      // VLM (fotos do dono) e o OFF desta chamada como extras. A tabela de
+      // prioridades vive em normaliza/fichaEan.js; proveniência em .fusao.
+      if (ean) {
+        const [[atualPE]] = await getPool().query('SELECT * FROM produto_ean WHERE ean = ? ORDER BY id LIMIT 1', [ean]);
+        const rf = await fundirFichaEan(getPool(), ean, { atual: atualPE, extra: { off: off || undefined, vlm: vlm || undefined } });
+        const f = rf.ficha;
+        await getPool().query(
+          `INSERT INTO produto_ean (ean, sku_id, item_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, nutricao_confirmada, fonte, vlm_json, off_json, fusao)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+           ON DUPLICATE KEY UPDATE sku_id=COALESCE(VALUES(sku_id),sku_id), item_id=COALESCE(VALUES(item_id),item_id), nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade),
+             categoria=VALUES(categoria), ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), validade=COALESCE(VALUES(validade), validade),
+             nutricao=VALUES(nutricao), nutricao_confirmada=VALUES(nutricao_confirmada), fonte=VALUES(fonte),
+             vlm_json=COALESCE(VALUES(vlm_json), vlm_json), off_json=COALESCE(VALUES(off_json), off_json), fusao=VALUES(fusao)`,
+          [ean, skuId, itemId, lim(f.nome || nome, 200), lim(f.marca, 120), lim(f.quantidade, 60), lim(f.categoria, 255),
+            f.ingredientes, f.alergenios, lim(f.validade, 60),
+            f.nutricao ? JSON.stringify(f.nutricao) : null, f.nutricao_confirmada,
+            (rf.fusao.proveniencia.nome || 'fusao').slice(0, 10),
+            vlm ? JSON.stringify(vlm) : null, rf.off ? JSON.stringify(rf.off) : null, JSON.stringify(rf.fusao)],
+        );
+        nutricao = f.nutricao || nutricao; // a resposta da rota reflete a fusão
+      } else {
+        // SEM EAN (fresco/ilegível): mantém a gravação simples ligada ao item
+        const nutConfirmada = off ? 1 : nutricao ? 0 : 1;
+        await getPool().query(
+          `INSERT INTO produto_ean (ean, sku_id, item_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, nutricao_confirmada, fonte, vlm_json, off_json)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [null, skuId, itemId, lim(tituloProduto(nome), 200), lim(tituloProduto(off?.marca || vlm?.marca), 120), lim(off?.quantidade || vlm?.quantidade || null, 60), lim(off?.categoria || vlm?.categoria || null, 255),
+            off?.ingredientes || vlm?.ingredientes || null, off?.alergenios || vlm?.alergenios || null, lim(vlm?.validade || null, 60),
+            nutricao ? JSON.stringify(nutricao) : null, nutConfirmada, fonte, vlm ? JSON.stringify(vlm) : null, off ? JSON.stringify(off) : null],
+        );
+      }
     } catch (e) { console.error('[produto/identificar] guardar:', e.message); }
     if (ean) atualizarConteudoFicha(getPool(), ean).catch(() => {});
 
