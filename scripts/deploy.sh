@@ -18,6 +18,13 @@ for f in $(git diff --name-only HEAD~3 2>/dev/null | grep '^backend/.*\.js$' || 
   [[ -f "$f" ]] && node --check "$f" && echo "check OK: $f"
 done
 
+# 1b) testes PUROS (sem BD — convenção: *.bd.test.mjs ficam de fora, correm no
+# servidor). Inclui o GOLDEN SET da classificação: mudou o vocabulário sem
+# regenerar o fixture → o deploy PARA aqui com o diff.
+(cd backend && node --test $(ls test/*.test.mjs | grep -v '\.bd\.') > /tmp/bigbag_tests.out 2>&1) \
+  || { echo "ERRO: testes puros falharam — deploy abortado:" >&2; grep -E "^not ok|esperado=|obtido=" /tmp/bigbag_tests.out | head -30 >&2; exit 1; }
+echo "testes puros OK ($(grep -c '^ok ' /tmp/bigbag_tests.out 2>/dev/null || echo '?') passes)"
+
 # 2) nada por commitar/enviar?
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "AVISO: há alterações por commitar — o servidor vai receber só o que está no origin." >&2

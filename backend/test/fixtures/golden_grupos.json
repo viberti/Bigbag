@@ -1,0 +1,3014 @@
+{
+ "gerado": "2026-06-13, pos re-backfill B1; fontes identicas ao backfill_grupos.mjs",
+ "nota": "Regenerar com backend/scripts/gerar_golden_grupos.mjs (ver cabeçalho). Mudança INTENCIONAL de vocabulário => regenerar e commitar o diff no mesmo commit.",
+ "casos": [
+  {
+   "nome": "Mistura para Panquecas Monodose",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "mistura para bolos e sobremesas",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Bolacha My Cookies Tradicional",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "snacks",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Bolacha Digestive de Aveia",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "cereais e derivados",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Coco Ralado",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "Frutos/Sementes",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Crepes Simples",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "refeicoes_preparadas",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Brócolos",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Iogurte Grego de Coco",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios / laticínios vegetais",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Manteiga com Sal",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Requeijão Serra da Estrela DOP",
+   "simplificado": "Requeijão",
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Queijo Mozzarella Ligeiro",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínio",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Salmão Fumado Marinado",
+   "simplificado": null,
+   "categoria": "Peixe e Marisco",
+   "cat_gen": "peixe e produtos do mar",
+   "foodGroups": null,
+   "ouro": "peixe"
+  },
+  {
+   "nome": "Cereais de Espelta",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "cereais de pequeno almoço",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Rúcula",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "folha verde",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Salada Gourmet",
+   "simplificado": "Salada",
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "legumes e vegetais processados",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Beterraba Ripada",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legumes",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Clara de Ovo Pasteurizada Líquida",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "ovo",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Tofu Biológico",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "alternativas à carne",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Recarga Mopa Espreme Fácil",
+   "simplificado": null,
+   "categoria": "Limpeza e Organização",
+   "cat_gen": "produto de limpeza",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Limpador de Vidros Multiusos",
+   "simplificado": null,
+   "categoria": "Limpeza Doméstica",
+   "cat_gen": "Produto de limpeza",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Doce de Leite",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "doce",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Lombinhos de Frango",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Natas para Culinária",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Bolacha Integral",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "bolacha",
+   "foodGroups": [
+    "en:sugary-snacks",
+    "en:biscuits-and-cakes"
+   ],
+   "ouro": "doces"
+  },
+  {
+   "nome": "Molho de Soja",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "condimento",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Miolo de Noz Natural",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "frutos secos",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Ameixa Desidratada sem Caroço",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta desidratada",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Salada Exótica",
+   "simplificado": "Salada",
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "salada embalada",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Amendoim com Pele",
+   "simplificado": null,
+   "categoria": "Snacks e Frutos Secos",
+   "cat_gen": "fruto seco",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Ketchup",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "molho",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Tomate Cacho Cocktail",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Feijão Preto",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "leguminosa",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Espargos Verdes",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Alperces Desidratados",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "fruta desidratada",
+   "foodGroups": [
+    "en:fruits-and-vegetables",
+    "en:dried-fruits"
+   ],
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Queijo Gouda Holandês",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Azeite Virgem Extra",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "Gorduras e óleos",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Salmão Fumado",
+   "simplificado": null,
+   "categoria": "Peixe e Marisco",
+   "cat_gen": "pescado",
+   "foodGroups": null,
+   "ouro": "peixe"
+  },
+  {
+   "nome": "Burrata de Búfala",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Banana",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Arroz Basmati",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "cereal",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Milho Doce",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "vegetais enlatados",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Nectarina",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Fiambre de Perna",
+   "simplificado": null,
+   "categoria": "Charcutaria",
+   "cat_gen": "charcutaria",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Batata Vermelha",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Alperce",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Napolitanas de Chocolate",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "Pastelaria",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Peito de Frango",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Bolacha American Cookies",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "produtos de pastelaria",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Discos de Algodão",
+   "simplificado": null,
+   "categoria": "Higiene Pessoal",
+   "cat_gen": "higiene pessoal",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Chocolate Preto com Sal Marinho",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Placa para Push Up",
+   "simplificado": null,
+   "categoria": "Não Alimentar",
+   "cat_gen": "equipamento desportivo",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Figo Seco",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta desidratada",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Iogurte Grego Natural",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios / iogurtes",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Muesli de Fruta e Sementes",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "cereais de pequeno almoço",
+   "foodGroups": [
+    "en:cereals-and-potatoes",
+    "en:breakfast-cereals"
+   ],
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Chocolate Equador 70%",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates e doces",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Pão de Forma Integral",
+   "simplificado": null,
+   "categoria": "Padaria e Pastelaria",
+   "cat_gen": "pão",
+   "foodGroups": [
+    "en:cereals-and-potatoes",
+    "en:bread"
+   ],
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Queijo Manchego",
+   "simplificado": null,
+   "categoria": "Charcutaria",
+   "cat_gen": "laticínios e alternativas",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Pão com Nozes de Trigo Sarraceno",
+   "simplificado": "Pão",
+   "categoria": "Padaria",
+   "cat_gen": "pão",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Pimento Vermelho",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Banana Baby Desidratada",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "fruta desidratada",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Farinha de Trigo",
+   "simplificado": null,
+   "categoria": "Mercearia Salgado",
+   "cat_gen": "cereais e derivados",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Grão de Bico Cozido",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "leguminosa",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Óleo de Girassol",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "gorduras e óleos",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Queijo Parmigiano Reggiano",
+   "simplificado": null,
+   "categoria": "Charcutaria e Queijos",
+   "cat_gen": "laticínios e alternativas",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Pêssego",
+   "simplificado": "Pêssego",
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Mostarda Dijon",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "condimento",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Morango",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Mirtilo",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Toranja",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Leite Meio Gordo",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": [
+    "en:milk-and-dairy-products",
+    "en:milk-and-yogurt"
+   ],
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Malagueta em Vinagrete",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "conserva de vegetais",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Limão",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Gorgonzola Picante",
+   "simplificado": null,
+   "categoria": "Charcutaria e Queijos",
+   "cat_gen": "Lacticínios e Queijos",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Chocolate Preto com Caramelo",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Queijo Mozzarella Ralado",
+   "simplificado": null,
+   "categoria": "Charcutaria e Queijos",
+   "cat_gen": "lacticínios e alternativas",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Mel de Rosmaninho",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "adoçante natural",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Nestum Espelta Aveia Zero",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "Cereais de pequeno-almoço",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Flocos com Farelo de Trigo",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "cereais de pequeno-almoço",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Creme de Limpeza",
+   "simplificado": null,
+   "categoria": "Limpeza Doméstica",
+   "cat_gen": "higiene pessoal",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Snacks Dentários para Cães Adultos",
+   "simplificado": null,
+   "categoria": "Animal",
+   "cat_gen": "alimento para animais",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Baguete Rústica",
+   "simplificado": null,
+   "categoria": "Padaria",
+   "cat_gen": "pão",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Carne Picada de Porco",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Papaia",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Salada Ibérica",
+   "simplificado": "Salada",
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "prato preparado",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Uva Branca Sem Grainha",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Sal de Mesa",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "condimento",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Passata de Tomate com Manjericão",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "molhos e condimentos",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Escova de Dentes Sensodyne Sensitiv",
+   "simplificado": null,
+   "categoria": "Higiene Oral",
+   "cat_gen": "higiene pessoal",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Espinhafres em Folha",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Arroz Thai Jasmin",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "cereais",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Gnocchi de Batata",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "massa fresca",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Bife de Frango",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Coxas de Frango",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Lombinhos de Peru",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Queijo Minas Frescal",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticinios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Requeijão de Ovelha",
+   "simplificado": "Requeijão",
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Marmelada",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "doce",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Mel Português",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "adoçante",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Tomate Cacho",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Cenoura Ripada",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Tomate Cherry",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Iogurte Natural Oikos",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Pera Conference",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Vinho do Porto Coutada Velha Premium Registado",
+   "simplificado": null,
+   "categoria": "Vinhos",
+   "cat_gen": "bebidas alcoólicas",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Amêndoa Regina Chocolate Negro Caramelo",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolate",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Bovino Fraldinha",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Cerveja",
+   "simplificado": null,
+   "categoria": "Bebidas",
+   "cat_gen": "bebida",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Sumo 100% Laranja",
+   "simplificado": null,
+   "categoria": "Sumos",
+   "cat_gen": "bebida",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Kefir Líquido Natural",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios / bebidas fermentadas",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Queijo Mozzarella Fatiado",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Tomate Chuça",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Batata aos Cubos para Airfryer",
+   "simplificado": null,
+   "categoria": "Congelados",
+   "cat_gen": "Legume pré-preparado",
+   "foodGroups": null,
+   "ouro": "congelados"
+  },
+  {
+   "nome": "Croissant Brioche",
+   "simplificado": null,
+   "categoria": "Padaria e Pastelaria",
+   "cat_gen": "padaria",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Pão de Deus",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "Padaria",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Esparguete com Ovo",
+   "simplificado": null,
+   "categoria": "Mercearia Seca",
+   "cat_gen": "refeição pronta",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Lombinhos de Porco",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Alcatra de Bovino",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Maçã Gala Nacional",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pera Rocha",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pão de Passas",
+   "simplificado": "Pão",
+   "categoria": "Mercearia Doce",
+   "cat_gen": "panificação",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Raviolis Ricotta Espinafres",
+   "simplificado": null,
+   "categoria": "Mercearia Seca",
+   "cat_gen": "massa fresca",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Tomate para Pizza",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Tortillas de Trigo",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "pão e produtos de panificação",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Bolachas Marinheiras Naturais",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "bolachas e biscoitos",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Chá Earl Grey",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "bebida",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Café Torrado Moído Descafeinado",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "bebidas",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Café",
+   "simplificado": null,
+   "categoria": "Mercearia Geral",
+   "cat_gen": "bebidas",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Salada de Frutas",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pickles em Vinagre",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "vegetais em conserva",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Chocolate Mousse",
+   "simplificado": null,
+   "categoria": "Sobremesas",
+   "cat_gen": "doce de colher",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Queijo Mozzarella",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Laranja",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Cebola",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Atum em Azeite",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "peixe enlatado",
+   "foodGroups": null,
+   "ouro": "peixe"
+  },
+  {
+   "nome": "Natas Frescas para Bater",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Pão Rústico com Massa Mãe",
+   "simplificado": "Pão",
+   "categoria": "Padaria",
+   "cat_gen": "cereal",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Preparado de Carne Bovina",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne processada",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Requeijão Serrano",
+   "simplificado": "Requeijão",
+   "categoria": "Laticínios",
+   "cat_gen": "lacticínios e alternativas",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Polpa de Tomate",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "molhos e conservas",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Preparado de Carne Mista",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "charcutaria",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Presunto Extrafino",
+   "simplificado": null,
+   "categoria": "Charcutaria",
+   "cat_gen": "charcutaria",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Sombra Stick",
+   "simplificado": null,
+   "categoria": "Beleza e Higiene",
+   "cat_gen": "cosmético",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Raticida Isco Fresco",
+   "simplificado": null,
+   "categoria": "Pesticidas e Repelentes",
+   "cat_gen": "produtos para controlo de pragas",
+   "foodGroups": null,
+   "ouro": "outros"
+  },
+  {
+   "nome": "Lixívia Tradicional",
+   "simplificado": null,
+   "categoria": "Limpeza e Higiene",
+   "cat_gen": "Produto de Limpeza",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Queijo Mozzarella de Búfala",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": [
+    "en:milk-and-dairy-products",
+    "en:cheese"
+   ],
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Luvas de Nitrilo",
+   "simplificado": null,
+   "categoria": "Higiene e Limpeza",
+   "cat_gen": "Não alimentar",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Batata Palitos Finos",
+   "simplificado": null,
+   "categoria": "Congelados",
+   "cat_gen": "legumes congelados",
+   "foodGroups": null,
+   "ouro": "congelados"
+  },
+  {
+   "nome": "Papel Higiénico 3 Folhas",
+   "simplificado": null,
+   "categoria": "Higiene e Limpeza",
+   "cat_gen": "higiene",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Pão de Centeio",
+   "simplificado": "Pão",
+   "categoria": "Padaria e Pastelaria",
+   "cat_gen": "cereais e derivados",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Spaghetti Fresco",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "massa",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Esparguete",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "cereais",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Arroz Longo Comum",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "cereal",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Amendoim com Chocolate Negro",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "doce/snack",
+   "foodGroups": [
+    "en:sugary-snacks",
+    "en:sweets"
+   ],
+   "ouro": "doces"
+  },
+  {
+   "nome": "Mamão",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Tablete de Chocolate Negro com Flor de Sal",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates e doces",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Cookies Clássicas",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "biscoito",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Água com Gás Pedras Limão",
+   "simplificado": null,
+   "categoria": "Bebidas",
+   "cat_gen": "bebida",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Lenços de Bolso",
+   "simplificado": null,
+   "categoria": "Higiene Pessoal",
+   "cat_gen": "higiene pessoal",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Couve-flor",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Gelado Magnum Integral Intense Dark",
+   "simplificado": null,
+   "categoria": "Congelados",
+   "cat_gen": "sobremesa",
+   "foodGroups": null,
+   "ouro": "congelados"
+  },
+  {
+   "nome": "Iogurte Grego Natural Ligeiro",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Skyr Natural",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Leite Enriquecido",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Leite com Aroma a Chocolate",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "bebida lactea",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Queijo Ralado para Pizza",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Cereais Frosties",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "cereais",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Kiwi",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Curgete Verde",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Laranja Citrinos Algarve IGP",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pain au Chocolat",
+   "simplificado": null,
+   "categoria": "Padaria",
+   "cat_gen": "pastelaria",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Pão de Bicos de Pato",
+   "simplificado": null,
+   "categoria": "Padaria",
+   "cat_gen": "Pão e Produtos de Padaria",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Bife do Redondo de Vitelo",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Bife de Peru",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Leite com Cacau",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "bebida lactea",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Couve Brócolo",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Meloa Galia",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Chocolate Negro com 60% Cacau",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates e doces",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Chocolate de Caramelo e Flor de Sal",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Bombon Cornet Negro",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "gelado",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Pitaya Vermelha",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pasta de Dentes Parodontax Gengibre com Halitum sem Branqueamento",
+   "simplificado": null,
+   "categoria": "Higiene Oral",
+   "cat_gen": "higiene oral",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Lixívia Abrasiva",
+   "simplificado": null,
+   "categoria": "Limpeza da Casa",
+   "cat_gen": "Higiene / Limpeza",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Peito de Peru",
+   "simplificado": null,
+   "categoria": "Charcutaria",
+   "cat_gen": "charcutaria",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Cenoura",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pão de Forma de 12 Cereais e Sementes",
+   "simplificado": "Pão",
+   "categoria": "Padaria",
+   "cat_gen": "panificação",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Chocolate Culinário 70% Cacau",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Sabonete de Jasmim",
+   "simplificado": null,
+   "categoria": "Higiene Pessoal",
+   "cat_gen": "Produto não alimentar",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Serum Luminous Even Glow",
+   "simplificado": null,
+   "categoria": "Higiene e Beleza",
+   "cat_gen": "Não Alimentar",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Queijo Grana Padano",
+   "simplificado": null,
+   "categoria": "Charcutaria",
+   "cat_gen": "Laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Caju Torrado Salgado",
+   "simplificado": null,
+   "categoria": "Snacks",
+   "cat_gen": "frutos secos processados",
+   "foodGroups": [
+    "en:salty-snacks",
+    "en:nuts"
+   ],
+   "ouro": "doces"
+  },
+  {
+   "nome": "Bombons de Chocolate Negro",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates e guloseimas",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Torrão Imperial",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "doce",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Panettone Premium",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "bolo",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Cogumelo Marrom",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Delícia de Maçã",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "doce ou sobremesa",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Croissant de Manteiga",
+   "simplificado": null,
+   "categoria": "Padaria e Pastelaria",
+   "cat_gen": "padaria",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Arroz Agulha",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "cereal",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Azeitonas Gigantes Sem Caroço",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Papel Higiênico 4 Folhas",
+   "simplificado": null,
+   "categoria": "Higiene e Limpeza",
+   "cat_gen": "higiene",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Rolo de Cozinha Compacto",
+   "simplificado": null,
+   "categoria": "Produtos de Limpeza",
+   "cat_gen": "utilidades domésticas",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Tablete de Chocolate Negro",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates e guloseimas",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Diospiro Mole",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pão de Forma Escuro",
+   "simplificado": "Pão",
+   "categoria": "Padaria",
+   "cat_gen": "panificados",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Sabonete Líquido de Glicerina",
+   "simplificado": null,
+   "categoria": "Higiene Pessoal",
+   "cat_gen": "Não Alimentar",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Chocolate Preto com Avelãs",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Arroz para Sushi",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "cereais",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Película Aderente",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "utensílios de cozinha",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Fio Dentário",
+   "simplificado": null,
+   "categoria": "Higiene Oral",
+   "cat_gen": "higiene pessoal",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Gelo",
+   "simplificado": null,
+   "categoria": "Congelados",
+   "cat_gen": "bebida",
+   "foodGroups": null,
+   "ouro": "congelados"
+  },
+  {
+   "nome": "Cerveja IPA",
+   "simplificado": null,
+   "categoria": "Bebidas",
+   "cat_gen": "bebida alcoólica",
+   "foodGroups": [
+    "en:alcoholic-beverages"
+   ],
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Cerveja Steam Brew Ale",
+   "simplificado": null,
+   "categoria": "Bebidas",
+   "cat_gen": "bebida alcoólica",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Queijo de Ovelha Mini",
+   "simplificado": null,
+   "categoria": "Charcutaria e Queijos",
+   "cat_gen": "laticínio",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Pêssego Paraguaio",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Croissant de Chocolate",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "padaria e pastelaria",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Merenda de Chocolate",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "bolachas e biscoitos",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Empada de Frango Thai",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "prato pronto",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Coxinha de Frango",
+   "simplificado": null,
+   "categoria": "Take Away / Pronto a Comer",
+   "cat_gen": "salgado",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Rojões de Porco",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne processada e charcutaria",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Espinafres",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "hortaliça",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Requeijão",
+   "simplificado": "Requeijão",
+   "categoria": "Laticínios",
+   "cat_gen": "laticínio",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Café em Cápsulas",
+   "simplificado": null,
+   "categoria": "Bebidas Quentes",
+   "cat_gen": "bebida",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Café descafeinado em Cápsulas",
+   "simplificado": null,
+   "categoria": "Mercearia",
+   "cat_gen": "bebidas não-alcoólicas",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Vinho do Porto Tawny 10 Anos",
+   "simplificado": null,
+   "categoria": "Vinhos",
+   "cat_gen": "bebida alcoólica",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Cápsulas Máquina Loiça",
+   "simplificado": null,
+   "categoria": "Limpeza da Casa",
+   "cat_gen": "limpeza",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Salsicha Fresca",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "charcutaria",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Salada Premium",
+   "simplificado": "Salada",
+   "categoria": "Mercearia",
+   "cat_gen": "salada",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pão Mistura",
+   "simplificado": "Pão",
+   "categoria": "Padaria",
+   "cat_gen": "padaria",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Ovos",
+   "simplificado": null,
+   "categoria": "Ovos e Laticínios",
+   "cat_gen": "alimento proteico",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Filtro de Café",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "outros",
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Torta de Missão Oriental",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "doçaria",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Enfarinados",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "outros",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Extrato de Tomate",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Queijo Gouda Fatiado",
+   "simplificado": null,
+   "categoria": "Charcutaria",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Amaciador Roupa Febre",
+   "simplificado": null,
+   "categoria": "Limpeza Roupa",
+   "cat_gen": "Produto de limpeza",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Condicionador Desembaraçador",
+   "simplificado": null,
+   "categoria": "Higiene e Beleza",
+   "cat_gen": "não comestível",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Porco Roti com Alho",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "charcutaria",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Pão de 8 Cereais",
+   "simplificado": "Pão",
+   "categoria": "Padaria",
+   "cat_gen": "panificação",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Broa de Milho",
+   "simplificado": null,
+   "categoria": "Padaria",
+   "cat_gen": "padeiro",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Batata Doce",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Queijo Barrado Light",
+   "simplificado": null,
+   "categoria": "Charcutaria",
+   "cat_gen": "Laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Ketchup Zero Açúcares",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "molho",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Beterraba Integral Cozida",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Inhame",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Amêndoa com Chocolate",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates e doces",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Mel",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "adoçante natural",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Milka Confetti",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "chocolates e guloseimas",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Salsicha Fresca de Porco",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "charcutaria",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Ovo Líquido",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "laticínios e ovos",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Natas Frescas",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Amaciador de Roupa",
+   "simplificado": null,
+   "categoria": "Detergentes e Limpeza",
+   "cat_gen": "detergente",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Champô Gold",
+   "simplificado": null,
+   "categoria": "Higiene e Beleza",
+   "cat_gen": "higiene pessoal",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Açúcar de Coco",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "açúcar e adoçantes",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Grandes Frutas Frescas",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Canela",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "especiaria",
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Filete de Pescada derador",
+   "simplificado": null,
+   "categoria": "Peixe e Marisco",
+   "cat_gen": "Peixe",
+   "foodGroups": null,
+   "ouro": "peixe"
+  },
+  {
+   "nome": "Pão Tigre",
+   "simplificado": "Pão",
+   "categoria": "Padaria",
+   "cat_gen": "panificação",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Maçã Kids",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Macedoina de Fruta Congelada",
+   "simplificado": null,
+   "categoria": "Congelados",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "congelados"
+  },
+  {
+   "nome": "Leite Magro",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios / bebidas",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Queijo Edam Fatiado",
+   "simplificado": null,
+   "categoria": "Charcutaria",
+   "cat_gen": "laticínios e alternativas",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Tagliatelle",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "massa",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Saco Lixo",
+   "simplificado": null,
+   "categoria": "Limpeza e Organização",
+   "cat_gen": "Não Alimentar",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Saco para Lixo com Lavanda",
+   "simplificado": null,
+   "categoria": "Limpeza da Casa",
+   "cat_gen": "Higiene do Lar",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Loção para peles atópicas",
+   "simplificado": null,
+   "categoria": "Higiene e Beleza",
+   "cat_gen": "outros",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Cotonetes",
+   "simplificado": null,
+   "categoria": "Higiene Pessoal",
+   "cat_gen": "Higiene Pessoal",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Lombo Assado",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "prato pronto",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Carne Picada Bovina",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Palmito Natural Inteiro",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "vegetal em conserva",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Queijo Ilha Curado 7 Meses",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "lacticíneos",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Figo",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Leite Achocolatado",
+   "simplificado": null,
+   "categoria": null,
+   "cat_gen": "bebidas",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Queijo Fresco para Barrar Original",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "lacticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Muesli com Frutos Secos",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "cereais de pequeno-almoço",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Abacate Hass",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Tomate Cherry Alongado",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Lava Tudo Bril",
+   "simplificado": null,
+   "categoria": "Limpeza da Casa",
+   "cat_gen": "null",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Rolos de Cozinha",
+   "simplificado": null,
+   "categoria": "Higiene e Limpeza",
+   "cat_gen": "eletrodomestico",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Ricota de Búfala",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "lacticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Queijo Mozzarella com Manjericão",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Abóbora Manteiga (Butternut)",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Couve Coração",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "vegetal",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pão de Forma",
+   "simplificado": null,
+   "categoria": "Padaria e Pastelaria",
+   "cat_gen": "panificacao",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Vinho Alvarinho S. Reserva",
+   "simplificado": null,
+   "categoria": "Vinhos",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Bife de Novilho",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Alho Granulado",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "tempero",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Caju Frito",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "frutos secos processados",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Rebenta Cracker",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Chocolate com Pedaços",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Patê de Alho e Salsa",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": null,
+   "foodGroups": [
+    "en:cereals-and-potatoes",
+    "en:bread"
+   ],
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Lágrimas Hidratantes",
+   "simplificado": null,
+   "categoria": "Higiene e Beleza",
+   "cat_gen": "não alimentar",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Carne Picada",
+   "simplificado": null,
+   "categoria": "Talho",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Água",
+   "simplificado": null,
+   "categoria": "Bebidas",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Enfarinhados",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Leite Desnatado com Lactose Meio-Gordo",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Empada de Pato",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Café Moagem Intensa",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "bebidas"
+  },
+  {
+   "nome": "Tablete de Chocolate Ferrero",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Pão Ralado com Alho",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "cereais e derivados",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Pão Integral com Açúcar",
+   "simplificado": null,
+   "categoria": "Padaria",
+   "cat_gen": "pão embalado",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Brioche de Leite",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "padaria",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Uva Branca Honey",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Ameixa Vermelha",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Magnum Mini",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "Queijo Stracciatella",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Queijo de Cabra",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": "laticínios e queijos",
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Desodorizante Homem Energia",
+   "simplificado": null,
+   "categoria": "Higiene Pessoal",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Máquina de Fato de Banho Power",
+   "simplificado": null,
+   "categoria": "Higiene Pessoal",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Detergente e Vela Dourada",
+   "simplificado": null,
+   "categoria": "Produtos de Limpeza",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Vela Perfumada",
+   "simplificado": null,
+   "categoria": "Casa",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "outros"
+  },
+  {
+   "nome": "Tomate com Rama",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Courgette",
+   "simplificado": null,
+   "categoria": null,
+   "cat_gen": "legume",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Massa Fresca de Ovo com Ricotta e Espinafres",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "refeição pronta",
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Leite Magro com Proteínas",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Queijo Fatiado Light",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Proteínas Natural",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "mercearia"
+  },
+  {
+   "nome": "Biqueirões Temperados",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": "conservas de peixe",
+   "foodGroups": null,
+   "ouro": "peixe"
+  },
+  {
+   "nome": "Cavala em Azeite com Sal",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "peixe"
+  },
+  {
+   "nome": "Sacos Higiénicos para Cães",
+   "simplificado": null,
+   "categoria": "Higiene e Limpeza",
+   "cat_gen": "não alimentar",
+   "foodGroups": null,
+   "ouro": "higiene"
+  },
+  {
+   "nome": "Queijo Cottage",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Salada Riva",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Mini Croissant de Manteiga",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": "Pão e Padaria",
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Bolacha Cream Cracker",
+   "simplificado": null,
+   "categoria": "Mercearia Doce",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "doces"
+  },
+  {
+   "nome": "FíGado De Vaca",
+   "simplificado": null,
+   "categoria": null,
+   "cat_gen": "carne",
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Iogurte Skir Natural",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": null,
+   "foodGroups": [
+    "en:milk-and-dairy-products",
+    "en:dairy-desserts"
+   ],
+   "ouro": "lacticinios"
+  },
+  {
+   "nome": "Peito de Peru ao Forno a Lenha",
+   "simplificado": null,
+   "categoria": "Charcutaria e Fumeiro",
+   "cat_gen": "charcutaria",
+   "foodGroups": [
+    "en:fish-meat-eggs",
+    "en:processed-meat"
+   ],
+   "ouro": "carne"
+  },
+  {
+   "nome": "Kefir Natural",
+   "simplificado": null,
+   "categoria": "Laticínios",
+   "cat_gen": null,
+   "foodGroups": [
+    "en:beverages",
+    "en:unsweetened-beverages"
+   ],
+   "ouro": "lacticinios"
+  }
+ ],
+ "scan": [
+  {
+   "nome": "Leite Meio Gordo",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Detergente Teste",
+   "esperado": "higiene"
+  },
+  {
+   "nome": "Banana",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Iogurte Grego",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Leite",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Ovos",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Salada",
+   "esperado": "frutas"
+  },
+  {
+   "nome": "Peito de Frango",
+   "esperado": "carne"
+  },
+  {
+   "nome": "Rúcula",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Pão",
+   "esperado": "padaria"
+  },
+  {
+   "nome": "Presunto",
+   "esperado": "carne"
+  },
+  {
+   "nome": "Tomate",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Carne Moída",
+   "esperado": "carne"
+  },
+  {
+   "nome": "Pão de Forma",
+   "esperado": "padaria"
+  },
+  {
+   "nome": "Laranja",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Tofu",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Batata",
+   "esperado": "frutas"
+  },
+  {
+   "nome": "Maça",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Kefir",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Óleo",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Pera",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Água mineral",
+   "esperado": "bebidas"
+  },
+  {
+   "nome": "Carne",
+   "esperado": "carne"
+  },
+  {
+   "nome": "Kefir Líquido Natural",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Skyr",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Presunto fatiado",
+   "esperado": "carne"
+  },
+  {
+   "nome": "Peito de peru",
+   "esperado": "carne"
+  },
+  {
+   "nome": "Atum em Azeite",
+   "esperado": "peixe"
+  },
+  {
+   "nome": "Batata Vermelha",
+   "esperado": "frutas"
+  },
+  {
+   "nome": "Bife de Frango",
+   "esperado": "carne"
+  },
+  {
+   "nome": "Bolacha Digestive de Aveia",
+   "esperado": "doces"
+  },
+  {
+   "nome": "Bovino Fraldinha",
+   "esperado": "carne"
+  },
+  {
+   "nome": "Café",
+   "esperado": "bebidas"
+  },
+  {
+   "nome": "Cerveja",
+   "esperado": "bebidas"
+  },
+  {
+   "nome": "Esparguete com Ovo",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Bolacha Digestive",
+   "esperado": "doces"
+  },
+  {
+   "nome": "Sumo de laranja",
+   "esperado": "bebidas"
+  },
+  {
+   "nome": "Detergente XYZ",
+   "esperado": "higiene"
+  },
+  {
+   "nome": "Feijão",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Arroz",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Grão de bico",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Kefir líquido",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Manteiga",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Carne de porco",
+   "esperado": "carne"
+  },
+  {
+   "nome": "Sal",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Açúcar",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Farinha",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Toalha de papel",
+   "esperado": "higiene"
+  },
+  {
+   "nome": "Iogurte Grego Natural",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Arroz Basmati",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Alperce",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Café em Cápsulas",
+   "esperado": "bebidas"
+  },
+  {
+   "nome": "ovos frescos",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "OVO",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Pães",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Amendoim com Chocolate Negro",
+   "esperado": "doces"
+  },
+  {
+   "nome": "Coca-Cola",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Pão de Forma Integral",
+   "esperado": "padaria"
+  },
+  {
+   "nome": "[object Object]",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Banana TesteE2E",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Cebola TesteE2E",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Esparguete",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Natas",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Bacon",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Detergente",
+   "esperado": "higiene"
+  },
+  {
+   "nome": "Bananas",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Pêssego",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Natas para Culinária",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Queijo Gouda Holandês",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Quinoa",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Tomate Chucha",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Milho Doce",
+   "esperado": "frutas"
+  },
+  {
+   "nome": "Pickles em Vinagre",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Concentrado de Tomate",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Palmito Natural Inteiro",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Penne Rigate No. 73 Durum Wheat Semolina Pasta",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Aletria Capellini",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "8008343201070",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Sobremesa",
+   "esperado": "doces"
+  },
+  {
+   "nome": "Massa Penne Rigate Barilla",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Massa Paccheri Rigati Rummo",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Massa Aletria Milaneza",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Massa Tagliatelle Rummo",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Penne Rigate",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Massa Fusilli La Molisana",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Cotovelos Gibetti",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Penne Rigate Integral",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Concchiglioni",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Massa Chinesa com Ovo Koala",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Massa Fusilli Lunghi Garofalo",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Pérolas",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Pasta Cannelloni",
+   "esperado": "mercearia"
+  }
+ ]
+}
