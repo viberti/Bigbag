@@ -1529,14 +1529,17 @@ const TIPOS_CAT = [
 // tipos salientes da despensa, por NOME (vence o grupo-de-loja). Conservas exige
 // marcador explícito de conserva (atum fresco ≠ atum em lata). Ordem importa.
 const TIPOS_NOME = [ // testados contra normCat (minúsculas, SEM acentos)
-  ['massa', /(^|[^a-z])(massas?|pasta|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchiglie|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini)/],
+  ['massa', /(^|[^a-z])(massas?|pasta|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchigli|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini)/],
   ['cereais', /(^|[^a-z])(cereais?|muesli|granola|aveia|flocos|cornflake|chocapic|estrelitas)/],
   ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa]|polpa de tomate)/], // marcador explícito (atum "fresco" fica peixe)
   ['pao', /(^|[^a-z])(pao|paes|tosta|wrap|broa|baguet|croissant|brioche)/],
 ];
-function tipoConsumidor(grupo, nome) {
+function tipoConsumidor(grupo, nome, marca) {
   const s = normCat(nome);
   for (const [id, re] of TIPOS_NOME) if (re.test(s)) return id;
+  // a MARCA é fabricante de massa ("Pasta Berruto", "Pasta Zara") → massa. Apanha
+  // nomes errados/estranhos sem categoria (ex.: "Concchiglioni" com cc duplo).
+  if (marca && /(^|[^a-z])(pasta|massa)([^a-z]|$)/.test(normCat(marca))) return 'massa';
   if (['frutas', 'carne', 'peixe', 'lacticinios', 'bebidas', 'doces', 'congelados', 'higiene'].includes(grupo)) return grupo;
   if (grupo === 'padaria') return 'pao';        // padaria sem massa/cereais ≈ pão
   if (grupo === 'mercearia') return 'mercearia'; // residual dos secos (arroz, farinha, azeite, sal…)
@@ -3748,7 +3751,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                 <div className="cart-feito">
                   <div className="cart-cat cart-cat-feito"><Ico name="cart" size={26} /> <span>{noCarrinho.length}</span></div>
                   {noCarrinho.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} tipo={tipoConsumidor(it.grupo, it.nome)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
+                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} tipo={tipoConsumidor(it.grupo, it.nome, it.marca)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
                   ))}
                 </div>
               )}
@@ -3942,7 +3945,7 @@ function organizarCarrinho(itens) {
   const porTipo = new Map();
   for (const it of itens) {
     if (it.estado === 'carrinho') continue;
-    const tid = tipoConsumidor(it.grupo, it.nome);
+    const tid = tipoConsumidor(it.grupo, it.nome, it.marca);
     const g = TIPOS_CAT.find((x) => x.id === tid) || TIPOS_CAT[TIPOS_CAT.length - 1];
     if (!porTipo.has(g.id)) porTipo.set(g.id, { g, itens: [] });
     porTipo.get(g.id).itens.push(it);
