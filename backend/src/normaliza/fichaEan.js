@@ -221,7 +221,10 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
   else if (nutOff) { nutricao = nutOff; prov.nutricao = 'off'; }
   else if (nutVlm) { nutricao = nutVlm; prov.nutricao = 'vlm'; nutConfirmada = 0; }
 
-  // INGREDIENTES: o mais completo (live e dump do OFF concorrem em separado)
+  // INGREDIENTES: o mais completo (live e dump do OFF concorrem em separado).
+  // O valor JÁ GRAVADO concorre como 'anterior': é assim que a tradução LLM
+  // (pós-fusão) sobrevive às re-fusões — ganha pela pontuação de língua PT,
+  // mas um candidato novo melhor (ex. catálogo PT completo) ainda a bate.
   const ing = manual.has('ingredientes')
     ? { texto: atual?.ingredientes, fonte: 'manual' }
     : escolherIngredientes([
@@ -229,7 +232,8 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
         { texto: offLive?.ingredientes, fonte: 'off' },
         { texto: offD?.ingredientes, fonte: 'off-dump' },
         { texto: vlm?.ingredientes, fonte: 'vlm' },
-      ]) || (atual?.ingredientes ? { texto: atual.ingredientes, fonte: 'anterior' } : null);
+        { texto: atual?.ingredientes, fonte: 'anterior' },
+      ]);
   if (ing) prov.ingredientes = ing.fonte;
 
   const alergenios = escolhe('alergenios', [
