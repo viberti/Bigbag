@@ -248,7 +248,10 @@ async function aplicarCatalogoLista(pool, itens) {
       let v = null;
       try {
         const r = await classificarPorCatalogo(pool, { nome: it.nome, ean: it.ean || null });
-        if (r?.fiavel) {
+        // item COM EAN só aceita o voto da via-EAN: se o código não está no
+        // catálogo, vizinhar pelo NOME trai a especificidade do EAN (caso real:
+        // massa "Pérolas" Hacendado → vizinhos 'pérola' de Roupa).
+        if (r?.fiavel && !(it.ean && r.via === 'vizinhanca')) {
           let folha = r.es ? null : r.folha;
           // folha RASA = label de corredor ("Mercearia" do Continente raso): não
           // acrescenta nada — é o caso que a regra quer evitar → fallback.
