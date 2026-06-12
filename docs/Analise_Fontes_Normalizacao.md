@@ -194,6 +194,7 @@ Avaliador: `scripts/avaliar_classificacao_catalogo.mjs` (cobertura/acordo/folhas
 
 ### Princípios (transversais ao plano)
 
+0. **Caso específico → regra GERAL (dono, 2026-06-13):** uma reclassificação/correção tem de criar lógica aplicável a um conjunto maior de produtos — nunca regras para meia dúzia de artigos. Exemplos do padrão: "Pérolas"→Roupa virou a guarda *item-com-EAN-só-aceita-via-EAN*; a Camomila virou o filtro *folha rasa não exibe*; o lixo-OCR num talão virou penalização geral de OCR nos ingredientes. EXCEÇÃO deliberada: produtos MUITO populares podem merecer tratamento especial (mais informação, fontes próprias — ex. catálogo da marca Barilla, reviews) — é um tier de enriquecimento por popularidade, não uma regra de classificação.
 1. **Determinístico primeiro; LLM só onde só ele serve** — todas as propostas A reduzem chamadas.
 2. **Camadas partilhadas, não cópias** — um vocabulário de facetas, um gazetteer de marcas, um motor de matching; hoje cada módulo tem o seu e divergem.
 3. **Confiança explícita em tudo o que é inferido** (`marca_origem`, confiança do match) — a UI diz o que leu vs o que adivinhou.

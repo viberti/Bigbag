@@ -3,6 +3,8 @@
 Projeto pessoal de laboratório, **utilizador único**. PWA (React/Vite) + backend Node/Express + MySQL, no servidor de produção partilhado `85.25.46.6` (mesmo host de `pitacos.ai` e `1417`). App de histórico de preços de compras: lê faturas, guarda os dados, responde a consultas por nota de voz.
 
 ## Princípio geral
+**Caso específico → regra geral (dono, 2026-06-13):** correções de classificação/normalização têm de criar lógica aplicável a um conjunto maior de produtos, nunca regras para artigos individuais (exceção deliberada: produtos muito populares podem ter tratamento especial de ENRIQUECIMENTO — mais info, fontes próprias — não de classificação).
+
 Trabalha com autonomia máxima. Decide sozinho tudo o que for **local e reversível** — estrutura de código, refactors, queries, migrações na BD do próprio projeto, escolha de bibliotecas, commits. Não peças permissão para isso. Pergunta o mínimo: quando algo for ambíguo e **reversível**, escolhe a opção razoável, segue em frente, e regista a suposição.
 
 ## Paragens obrigatórias (a ÚNICA lista de coisas a confirmar antes de executar)
