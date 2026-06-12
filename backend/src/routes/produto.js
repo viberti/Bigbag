@@ -12,7 +12,7 @@ import { config } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
-import { grupoDe, tokenCasa, singularizar, norm as normN } from '../normaliza/categoria.js';
+import { grupoDe, tokenCasa, singularizar, norm as normN, tipoConsumidor } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
 import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
@@ -527,6 +527,12 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       return d.size === dietaAtual.size && [...d].every((x) => dietaAtual.has(x));
     };
     cands = cands.filter((c) => mesmaDieta(c.nome));
+    // TIPO saliente: massa compara com massa, nao com ketchup/azeite (o grupo
+    // mercearia e um saco de secos). Mesmo recorte da lista (tipoConsumidor).
+    const tipoAtual = tipoConsumidor(grupo, nomeFacetas, info.base?.marca || info.off?.marca || null);
+    if (['massa', 'pao', 'cereais', 'conservas'].includes(tipoAtual)) {
+      cands = cands.filter((c) => tipoConsumidor(grupo, c.nome, null) === tipoAtual);
+    }
     // parse + dedup por nome canónico; prioriza os que têm preço no histórico
     const vistos = new Set();
     const alternativas = cands.map((c) => ({
