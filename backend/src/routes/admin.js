@@ -1354,7 +1354,7 @@ adminRouter.get('/qualidade', async (req, res) => {
     const [[aliasVia]] = await pool.query(
       'SELECT SUM(confianca=100) AS manual, SUM(confianca=90) AS via_match, SUM(confianca=75) AS via_juiz, SUM(confianca=60) AS via_novo FROM sku_alias');
     const [nomesScan] = await pool.query(
-      `SELECT DISTINCT nome FROM lista_item WHERE nome IS NOT NULL
+      `SELECT DISTINCT nome FROM lista_item WHERE nome IS NOT NULL AND estado IN ('ativo','carrinho')
        UNION SELECT DISTINCT nome FROM despensa WHERE nome IS NOT NULL`);
     const scanOutros = nomesScan.map((r) => r.nome).filter((n) => grupoDeNome(n) === 'outros');
     res.json({ cadeias, origens, metodos, classificacao: {
