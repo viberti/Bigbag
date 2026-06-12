@@ -328,12 +328,62 @@ Iogurte
 frutas · carne · peixe · laticínios · padaria · bebidas
 doces · congelados · higiene · mercearia · outros</pre>
   <p>Derivado por força decrescente:</p>
-  <p style="font-size:clamp(18px,3vh,28px)"><span class="acc">food_groups do OFF</span> (autoritativo)
-     → <span class="acc">NOME do produto</span>
-     → <span class="warn">categoria da loja</span> <span class="muted">(a mais fraca: "Charcutaria e Queijos"…)</span></p>
+  <p style="font-size:clamp(18px,3vh,28px)"><span class="acc">"Congelados" da loja</span> (sinal físico)
+     → <span class="acc">NOME do produto</span> (vocabulário próprio)
+     → <span class="acc">food_groups do OFF</span>
+     → <span class="warn">categoria da loja</span> <span class="muted">("Charcutaria e Queijos"…)</span></p>
+  <p class="muted" style="font-size:clamp(13px,2.1vh,19px)"><b class="warn">Esta ordem foi INVERTIDA com dados (2026-06-13):</b>
+     o OFF vinha primeiro ("é curado, logo autoritativo") e acumulava exceções-remendo. Medida a inversão no golden set:
+     nos 2 únicos desacordos, o "ouro" estava <b>contaminado pelo próprio OFF</b> ("Patê de Alho" era <i>padaria</i> via tag <code>en:bread</code>).
+     <b>Exceções a acumular = prioridade errada.</b></p>
   <p class="muted" style="font-size:clamp(13px,2.1vh,20px)"><b>Importante:</b> isto é <b class="acc">organização de UI</b>
      (lista de compras, percurso de loja) — <b>não é a taxonomia</b> (essa é o vetor de facetas).
      E fechado ≠ imutável: ração, bebé ou farmácia entram como novos valores quando os talões os trouxerem.</p>
+</section>
+
+<!-- 8b · FUSÃO -->
+<section class="slide">
+  <span class="kicker">A ficha do produto real (2026-06-13)</span>
+  <h2>Uma ficha = <span class="acc">FUSÃO</span> de todas as fontes</h2>
+  <p>Não "a primeira fonte que respondeu": cada CAMPO tem a sua prioridade, num só lugar:</p>
+  <pre>
+marca        catálogo (moda) > OFF > rótulo   ← OFF chama "Hacendado" a terceiros
+nutrição     tabela OFICIAL da loja > OFF > rótulo plausível
+ingredientes o MAIS COMPLETO (−lixo-OCR, −língua estrangeira)
+nome         limpos de marca+formato → COLAPSAM → consenso de tokens
+manual       sagrado — a re-fusão nunca o toca</pre>
+  <ul style="gap:1vh">
+    <li>Cada campo guarda a <b class="acc">proveniência</b>; divergências entre fontes ficam <b>registadas</b>.</li>
+    <li>A fusão é <b class="acc">idempotente</b> — re-correr não muda nada (e isso TESTA-SE: a ronda final deu 0 mudanças em 206).</li>
+    <li>O backfill <b>aplica e regista o diff</b> — foi o registo que expôs 4 regressões em horas (dump a esconder a fonte curada, OCR a vencer por comprimento, tradução clobberada, ℮ virado "e").</li>
+  </ul>
+</section>
+
+<!-- 8c · VOTO-POR-VIZINHANÇA -->
+<section class="slide">
+  <span class="kicker">Classificar pelo catálogo (2026-06-13)</span>
+  <h2>As lojas votam: <span class="acc">voto-por-vizinhança</span></h2>
+  <p>Com EAN votam as linhas diretas; sem EAN, os ~80 vizinhos por nome. Peso = <b>profundidade do caminho</b>; só vale se <b class="acc">fiável</b> (conf ≥0,5 e ≥5 vizinhos — 88% de acordo nos fiáveis vs 78% geral).</p>
+  <pre>
+Mercearia   /   Arroz e Massa   /   Cotovelos Espiral e Massinhas
+(corredor)       (FAMÍLIA)           (folha)
+organiza a       lista doméstica     navegar 20.000
+loja toda        de 50 itens         produtos no site</pre>
+  <p><b>3 iterações com dados reais:</b> o corredor engolia metade do catálogo; a folha partiu as massas em 5 seções.
+     <b class="acc">A granularidade da exibição é a do caso de uso</b> — e o sistema guarda sempre o caminho completo.</p>
+  <p class="muted" style="font-size:clamp(13px,2.1vh,19px)">Os erros do voto concentram-se nos frescos de 1 token ("Banana" é <i>aroma</i> de centenas de processados) — o gate de confiança bloqueia-os. Caso → regra geral: "Pérolas"→Roupa virou a guarda <i>item-com-EAN-só-aceita-via-EAN</i>.</p>
+</section>
+
+<!-- 8d · GOLDEN -->
+<section class="slide">
+  <span class="kicker">Rede de segurança</span>
+  <h2>Golden set: a regressão que <span class="acc">se paga sozinha</span></h2>
+  <ul style="gap:1.2vh">
+    <li><b>325 casos reais auditados</b>, congelados em fixture, corridos como <b class="acc">gate do deploy</b>.</li>
+    <li>Mudou o vocabulário? O teste mostra o <b>DIFF legível em 30 s</b>; mudança intencional ⇒ regenerar o fixture <b>no mesmo commit</b> (o diff commitado É a documentação).</li>
+    <li>Já apanhou: drift código↔banco, regressão "Nectarina→bebidas" por um termo novo, e o ouro contaminado da inversão de sinais.</li>
+    <li><b class="warn">E o próprio gerador do golden tinha um bug</b> (coluna errada → fixture sem gabarito) — o teste quebrou com <code>esperado=undefined</code>, não silenciosamente. O auditor também precisa de auditoria — sempre.</li>
+  </ul>
 </section>
 
 <!-- 9 · CASCATA -->
@@ -402,6 +452,7 @@ doces · congelados · higiene · mercearia · outros</pre>
     <li><span class="num">5</span><b>Vocabulário vivo</b> — novos valores de faceta ("kefir", "sem lactose") exigem curadoria manual.</li>
     <li><span class="num">6</span><b>Não-alimentares</b> — sem OFF, sem nutrição, categorias caóticas (plano: busca web).</li>
     <li><span class="num">7</span><b>Multi-país</b> — modelo desenhado p/ Espanha, à espera do 1.º talão real.</li>
+    <li><span class="num">8</span><b>Famílias equivalentes entre lojas não somam</b> — "Arroz e Massa" (Auchan) ≠ "Massas" (Continente) no voto; a semente da cura está minerada: 3.421 EANs partilhados → 234 pares de categorias equivalentes.</li>
   </ul>
 </section>
 

@@ -1,7 +1,7 @@
 # Como o BigBag classifica produtos de supermercado
 
 *Documento didático (≈3 páginas) para apresentação em turma de graduação.
-Derivado de `Taxonomia_Produto.md`, `Normalizacao.md` e `Conceito §11` — snapshot de 2026-06-11; não é fonte de verdade.*
+Derivado de `Taxonomia_Produto.md`, `Normalizacao.md`, `Conceito §11` e `Analise_Fontes §Fase D` — snapshot de 2026-06-14; não é fonte de verdade.*
 
 ---
 
@@ -48,6 +48,15 @@ A mesma compra tem **três nomes**, e os três importam:
 - O **EAN** (código de barras) é a identidade forte: liga ao Open Food Facts
   (nutrição, ingredientes, Nutri-Score) e desambigua marcas. É validado pelo
   dígito verificador antes de entrar na base.
+- A ficha do nível 2 não é "a primeira fonte que respondeu": é uma **FUSÃO
+  campo-a-campo de todas as fontes** (catálogos de loja, OFF, leitura do rótulo),
+  com uma **tabela de prioridades num só lugar** e prioridades *diferentes por
+  campo* — a marca confia no catálogo (o OFF crowdsourced chama "Hacendado" a
+  produtos de terceiros), a nutrição confia na tabela oficial da loja, os
+  ingredientes vencem por **completude medida** (com penalização de lixo-OCR e
+  de língua estrangeira), e a correção manual do operador é sagrada. Cada campo
+  guarda a **proveniência** e as divergências entre fontes ficam registadas.
+  A fusão é **idempotente** (re-correr não muda nada) — propriedade que se TESTA.
 - **Frescos** (banana, carne picada) não têm EAN útil → a identidade é o **nome**,
   e a nutrição vem da **classe** ("banana" tem nutrição conhecida por 100 g).
 - **É aqui que a tensão preço-vs-nutrição se resolve** (Família → Produto → EAN):
@@ -172,12 +181,47 @@ pergunta — não fixadas na estrutura.
 Acima das facetas há um **grupo grosso com 11 valores fechados** — frutas, carne,
 peixe, laticínios, padaria, bebidas, doces, congelados, higiene, mercearia, outros —
 usado para organizar a lista de compras e acelerar buscas. É derivado por força
-decrescente: `food_groups` do OFF (autoritativo) → **nome** do produto → categoria
-da loja (a mais fraca: prateleiras misturam, como "Charcutaria e Queijos").
+decrescente: categoria de loja "Congelados" (sinal **físico** inequívoco) →
+**nome** do produto (o nosso vocabulário) → `food_groups` do OFF → categoria da
+loja (a mais fraca: prateleiras misturam, como "Charcutaria e Queijos").
+
+> **Lição (2026-06-13): essa ordem foi INVERTIDA com dados.** A versão original
+> punha o OFF primeiro ("é uma base curada, logo autoritativa") — e foi acumulando
+> exceções-remendo (bebidas-vs-lácteos, bebidas-vs-mercearia…). Exceções a
+> acumular são o cheiro de prioridade errada. Medimos a inversão contra o golden
+> set: nos únicos 2 casos onde as ordens divergiam, o "ouro" estava **contaminado
+> pelo próprio OFF** ("Patê de Alho" era *padaria* porque alguém no OFF lhe pôs a
+> tag `en:bread`). Crowdsourcing perde para o vocabulário próprio + catálogo curado.
 
 **Importante:** o grupo é **organização de UI** (lista de compras, percurso de
 loja) — **não é a taxonomia** (essa é o vetor de facetas). E fechado ≠ imutável:
 ração, bebé ou farmácia entram como novos valores quando os talões os trouxerem.
+
+### Classificar pelo catálogo: o voto-por-vizinhança (2026-06-13)
+
+As lojas já classificaram dezenas de milhares de produtos — usamos esse trabalho.
+Para classificar um produto, **as linhas de catálogo votam**: com EAN, votam as
+linhas diretas desse código; sem EAN, votam os ~80 vizinhos por nome. O voto é
+ponderado pela **profundidade do caminho** (a família de 4 níveis do Auchan vale
+mais que o "Mercearia" raso do Continente; vocabulário estrangeiro vale metade), e
+só conta se for **fiável** (confiança ≥0,5 e ≥5 vizinhos — medido: 88% de acordo
+nos fiáveis vs 78% no geral; os erros concentram-se nos frescos de 1 token, em que
+"Banana" é *aroma* de centenas de processados: o gate de confiança bloqueia-os).
+
+**E a que nível da hierarquia se classifica? Depende de PARA QUEM.** Um caminho
+de loja tem 3 andares úteis — corredor / família / folha:
+
+```
+Mercearia  /  Arroz e Massa  /  Cotovelos Espiral e Massinhas
+(corredor)     (FAMÍLIA)          (folha)
+p/ organizar   p/ uma lista       p/ navegar 20.000
+a loja toda    doméstica de 50    produtos no site
+```
+
+Levámos 3 iterações com dados reais: o corredor engolia metade do catálogo numa
+seção "Mercearia"; a folha estilhaçou as massas da lista em 5 seções. **A
+granularidade certa da exibição é a do caso de uso** (a família), mas o sistema
+**guarda sempre o caminho completo** — exibição resume, classificação não perde.
 
 ### Como uma pergunta encontra produtos (cascata de matching)
 
@@ -231,6 +275,16 @@ Um classificador sem métrica de qualidade é uma opinião. Medimos em **3 camad
    substantivo-cabeça (*Croissant de **Manteiga***→lacticínios, *Batata **Doce***→doces,
    ***Milka*** casa "milk"). Custo da auditoria inteira: cêntimos.
 
+4. **Golden set de regressão (2026-06-13):** 325 casos reais com classificação
+   auditada, congelados em fixture e corridos como **gate do deploy**. Mudou o
+   vocabulário? O teste mostra o DIFF legível em 30 s; se a mudança é intencional,
+   o fixture regenera-se no MESMO commit (o diff commitado é a documentação).
+   Já pagou por si várias vezes: apanhou um drift real entre código e banco, uma
+   regressão "Nectarina→bebidas" por um termo novo, e o ouro contaminado da
+   inversão de sinais. **E o próprio gerador do golden tinha um bug** (lia a
+   coluna errada e emitia fixture sem o gabarito) — apanhado porque o teste
+   quebrou com `esperado=undefined`, não silenciosamente.
+
 > **A armadilha que quase nos enganou:** as 3 primeiras rondas do juiz deram
 > **"0 erros em 324"** — perfeição! Era um **bug de parsing nosso** (o juiz recebia
 > a pergunta, mas nós líamos sempre uma resposta vazia). Só o teste de canários o
@@ -256,9 +310,16 @@ Um classificador sem métrica de qualidade é uma opinião. Medimos em **3 camad
    governança: hoje há um gate que rejeita valores fora do vocabulário, mas a
    curadoria é manual.
 6. **Não-alimentares.** Detergente, papel — sem OFF, sem nutrição, categorias de
-   loja caóticas. Plano: busca web dedicada (fase C), ainda não construída.
+   loja caóticas. O voto-por-vizinhança já os apanha quando o catálogo os tem
+   ("Pasta de Dentes"→higiene, folha "Papel Higiénico e Rolos"); busca web
+   dedicada (fase C) continua por construir.
 7. **Multi-país.** O mesmo modelo para Espanha (Mercadona) está desenhado, mas
    espera o primeiro talão espanhol real para validar a leitura.
+8. **Famílias equivalentes entre lojas não somam.** "Arroz e Massa" (Auchan) e
+   "Massas" (Continente) são a mesma família mas votam separadas — fragmenta o
+   voto e divide seções por loja de origem. A semente da solução está minerada:
+   3.421 EANs vendidos em ambas as lojas geram 234 pares de categorias
+   equivalentes (≥3 EANs de suporte) — o mapa loja→canónico da Fase 3.
 
 ---
 
@@ -290,3 +351,18 @@ difícil de replicar do sistema.**
 > independentes + projeções sob demanda respondem a mais perguntas, com menos
 > manutenção — e deixam o LLM no único papel em que ele é insubstituível:
 > transformar linguagem humana bagunçada em valores desse vetor.
+
+E três morais que esta fase acrescentou:
+
+1. **Caso específico → regra geral.** Cada erro concreto ("Pérolas" caiu em
+   *Roupa*; a camomila herdou um corredor vazio de informação) tem de virar a
+   correção da **classe** de erro (guarda anti-colisão de EAN; filtro de nível
+   raso) — nunca um remendo para aquele produto. Senão o classificador vira uma
+   coleção de exceções que ninguém audita.
+2. **Registar muda o jogo.** O backfill da fusão APLICA mas REGISTA o diff
+   campo-a-campo. Foi o registo que expôs, em horas, 4 regressões que testes
+   unitários não viram (o dump OFF a esconder a fonte curada; lixo-OCR a vencer
+   por comprimento; a tradução clobberada; o símbolo ℮ virado "e").
+3. **A granularidade de exibição é do caso de uso; a de armazenamento é a máxima.**
+   A lista mostra a família; o sistema guarda a folha e o caminho inteiro — é
+   dele que as comparações finas ("este chá preto vs outros chás pretos") virão.
