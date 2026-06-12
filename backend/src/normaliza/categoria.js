@@ -37,19 +37,19 @@ export const DISPENSA_CLASSE_RE = `\\\\b(${DISPENSA_CLASSE_KW.join('|')})\\\\b`;
 
 export const GRUPOS = [
   { id: 'frutas', t: ['fruta', 'fruit', 'legume', 'vegetal', 'vegetable', 'verdura', 'hortic', 'hortofrut', 'salada', 'cogumelo', 'meloa', 'melao', 'melancia', 'salsa', 'batata', 'abobora', 'milho', 'cenoura'] },
-  { id: 'carne', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'salam', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru', 'presunto', 'chourico', 'pate'] },
-  { id: 'peixe', t: ['peixe', 'fish', 'marisco', 'seafood', 'bacalhau', 'atum', 'tuna', 'salmao', 'salmon', 'pescado', 'sardinha', 'cavala', 'biqueir'] },
-  { id: 'lacticinios', t: ['laticinio', 'lacteo', 'lacte', 'dair', 'leite', 'milk_', 'queijo', 'cheese', 'iogurte', 'yogurt', 'yoghurt', 'manteiga', 'butter', 'nata', 'ovo', 'ovos', 'egg', 'eggs', 'requeijao', 'kefir', 'skyr', 'burrata', 'mozzarella', 'gorgonzola'] },
+  { id: 'carne', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'salam', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru', 'presunto', 'chourico', 'pate', 'jamon', 'embutido', 'salchich', 'charcuter'] },
+  { id: 'peixe', t: ['peixe', 'fish', 'marisco', 'seafood', 'bacalhau', 'atum', 'tuna', 'salmao', 'salmon', 'pescado', 'sardinha', 'cavala', 'biqueir', 'peixaria', 'pescader'] },
+  { id: 'lacticinios', t: ['laticinio', 'lacteo', 'lacte', 'dair', 'leite', 'milk_', 'queijo', 'cheese', 'iogurte', 'yogurt', 'yoghurt', 'manteiga', 'butter', 'nata', 'ovo', 'ovos', 'egg', 'eggs', 'requeijao', 'kefir', 'skyr', 'burrata', 'mozzarella', 'gorgonzola', 'queso'] },
   // padaria = só pão/pastelaria FRESCA (como o corredor da loja). Massa/arroz/
   // farinha/cereais são SECOS → mercearia (as lojas classificam-nos aí; o
   // mapeamento-de-loja segue o mercado). A nutrição-por-classe dos básicos é um
   // mecanismo SEPARADO (DISPENSA_CLASSE) e não muda com isto.
-  { id: 'padaria', t: ['pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'tosta', 'wrap', 'croissant', 'broa', 'baguete', 'brioche', 'tortilha', 'tortilla'] },
-  { id: 'bebidas', t: ['bebida', 'beverage', 'drink', 'agua', 'water', 'sumo', 'juice', 'refrigerante', 'soda', 'cerveja', 'beer', 'vinho', 'wine', 'cafe', 'coffee', 'cha', 'tea', 'alcool', 'alcohol'] },
+  { id: 'padaria', t: ['pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'tosta', 'wrap', 'croissant', 'broa', 'baguete', 'brioche', 'tortilha', 'tortilla', 'panaderia', 'bolleria', 'pan'] },
+  { id: 'bebidas', t: ['bebida', 'beverage', 'drink', 'agua', 'water', 'sumo', 'juice', 'refrigerante', 'soda', 'cerveja', 'beer', 'vinho', 'wine', 'cafe', 'coffee', 'cha', 'tea', 'alcool', 'alcohol', 'espumante', 'nectar_', 'nectare', 'infus', 'cerveza', 'vino', 'bodega', 'zumo'] },
   { id: 'doces', t: ['chocolate', 'doce', 'sweet', 'guloseima', 'candy', 'gelado', 'ice cream', 'snack', 'bolacha', 'biscuit', 'biscoito', 'cookie', 'sobremesa', 'dessert', 'mel', 'honey', 'compota', 'marmelada', 'jam'] },
   { id: 'congelados', t: ['congelado', 'frozen', 'ultracongelado'] },
-  { id: 'higiene', t: ['higiene', 'hygiene', 'limpeza', 'cleaning', 'nao alimentar', 'detergente', 'detergent', 'papel', 'paper', 'cosmetic', 'sabonete', 'champo', 'beleza', 'lixivia', 'amaciador'] },
-  { id: 'mercearia', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'leguminosa', 'feijao', 'grao', 'tofu', 'massa', 'macarrao', 'penne', 'fusilli', 'talharim', 'esparguete', 'espaguete', 'noodles', 'lasanha', 'gnocchi', 'nhoque', 'arroz', 'rice', 'farinha', 'flour', 'cuscuz', 'cereai', 'cereal', 'breakfast', 'muesli', 'granola', 'aveia', 'cotovelo', 'cotovelinho', 'conchigli', 'capellini', 'vermicell', 'aletria', 'linguine', 'pappardel', 'paccheri', 'bucatini', 'rigaton', 'tagliatel', 'fettuccin', 'farfalle', 'tortelin', 'raviol', 'cannellon', 'canelone', 'orecchiet', 'ditalini', 'fideo'] },
+  { id: 'higiene', t: ['higiene', 'hygiene', 'limpeza', 'cleaning', 'nao alimentar', 'detergente', 'detergent', 'papel', 'paper', 'cosmetic', 'sabonete', 'champo', 'beleza', 'lixivia', 'amaciador', 'champu', 'maquillaje', 'perfume', 'desodor', 'jabon', 'colonia', 'cabello', 'parafarmacia'] },
+  { id: 'mercearia', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'leguminosa', 'feijao', 'grao', 'tofu', 'massa', 'macarrao', 'penne', 'fusilli', 'talharim', 'esparguete', 'espaguete', 'noodles', 'lasanha', 'gnocchi', 'nhoque', 'arroz', 'rice', 'farinha', 'flour', 'cuscuz', 'cereai', 'cereal', 'breakfast', 'muesli', 'granola', 'aveia', 'cotovelo', 'cotovelinho', 'conchigli', 'capellini', 'vermicell', 'aletria', 'linguine', 'pappardel', 'paccheri', 'bucatini', 'rigaton', 'tagliatel', 'fettuccin', 'farfalle', 'tortelin', 'raviol', 'cannellon', 'canelone', 'orecchiet', 'ditalini', 'fideo', 'azeitona', 'aceituna', 'encurtido', 'aperitivo'] },
 ];
 export const GRUPO_OUTROS = 'outros';
 export const GRUPOS_IDS = [...GRUPOS.map((g) => g.id), GRUPO_OUTROS];

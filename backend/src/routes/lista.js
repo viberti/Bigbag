@@ -190,6 +190,13 @@ async function aplicarDadosEan(pool, itens) {
     `SELECT ean, MIN(preco) AS preco, SUBSTRING_INDEX(GROUP_CONCAT(fonte ORDER BY preco ASC), ',', 1) AS fonte
        FROM catalogo_produto WHERE ean IN (${ph}) AND preco IS NOT NULL AND preco > 0 GROUP BY ean`, eans);
   const precoPorEan = new Map(refs.map((r) => [String(r.ean), r]));
+  // GRUPO pela CATEGORIA DE LOJA (revisão 3.1, 2026-06-13): quando o nome não
+  // classifica ('outros'), o categoria_path do catálogo resolve — as hierarquias
+  // das lojas cobrem 78–95% dos paths PT via grupoDeTexto (vocabulário inclui ES).
+  const [paths] = await pool.query(
+    `SELECT ean, MAX(COALESCE(NULLIF(categoria_path,''), categoria)) AS path
+       FROM catalogo_produto WHERE ean IN (${ph}) GROUP BY ean`, eans);
+  const pathPorEan = new Map(paths.map((r) => [String(r.ean), r.path]));
   const [pe] = await pool.query(
     `SELECT ean, MAX(NULLIF(marca,'')) AS marca, MAX(NULLIF(quantidade,'')) AS quantidade FROM produto_ean WHERE ean IN (${ph}) GROUP BY ean`, eans);
   const pePorEan = new Map(pe.map((r) => [String(r.ean), r]));
@@ -204,6 +211,10 @@ async function aplicarDadosEan(pool, itens) {
     const fe = pePorEan.get(String(it.ean));
     if (fe?.marca) it.marca = fe.marca; // ficha (por EAN) vence a deteção pelo nome
     it.tamanho = limparTamanho(fe?.quantidade) || limparTamanho(fmtPorEan.get(String(it.ean)));
+    if ((!it.grupo || it.grupo === 'outros') && pathPorEan.get(String(it.ean))) {
+      const gPath = grupoDeTexto(pathPorEan.get(String(it.ean)));
+      if (gPath !== 'outros') it.grupo = gPath; // categoria de loja resolve o que o nome não resolveu
+    }
   }
 }
 
