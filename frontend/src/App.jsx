@@ -1467,12 +1467,15 @@ const GRUPOS_CAT = [
   { id: 'carne', label: 'Carne e Charcutaria', ic: '🥩', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'salam', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru'] },
   { id: 'peixe', label: 'Peixe e Marisco', ic: '🐟', t: ['peixe', 'fish', 'marisco', 'seafood', 'bacalhau', 'atum', 'tuna', 'salmao', 'salmon', 'pescado'] },
   { id: 'lacticinios', label: 'Laticínios e Ovos', ic: '🥛', t: ['laticinio', 'lacteo', 'lacte', 'dair', 'leite', 'milk', 'queijo', 'cheese', 'iogurte', 'yogurt', 'yoghurt', 'manteiga', 'butter', 'nata', 'ovo', 'ovos', 'egg', 'eggs', 'requeijao', 'kefir', 'skyr'] },
-  { id: 'padaria', label: 'Padaria e Cereais', ic: '🥖', t: ['cereai', 'cereal', 'breakfast', 'pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'tosta', 'wrap', 'croissant', 'muesli', 'granola'] },
+  { id: 'padaria', label: 'Padaria', ic: '🥖', t: ['pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'tosta', 'wrap', 'croissant', 'broa', 'baguete', 'brioche', 'tortilha', 'tortilla'] },
   { id: 'bebidas', label: 'Bebidas', ic: '🥤', t: ['bebida', 'beverage', 'drink', 'agua', 'water', 'sumo', 'juice', 'refrigerante', 'soda', 'cerveja', 'beer', 'vinho', 'wine', 'cafe', 'coffee', 'cha', 'tea', 'alcool', 'alcohol'] },
   { id: 'doces', label: 'Doces e Snacks', ic: '🍫', t: ['chocolate', 'doce', 'sweet', 'guloseima', 'candy', 'gelado', 'ice cream', 'snack', 'bolacha', 'biscuit', 'biscoito', 'cookie', 'sobremesa', 'dessert', 'mel', 'honey', 'compota', 'marmelada', 'jam'] },
   { id: 'congelados', label: 'Congelados', ic: '❄️', t: ['congelado', 'frozen', 'ultracongelado'] },
   { id: 'higiene', label: 'Higiene e Limpeza', ic: '🧼', t: ['higiene', 'hygiene', 'limpeza', 'cleaning', 'nao alimentar', 'detergente', 'detergent', 'papel', 'paper', 'cosmetic', 'sabonete', 'champo'] },
-  { id: 'mercearia', label: 'Mercearia', ic: '🛒', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar'] },
+  // mercearia = corredor dos SECOS (massa/arroz/farinha/cereais + azeite/conservas/
+  // sal/açúcar) — é o mapeamento DE LOJA (como as lojas organizam). A lista usa um
+  // mapeamento mais fino (tipo-consumidor), ver TIPOS_CAT/tipoConsumidor.
+  { id: 'mercearia', label: 'Mercearia', ic: '🛒', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'cereai', 'cereal', 'breakfast', 'muesli', 'granola', 'aveia', 'cuscuz'] },
 ];
 const CAT_OUTROS = { id: 'outros', label: 'Outros', ic: '⋯' };
 // Match por INÍCIO de palavra, não substring ("VERMELHA" continha "mel" → Doces;
@@ -1499,6 +1502,45 @@ function categoriaAlto(cat) {
 function grupoProduto(categoria, nome) {
   const g = categoriaAlto(categoria);
   return g.id === 'outros' ? categoriaAlto(nome) : g;
+}
+
+// ── Mapeamento da LISTA (lógica do consumidor): "o que a coisa É" ────────────
+// Distinto do mapeamento DE LOJA (it.grupo, o corredor) — que NÃO se perde, fica
+// preservado para comparar/explorar (e p/ comprar: o mesmo corredor encontra-se
+// junto). Aqui a despensa parte-se em tipos concretos: Massa tem secção própria;
+// arroz/farinha/azeite/sal caem em "Mercearia" (residual) — por bom senso, não um
+// grupo por produto. Afina-se com o uso. Granularidade do dono: "Massa" sim, "Arroz" não.
+const TIPOS_CAT = [
+  { id: 'frutas', label: 'Frutas e Vegetais', ic: '🍎' },
+  { id: 'carne', label: 'Carne e Charcutaria', ic: '🥩' },
+  { id: 'peixe', label: 'Peixe e Marisco', ic: '🐟' },
+  { id: 'lacticinios', label: 'Laticínios e Ovos', ic: '🥛' },
+  { id: 'massa', label: 'Massa', ic: '🍝' },
+  { id: 'pao', label: 'Pão', ic: '🥖' },
+  { id: 'cereais', label: 'Cereais', ic: '🥣' },
+  { id: 'conservas', label: 'Conservas', ic: '🥫' },
+  { id: 'mercearia', label: 'Mercearia', ic: '🛒' },
+  { id: 'bebidas', label: 'Bebidas', ic: '🥤' },
+  { id: 'doces', label: 'Doces e Snacks', ic: '🍫' },
+  { id: 'congelados', label: 'Congelados', ic: '❄️' },
+  { id: 'higiene', label: 'Higiene e Limpeza', ic: '🧼' },
+  { id: 'outros', label: 'Outros', ic: '⋯' },
+];
+// tipos salientes da despensa, por NOME (vence o grupo-de-loja). Conservas exige
+// marcador explícito de conserva (atum fresco ≠ atum em lata). Ordem importa.
+const TIPOS_NOME = [ // testados contra normCat (minúsculas, SEM acentos)
+  ['massa', /(^|[^a-z])(massas?|pasta|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?)/],
+  ['cereais', /(^|[^a-z])(cereais?|muesli|granola|aveia|flocos|cornflake|chocapic|estrelitas)/],
+  ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa]|polpa de tomate)/], // marcador explícito (atum "fresco" fica peixe)
+  ['pao', /(^|[^a-z])(pao|paes|tosta|wrap|broa|baguet|croissant|brioche)/],
+];
+function tipoConsumidor(grupo, nome) {
+  const s = normCat(nome);
+  for (const [id, re] of TIPOS_NOME) if (re.test(s)) return id;
+  if (['frutas', 'carne', 'peixe', 'lacticinios', 'bebidas', 'doces', 'congelados', 'higiene'].includes(grupo)) return grupo;
+  if (grupo === 'padaria') return 'pao';        // padaria sem massa/cereais ≈ pão
+  if (grupo === 'mercearia') return 'mercearia'; // residual dos secos (arroz, farinha, azeite, sal…)
+  return 'outros';
 }
 
 // Tamanho/formato do produto (cerveja "33 cl · lata", leite "1 l", fiambre "200 g"):
@@ -3869,15 +3911,19 @@ function secaoDe(cat) {
 // Organiza a lista para a folha: ATIVOS por grupo (categoria do servidor B1; cai
 // para o keyword local se faltar), ordenados; "no carrinho" à parte (descem ao fim).
 function organizarCarrinho(itens) {
-  const porGrupo = new Map();
+  // Agrupa pela LÓGICA DO CONSUMIDOR (Massa, Conservas, …), não pelo corredor de
+  // loja. O it.grupo (loja) continua a chegar e fica preservado; aqui derivamos o
+  // tipo do nome (robusto a it.grupo desatualizado de SKUs antigos).
+  const porTipo = new Map();
   for (const it of itens) {
     if (it.estado === 'carrinho') continue;
-    const g = (it.grupo && GRUPOS_CAT.find((x) => x.id === it.grupo)) || grupoProduto(it.categoria, it.nome);
-    if (!porGrupo.has(g.id)) porGrupo.set(g.id, { g, itens: [] });
-    porGrupo.get(g.id).itens.push(it);
+    const tid = tipoConsumidor(it.grupo, it.nome);
+    const g = TIPOS_CAT.find((x) => x.id === tid) || TIPOS_CAT[TIPOS_CAT.length - 1];
+    if (!porTipo.has(g.id)) porTipo.set(g.id, { g, itens: [] });
+    porTipo.get(g.id).itens.push(it);
   }
-  const ordem = (id) => { const i = GRUPOS_CAT.findIndex((x) => x.id === id); return i < 0 ? 99 : i; };
-  const secoes = [...porGrupo.values()].sort((a, b) => ordem(a.g.id) - ordem(b.g.id));
+  const ordem = (id) => { const i = TIPOS_CAT.findIndex((x) => x.id === id); return i < 0 ? 99 : i; };
+  const secoes = [...porTipo.values()].sort((a, b) => ordem(a.g.id) - ordem(b.g.id));
   return { secoes, noCarrinho: itens.filter((i) => i.estado === 'carrinho') };
 }
 

@@ -15,12 +15,12 @@ test('chaveItemLista: plurais/acentos/maiusculas consolidam no MESMO item', () =
 
 test('grupoDeNome: substantivo-cabeça vence palavra forte de outro grupo (achados do LLM-juiz)', () => {
   assert.equal(grupoDeNome('Croissant de Manteiga'), 'padaria');     // não lacticinios
-  assert.equal(grupoDeNome('Esparguete com Ovo'), 'padaria');        // não lacticinios
+  assert.equal(grupoDeNome('Esparguete com Ovo'), 'mercearia');      // massa = seco/mercearia, não lacticinios
   assert.equal(grupoDeNome('Batata Doce'), 'frutas');                // não doces
   assert.equal(grupoDeNome('Abóbora Manteiga (Butternut)'), 'frutas'); // não lacticinios
   assert.equal(grupoDeNome('Patê de Alho e Salsa'), 'carne');        // não frutas (salsa)
   assert.equal(grupoDeNome('Gorgonzola Picante'), 'lacticinios');
-  assert.equal(grupoDeNome('Massa Fresca de Ovo com Ricotta'), 'padaria');
+  assert.equal(grupoDeNome('Massa Fresca de Ovo com Ricotta'), 'mercearia'); // massa, não lacticinios
   // e os normais continuam certos
   assert.equal(grupoDeNome('Leite Meio Gordo'), 'lacticinios');
   assert.equal(grupoDeNome('Doce de Leite'), 'doces');               // cabeça = doce ✓
@@ -30,8 +30,8 @@ test('grupoDeNome: substantivo-cabeça vence palavra forte de outro grupo (achad
   // 'milk_' = palavra inteira: "Milka" não é leite (era lacticinios)
   assert.notEqual(grupoDeNome('Milka Confetti'), 'lacticinios');
   assert.equal(grupoDeTexto('milk'), 'lacticinios'); // a palavra inteira continua a casar
-  assert.equal(grupoDeNome('Gnocchi de Batata'), 'padaria');   // massa, não legume
-  assert.equal(grupoDeNome('Tortilhas de Trigo'), 'padaria');
+  assert.equal(grupoDeNome('Gnocchi de Batata'), 'mercearia');   // massa = seco, não legume
+  assert.equal(grupoDeNome('Tortilhas de Trigo'), 'padaria');    // wrap/tortilha fica na padaria
 });
 
 test('grupoDe: precedências cirúrgicas (kefir lácteo > OFF-bebidas; congelados de loja > nome)', () => {
