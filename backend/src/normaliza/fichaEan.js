@@ -207,7 +207,9 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
   // NOME: candidatos PT limpos (marca+formato fora) → colapso → consenso
   const candsNome = [];
   for (const c of cat) {
-    if (c.nome_pt) candsNome.push({ texto: limparNomeProduto(c.nome_pt, marca || c.marca), fonte: c.fonte, traduzido: true });
+    // nome_pt IGUAL ao nome original não é tradução — é a tradução que falhou e
+    // ficou ES gravada (caso "Queso Gouda": entrava como candidato "PT" e vencia)
+    if (c.nome_pt && norm(c.nome_pt) !== norm(c.nome)) candsNome.push({ texto: limparNomeProduto(c.nome_pt, marca || c.marca), fonte: c.fonte, traduzido: true });
     if (FONTES_PT.includes(c.fonte)) candsNome.push({ texto: limparNomeProduto(c.nome, marca || c.marca), fonte: c.fonte, traduzido: false });
   }
   if (off?.nome_pt) candsNome.push({ texto: limparNomeProduto(off.nome_pt, marca), fonte: 'off', traduzido: true });

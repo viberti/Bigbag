@@ -166,7 +166,7 @@ export function tokenCasa(nomeTok, pedidoTok) {
 // "10 Doses"); (b) unidade de embalagem ÓRFÃ no fim também sai ("… Saquetas").
 // Partilhada: a fusão da ficha limpa na origem; a lista limpa na exibição
 // (nomes já gravados). Nunca esvazia.
-const UNIDADES_CONTAGEM = 'saqs?|saquetas?|saquinhos?|sach[eê]s?|sachets?|c[áa]psulas?|caps|doses?|rolos?|folhas?|pastilhas?|comprimidos?|unidades?|unid|pe[çc]as?|lavagens?';
+const UNIDADES_CONTAGEM = 'saqs?|saquetas?|saquinhos?|sach[eê]s?|sachets?|c[áa]psulas?|caps|doses?|rolos?|folhas?|pastilhas?|comprimidos?|unidades?|unid|uni|un|pe[çc]as?|lavagens?';
 const RE_NUM_UNIDADE = new RegExp(`(^|\\s)\\d+\\s*(${UNIDADES_CONTAGEM})(?=\\s|$)`, 'gi');
 const RE_UNIDADE_FIM = new RegExp(`\\s+(${UNIDADES_CONTAGEM})\\s*$`, 'i');
 export function cortarQuantidadeNome(nome) {
