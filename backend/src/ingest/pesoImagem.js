@@ -95,22 +95,43 @@ async function imagemOff(ean) {
   } catch { return null; }
 }
 
-// Degrau 3: busca de imagem (Google CSE, searchType=image). HOJE 403 (API por
-// ativar na consola) — devolve null sem falhar; quando a chave funcionar, liga-se sozinho.
+// Degrau 3: busca de imagem na web. Primeiro SerpApi (Google Images por
+// procuração — adotado 2026-06-12 depois de o CSE ficar bloqueado pela conta
+// revendedor IONOS: "project does not have access", imune a chave/billing/reativar;
+// free 250 buscas/mês, chega porque isto é o ÚLTIMO degrau e corre 1x por EAN).
+// O CSE fica como alternativa para se um dia o Google destravar.
 async function imagemBuscaWeb(nome, marca) {
+  const q = [nome, marca].filter(Boolean).join(' ');
+  if (!q) return null;
+  const SERP = process.env.SERPAPI_KEY;
+  if (SERP) {
+    try {
+      const u = new URL('https://serpapi.com/search.json');
+      u.searchParams.set('engine', 'google_images');
+      u.searchParams.set('q', q);
+      u.searchParams.set('gl', 'pt'); u.searchParams.set('hl', 'pt');
+      u.searchParams.set('api_key', SERP);
+      const r = await fetch(u, { signal: AbortSignal.timeout(15000) });
+      const j = await r.json();
+      for (const it of (j?.images_results || []).slice(0, 3)) {
+        const img = it.original ? await buscarImagem(it.original) : null;
+        if (img) return img; // o prompt VLM verifica a correspondência com o nome (anti-produto-errado)
+      }
+    } catch { /* cai para o CSE */ }
+  }
   const KEY = process.env.GOOGLE_CSE_KEY, CX = process.env.GOOGLE_CSE_CX;
   if (!KEY || !CX) return null;
   try {
     const u = new URL('https://www.googleapis.com/customsearch/v1');
     u.searchParams.set('key', KEY); u.searchParams.set('cx', CX);
     u.searchParams.set('searchType', 'image'); u.searchParams.set('num', '2'); u.searchParams.set('gl', 'pt');
-    u.searchParams.set('q', [nome, marca].filter(Boolean).join(' '));
+    u.searchParams.set('q', q);
     const r = await fetch(u, { signal: AbortSignal.timeout(8000) });
     const j = await r.json();
     if (j?.error) return null; // 403 etc. — salta o degrau em silêncio
     for (const it of j?.items || []) {
       const img = await buscarImagem(it.link);
-      if (img) return img; // o prompt verifica a correspondência com o nome (anti-produto-errado)
+      if (img) return img;
     }
     return null;
   } catch { return null; }
