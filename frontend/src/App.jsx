@@ -3872,7 +3872,9 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                 <div key={g.id}>
                   <div className="cart-cat">{g.label}</div>
                   {its.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} tipo={g.id} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
+                    // tipo vem do ITEM (a seção pode ser a folha do catálogo, não um tid) —
+                    // o corte de genérico do nome continua por tipo-consumidor
+                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} tipo={tipoConsumidor(it.grupo, it.nome, it.marca)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
                   ))}
                 </div>
               ))}
@@ -4068,19 +4070,23 @@ function secaoDe(cat) {
 // Organiza a lista para a folha: ATIVOS por grupo (categoria do servidor B1; cai
 // para o keyword local se faltar), ordenados; "no carrinho" à parte (descem ao fim).
 function organizarCarrinho(itens) {
-  // Agrupa pela LÓGICA DO CONSUMIDOR (Massa, Conservas, …), não pelo corredor de
-  // loja. O it.grupo (loja) continua a chegar e fica preservado; aqui derivamos o
-  // tipo do nome (robusto a it.grupo desatualizado de SKUs antigos).
-  const porTipo = new Map();
+  // REGRA DO DONO (2026-06-13): a seção do usuário é a ÚLTIMA subcategoria do
+  // catálogo (it.cat_exib, a folha — "Chá Preto", "Polpa Tomate"), senão metade
+  // do catálogo cai em "Mercearia". Sem voto fiável do catálogo, cai nos tipos
+  // à mão (massa/pão/…) e por fim no grupo. O ícone e a ORDEM vêm do tipo/grupo
+  // subjacente (a folha herda o lugar do corredor a que pertence).
+  const ordem = (id) => { const i = TIPOS_CAT.findIndex((x) => x.id === id); return i < 0 ? 99 : i; };
+  const porSec = new Map();
   for (const it of itens) {
     if (it.estado === 'carrinho') continue;
     const tid = tipoConsumidor(it.grupo, it.nome, it.marca);
     const g = TIPOS_CAT.find((x) => x.id === tid) || TIPOS_CAT[TIPOS_CAT.length - 1];
-    if (!porTipo.has(g.id)) porTipo.set(g.id, { g, itens: [] });
-    porTipo.get(g.id).itens.push(it);
+    const label = it.cat_exib || g.label;
+    const key = label.toLowerCase();
+    if (!porSec.has(key)) porSec.set(key, { g: { id: key, label, ic: g.ic }, ord: ordem(g.id), itens: [] });
+    porSec.get(key).itens.push(it);
   }
-  const ordem = (id) => { const i = TIPOS_CAT.findIndex((x) => x.id === id); return i < 0 ? 99 : i; };
-  const secoes = [...porTipo.values()].sort((a, b) => ordem(a.g.id) - ordem(b.g.id));
+  const secoes = [...porSec.values()].sort((a, b) => a.ord - b.ord || a.g.label.localeCompare(b.g.label, 'pt'));
   return { secoes, noCarrinho: itens.filter((i) => i.estado === 'carrinho') };
 }
 

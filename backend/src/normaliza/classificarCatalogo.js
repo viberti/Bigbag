@@ -31,12 +31,31 @@ export function niveisDePath(fonte, path) {
   return { niveis, folha, profundidade: niveis.length, es };
 }
 
-// Folha legível para exibição: kebab→espaços, conectores minúsculos, resto
-// capitalizado. (Rótulo provisório — a Fase 2 cura o vocabulário de UI.)
+// Re-acentuação dos slugs de loja (o kebab dos sites perde acentos: "cha-preto").
+// Léxico pequeno do domínio das categorias; PT-PT preservado (decisão 2026-06-10:
+// nomes PT-PT não se abrasileiram — as folhas são dados de loja).
+const ACENTOS = {
+  cafe: 'café', cha: 'chá', chas: 'chás', infusao: 'infusão', infusoes: 'infusões',
+  pao: 'pão', paes: 'pães', acucar: 'açúcar', acucares: 'açúcares', oleo: 'óleo', oleos: 'óleos',
+  agua: 'água', aguas: 'águas', capsula: 'cápsula', capsulas: 'cápsulas',
+  nectar: 'néctar', nectares: 'néctares', lacticinios: 'lacticínios', laticinios: 'laticínios',
+  iogurte: 'iogurte', sumo: 'sumo', cereais: 'cereais', vacuo: 'vácuo', codea: 'côdea',
+  refeicoes: 'refeições', pastelaria: 'pastelaria', frutos: 'frutos', graos: 'grãos',
+  feijao: 'feijão', pessego: 'pêssego', ananas: 'ananás', sandes: 'sandes', biologico: 'biológico',
+  biologicos: 'biológicos', higienico: 'higiénico', higienicos: 'higiénicos', bebe: 'bebé', bebes: 'bebés',
+  compativel: 'compatível', compativeis: 'compatíveis', soluvel: 'solúvel', soluveis: 'solúveis',
+  instantaneo: 'instantâneo', instantaneos: 'instantâneos', maquina: 'máquina', liquido: 'líquido',
+  liquidos: 'líquidos', sandwiches: 'sandwiches', salomao: 'salomão', limao: 'limão', proteina: 'proteína',
+};
+// Folha legível para exibição: kebab→espaços, re-acentuada, conectores minúsculos,
+// resto capitalizado.
 export function exibirFolha(folha) {
   if (!folha) return null;
   return String(folha).replace(/^[a-z]{2}:/, '').split(/[-\s]+/).filter(Boolean)
-    .map((w, i) => (i > 0 && CONECTOR.has(w.toLowerCase()) ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1)))
+    .map((w, i) => {
+      const lw = ACENTOS[w.toLowerCase()] || w;
+      return i > 0 && CONECTOR.has(lw.toLowerCase()) ? lw.toLowerCase() : lw[0].toUpperCase() + lw.slice(1);
+    })
     .join(' ');
 }
 
@@ -54,8 +73,9 @@ export function votarCategoria(cands) {
     const peso = Math.min(nd.profundidade, 4) * (nd.es ? 0.5 : 1);
     total += peso;
     const k = normAlfa(nd.folha);
-    const g = grupos.get(k) || { folha: nd.folha, path: c.path, fonte: c.fonte, profundidade: nd.profundidade, peso: 0, n: 0 };
+    const g = grupos.get(k) || { folha: nd.folha, path: c.path, fonte: c.fonte, profundidade: nd.profundidade, peso: 0, n: 0, es: true };
     g.peso += peso; g.n += 1;
+    g.es = g.es && nd.es; // só é ES se TODOS os candidatos do grupo o forem
     // representante do grupo: o caminho mais fundo visto
     if (nd.profundidade > g.profundidade) { g.path = c.path; g.fonte = c.fonte; g.profundidade = nd.profundidade; }
     grupos.set(k, g);
@@ -64,7 +84,7 @@ export function votarCategoria(cands) {
   const lista = [...grupos.values()].sort((a, b) => b.peso - a.peso || b.n - a.n);
   const v = lista[0];
   return {
-    folha: exibirFolha(v.folha), path: v.path, fonte: v.fonte,
+    folha: exibirFolha(v.folha), path: v.path, fonte: v.fonte, es: v.es,
     confianca: Math.round((v.peso / total) * 100) / 100,
     votos: lista.slice(0, 5).map((g) => ({ folha: exibirFolha(g.folha), n: g.n, peso: Math.round(g.peso * 10) / 10 })),
   };
@@ -94,8 +114,9 @@ export async function classificarPorCatalogo(pool, { nome = null, ean = null } =
   const gv = new Map();
   for (const c of cands) { const g = grupoDeTexto(c.path); if (g && g !== 'outros') gv.set(g, (gv.get(g) || 0) + 1); }
   const grupo = [...gv.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'outros';
-  // fiavel: confiança e suporte suficientes (achado: os erros vivem quase todos
-  // abaixo de 0.5 — frescos de 1 token viram "aroma de" nos processados).
-  const fiavel = voto.confianca >= 0.5 && cands.length >= 5;
+  // fiavel: via EAN é o PRÓPRIO produto no catálogo (fiável por natureza);
+  // na vizinhança exige confiança e suporte (achado: os erros vivem quase
+  // todos abaixo de 0.5 — frescos de 1 token viram "aroma de" nos processados).
+  const fiavel = via === 'ean' ? true : voto.confianca >= 0.5 && cands.length >= 5;
   return { via, n: cands.length, grupo, fiavel, ...voto };
 }

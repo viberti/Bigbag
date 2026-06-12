@@ -103,7 +103,7 @@ async function resolverItensLista(pool, itens, mercado) {
     it.marca = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
   }
   await aplicarDadosEan(pool, itens); // preço-ref + marca da ficha (corre haja ou não SKU casado)
-  await aplicarGrupoPorVizinhanca(pool, itens); // ainda 'outros'? os VIZINHOS do catálogo votam (Fase 1, 2026-06-13)
+  await aplicarCatalogoLista(pool, itens); // voto do catálogo: cat_exib (folha p/ seção) + grupo-fallback
   await aplicarTamanhoPorNome(pool, itens); // peso em falta → match por nome no catálogo
   await aplicarPrecoPorIrmao(pool, itens); // sem preço? estima pelo €/kg do IRMÃO (mesma marca/família)
   // ainda sem peso? → ferramenta "peso pela imagem" EM FUNDO (VLM lê a foto do
@@ -230,26 +230,32 @@ async function aplicarDadosEan(pool, itens) {
   }
 }
 
-// GRUPO por VIZINHANÇA no catálogo (Fase 1 da classificação por catálogo,
-// 2026-06-13): item ainda 'outros' depois do nome e do path-por-EAN → os
-// vizinhos por nome votam (classificarPorCatalogo), SÓ se o voto for fiável
-// (conf ≥0.5 e ≥5 vizinhos — medido: 88% de acordo nos fiáveis vs 78% geral).
-// Cache por nome normalizado: o catálogo muda devagar e o poll é de 3s.
+// CLASSIFICAÇÃO POR CATÁLOGO na lista (2026-06-13). Para CADA item, o voto do
+// catálogo (linhas diretas por EAN; senão vizinhos por nome) dá:
+//  - cat_exib: a FOLHA do caminho ("Chá Preto", "Polpa Tomate") — REGRA DO DONO:
+//    a seção do usuário é a ÚLTIMA subcategoria, senão metade do catálogo cai
+//    em "Mercearia". Só com voto fiável e não-estrangeiro; sem voto, o cliente
+//    cai nos tipos à mão (massa/pão/…) e por fim no grupo.
+//  - grupo: fallback quando o nome deixou o item em 'outros'.
+// Cache por nome|ean: o catálogo muda devagar e o poll é de 3s.
 const _gvCache = new Map();
-async function aplicarGrupoPorVizinhanca(pool, itens) {
+async function aplicarCatalogoLista(pool, itens) {
   for (const it of itens) {
-    if ((it.grupo && it.grupo !== 'outros') || !it.nome) continue;
-    const k = norm(it.nome);
+    if (!it.nome) continue;
+    const k = `${norm(it.nome)}|${it.ean || ''}`;
     if (!_gvCache.has(k)) {
       if (_gvCache.size > 500) _gvCache.clear();
-      let g = null;
+      let v = null;
       try {
         const r = await classificarPorCatalogo(pool, { nome: it.nome, ean: it.ean || null });
-        if (r?.fiavel && r.grupo && r.grupo !== 'outros') g = r.grupo;
-      } catch { /* catálogo indisponível → fica 'outros' */ }
-      _gvCache.set(k, g);
+        if (r?.fiavel) v = { folha: r.es ? null : r.folha, grupo: r.grupo !== 'outros' ? r.grupo : null };
+      } catch { /* catálogo indisponível → segue sem voto */ }
+      _gvCache.set(k, v);
     }
-    if (_gvCache.get(k)) it.grupo = _gvCache.get(k);
+    const v = _gvCache.get(k);
+    if (!v) continue;
+    if (v.folha) it.cat_exib = v.folha;
+    if ((!it.grupo || it.grupo === 'outros') && v.grupo) it.grupo = v.grupo;
   }
 }
 
@@ -530,7 +536,7 @@ async function montarLista(pool, mercado) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 4; // 4: chá/café→mercearia + inversão nome>OFF no grupoDe (2026-06-13); 3: grupo por vizinhança; 2: preço por irmão
+const RESOLVER_V = 5; // 5: cat_exib = folha do catálogo como seção (regra do dono); 4: chá→mercearia + nome>OFF; 3: grupo por vizinhança
 function listaSig(itens, mercado, maxItemId) {
   const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
