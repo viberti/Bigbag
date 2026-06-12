@@ -7,15 +7,19 @@
 #   uso:  bash /home/dev/bigbag/scripts/backup_db.sh
 #   restaurar (runbook): gunzip < FICHEIRO | mysql -u$DB_USER -p... app_bigbag
 set -euo pipefail
+cd /   # o cwd herdado do sudo pode ser ilegível p/ o dev (matou a 1.ª corrida no find)
 ENV=/home/dev/bigbag/backend/.env
 DIR=/home/dev/backups/bigbag
 set -a; source "$ENV"; set +a
 mkdir -p "$DIR"; chmod 700 "$DIR"
 
 F="$DIR/app_bigbag_$(date +%Y%m%d_%H%M%S).sql.gz"
-# MYSQL_PWD evita a password no ps; --single-transaction = dump consistente sem locks (InnoDB)
+trap 'rm -f "$F"' ERR   # falha a meio não deixa dump parcial na retenção
+# MYSQL_PWD evita a password no ps; --single-transaction = dump consistente sem
+# locks (InnoDB); --no-tablespaces: o MySQL 8 exige PROCESS global p/ tablespaces
+# e o user bigbag é confinado a app_bigbag.* DE PROPÓSITO (isolamento do host).
 MYSQL_PWD="$DB_PASSWORD" mysqldump -u "$DB_USER" -h "${DB_HOST:-127.0.0.1}" \
-  --single-transaction --quick --routines --triggers "$DB_NAME" | gzip > "$F"
+  --single-transaction --quick --no-tablespaces --routines --triggers "$DB_NAME" | gzip > "$F"
 chmod 600 "$F"
 
 # validação: gzip íntegro E o mysqldump terminou ("Dump completed" no fim)
