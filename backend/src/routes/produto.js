@@ -13,6 +13,7 @@ import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { grupoDe, tokenCasa, singularizar, norm as normN } from '../normaliza/categoria.js';
+import { facetasDe } from '../normaliza/facetas.js';
 import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
@@ -513,6 +514,17 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     let [cands] = (processado && mestreCat) ? await QUERY(true) : await QUERY(false);
     let nivel = (processado && mestreCat) ? 'categoria' : 'grupo';
     if (nivel === 'categoria' && cands.filter((c) => c.nutricao).length < 2) { [cands] = await QUERY(false); nivel = 'grupo'; }
+    // DIETA: iguais comparam-se com iguais (dono, 2026-06-13 — caso Felicia sem
+    // glúten). Um sem-glúten só tem alternativas sem-glúten (para um celíaco, a
+    // massa normal NÃO é alternativa); e o normal não recebe os de dieta (prior
+    // do simples). Igualdade do CONJUNTO de facetas de dieta, nos dois sentidos.
+    // Lista vazia é honesta: "sem iguais para comparar" > comparação enganosa.
+    const dietaAtual = facetasDe(info.nome || '').dieta;
+    const mesmaDieta = (nome) => {
+      const d = facetasDe(nome || '').dieta;
+      return d.size === dietaAtual.size && [...d].every((x) => dietaAtual.has(x));
+    };
+    cands = cands.filter((c) => mesmaDieta(c.nome));
     // parse + dedup por nome canónico; prioriza os que têm preço no histórico
     const vistos = new Set();
     const alternativas = cands.map((c) => ({
