@@ -44,9 +44,11 @@ async function nomePtCatalogo(ean) {
   } catch { return null; }
 }
 
-export async function consultarOuGuardar(ean) {
-  // Guarda central: um EAN com dígito verificador errado (VLM/foto mal lida)
-  // nunca pode entrar na base como chave — envenenava o catálogo e a base local.
+export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
+  // traduzir: espera a tradução PT antes de devolver o nome (scan-para-lista) em
+  // vez de a fazer em fundo — o nome estrangeiro do OFF (FR no Lidl, EN no
+  // Continente) nunca chega à lista. Guarda central: um EAN com dígito verificador
+  // errado (VLM/foto mal lida) nunca pode entrar na base como chave.
   if (!eanValido(ean)) return { encontrado: false, ean_invalido: true };
   const [[ja]] = await getPool().query(
     `SELECT COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')), 'null'), nome) AS nome
@@ -55,9 +57,11 @@ export async function consultarOuGuardar(ean) {
   );
   if (ja) {
     // o nome guardado pode ser de OFF estrangeiro (off_json.$.nome) → o PT do
-    // catálogo Mercadona, se existir, ganha mesmo para EANs já em base.
+    // catálogo Mercadona, se existir, ganha mesmo para EANs já em base; senão,
+    // se for para a lista, traduz para PT na hora.
     const nomePT = await nomePtCatalogo(ean);
-    return { encontrado: true, fonte: 'base', nome: nomePT || ja.nome || null };
+    const nome = nomePT || (traduzir ? await garantirFichaPT(getPool(), ean) : null) || ja.nome || null;
+    return { encontrado: true, fonte: 'base', nome };
   }
   const off = await consultarOFF(ean);
   if (!off) {
@@ -93,6 +97,7 @@ export async function consultarOuGuardar(ean) {
   // PT do catálogo Mercadona ganha ao nome do OFF (que pode vir em ES/FR/EN).
   const nomePT = await nomePtCatalogo(ean);
   const nomeFinal = nomePT || off.nome;
+  let nomeRespondido = nomeFinal; // pode ser substituído pela tradução PT (scan-lista)
   try {
     await getPool().query(
       `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, nutricao_confirmada, fonte, off_json)
@@ -104,12 +109,16 @@ export async function consultarOuGuardar(ean) {
     );
     await guardarNomes(ean, null, [{ nome: nomeFinal, origem: nomePT ? 'catalogo' : 'off' }]);
     await atualizarConteudoFicha(getPool(), ean);
-    // sem PT do catálogo e OFF noutra língua → traduz para PT em fundo (não atrasa)
-    if (!nomePT) garantirFichaPT(getPool(), ean).catch(() => {});
+    // sem PT do catálogo e OFF noutra língua → traduz para PT. Para a lista (traduzir)
+    // espera-se e usa-se o resultado; nos outros fluxos vai em fundo (não atrasa a ficha).
+    if (!nomePT) {
+      if (traduzir) { nomeRespondido = (await garantirFichaPT(getPool(), ean)) || nomeFinal; }
+      else garantirFichaPT(getPool(), ean).catch(() => {});
+    }
   } catch (e) {
     console.error('[consultarOuGuardar] guardar:', e.message);
   }
-  return { encontrado: true, fonte: nomePT ? 'catalogo' : 'off', nome: nomeFinal || null };
+  return { encontrado: true, fonte: nomePT ? 'catalogo' : 'off', nome: nomeRespondido || null };
 }
 
 // Guarda todos os nomes vistos para um produto (por EAN), para matching/canónico.
@@ -503,7 +512,9 @@ produtoRouter.get('/consultar', requireAuth, async (req, res) => {
   try {
     const ean = String(req.query.ean || '').replace(/\D/g, '');
     if (!eanValido(ean)) return res.status(400).json({ erro: 'Código de barras inválido', ean });
-    res.json({ ean, ...(await consultarOuGuardar(ean)) });
+    // ?pt=1 (scan-para-lista) → espera a tradução PT antes de responder o nome.
+    const traduzir = req.query.pt === '1' || req.query.pt === 'true';
+    res.json({ ean, ...(await consultarOuGuardar(ean, { traduzir })) });
   } catch (e) {
     console.error('[produto/consultar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a consultar o produto' });

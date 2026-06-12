@@ -1007,8 +1007,14 @@ function Chat({ onSair, nome }) {
           // lista (exatamente aquele), em vez de abrir a ficha. "Vi a acabar, fiz scan."
           if (scanListaRef.current) {
             scanListaRef.current = false;
-            const nome = p.nome || p.produto || p.ean;
-            if (nome) { adicionarAoCarrinho(nome); navigator.vibrate?.(15); track('lista_scan_adicionar'); }
+            // garante o nome em PT (o OFF pode ter vindo em FR/EN/ES) antes de pôr
+            // na lista — pede ?pt=1 ao servidor, que espera a tradução. Cai no nome
+            // local se a rede falhar.
+            (async () => {
+              let nome = p.nome || p.produto || p.ean;
+              if (p.ean) { try { const r = await consultarProdutoEan(p.ean, { pt: true }); if (r?.nome) nome = r.nome; } catch { /* usa o local */ } }
+              if (nome) { adicionarAoCarrinho(nome); navigator.vibrate?.(15); track('lista_scan_adicionar'); }
+            })();
             return;
           }
           setInfoItem({ ean: p.ean || undefined, sku_id: p.sku_id || undefined, produto: p.nome || p.ean, local: p.local });

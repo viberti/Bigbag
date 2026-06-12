@@ -32,25 +32,26 @@ export async function traduzirFichaPT(campos) {
 const _tentados = new Set();
 
 // Garante que a ficha de um EAN está em PT (fire-and-forget nos fluxos de consulta/
-// identificação; síncrono no backfill). Atualiza só se o LLM traduziu algo.
+// identificação; síncrono no backfill e no scan-para-lista). Atualiza só se o LLM
+// traduziu algo. Devolve o NOME final em PT (traduzido ou o que já lá estava), ou
+// null se não há ficha — para o chamador poder usar o nome PT diretamente.
 export async function garantirFichaPT(pool, ean) {
   try {
-    if (_tentados.has(ean)) return false;
+    const [[r0]] = await pool.query('SELECT nome FROM produto_ean WHERE ean = ? ORDER BY id LIMIT 1', [ean]);
+    if (_tentados.has(ean)) return r0?.nome || null; // já tentado neste processo → o nome atual
     if (_tentados.size > 5000) _tentados.clear();
     _tentados.add(ean);
     const [[r]] = await pool.query('SELECT nome, ingredientes, alergenios FROM produto_ean WHERE ean = ?', [ean]);
-    if (!r || (!r.nome && !r.ingredientes && !r.alergenios)) return false;
+    if (!r || (!r.nome && !r.ingredientes && !r.alergenios)) return r?.nome || null;
     const t = await traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios });
-    if (!t?.mudou) return false;
+    if (!t?.mudou) return r.nome || null;
+    const nomePT = tituloProduto(t.nome ?? r.nome);
     await pool.query('UPDATE produto_ean SET nome = ?, ingredientes = ?, alergenios = ? WHERE ean = ?', [
-      tituloProduto(t.nome ?? r.nome),
-      t.ingredientes ?? r.ingredientes,
-      t.alergenios ?? r.alergenios,
-      ean,
+      nomePT, t.ingredientes ?? r.ingredientes, t.alergenios ?? r.alergenios, ean,
     ]);
-    return true;
+    return nomePT;
   } catch (e) {
     console.error('[traduz]', ean, e.message);
-    return false;
+    return null;
   }
 }

@@ -179,8 +179,10 @@ export async function fotoInteligente(file) {
   return r.json(); // { tipo, ean?, encontrado?, nome?, marca?, lido? }
 }
 
-export async function consultarProdutoEan(ean) {
-  const r = await call(`/api/produto/consultar?ean=${encodeURIComponent(ean)}`);
+export async function consultarProdutoEan(ean, { pt = false } = {}) {
+  // pt=1 → o servidor espera a tradução PT do nome antes de responder (scan→lista),
+  // para o nome estrangeiro do OFF (FR/EN/ES) não chegar à lista de compras.
+  const r = await call(`/api/produto/consultar?ean=${encodeURIComponent(ean)}${pt ? '&pt=1' : ''}`);
   if (!r.ok) throw new Error(`consultar ${r.status}`);
   return r.json(); // { ean, encontrado, fonte, nome }
 }
