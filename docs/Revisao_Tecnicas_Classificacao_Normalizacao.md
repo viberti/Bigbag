@@ -17,8 +17,9 @@ Hoje `categoria.test.mjs` tem ~10 testes (casos pontuais de bugs passados) contr
 ### 1.2 Painel de qualidade não mede classificação (baixo, alto)
 A aba Qualidade do `/admin` não tem métricas de grupo. **Fazer:** taxa de 'outros', SKUs sem grupo, itens sem SKU, e os nomes NOVOS vindos do scan (que hoje não passam por auditoria nenhuma — ver 3.4).
 
-### 1.3 Saturação da confiança do alias (baixo, alto)
-460/460 aliases ≥0,8 — o limiar deixou de discriminar (ou a fórmula é generosa ou só sobrevivem os bons). **Fazer:** investigar a distribuição fina (0,80 vs 0,99); se saturou mesmo, o limiar de revisão da aba Revisão está morto e precisa de outro sinal (ex.: idade + uso).
+### 1.3 ~~Saturação da confiança do alias~~ — ALARME FALSO (corrigido 2026-06-13)
+A investigação mostrou que a alegação original estava **errada por erro de escala na query da própria revisão** (`>=0.8` numa coluna 0–100 → tudo "≥0.8"). A realidade: a confiança do alias **é um código de VIA, não probabilidade** (migração 016): 100=manual ×112 · 90=match ×23 · 75=juiz ×6 · 60=SKU-novo ×319. O LLM da canonicalização usa 0–1 e compara com 0.6 na mesma escala — **sem bug**. A worklist usa limiar 70 (escala certa) e funciona.
+**O achado real que sobra:** a confiança **nunca sobe com o uso** — um alias via-novo usado em N talões sem correção fica 60 para sempre; a worklist tem 319 entradas permanentes que o operador nunca esvazia. Promover com o uso (ex.: ≥3 talões sem correção → 75) é **mudança de semântica da migração 016 → decisão do dono pendente**.
 
 ## Prioridade 2 — consolidação (eliminar duplicação que vai divergir)
 
@@ -74,6 +75,11 @@ GEN_RE precisa de testes de casos-limite ("Massa de Pizza", "Conserva de Atum");
 - "Ciclo do verificador de nomes está aberto" — já realimenta (corrige E re-resolve o SKU).
 - "Guarda de marca por prefixo GS1" (proposta do doc de exploração) — **despriorizada**: sinal secundário com 56% de cobertura e 3 fragilidades de desenho; fica anotada, não se constrói já.
 - (Da revisão geral: staging completo, auditoria de servidor, sync-checker de docs — cerimónia desproporcional.)
+
+## Estado de execução (2026-06-13)
+- **1.1 Golden set — FEITO** (`test/fixtures/golden_grupos.json` 325+92, `golden_grupos.test.mjs`, gerador `scripts/gerar_golden_grupos.mjs`, gate no `deploy.sh`, convenção `*.bd.test.mjs`). **Já rendeu antes de existir:** apanhou drift real — a mudança massa/arroz/farinha→mercearia (2026-06-12) tinha ficado só no código; o `sku.grupo` da BD estava na taxonomia antiga → re-backfill (padaria 39→26, mercearia 29→43).
+- **1.2 Painel — FEITO** (bloco Classificação na aba Qualidade: grupos, sem-SKU, aliases por via, scan-sem-grupo). Primeiro uso denunciou lixo na métrica (corrigido) e a worklist informal viva (10/26 nomes de scan sem grupo pelo nome; nota: "Pães" não classifica — o termRe não singulariza tokens).
+- **1.3 — INVESTIGADO** (alarme falso; ver secção corrigida acima; decisão "promover confiança com uso" pendente do dono).
 
 ## Ordem sugerida de execução
 
