@@ -58,9 +58,15 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
   if (ja) {
     // o nome guardado pode ser de OFF estrangeiro (off_json.$.nome) → o PT do
     // catálogo Mercadona, se existir, ganha mesmo para EANs já em base; senão,
-    // se for para a lista, traduz para PT na hora.
+    // se for para a lista, traduz para PT na hora. Quando NÃO se espera (traduzir
+    // false), traduz em FUNDO: a base converge para PT e o próximo scan deste
+    // produto já vem PT mesmo num cliente antigo (auto-cura, independente do PWA).
     const nomePT = await nomePtCatalogo(ean);
-    const nome = nomePT || (traduzir ? await garantirFichaPT(getPool(), ean) : null) || ja.nome || null;
+    let nome = nomePT || ja.nome || null;
+    if (!nomePT) {
+      if (traduzir) nome = (await garantirFichaPT(getPool(), ean)) || nome;
+      else garantirFichaPT(getPool(), ean).catch(() => {});
+    }
     return { encontrado: true, fonte: 'base', nome };
   }
   const off = await consultarOFF(ean);
