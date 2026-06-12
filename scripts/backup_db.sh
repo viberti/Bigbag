@@ -40,6 +40,14 @@ echo "backup OK: $F ($(du -h "$F" | cut -f1)) · $(ls "$DIR" | wc -l) na retenç
 # backup local continua válido). Retenção remota: 90 dias.
 RCLONE=/home/dev/bin/rclone
 if [[ -n "${BACKUP_GPG_PASS:-}" ]] && "$RCLONE" listremotes 2>/dev/null | grep -q '^r2:'; then
+  # TETO de gasto (pedido do dono, 2026-06-13): o R2 não tem hard-cap nativo —
+  # este é o nosso: bucket >5 GB (metade do free tier) = NÃO envia mais (um bug
+  # de dumps gigantes/loop fica no log, nunca na fatura). Uso projetado: ~0,85 GB.
+  BYTES=$("$RCLONE" size r2:bigbag-backups/ --json 2>/dev/null | grep -o '"bytes":[0-9]*' | cut -d: -f2 || echo 0)
+  if [[ "${BYTES:-0}" -gt 5368709120 ]]; then
+    echo "TETO: bucket R2 com $((BYTES/1024/1024)) MB (>5 GB) — upload RECUSADO; investigar" >&2
+    exit 0   # o backup local fica feito; só o off-site é travado
+  fi
   G="$F.gpg"
   gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_GPG_PASS" -o "$G" "$F"
   "$RCLONE" copyto "$G" "r2:bigbag-backups/$(basename "$G")" --s3-no-check-bucket
