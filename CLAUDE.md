@@ -46,7 +46,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor.
 - Quando fechares uma "decisão em aberto", regista a escolha e o porquê no `Conceito`.
 
-## Estado atual (2026-06-12 · app v0.0.121.0 — fase BETA)
+## Estado atual (2026-06-12 · app v0.0.123.0 — fase BETA)
 
 **Classificação tem DUAS lentes (decisão do dono, 2026-06-12):** **de loja** (`it.grupo`, o corredor — frutas/carne/…/mercearia/padaria; segue como as lojas organizam: massa/arroz/farinha/cereais em *mercearia*, padaria só pão/pastelaria) — preservada, serve comparar/explorar/comprar (mesmo corredor junto na loja); e **da lista** (`tipoConsumidor` no front, derivado do NOME — "o que a coisa É": Massa, Pão, Cereais, Conservas, e Mercearia residual) — é o cabeçalho de secção da lista de compras. "Massa" tem secção; "arroz" cai em Mercearia residual (bom senso, afina-se com o uso). A nutrição-por-classe (`DISPENSA_CLASSE`) é mecanismo SEPARADO, não muda.
 
