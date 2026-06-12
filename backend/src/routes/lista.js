@@ -248,7 +248,17 @@ async function aplicarCatalogoLista(pool, itens) {
       let v = null;
       try {
         const r = await classificarPorCatalogo(pool, { nome: it.nome, ean: it.ean || null });
-        if (r?.fiavel) v = { folha: r.es ? null : r.folha, grupo: r.grupo !== 'outros' ? r.grupo : null };
+        if (r?.fiavel) {
+          let folha = r.es ? null : r.folha;
+          // folha RASA = label de corredor ("Mercearia" do Continente raso): não
+          // acrescenta nada — é o caso que a regra quer evitar → fallback.
+          if (folha && /^(mercearia|frescos|bebidas|congelados|higiene|limpeza|alimentacao|laticinios|lacticinios|talho|peixaria|padaria|charcutaria|drogaria|outros)$/.test(norm(folha))) folha = null;
+          // voto via EAN cujo grupo sai 'outros' quando o NOME já classifica =
+          // provável COLISÃO de EAN no catálogo (caso real: massa "Pérolas" com
+          // path de Roupa) → não exibir a folha.
+          if (folha && r.grupo === 'outros' && it.grupo && it.grupo !== 'outros') folha = null;
+          v = { folha, grupo: r.grupo !== 'outros' ? r.grupo : null };
+        }
       } catch { /* catálogo indisponível → segue sem voto */ }
       _gvCache.set(k, v);
     }
