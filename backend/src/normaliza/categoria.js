@@ -139,7 +139,7 @@ export function chaveItemLista(nome) {
 // os catálogos PT escrevem parecido; crescer este mapa com casos reais, não em massa.
 // Só no MATCHING (tokenCasa) — NÃO na chave de consolidação (chaveItemLista).
 const SINONIMOS = {
-  spaghetti: 'esparguete', espaguete: 'esparguete',
+  pickle: 'picle', spaghetti: 'esparguete', espaguete: 'esparguete',
   gnocchi: 'nhoque',
   mozzarella: 'mozarela',
   hummus: 'humus',

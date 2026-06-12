@@ -102,6 +102,32 @@ async function resolverItensLista(pool, itens, mercado) {
     // parte, noutra cor (formato do talão: nome sem marca + marca destacada).
     it.marca = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
   }
+  // PREÇO-FACTO POR EAN (dono, 2026-06-14, caso Picles do Aldi): o nome da lista
+  // pode não casar o do talão ("Picles" vs "PICKLES"), mas o EAN liga DIRETO à
+  // compra — duas fontes que faltavam: item.ean (talão Makro/Aldi) e
+  // produto_ean.item_id (item identificado por foto/scan). Junta os SKUs dessas
+  // compras ao item; o mecanismo de preço (últimas 3 compras) faz o resto.
+  const eansL = [...new Set(itens.filter((i) => i.ean).map((i) => String(i.ean)))];
+  if (eansL.length) {
+    const phE = eansL.map(() => '?').join(',');
+    const [porEanRows] = await pool.query(
+      `SELECT i.ean, i.sku_id FROM item i WHERE i.ean IN (${phE}) AND i.sku_id IS NOT NULL
+       UNION
+       SELECT pe.ean, i2.sku_id FROM produto_ean pe JOIN item i2 ON i2.id = pe.item_id
+        WHERE pe.ean IN (${phE}) AND i2.sku_id IS NOT NULL`, [...eansL, ...eansL]);
+    const skusPorEan = new Map();
+    for (const r of porEanRows) {
+      const k = String(r.ean);
+      if (!skusPorEan.has(k)) skusPorEan.set(k, new Set());
+      skusPorEan.get(k).add(r.sku_id);
+    }
+    for (const it of itens) {
+      for (const sid of skusPorEan.get(String(it.ean)) || []) {
+        skuIdsPorItem.get(it.id)?.add(sid);
+        allSkuIds.add(sid);
+      }
+    }
+  }
   await aplicarDadosEan(pool, itens); // preço-ref + marca da ficha (corre haja ou não SKU casado)
   await aplicarCatalogoLista(pool, itens); // voto do catálogo: cat_exib (folha p/ seção) + grupo-fallback
   await aplicarTamanhoPorNome(pool, itens); // peso em falta → match por nome no catálogo
@@ -583,7 +609,7 @@ async function montarLista(pool, mercado) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 7; // 7: preço estimado pelo PRIMO do tipo (nível 2); 6: cat_exib família + tea; 5: folha como seção
+const RESOLVER_V = 8; // 8: preço-FACTO por EAN (item.ean + produto_ean.item_id); 7: primo do tipo; 6: cat_exib família
 function listaSig(itens, mercado, maxItemId) {
   const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
