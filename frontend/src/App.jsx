@@ -3059,7 +3059,7 @@ function AlternativasProduto({ dados }) {
           <div key={a.sku_id} className="alt-item">
             <div className="alt-item-top">
               <span className="alt-nome">{a.nome}</span>
-              {a.eur_base != null && <span className="alt-preco">{eur(a.eur_base)}/{a.unidade_base || 'kg'}</span>}
+              {a.eur_base != null && <span className="alt-preco">{a.origem === 'catalogo' ? '~' : ''}{eur(a.eur_base)}/{a.unidade_base || 'kg'}</span>}
             </div>
             <div className="alt-nutri">
               {cmp.map(([lbl, key, menor, val]) => {
