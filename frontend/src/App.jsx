@@ -1475,7 +1475,7 @@ const GRUPOS_CAT = [
   // mercearia = corredor dos SECOS (massa/arroz/farinha/cereais + azeite/conservas/
   // sal/açúcar) — é o mapeamento DE LOJA (como as lojas organizam). A lista usa um
   // mapeamento mais fino (tipo-consumidor), ver TIPOS_CAT/tipoConsumidor.
-  { id: 'mercearia', label: 'Mercearia', ic: '🛒', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'cereai', 'cereal', 'breakfast', 'muesli', 'granola', 'aveia', 'cuscuz'] },
+  { id: 'mercearia', label: 'Mercearia', ic: '🛒', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'massa', 'pasta', 'arroz', 'rice', 'farinha', 'flour', 'cereai', 'cereal', 'breakfast', 'muesli', 'granola', 'aveia', 'cuscuz', 'cotovelo', 'conchiglie', 'capellini', 'vermicell', 'aletria', 'linguine', 'paccheri', 'tagliatel', 'fettuccin', 'farfalle', 'rigaton', 'tortelin', 'penne', 'fusilli', 'esparguete', 'lasanha'] },
 ];
 const CAT_OUTROS = { id: 'outros', label: 'Outros', ic: '⋯' };
 // Match por INÍCIO de palavra, não substring ("VERMELHA" continha "mel" → Doces;
@@ -1529,7 +1529,7 @@ const TIPOS_CAT = [
 // tipos salientes da despensa, por NOME (vence o grupo-de-loja). Conservas exige
 // marcador explícito de conserva (atum fresco ≠ atum em lata). Ordem importa.
 const TIPOS_NOME = [ // testados contra normCat (minúsculas, SEM acentos)
-  ['massa', /(^|[^a-z])(massas?|pasta|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?)/],
+  ['massa', /(^|[^a-z])(massas?|pasta|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchiglie|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini)/],
   ['cereais', /(^|[^a-z])(cereais?|muesli|granola|aveia|flocos|cornflake|chocapic|estrelitas)/],
   ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa]|polpa de tomate)/], // marcador explícito (atum "fresco" fica peixe)
   ['pao', /(^|[^a-z])(pao|paes|tosta|wrap|broa|baguet|croissant|brioche)/],
