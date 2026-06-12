@@ -369,14 +369,23 @@ async function aplicarPrecoPorIrmao(pool, itens) {
           WHERE marca = ? AND preco_por_base IS NOT NULL AND preco_por_base > 0 AND unidade_base IN ('kg','l')`, [it.marca]);
       melhor = escolher(cands, dist);
     }
-    if (!melhor) { // nível 2: PRIMO (qualquer marca, mesmos distintivos)
-      const exigir = dist.length ? dist : matchFam ? [matchFam] : [];
-      if (exigir.length) {
-        const [cands] = await pool.query(
-          `SELECT nome, nome_pt, marca, fonte, preco_por_base FROM catalogo_produto
-            WHERE (nome LIKE ? OR nome_pt LIKE ?) AND preco_por_base IS NOT NULL AND preco_por_base > 0 AND unidade_base IN ('kg','l') LIMIT 2000`,
-          [`%${exigir[0]}%`, `%${exigir[0]}%`]);
+    if (!melhor && matchFam) { // níveis 2-3: PRIMO (qualquer marca)
+      // nível 2 exige TODOS os distintivos; nível 3 relaxa os não-essenciais
+      // (um "gibetti" — marca não reconhecida — não pode vetar o primo) mas
+      // MANTÉM os de dieta (integral/sem glúten/bio mudam o preço de verdade).
+      const DIETA_RE = /integral|gl[uú]ten|biologic|lactose|vegan/;
+      const distDieta = dist.filter((t) => DIETA_RE.test(t));
+      const tentativas = [
+        dist.length ? [matchFam, ...dist] : null,        // nível 2: tudo
+        [matchFam, ...distDieta],                         // nível 3: família + dieta
+      ].filter(Boolean);
+      const [cands] = await pool.query(
+        `SELECT nome, nome_pt, marca, fonte, preco_por_base FROM catalogo_produto
+          WHERE (nome LIKE ? OR nome_pt LIKE ?) AND preco_por_base IS NOT NULL AND preco_por_base > 0 AND unidade_base IN ('kg','l') LIMIT 2000`,
+        [`%${matchFam}%`, `%${matchFam}%`]);
+      for (const exigir of tentativas) {
         melhor = escolher(cands, exigir);
+        if (melhor) break;
       }
     }
     if (melhor) {
