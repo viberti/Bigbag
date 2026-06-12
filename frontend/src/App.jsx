@@ -1521,6 +1521,7 @@ const TIPOS_CAT = [
   { id: 'massa', label: 'Massa', ic: '🍝' },
   { id: 'pao', label: 'Pão', ic: '🥖' },
   { id: 'cereais', label: 'Cereais', ic: '🥣' },
+  { id: 'tomate', label: 'Polpas de Tomate', ic: '🍅' },
   { id: 'conservas', label: 'Conservas', ic: '🥫' },
   { id: 'mercearia', label: 'Mercearia', ic: '🛒' },
   { id: 'bebidas', label: 'Bebidas', ic: '🥤' },

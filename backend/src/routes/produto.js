@@ -530,7 +530,7 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     // TIPO saliente: massa compara com massa, nao com ketchup/azeite (o grupo
     // mercearia e um saco de secos). Mesmo recorte da lista (tipoConsumidor).
     const tipoAtual = tipoConsumidor(grupo, nomeFacetas, info.base?.marca || info.off?.marca || null);
-    if (['massa', 'pao', 'cereais', 'conservas'].includes(tipoAtual)) {
+    if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) {
       cands = cands.filter((c) => tipoConsumidor(grupo, c.nome, null) === tipoAtual);
     }
     // parse + dedup por nome canónico; prioriza os que têm preço no histórico
@@ -559,8 +559,8 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       const doCatalogo = [];
       for (const c of catCands) {
         if (!mesmaDieta(c.nome)) continue;
-        if (['massa', 'pao', 'cereais', 'conservas'].includes(tipoAtual) && tipoConsumidor(grupo, c.nome, c.marca) !== tipoAtual) continue;
-        if (!['massa', 'pao', 'cereais', 'conservas'].includes(tipoAtual) && grupoDeNome(c.nome) !== grupo) continue;
+        if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual) && tipoConsumidor(grupo, c.nome, c.marca) !== tipoAtual) continue;
+        if (!['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual) && grupoDeNome(c.nome) !== grupo) continue;
         const k = c.nome.toLowerCase();
         if (vistosCat.has(k) || k === String(nomeFacetas).toLowerCase()) continue;
         vistosCat.add(k);

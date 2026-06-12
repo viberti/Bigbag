@@ -222,7 +222,11 @@ export const TIPOS_NOME = [ // regexes sobre norm() (minúsculas, SEM acentos)
   // DISPLAY, porém, "pasta" é genérico a cortar no tipo massa (ver GEN_RE).
   ['massa', /(^|[^a-z])(massas?|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchigli|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini|estrellas)/],
   ['cereais', /(^|[^a-z])(cereais?|muesli|granola|aveia|flocos|cornflake|chocapic|estrelitas)/],
-  ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa]|polpa de tomate)/], // marcador explícito (atum "fresco" fica peixe)
+  // família do TOMATE em conserva (dono, 2026-06-13: polpas/passatas/pelati são
+  // uma família culinária própria, não "mercearia" nem "conservas" genéricas).
+  // 'polpa' SÓ com 'de tomate' (polpa de fruta é outra coisa).
+  ['tomate', /(^|[^a-z])(polpa de tomate|passatas?|pelati|tomate pelado|concentrado de tomate|tomate triturado)/],
+  ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa])/], // marcador explícito (atum "fresco" fica peixe)
   ['pao', /(^|[^a-z])(pao|paes|tosta|wrap|broa|baguet|croissant|brioche)/],
 ];
 export function tipoConsumidor(grupo, nome, marca) {
