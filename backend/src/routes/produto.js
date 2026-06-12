@@ -33,6 +33,17 @@ const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(
 
 // Consulta um produto pelo EAN: nossa base → Open Food Facts → catálogo local (e
 // GUARDA, item_id NULL). Devolve { encontrado, fonte, nome }. Por /consultar e /foto.
+// Nome PT do catálogo Mercadona para um EAN (ou null). Usa-se para PREFERIR o
+// nome português mesmo quando o EAN resolve via OFF com nome estrangeiro — caso
+// real: iogurte grego Mercadona que vinha "Yogur estilo griego natural" do OFF.
+async function nomePtCatalogo(ean) {
+  try {
+    const [[c]] = await getPool().query(
+      "SELECT nome_pt FROM catalogo_produto WHERE ean = ? AND nome_pt IS NOT NULL AND nome_pt <> '' LIMIT 1", [ean]);
+    return c?.nome_pt || null;
+  } catch { return null; }
+}
+
 export async function consultarOuGuardar(ean) {
   // Guarda central: um EAN com dígito verificador errado (VLM/foto mal lida)
   // nunca pode entrar na base como chave — envenenava o catálogo e a base local.
@@ -42,7 +53,12 @@ export async function consultarOuGuardar(ean) {
        FROM produto_ean WHERE ean = ? AND (off_json IS NOT NULL OR vlm_json IS NOT NULL OR fonte = 'catalogo') ORDER BY id LIMIT 1`,
     [ean],
   );
-  if (ja) return { encontrado: true, fonte: 'base', nome: ja.nome || null };
+  if (ja) {
+    // o nome guardado pode ser de OFF estrangeiro (off_json.$.nome) → o PT do
+    // catálogo Mercadona, se existir, ganha mesmo para EANs já em base.
+    const nomePT = await nomePtCatalogo(ean);
+    return { encontrado: true, fonte: 'base', nome: nomePT || ja.nome || null };
+  }
   const off = await consultarOFF(ean);
   if (!off) {
     // OFF não tem (típico em marcas próprias/cervejas) → catálogo local; desde a
@@ -74,23 +90,26 @@ export async function consultarOuGuardar(ean) {
     if (cat?.nutricao) off.nutricao_100g = cat.nutricao;
     if (cat?.ingredientes && !off.ingredientes) off.ingredientes = cat.ingredientes;
   }
+  // PT do catálogo Mercadona ganha ao nome do OFF (que pode vir em ES/FR/EN).
+  const nomePT = await nomePtCatalogo(ean);
+  const nomeFinal = nomePT || off.nome;
   try {
     await getPool().query(
       `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, nutricao, nutricao_confirmada, fonte, off_json)
          VALUES (?,NULL,NULL,?,?,?,?,?,?,?,1,?,?)
        ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
          ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), nutricao_confirmada=1, fonte=VALUES(fonte), off_json=VALUES(off_json)`,
-      [ean, lim(tituloProduto(off.nome), 200), lim(tituloProduto(off.marca), 120), lim(off.quantidade, 60), lim(off.categoria, 255), off.ingredientes, off.alergenios,
+      [ean, lim(tituloProduto(nomeFinal), 200), lim(tituloProduto(off.marca), 120), lim(off.quantidade, 60), lim(off.categoria, 255), off.ingredientes, off.alergenios,
         off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
     );
-    await guardarNomes(ean, null, [{ nome: off.nome, origem: 'off' }]);
+    await guardarNomes(ean, null, [{ nome: nomeFinal, origem: nomePT ? 'catalogo' : 'off' }]);
     await atualizarConteudoFicha(getPool(), ean);
-    // OFF pode vir noutra língua → traduz para PT em fundo (não atrasa a resposta)
-    garantirFichaPT(getPool(), ean).catch(() => {});
+    // sem PT do catálogo e OFF noutra língua → traduz para PT em fundo (não atrasa)
+    if (!nomePT) garantirFichaPT(getPool(), ean).catch(() => {});
   } catch (e) {
     console.error('[consultarOuGuardar] guardar:', e.message);
   }
-  return { encontrado: true, fonte: 'off', nome: off.nome || null };
+  return { encontrado: true, fonte: nomePT ? 'catalogo' : 'off', nome: nomeFinal || null };
 }
 
 // Guarda todos os nomes vistos para um produto (por EAN), para matching/canónico.
