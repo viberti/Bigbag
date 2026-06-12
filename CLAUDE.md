@@ -29,6 +29,8 @@ Uma tarefa só está concluída depois de verificada a funcionar — não basta 
 - Lógica pura (reconcile, formato) tem testes em `backend/test/*.test.mjs`. Os testes que tocam BD/LLM só correm no servidor (não há MySQL local no PC) — corre os de lógica com `node --test test/<ficheiro>.test.mjs`.
 - Se algo não dá para testar automaticamente, di-lo explicitamente e descreve como verificaste à mão.
 - Não marques nada como "feito" com um teste a falhar ou por correr.
+- **Higiene de dados de teste (lição 2026-06-12):** os e2e correm contra a BD REAL (single-user, não há staging). Antes de limpar dados num teste, olha o que lá está — itens reais do dono podem coexistir com os de teste (caso real: um `/limpar` de teste apagou um item da lista da casa; foi reposto via `/restaurar`). Regra: remover SÓ os ids que o próprio teste criou; nunca `limpar`/`DELETE` global; no fim, confirmar que o estado real ficou intacto.
+- **Deploy: usa `bash scripts/deploy.sh`** (ou `-f` se o frontend mudou) depois de commit+push — faz `node --check` aos .js do backend tocados (lição do backtick num comentário SQL → crash-loop), recusa se houver commits por enviar, e no servidor: pull → build → restart → espera `/health`. Não repetir o ritual à mão.
 
 ## Git
 Decide o fluxo conforme o caso (commits pequenos e focados quando ajuda; agrupar quando faz sentido). Mensagens de commit claras e em português. **`git push` é livre — não precisa de confirmação** (decisão do dono, 2026-06-06). Só **reescrever histórico partilhado** (force-push, rebase de ramos partilhados) é que continua a ser paragem obrigatória.
@@ -46,7 +48,9 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor.
 - Quando fechares uma "decisão em aberto", regista a escolha e o porquê no `Conceito`.
 
-## Estado atual (2026-06-12 · app v0.0.124.0 — fase BETA)
+## Estado atual (2026-06-12 · app v0.0.129.0 — fase BETA)
+
+**Lista — sessão de scans 2026-06-12 (v0.0.115–129):** ícone de scan DENTRO da área de digitação (lado direito; habituais/pessoal à esquerda; botão "+" removido — Enter adiciona); scan→lista põe o produto na lista E na despensa; item riscado perde o +/−; **nome "à talão"** (genérico da secção cortado por-categoria — "Massa"/"Pasta" caem no tipo Massa mas ficam em "Pasta de Dentes"; MARCA à parte noutra cor, vinda da ficha por EAN); **tamanho na linha de baixo** antes do preço (escala normalizada: <1000g em g, ≥1000g em kg; multipack intacto; fontes: ficha→catálogo→match-por-nome→peso-pela-imagem); **identificar por foto aceita VÁRIAS fotos** (padrão acumulador capture-sem-multiple, 1 a 1 até 5 — frente+nutricional+ingredientes; EAN scaneado é autoritativo, o VLM nunca o substitui).
 
 **EAN desconhecido (scan):** se não resolve em lado nenhum (nem catálogo nem OFF), o EAN é REGISTADO (`produto_ean.fonte='pendente'`, em vez de descartado) para resolver depois; e o scanner oferece **"Identificar por foto"** → VLM (`/identificar`) lê nome/marca/nutrição das fotos e GRAVA a ficha sob esse EAN (deixa de ser pendente); no modo lista o produto identificado entra na lista+despensa.
 
