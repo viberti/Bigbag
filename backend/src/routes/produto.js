@@ -33,14 +33,24 @@ const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(
 
 // Consulta um produto pelo EAN: nossa base → Open Food Facts → catálogo local (e
 // GUARDA, item_id NULL). Devolve { encontrado, fonte, nome }. Por /consultar e /foto.
-// Nome PT do catálogo Mercadona para um EAN (ou null). Usa-se para PREFERIR o
-// nome português mesmo quando o EAN resolve via OFF com nome estrangeiro — caso
-// real: iogurte grego Mercadona que vinha "Yogur estilo griego natural" do OFF.
-async function nomePtCatalogo(ean) {
+// Melhor nome PORTUGUÊS do CATÁLOGO para um EAN (ou null). O catálogo (lojas PT)
+// tem nomes limpos e em português para o MESMO EAN que o OFF traz noutra língua —
+// caso real: Barilla Penne Rigate, EAN 8076802085738, que está "Massa Penne Rigate
+// Barilla" no Continente mas "Penne Rigate No. 73 Durum Wheat…" no OFF. Como
+// consultamos OFF primeiro, o inglês ganhava. Esta função dá o nome de loja PT
+// para PREFERI-LO ao OFF (melhor que traduzir o inglês). Prioridade: nome_pt
+// (léxico Mercadona) → loja PT (Continente é o mais limpo) → null (só fontes
+// estrangeiras como lidl-fr ou Mercadona-ES sem nome_pt → deixa OFF+tradução).
+const FONTES_PT = ['continente', 'auchan', 'mercadona-off', 'lidl', 'pingodoce'];
+async function nomeCatalogoPt(ean) {
   try {
-    const [[c]] = await getPool().query(
-      "SELECT nome_pt FROM catalogo_produto WHERE ean = ? AND nome_pt IS NOT NULL AND nome_pt <> '' LIMIT 1", [ean]);
-    return c?.nome_pt || null;
+    const [rows] = await getPool().query(
+      "SELECT nome, nome_pt, fonte FROM catalogo_produto WHERE ean = ? AND nome IS NOT NULL AND nome <> ''", [ean]);
+    if (!rows.length) return null;
+    const comPt = rows.find((r) => r.nome_pt && r.nome_pt.trim());
+    if (comPt) return comPt.nome_pt.trim();
+    for (const f of FONTES_PT) { const r = rows.find((x) => x.fonte === f); if (r) return r.nome; }
+    return null;
   } catch { return null; }
 }
 
@@ -56,17 +66,18 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
     [ean],
   );
   if (ja) {
-    // o nome guardado pode ser de OFF estrangeiro (off_json.$.nome) → o PT do
-    // catálogo Mercadona, se existir, ganha mesmo para EANs já em base; senão,
-    // se for para a lista, traduz para PT na hora. Quando NÃO se espera (traduzir
-    // false), traduz em FUNDO: a base converge para PT e o próximo scan deste
-    // produto já vem PT mesmo num cliente antigo (auto-cura, independente do PWA).
-    const nomePT = await nomePtCatalogo(ean);
-    let nome = nomePT || ja.nome || null;
-    if (!nomePT) {
-      if (traduzir) nome = (await garantirFichaPT(getPool(), ean)) || nome;
-      else garantirFichaPT(getPool(), ean).catch(() => {});
+    // 1) nome de loja PT do catálogo (mesmo EAN) ganha ao OFF estrangeiro guardado;
+    //    cura o nome guardado em fundo (ficha/despensa/base-local convergem p/ PT).
+    const nomeCat = await nomeCatalogoPt(ean);
+    if (nomeCat) {
+      if (nomeCat !== ja.nome) getPool().query('UPDATE produto_ean SET nome = ? WHERE ean = ?', [lim(tituloProduto(nomeCat), 200), ean]).catch(() => {});
+      return { encontrado: true, fonte: 'catalogo', nome: nomeCat };
     }
+    // 2) sem nome no catálogo → traduz o OFF: síncrono se for p/ a lista, senão em
+    //    fundo (a base converge para PT; próximo scan já vem PT mesmo em cliente antigo).
+    let nome = ja.nome || null;
+    if (traduzir) nome = (await garantirFichaPT(getPool(), ean)) || nome;
+    else garantirFichaPT(getPool(), ean).catch(() => {});
     return { encontrado: true, fonte: 'base', nome };
   }
   const off = await consultarOFF(ean);
@@ -100,8 +111,8 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
     if (cat?.nutricao) off.nutricao_100g = cat.nutricao;
     if (cat?.ingredientes && !off.ingredientes) off.ingredientes = cat.ingredientes;
   }
-  // PT do catálogo Mercadona ganha ao nome do OFF (que pode vir em ES/FR/EN).
-  const nomePT = await nomePtCatalogo(ean);
+  // Nome de loja PT do catálogo (mesmo EAN) ganha ao nome do OFF (ES/FR/EN).
+  const nomePT = await nomeCatalogoPt(ean);
   const nomeFinal = nomePT || off.nome;
   let nomeRespondido = nomeFinal; // pode ser substituído pela tradução PT (scan-lista)
   try {
