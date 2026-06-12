@@ -39,6 +39,21 @@ test('escolherNome: consenso vence órfãos de marketing; nativo vence traduzido
   assert.equal(n2, 'Iogurte Grego Natural'); // colapsam; grafia do nativo
 });
 
+test('escolherIngredientes: lixo-OCR e estrangeiro perdem (achados do 1.º backfill)', () => {
+  // OCR do OFF-dump vencia por comprimento: "PASTA Dl Wou Dl GRANO DURO…"
+  const e1 = escolherIngredientes([
+    { texto: 'PASTA Dl Wou Dl GRANO DURO/ SEMOLINA PASTA/ AlliiENTAlRES DE Bit OUR Q EBLE DUR/ TllGc IciP CAHHTC BgN', fonte: 'off-dump' },
+    { texto: 'MASSA DE SÊMOLA DE TRIGO DURO/ MASSA DE SEMOLINA/ ALIMENTOS DE QUALIDADE', fonte: 'off' },
+  ]);
+  assert.equal(e1.fonte, 'off');
+  // ES vencia o PT por uns chars a mais
+  const e2 = escolherIngredientes([
+    { texto: 'Semola integral de trigo duro (gluten). Puede contener trazas de huevos y soja.', fonte: 'off-dump' },
+    { texto: 'Sêmola integral de trigo duro (glúten). Pode conter traços de ovos.', fonte: 'off' },
+  ]);
+  assert.equal(e2.fonte, 'off');
+});
+
 test('escolherIngredientes: o MAIS COMPLETO vence (caso Penne: Auchan c/ alergénios)', () => {
   const e = escolherIngredientes([
     { texto: 'Sêmola de trigo duro, água.', fonte: 'off' },

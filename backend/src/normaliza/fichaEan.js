@@ -87,7 +87,10 @@ export function escolherNome(cands) {
   return lista[0].texto;
 }
 
-// Ingredientes: o MAIS COMPLETO, não o da fonte mais "forte".
+// Ingredientes: o MAIS COMPLETO, não o da fonte mais "forte" — mas completo
+// NÃO é só comprido: lixo-OCR e línguas estrangeiras perdem (achados do 1.º
+// backfill: "PASTA Dl Wou Dl GRANO DURO… AlliiENTAlRES" vencia por comprimento;
+// ES "Puede contener trazas" vencia o PT "Pode conter traços").
 export function escolherIngredientes(cands) {
   const vivos = cands.filter((c) => c.texto && c.texto.trim().length >= 3);
   if (!vivos.length) return null;
@@ -96,6 +99,11 @@ export function escolherIngredientes(cands) {
     if (/[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{4,}/.test(t)) s += 20;     // alergénios destacados (MAIÚSCULAS)
     if (/\d+\s*%/.test(t)) s += 10;                  // percentagens (rótulo a sério)
     if (/cont[eé]m|vest[ií]gios|pode conter/i.test(t)) s += 15; // frases de alergénio
+    if (/pode conter|vest[ií]gios|cont[ée]m\b|tra[çc]os de/i.test(t)) s += 25; // PT > estrangeiro
+    if (/puede contener|trazas?\b|may contain|peut contenir|pu[òo] contenere|ingredienti\b|huevos?\b/i.test(t)) s -= 20;
+    s -= (t.match(/\b\w*[a-z][A-Z]\w*\b/g) || []).length * 12; // lixo-OCR: minúscula→MAIÚSCULA dentro da palavra
+    const curtos = (t.match(/(^|\s)[A-Z][a-z]?(?=\s|$)/g) || []).length;
+    if (curtos > 3) s -= (curtos - 3) * 5;           // excesso de tokens de 1-2 letras = OCR
     return s;
   };
   vivos.sort((a, b) => score(b.texto) - score(a.texto));
@@ -118,11 +126,23 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
             nutricao, ingredientes FROM catalogo_produto WHERE ean = ? AND nome IS NOT NULL AND nome <> ''`, [ean]);
   const [[offDump]] = await pool.query('SELECT * FROM off_produto WHERE ean = ?', [ean]);
   const parse = (v) => { try { return v == null ? null : typeof v === 'string' ? JSON.parse(v) : v; } catch { return null; } };
-  const off = extra.off || (offDump ? {
+  // OFF: o resultado LIVE (extra.off ou off_json gravado — já curado, PT quando
+  // havia) vence o dump CAMPO A CAMPO; o dump (ES/EN cru) só preenche buracos.
+  // (1.º backfill: o dump escondia o off_json e ES/lixo-OCR substituía PT.)
+  const offLive = extra.off || (atual?.off_json ? parse(atual.off_json) : null);
+  const offD = offDump ? {
     nome: offDump.nome, nome_pt: offDump.nome_pt, marca: offDump.marca, quantidade: offDump.quantidade,
     categoria: offDump.categoria, ingredientes: offDump.ingredientes, alergenios: offDump.alergenios,
     nutricao_100g: parse(offDump.nutricao),
-  } : (atual?.off_json ? parse(atual.off_json) : null));
+  } : null;
+  const off = offLive || offD ? {
+    nome: offLive?.nome ?? offD?.nome, nome_pt: offLive?.nome_pt ?? offD?.nome_pt,
+    marca: offLive?.marca ?? offD?.marca, quantidade: offLive?.quantidade ?? offD?.quantidade,
+    categoria: offLive?.categoria ?? offD?.categoria,
+    ingredientes: offLive?.ingredientes ?? offD?.ingredientes, // p/ ficha; na escolha entram os DOIS
+    alergenios: offLive?.alergenios || offD?.alergenios,
+    nutricao_100g: offLive?.nutricao_100g ?? offD?.nutricao_100g ?? null,
+  } : null;
   const vlm = extra.vlm || (atual?.vlm_json ? parse(atual.vlm_json) : null);
   const manual = new Set(Object.entries(parse(atual?.fusao)?.proveniencia || {}).filter(([, f]) => f === 'manual').map(([k]) => k));
 
@@ -130,7 +150,11 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
   const escolhe = (campo, candidatos /* [{valor, fonte}] em ordem de prioridade */) => {
     if (manual.has(campo)) { prov[campo] = 'manual'; return atual?.[campo] ?? null; }
     const vivos = candidatos.filter((c) => c.valor != null && String(c.valor).trim() !== '');
-    if (!vivos.length) return null;
+    if (!vivos.length) {
+      // NUNCA degradar: sem candidato, o valor já gravado fica (achado do 1.º backfill)
+      if (atual?.[campo] != null && String(atual[campo]).trim() !== '') { prov[campo] = 'anterior'; return atual[campo]; }
+      return null;
+    }
     prov[campo] = vivos[0].fonte;
     const distintos = [...new Set(vivos.map((c) => norm(String(c.valor))))];
     if (distintos.length > 1) div.push({ campo, escolhido: vivos[0].valor, outros: vivos.slice(1).filter((c) => norm(String(c.valor)) !== norm(String(vivos[0].valor))).map((c) => ({ fonte: c.fonte, valor: String(c.valor).slice(0, 120) })) });
@@ -170,6 +194,12 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     nome = limparNomeProduto(off?.nome || vlm?.nome || null, marca);
     prov.nome = off?.nome ? 'off' : vlm?.nome ? 'vlm' : null;
     nomeEstrangeiro = !!nome;
+    // o nome já gravado DIFERENTE do estrangeiro é (quase de certeza) a tradução
+    // LLM da volta anterior — não a perder (caso Passata do 1.º backfill)
+    if (nomeEstrangeiro && atual?.nome && norm(atual.nome) !== norm(nome)) {
+      nome = atual.nome; prov.nome = 'anterior'; nomeEstrangeiro = false;
+    }
+    if (!nome && atual?.nome) { nome = atual.nome; prov.nome = 'anterior'; }
   }
 
   // CATEGORIA: caminho de loja PT mais fundo > OFF > VLM
@@ -191,14 +221,15 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
   else if (nutOff) { nutricao = nutOff; prov.nutricao = 'off'; }
   else if (nutVlm) { nutricao = nutVlm; prov.nutricao = 'vlm'; nutConfirmada = 0; }
 
-  // INGREDIENTES: o mais completo
+  // INGREDIENTES: o mais completo (live e dump do OFF concorrem em separado)
   const ing = manual.has('ingredientes')
     ? { texto: atual?.ingredientes, fonte: 'manual' }
     : escolherIngredientes([
         ...cat.map((c) => ({ texto: c.ingredientes, fonte: `catalogo:${c.fonte}` })),
-        { texto: off?.ingredientes, fonte: 'off' },
+        { texto: offLive?.ingredientes, fonte: 'off' },
+        { texto: offD?.ingredientes, fonte: 'off-dump' },
         { texto: vlm?.ingredientes, fonte: 'vlm' },
-      ]);
+      ]) || (atual?.ingredientes ? { texto: atual.ingredientes, fonte: 'anterior' } : null);
   if (ing) prov.ingredientes = ing.fonte;
 
   const alergenios = escolhe('alergenios', [
@@ -211,7 +242,9 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
   return {
     ficha: {
       nome: nome ? tituloProduto(nome) : null, marca: marca ? tituloProduto(marca) : null,
-      quantidade: quantidade || null, categoria: categoria || null,
+      // ℮ (símbolo "quantidade estimada" do rótulo) vira "e" no VLM → fora
+      quantidade: quantidade ? String(quantidade).replace(/℮/g, '').replace(/\s+e$/i, '').trim() || null : null,
+      categoria: categoria || null,
       ingredientes: ing?.texto || null, alergenios: alergenios || null, validade: validade || null,
       nutricao, nutricao_confirmada: nutConfirmada,
     },
