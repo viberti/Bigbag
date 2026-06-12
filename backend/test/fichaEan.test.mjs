@@ -2,7 +2,7 @@
 // sessão de scans 2026-06-12/13 congelados como regressão do desenho.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { limparNomeProduto, escolherNome, escolherIngredientes } from '../src/normaliza/fichaEan.js';
+import { limparNomeProduto, escolherNome, escolherIngredientes, escolherAlergenios } from '../src/normaliza/fichaEan.js';
 
 test('limparNomeProduto: marca e formato saem; nunca esvazia', () => {
   assert.equal(limparNomeProduto('Massa Penne Rigate Barilla', 'Barilla'), 'Massa Penne Rigate');
@@ -37,6 +37,28 @@ test('escolherNome: consenso vence órfãos de marketing; nativo vence traduzido
     { texto: 'Iogurte Grego Natural', fonte: 'continente', traduzido: false },
   ]);
   assert.equal(n2, 'Iogurte Grego Natural'); // colapsam; grafia do nativo
+});
+
+test('escolherAlergenios: PT traduzido vence tags cruas e estrangeiro (alertas trabalham em PT)', () => {
+  assert.equal(escolherAlergenios([
+    { texto: 'en:milk', fonte: 'off' },
+    { texto: 'Leite', fonte: 'anterior' },
+  ]).texto, 'Leite');
+  assert.equal(escolherAlergenios([
+    { texto: 'Leche', fonte: 'vlm' },
+    { texto: 'Leite', fonte: 'anterior' },
+  ]).texto, 'Leite');
+  // só há cru → fica o cru (nunca esvaziar)
+  assert.equal(escolherAlergenios([{ texto: 'en:soybeans', fonte: 'off' }]).texto, 'en:soybeans');
+  assert.equal(escolherAlergenios([{ texto: '', fonte: 'off' }]), null);
+});
+
+test('escolherIngredientes: "Água, grãos de soja" PT vence ES igual em tamanho (ã/õ marcam PT)', () => {
+  const e = escolherIngredientes([
+    { texto: 'Agua, 16% habas de _soja_, _trigo_, sal.', fonte: 'off' },
+    { texto: 'Água, 16% grãos de _soja_, _trigo_, sal.', fonte: 'anterior' },
+  ]);
+  assert.equal(e.fonte, 'anterior');
 });
 
 test('escolherIngredientes: lixo-OCR e estrangeiro perdem (achados do 1.º backfill)', () => {

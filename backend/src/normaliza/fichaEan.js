@@ -99,7 +99,7 @@ export function escolherIngredientes(cands) {
     if (/[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{4,}/.test(t)) s += 20;     // alergénios destacados (MAIÚSCULAS)
     if (/\d+\s*%/.test(t)) s += 10;                  // percentagens (rótulo a sério)
     if (/cont[eé]m|vest[ií]gios|pode conter/i.test(t)) s += 15; // frases de alergénio
-    if (/pode conter|vest[ií]gios|cont[ée]m\b|tra[çc]os de/i.test(t)) s += 25; // PT > estrangeiro
+    if (/pode conter|vest[ií]gios|cont[ée]m\b|tra[çc]os de|[ãõ]/i.test(t)) s += 25; // PT > estrangeiro (ã/õ só existem em PT)
     if (/puede contener|trazas?\b|may contain|peut contenir|pu[òo] contenere|ingredienti\b|huevos?\b/i.test(t)) s -= 20;
     s -= (t.match(/\b\w*[a-z][A-Z]\w*\b/g) || []).length * 12; // lixo-OCR: minúscula→MAIÚSCULA dentro da palavra
     const curtos = (t.match(/(^|\s)[A-Z][a-z]?(?=\s|$)/g) || []).length;
@@ -108,6 +108,26 @@ export function escolherIngredientes(cands) {
   };
   vivos.sort((a, b) => score(b.texto) - score(a.texto));
   return vivos[0];
+}
+
+// Alergénios: alimentam os ALERTAS determinísticos do perfil (que trabalham em
+// PT) — preferir texto PT a tags cruas do OFF ('en:milk') ou rótulo estrangeiro
+// ('Leche'); o valor 'anterior' (tradução LLM) concorre e vence os crus.
+export function escolherAlergenios(cands) {
+  const vivos = cands.filter((c) => c.texto && String(c.texto).trim() !== '');
+  if (!vivos.length) return null;
+  const PT = /leite|gl[úu]ten|soja|ovos?\b|frutos de casca|amendoim|peixe|crust[áa]ceos?|s[ée]samo|mostarda|aipo|sulfitos?|cevada|trigo|nozes/i;
+  const score = (t) => {
+    let s = 0;
+    if (PT.test(t)) s += 10;
+    if (/[ãõç]/i.test(t)) s += 5;
+    if (/\b[a-z]{2}:/.test(t)) s -= 10;                       // tags cruas 'en:milk'
+    if (/milk|leche|huevo|wheat|barley|cebada|orge|soybeans/i.test(t)) s -= 8;
+    return s;
+  };
+  let melhor = vivos[0];
+  for (const c of vivos.slice(1)) if (score(String(c.texto)) > score(String(melhor.texto))) melhor = c;
+  return melhor;
 }
 
 const moda = (valores) => {
@@ -236,10 +256,16 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
       ]);
   if (ing) prov.ingredientes = ing.fonte;
 
-  const alergenios = escolhe('alergenios', [
-    { valor: off?.alergenios, fonte: 'off' },
-    { valor: vlm?.alergenios, fonte: 'vlm' },
-  ]);
+  let alergenios = null;
+  if (manual.has('alergenios')) { alergenios = atual?.alergenios ?? null; prov.alergenios = 'manual'; }
+  else {
+    const alg = escolherAlergenios([
+      { texto: off?.alergenios, fonte: 'off' },
+      { texto: vlm?.alergenios, fonte: 'vlm' },
+      { texto: atual?.alergenios, fonte: 'anterior' },
+    ]);
+    if (alg) { alergenios = alg.texto; prov.alergenios = alg.fonte; }
+  }
   const validade = escolhe('validade', [{ valor: vlm?.validade, fonte: 'vlm' }]);
 
   const fontesHash = createHash('sha1').update(JSON.stringify({ cat, off, vlm })).digest('base64').slice(0, 16);
