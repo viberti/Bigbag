@@ -133,9 +133,15 @@ export async function pesoPelaImagem(ean) {
     const jaTentado = cat.length ? cat.every((c) => c.peso_img_em != null) : _tentadosOff.has(cod);
     if (jaTentado) return;
 
-    // 1) catálogo → 2) OFF → 3) busca web
+    // 1) catálogo → 2) OFF → 3) busca web. CDNs Demandware (Continente/Auchan)
+    // servem 280px por defeito — pedir 1000px (mesmo URL, parâmetros sw/sh).
     let img = null;
-    for (const c of cat) { if (c.imagem_url) { img = await buscarImagem(c.imagem_url); if (img) break; } }
+    for (const c of cat) {
+      if (!c.imagem_url) continue;
+      const grande = c.imagem_url.replace(/sw=\d+/, 'sw=1000').replace(/sh=\d+/, 'sh=1000');
+      img = await buscarImagem(grande) || (grande !== c.imagem_url ? await buscarImagem(c.imagem_url) : null);
+      if (img) break;
+    }
     if (!img) img = await imagemOff(cod);
     if (!img) img = await imagemBuscaWeb(pe?.nome, pe?.marca);
 
