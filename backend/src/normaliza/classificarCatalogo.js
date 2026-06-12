@@ -94,12 +94,12 @@ export function votarCategoria(cands) {
 // Classifica por catálogo: EAN primeiro (linhas diretas), senão vizinhança por
 // nome. Devolve { via, folha, path, fonte, confianca, n, grupo, votos } ou null.
 export async function classificarPorCatalogo(pool, { nome = null, ean = null } = {}) {
-  let cands = [], via = null;
+  let cands = [], via = null, nomesCatalogo = [];
   if (ean) {
     const [rows] = await pool.query(
-      `SELECT fonte, COALESCE(NULLIF(categoria_path,''), categoria) AS path FROM catalogo_produto
+      `SELECT fonte, COALESCE(NULLIF(nome_pt,''), nome) AS nome, COALESCE(NULLIF(categoria_path,''), categoria) AS path FROM catalogo_produto
        WHERE ean = ? AND COALESCE(NULLIF(categoria_path,''), NULLIF(categoria,'')) IS NOT NULL`, [ean]);
-    if (rows.length) { cands = rows; via = 'ean'; }
+    if (rows.length) { cands = rows; via = 'ean'; nomesCatalogo = rows.map((r) => r.nome).filter(Boolean); }
   }
   if (!cands.length && nome) {
     const viz = await vizinhosCatalogo(pool, nome, { k: 80, minScore: 0.5 });
@@ -117,6 +117,14 @@ export async function classificarPorCatalogo(pool, { nome = null, ean = null } =
   // fiavel: via EAN é o PRÓPRIO produto no catálogo (fiável por natureza);
   // na vizinhança exige confiança e suporte (achado: os erros vivem quase
   // todos abaixo de 0.5 — frescos de 1 token viram "aroma de" nos processados).
-  const fiavel = via === 'ean' ? true : voto.confianca >= 0.5 && cands.length >= 5;
+  let fiavel = via === 'ean' ? true : voto.confianca >= 0.5 && cands.length >= 5;
+  // guarda anti-COLISÃO de EAN (caso real: massa "Pérolas" cujo EAN aponta a
+  // Roupa no catálogo): na via-EAN, o nome pedido tem de partilhar ≥1 token
+  // com o nome do produto no catálogo — zero sobreposição = não é o mesmo produto.
+  if (via === 'ean' && nome && nomesCatalogo.length) {
+    const toksItem = new Set(normAlfa(nome).split(' ').filter((t) => t.length >= 3));
+    const sobrepoe = nomesCatalogo.some((nc) => normAlfa(nc).split(' ').some((t) => t.length >= 3 && toksItem.has(t)));
+    if (toksItem.size && !sobrepoe) fiavel = false;
+  }
   return { via, n: cands.length, grupo, fiavel, ...voto };
 }
