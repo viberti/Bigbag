@@ -328,8 +328,13 @@ async function aplicarTamanhoPorNome(pool, itens) {
 // saliente) cujos tokens DISTINTIVOS do nosso nome (fora os genéricos da família,
 // ex.: "manjericão") ele contenha; estima = MENOR €/base compatível × nosso peso.
 // SEMPRE rotulado "estimado" (preco_ref_tipo) — é aproximação assumida, nunca facto.
+// Nível 2 (dono, 2026-06-14, caso Cotovelos/Cannelloni sem preço): sem irmão da
+// marca, vale o PRIMO do mesmo tipo — "outro cannelloni com o mesmo peso";
+// quando o distintivo É o termo da família que casou ('cannelloni','cotovelos'),
+// ele próprio identifica o primo. "Não precisamos ser exatos" — menor €/base
+// do primo × o nosso peso, sempre rotulado "estimado".
 async function aplicarPrecoPorIrmao(pool, itens) {
-  const alvos = itens.filter((it) => it.preco_ref == null && it.melhor_preco == null && it.marca && it.tamanho);
+  const alvos = itens.filter((it) => it.preco_ref == null && it.melhor_preco == null && it.tamanho);
   if (!alvos.length) return;
   for (const it of alvos) {
     const tipo = tipoConsumidor(it.grupo, it.nome, it.marca);
@@ -341,18 +346,38 @@ async function aplicarPrecoPorIrmao(pool, itens) {
     const pesoBase = u === 'kg' || u === 'l' ? v : v / 1000;
     // distintivos: tokens do nosso nome fora da marca e fora dos termos da família
     const reFam = (TIPOS_NOME_MAP[tipo] || null);
-    const marcaToks = new Set(norm(it.marca).split(' '));
+    const marcaToks = new Set(norm(it.marca || '').split(' ').filter(Boolean));
     const dist = norm(it.nome).split(' ').filter((t) => t.length >= 4 && !marcaToks.has(t) && !(reFam && reFam.test(' ' + t)) && !['tomate', 'fresco', 'fresca'].includes(t));
-    const [cands] = await pool.query(
-      `SELECT nome, fonte, preco_por_base, unidade_base FROM catalogo_produto
-        WHERE marca = ? AND preco_por_base IS NOT NULL AND preco_por_base > 0 AND unidade_base IN ('kg','l')`, [it.marca]);
+    // o termo da família que casou no NOSSO nome ('cannelloni', 'cotovelos') —
+    // pseudo-distintivo do primo quando não sobram distintivos próprios
+    const matchFam = reFam ? (norm(it.nome).match(reFam)?.[2] || null) : null;
+    const escolher = (cands, exigir) => {
+      let melhor = null;
+      for (const c of cands) {
+        if (tipoConsumidor(null, c.nome, c.marca || it.marca) !== tipo) continue; // mesma família
+        const ct = norm(`${c.nome_pt || ''} ${c.nome}`);
+        if (!exigir.every((t) => ct.includes(t))) continue;                       // distintivos presentes
+        const ppb = Number(c.preco_por_base);
+        if (!melhor || ppb < melhor.ppb) melhor = { ppb, fonte: c.fonte };
+      }
+      return melhor;
+    };
     let melhor = null;
-    for (const c of cands) {
-      if (tipoConsumidor(null, c.nome, it.marca) !== tipo) continue;          // mesma família
-      const ct = norm(c.nome);
-      if (!dist.every((t) => ct.includes(t))) continue;                        // distintivos presentes
-      const ppb = Number(c.preco_por_base);
-      if (!melhor || ppb < melhor.ppb) melhor = { ppb, fonte: c.fonte, nome: c.nome };
+    if (it.marca) { // nível 1: IRMÃO (mesma marca)
+      const [cands] = await pool.query(
+        `SELECT nome, nome_pt, marca, fonte, preco_por_base FROM catalogo_produto
+          WHERE marca = ? AND preco_por_base IS NOT NULL AND preco_por_base > 0 AND unidade_base IN ('kg','l')`, [it.marca]);
+      melhor = escolher(cands, dist);
+    }
+    if (!melhor) { // nível 2: PRIMO (qualquer marca, mesmos distintivos)
+      const exigir = dist.length ? dist : matchFam ? [matchFam] : [];
+      if (exigir.length) {
+        const [cands] = await pool.query(
+          `SELECT nome, nome_pt, marca, fonte, preco_por_base FROM catalogo_produto
+            WHERE (nome LIKE ? OR nome_pt LIKE ?) AND preco_por_base IS NOT NULL AND preco_por_base > 0 AND unidade_base IN ('kg','l') LIMIT 2000`,
+          [`%${exigir[0]}%`, `%${exigir[0]}%`]);
+        melhor = escolher(cands, exigir);
+      }
     }
     if (melhor) {
       it.preco_ref = Math.round(melhor.ppb * pesoBase * 100) / 100;
@@ -549,7 +574,7 @@ async function montarLista(pool, mercado) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 6; // 6: cat_exib = FAMÍLIA (2.º nível) + 'tea' no cafe_cha; 5: folha como seção; 4: chá→mercearia + nome>OFF
+const RESOLVER_V = 7; // 7: preço estimado pelo PRIMO do tipo (nível 2); 6: cat_exib família + tea; 5: folha como seção
 function listaSig(itens, mercado, maxItemId) {
   const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
