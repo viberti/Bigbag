@@ -1830,6 +1830,37 @@ function TabQualidade() {
       </p>
       <TabelaQualidade titulo="Cadeia" linhas={dados.cadeias} />
       <TabelaQualidade titulo="Origem" linhas={dados.origens} />
+      {dados.classificacao && <QualidadeClassificacao c={dados.classificacao} />}
+    </div>
+  );
+}
+
+// Saúde do CLASSIFICADOR (revisão 2026-06-12, item 1.2): distribuição de grupo
+// ('outros'/'sem grupo' é o sinal de alarme), itens sem SKU, aliases por via
+// (100=manual 90=match 75=juiz 60=novo — código de via, não probabilidade) e os
+// nomes vindos do scan que o classificador-por-nome não resolve.
+function QualidadeClassificacao({ c }) {
+  const semSku = Number(c.itens?.sem_sku) || 0;
+  const alarmes = (c.grupos || []).filter((g) => g.chave === 'outros' || g.chave === '(sem grupo)');
+  return (
+    <div className="adm-bloco">
+      <h3>Classificação</h3>
+      <p className="adm-aviso adm-aviso-fraco">
+        Golden set de regressão em <code>backend/test/golden_grupos.test.mjs</code> (gate do deploy). Aqui: o estado vivo.
+      </p>
+      <div className="adm-kpis">
+        <span><b>{semSku}</b> de {c.itens?.total} itens sem SKU</span>
+        {alarmes.map((g) => <span key={g.chave}><b>{g.n}</b> SKUs em {g.chave}</span>)}
+        <span><b>{c.scan?.sem_grupo_pelo_nome}</b> de {c.scan?.total} nomes de scan sem grupo pelo nome</span>
+        <span>aliases: <b>{c.alias_por_via?.manual}</b> manual · <b>{c.alias_por_via?.via_match}</b> match · <b>{c.alias_por_via?.via_juiz}</b> juiz · <b>{c.alias_por_via?.via_novo}</b> novo</span>
+      </div>
+      <table className="adm-tabela adm-tabela-mini">
+        <thead><tr><th>Grupo</th><th>SKUs</th></tr></thead>
+        <tbody>{(c.grupos || []).map((g) => <tr key={g.chave}><td>{g.chave}</td><td>{g.n}</td></tr>)}</tbody>
+      </table>
+      {c.scan?.exemplos?.length > 0 && (
+        <p className="adm-aviso adm-aviso-fraco">Scan sem grupo (vocabulário não cobre): {c.scan.exemplos.join(' · ')}</p>
+      )}
     </div>
   );
 }

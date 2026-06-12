@@ -22,6 +22,7 @@ import { candidatosCatalogo, proporMesmaLoja, buscarCatalogo } from '../normaliz
 import { consultarOuGuardar } from './produto.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { tituloProduto } from '../normaliza/titulo.js';
+import { grupoDeNome } from '../normaliza/categoria.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 
 export const adminRouter = Router();
@@ -1341,7 +1342,25 @@ adminRouter.get('/qualidade', async (req, res) => {
     const [cadeias] = await pool.query(sql('l.cadeia'));
     const [origens] = await pool.query(sql("COALESCE(f.origem_captura, '—')"));
     const [metodos] = await pool.query(sql("COALESCE(f.metodo_extracao, '—')"));
-    res.json({ cadeias, origens, metodos });
+    // CLASSIFICAÇÃO (revisão 2026-06-12, item 1.2): o painel não media a saúde do
+    // classificador. Métricas: distribuição de grupo (outros/sem-grupo é o sinal),
+    // itens sem SKU, aliases por VIA (a "confiança" 100/90/75/60 é código de via,
+    // migração 016), e nomes vindos do SCAN que o classificador-por-nome não
+    // resolve (não passam por auditoria nenhuma — worklist informal).
+    const [grupos] = await pool.query(
+      "SELECT COALESCE(grupo,'(sem grupo)') AS chave, COUNT(*) AS n FROM sku_normalizado GROUP BY grupo ORDER BY n DESC");
+    const [[itens]] = await pool.query(
+      'SELECT COUNT(*) AS total, SUM(sku_id IS NULL) AS sem_sku FROM item WHERE is_non_product = 0');
+    const [[aliasVia]] = await pool.query(
+      'SELECT SUM(confianca=100) AS manual, SUM(confianca=90) AS via_match, SUM(confianca=75) AS via_juiz, SUM(confianca=60) AS via_novo FROM sku_alias');
+    const [nomesScan] = await pool.query(
+      `SELECT DISTINCT nome FROM lista_item WHERE nome IS NOT NULL
+       UNION SELECT DISTINCT nome FROM despensa WHERE nome IS NOT NULL`);
+    const scanOutros = nomesScan.map((r) => r.nome).filter((n) => grupoDeNome(n) === 'outros');
+    res.json({ cadeias, origens, metodos, classificacao: {
+      grupos, itens, alias_por_via: aliasVia,
+      scan: { total: nomesScan.length, sem_grupo_pelo_nome: scanOutros.length, exemplos: scanOutros.slice(0, 12) },
+    } });
   } catch (e) {
     console.error('[admin/qualidade] erro:', e.message);
     res.status(500).json({ erro: 'Falha a calcular qualidade' });

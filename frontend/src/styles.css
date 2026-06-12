@@ -604,6 +604,12 @@ body {
 .adm-tabela th { color: var(--muted); font-weight: 600; font-size: 12px; }
 .adm-tabela td { font-variant-numeric: tabular-nums; }
 .adm-tabela em { color: var(--muted); font-style: normal; font-size: 12px; }
+/* bloco Classificação (saúde do classificador, revisão 2026-06-12) */
+.adm-bloco { margin-top: 26px; max-width: 760px; }
+.adm-bloco h3 { font-size: 14px; color: var(--muted); margin: 0 0 8px; }
+.adm-kpis { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 8px 0 12px; font-size: 13px; }
+.adm-kpis b { font-variant-numeric: tabular-nums; }
+.adm-tabela-mini { max-width: 360px; }
 /* Aba Itens (inspeção do item cru do talão) */
 .adm-it-busca { flex: 1; min-width: 240px; padding: 8px 11px; border-radius: 8px; border: 1px solid #2a3942; background: var(--campo); color: var(--texto); font-size: 14px; }
 .adm-itens-wrap { overflow-x: auto; }
