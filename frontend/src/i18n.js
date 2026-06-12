@@ -216,11 +216,12 @@ const STRINGS = {
     // despensa
     'desp.title': 'Minha despensa',
     'desp.ordenar': 'Ordenar:',
-    'desp.ordData': 'Compra',
+    'desp.ordData': 'Recente',
     'desp.ordNome': 'Nome',
     'desp.ordVal': 'Validade',
-    'desp.vazio': 'Ainda sem produtos com código de barras. Use o ícone da câmera numa nota para identificar um produto.',
+    'desp.vazio': 'Despensa vazia. Na lista de compras, toque no ícone de código de barras e leia os produtos que você tem em casa — eles aparecem aqui.',
     'desp.val': 'Val. {data}',
+    'desp.remover': 'Tirar da despensa',
     // gastos
     'gastos.title': 'Meus gastos',
     'gastos.falha': 'Falha ao carregar os gastos.',

@@ -1171,10 +1171,14 @@ body { background: #0c1814; }
 
 /* Despensa */
 .bb .despensa-list { overflow-y: auto; padding: 8px 8px 16px; }
-.bb .desp-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 13px 12px; border-radius: 14px;
-  background: none; border: none; color: inherit; cursor: pointer; transition: .12s; font: inherit; }
+.bb .desp-row { display: flex; align-items: center; gap: 4px; border-radius: 14px; }
 .bb .desp-row:hover { background: rgba(255,255,255,.035); }
-.bb .desp-row .ico { color: var(--muted-bb); flex: 0 0 auto; }
+.bb .desp-abre { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; text-align: left; padding: 13px 12px;
+  background: none; border: none; color: inherit; cursor: pointer; font: inherit; }
+.bb .desp-abre .ico { color: var(--muted-bb); flex: 0 0 auto; }
+.bb .desp-x { flex: 0 0 auto; width: 38px; height: 38px; margin-right: 6px; border-radius: 10px; border: none; background: none;
+  color: var(--muted-bb); display: grid; place-items: center; cursor: pointer; }
+.bb .desp-x:active { background: rgba(255,255,255,.08); color: var(--text-bb); }
 /* Ordenar a despensa */
 .bb .desp-ord { display: flex; align-items: center; gap: 7px; padding: 9px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .bb .desp-ord-k { font-size: 12px; color: var(--muted-bb); }

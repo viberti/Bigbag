@@ -644,36 +644,60 @@ produtoRouter.get('/base-local', requireAuth, async (req, res) => {
   }
 });
 
-// "Despensa" da casa: os produtos que conhecemos (com EAN), por ordem de compra
-// (data) decrescente. Dedup por EAN, mantendo a compra mais recente.
+// "Despensa" = inventário do que a casa TEM, alimentado por SCAN (migração 049).
+// Já NÃO deriva das compras (decisão do dono, 2026-06-12: o que se comprou não diz
+// o que ainda está em casa). Partilhada; ordenada pelo scan mais recente.
 produtoRouter.get('/despensa', requireAuth, async (req, res) => {
   try {
-    const [rows] = await getPool().query(`
-      SELECT pe.ean, pe.item_id, pe.id AS pe_id,
-             COALESCE(s.nome_canonico, i.descricao_original, NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.nome')), 'null'), pe.nome) AS nome,
-             COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.off_json,'$.marca')), 'null'), pe.marca) AS marca,
-             COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pe.vlm_json,'$.validade_iso')), 'null'), NULLIF(pe.validade, 'null')) AS validade,
-             f.data_compra AS data,
-             COALESCE(l.cadeia, l.nome) AS loja
-        FROM produto_ean pe
-        LEFT JOIN item i ON i.id = pe.item_id
-        LEFT JOIN sku_normalizado s ON s.id = i.sku_id
-        LEFT JOIN fatura f ON f.id = i.fatura_id
-        LEFT JOIN loja l ON l.id = f.loja_id
-       WHERE pe.ean IS NOT NULL AND pe.item_id IS NOT NULL
-       ORDER BY f.data_compra DESC, pe.id DESC`);
+    const [rows] = await getPool().query(
+      `SELECT ean, nome, marca, validade, atualizado_em AS data FROM despensa ORDER BY atualizado_em DESC, id DESC`);
     const limparVal = (v) => { const s = String(v ?? '').trim(); return s && !/^null$/i.test(s) ? s : null; };
-    const vistos = new Set();
-    const produtos = [];
-    for (const r of rows) {
-      if (vistos.has(r.ean)) continue;
-      vistos.add(r.ean);
-      produtos.push({ ean: r.ean, item_id: r.item_id, nome: r.nome, marca: r.marca, validade: limparVal(r.validade), data: r.data, loja: r.loja });
-    }
-    res.json({ produtos });
+    res.json({ produtos: rows.map((r) => ({ ean: r.ean, nome: r.nome, marca: r.marca, validade: limparVal(r.validade), data: r.data })) });
   } catch (e) {
     console.error('[produto/despensa] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar a despensa' });
+  }
+});
+
+// Põe um produto na despensa (por scan, ao fazer a lista). Upsert por EAN: re-scan
+// não duplica, só atualiza o "visto agora". nome/marca/validade completam-se da
+// ficha do EAN quando não vêm no pedido (o scan-para-lista já resolve o nome PT).
+produtoRouter.post('/despensa', requireAuth, async (req, res) => {
+  try {
+    const ean = String(req.body?.ean || '').replace(/\D/g, '');
+    if (!eanValido(ean)) return res.status(400).json({ erro: 'EAN inválido' });
+    let nome = String(req.body?.nome || '').trim().slice(0, 200) || null;
+    let marca = String(req.body?.marca || '').trim().slice(0, 120) || null;
+    let validade = null;
+    // completa pela ficha guardada (se houver) — nome PT, marca, validade
+    const [[pe]] = await getPool().query(
+      `SELECT COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.nome')),'null'), nome) AS nome,
+              COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(off_json,'$.marca')),'null'), marca) AS marca,
+              NULLIF(validade,'null') AS validade
+         FROM produto_ean WHERE ean = ? ORDER BY id LIMIT 1`, [ean]);
+    if (pe) { nome = nome || pe.nome || null; marca = marca || pe.marca || null; validade = pe.validade || null; }
+    await getPool().query(
+      `INSERT INTO despensa (ean, nome, marca, validade, utilizador) VALUES (?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE nome=COALESCE(VALUES(nome), nome), marca=COALESCE(VALUES(marca), marca),
+         validade=COALESCE(VALUES(validade), validade), utilizador=VALUES(utilizador), atualizado_em=CURRENT_TIMESTAMP`,
+      [ean, nome, marca, validade, req.user.id]);
+    res.json({ ok: true, ean, nome });
+  } catch (e) {
+    console.error('[produto/despensa POST] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a guardar na despensa' });
+  }
+});
+
+// Tira um produto da despensa (já consumido / enganou-se no scan).
+produtoRouter.delete('/despensa/:ean', requireAuth, async (req, res) => {
+  try {
+    const ean = String(req.params.ean || '').replace(/\D/g, '');
+    if (!ean) return res.status(400).json({ erro: 'EAN inválido' });
+    await getPool().query('DELETE FROM despensa WHERE ean = ?', [ean]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[produto/despensa DELETE] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a remover' });
   }
 });
 

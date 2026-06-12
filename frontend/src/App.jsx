@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, adicionarDespensa, removerDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
 import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
@@ -253,6 +253,10 @@ function Chat({ onSair, nome }) {
   const [despensaAberto, setDespensaAberto] = useState(false);
   const [despensaLista, setDespensaLista] = useState(null); // null=a carregar · []=vazio
   const abrirDespensa = () => abrirComCache('despensa', setDespensaAberto, setDespensaLista, listarDespensa, []);
+  async function removerDaDespensa(ean) {
+    setDespensaLista((xs) => (xs || []).filter((p) => p.ean !== ean));
+    try { await removerDespensa(ean); } catch { /* offline → fica até reabrir */ }
+  }
   const [gastosAberto, setGastosAberto] = useState(false);
   const [gastosDados, setGastosDados] = useState(null); // null=a carregar · {erro} em falha
   const abrirGastos = () => abrirComCache('gastos', setGastosAberto, setGastosDados, resumoGastos, { erro: true });
@@ -980,7 +984,7 @@ function Chat({ onSair, nome }) {
         onFechar={() => { setMinhaAberta(false); setCarrinhoAberto(true); }}
       />
       <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} identificados={identificados} />
-      <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} />
+      <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} onRemover={removerDaDespensa} />
       <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
       <PorIdentificarSheet
         aberto={porIdentAberto}
@@ -1014,6 +1018,8 @@ function Chat({ onSair, nome }) {
               let nome = p.nome || p.produto || p.ean;
               if (p.ean) { try { const r = await consultarProdutoEan(p.ean, { pt: true }); if (r?.nome) nome = r.nome; } catch { /* usa o local */ } }
               if (nome) { adicionarAoCarrinho(nome); navigator.vibrate?.(15); track('lista_scan_adicionar'); }
+              // aproveita o scan para registar na DESPENSA ("tenho isto em casa")
+              if (p.ean) adicionarDespensa(p.ean, nome).catch(() => {});
             })();
             return;
           }
@@ -1662,7 +1668,7 @@ function tsData(s) {
   return Number.isNaN(d) ? null : d;
 }
 
-function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
+function DespensaSheet({ aberto, produtos, onFechar, onInfo, onRemover }) {
   const [ordem, setOrdem] = useState('data'); // data | nome | validade
   let lista = produtos;
   if (produtos) {
@@ -1701,20 +1707,21 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo }) {
             <p className="sheet-vazio">{t('desp.vazio')}</p>
           ) : (
             lista.map((p) => (
-              <button key={p.ean} type="button" className="desp-row" onClick={() => onInfo({ id: p.item_id, ean: p.ean, produto: p.nome })}>
-                <span className="desp-corpo">
-                  <span className="desp-nome">{p.nome}</span>
-                  {(() => {
-                    const partes = [];
-                    for (const x of [limparMarca(p.marca), p.loja]) {
-                      const v = (x || '').trim();
-                      if (v && !partes.some((y) => y.toLowerCase() === v.toLowerCase())) partes.push(v);
-                    }
-                    return partes.length ? <span className="desp-sub">{partes.join(' · ')}</span> : null;
-                  })()}
-                </span>
-                {p.validade && <span className="desp-val">{t('desp.val', { data: fmtValidade(p.validade) })}</span>}
-              </button>
+              <div key={p.ean} className="desp-row">
+                <button type="button" className="desp-abre" onClick={() => onInfo({ ean: p.ean, produto: p.nome })}>
+                  <span className="desp-corpo">
+                    <span className="desp-nome">{p.nome}</span>
+                    {limparMarca(p.marca) && <span className="desp-sub">{limparMarca(p.marca)}</span>}
+                  </span>
+                  {p.validade && <span className="desp-val">{t('desp.val', { data: fmtValidade(p.validade) })}</span>}
+                </button>
+                {onRemover && (
+                  <button type="button" className="desp-x" aria-label={t('desp.remover')} title={t('desp.remover')}
+                    onClick={() => { onRemover(p.ean); navigator.vibrate?.(8); }}>
+                    <Ico name="close" size={16} />
+                  </button>
+                )}
+              </div>
             ))
           )}
         </div>

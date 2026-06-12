@@ -210,6 +210,20 @@ export async function listarDespensa() {
   const { produtos } = await r.json();
   return produtos || [];
 }
+// Põe um produto (scaneado) na despensa = "tenho isto em casa". Upsert por EAN.
+export async function adicionarDespensa(ean, nome) {
+  const r = await call('/api/produto/despensa', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ean, nome }),
+  });
+  if (!r.ok) throw new Error(`despensa add ${r.status}`);
+  return r.json();
+}
+export async function removerDespensa(ean) {
+  const r = await call(`/api/produto/despensa/${encodeURIComponent(ean)}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`despensa del ${r.status}`);
+  return r.json();
+}
 
 export async function infoProduto({ itemId, ean, skuId }) {
   const qs = itemId ? `item_id=${itemId}` : skuId ? `sku_id=${skuId}` : `ean=${encodeURIComponent(ean)}`;
