@@ -85,7 +85,15 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
     // OFF não tem (típico em marcas próprias/cervejas) → catálogo local; desde a
     // 047 a ficha do catálogo pode trazer NUTRIÇÃO oficial de loja (Auchan).
     const cat = await consultarCatalogo(ean);
-    if (!cat) return { encontrado: false };
+    if (!cat) {
+      // EAN que não resolve em lado nenhum (nem OFF, nem catálogo) → REGISTAR como
+      // desconhecido (não descartar): a casa scaneou-o, fica para resolver quando o
+      // catálogo crescer / o OFF atualizar / identificação manual. No-op se já existe.
+      await getPool().query(
+        "INSERT INTO produto_ean (ean, item_id, sku_id, fonte) VALUES (?, NULL, NULL, 'desconhecido') ON DUPLICATE KEY UPDATE ean = ean",
+        [ean]).catch((e) => console.error('[ean-desconhecido]', e.message));
+      return { encontrado: false, registado: true };
+    }
     try {
       await getPool().query(
         `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, nutricao, nutricao_confirmada, fonte)
