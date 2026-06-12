@@ -4,6 +4,7 @@
 // membro na UI). Preços: melhor preço unitário das ÚLTIMAS 3 compras do produto
 // (e onde), + último preço no mercado selecionado (?mercado=) quando existe.
 import { Router } from 'express';
+import { createHash } from 'crypto';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista } from '../normaliza/categoria.js';
@@ -43,6 +44,19 @@ function skusDoNome(nome, skus) {
   return fortes.length ? fortes : fracos;
 }
 
+// A tabela sku_normalizado é lida inteira a cada resolução de lista e a cada
+// /variantes. É pequena e muda raramente (só na ingestão) → cache de 30s evita
+// reler dezenas de vezes durante o polling aberto. (Date.now é permitido no
+// runtime normal; só os scripts de Workflow é que o proíbem.)
+let _skuCache = null, _skuCacheAt = 0;
+async function carregarSkus(pool) {
+  const agora = Date.now();
+  if (_skuCache && agora - _skuCacheAt < 30000) return _skuCache;
+  const [skus] = await pool.query('SELECT id, nome_canonico, nome_simplificado, grupo FROM sku_normalizado');
+  _skuCache = skus; _skuCacheAt = agora;
+  return skus;
+}
+
 // Hábitos de compra por SKU: nº de idas em que apareceu e unidades por ida.
 // Base do "produto sugerido" e da "quantidade habitual" da lista inteligente.
 async function habitosDosSkus(pool, skuIds) {
@@ -65,7 +79,7 @@ async function habitosDosSkus(pool, skuIds) {
 // pequena), casa por tokens, e pede os preços recentes desses SKUs numa query só.
 async function resolverItensLista(pool, itens, mercado) {
   if (!itens.length) return;
-  const [skus] = await pool.query('SELECT id, nome_canonico, nome_simplificado, grupo FROM sku_normalizado');
+  const skus = await carregarSkus(pool);
   const skuIdsPorItem = new Map();   // lista_id → Set(sku_id)
   const allSkuIds = new Set();
   for (const it of itens) {
@@ -155,7 +169,7 @@ listaRouter.get('/variantes', async (req, res) => {
     const nome = String(req.query.nome || '').trim();
     if (!nome) return res.status(400).json({ erro: 'nome em falta' });
     const pool = getPool();
-    const [skus] = await pool.query('SELECT id, nome_canonico, nome_simplificado, grupo FROM sku_normalizado');
+    const skus = await carregarSkus(pool);
     const matched = skusDoNome(nome, skus);
     if (!matched.length) return res.json({ variantes: [] });
     const ids = matched.map((s) => s.id);
@@ -313,11 +327,38 @@ async function montarLista(pool, mercado) {
   return { itens, lojas: lojas.map((x) => x.loja).filter(Boolean), mercado };
 }
 
+// Assinatura barata do estado visível da lista — muda quando muda um item
+// (nome/qtd/estado/quem riscou), o mercado selecionado, ou quando entra uma
+// compra nova (maxItemId: invalida os preços). É a base do 304.
+function listaSig(itens, mercado, maxItemId) {
+  const s = `${mercado || ''}|${maxItemId || 0}|` +
+    itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.nome}`).join(';');
+  return createHash('sha1').update(s).digest('base64').slice(0, 22);
+}
+
 // Lista atual (ativos + riscados) com preços + GRUPO, e as lojas p/ o seletor.
+// Polling aberto bate aqui de 3 em 3s: a parte cara é resolverItensLista (lê
+// preços/hábitos de todos os SKUs). Com ETag, quando nada mudou devolvemos 304
+// e saltamos o resolver — só corre a query leve dos itens + MAX(id). Corta ~90%
+// do trabalho durante o tempo em que a lista está parada.
 listaRouter.get('/', async (req, res) => {
   try {
     const mercado = String(req.query.mercado || '').trim() || null;
-    res.json(await montarLista(getPool(), mercado));
+    const pool = getPool();
+    const [itens] = await pool.query(
+      `SELECT id, nome, quantidade, categoria, estado, adicionado_por, marcado_por
+         FROM lista_item WHERE estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
+    );
+    const [[mx]] = await pool.query('SELECT MAX(id) AS m FROM item');
+    const etag = `"${listaSig(itens, mercado, mx?.m)}"`;
+    res.set('Cache-Control', 'no-cache');
+    res.set('ETag', etag);
+    if ((req.headers['if-none-match'] || '') === etag) return res.status(304).end();
+    await resolverItensLista(pool, itens, mercado);
+    const [lojas] = await pool.query(
+      `SELECT DISTINCT COALESCE(l.cadeia, l.nome) AS loja FROM fatura f JOIN loja l ON l.id = f.loja_id ORDER BY 1`,
+    );
+    res.json({ itens, lojas: lojas.map((x) => x.loja).filter(Boolean), mercado });
   } catch (e) {
     console.error('[lista] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar a lista' });
@@ -478,13 +519,39 @@ listaRouter.delete('/:id', async (req, res) => {
   }
 });
 
-// Esvaziar a lista (tudo → removido).
+// Esvaziar a lista (tudo → removido). Devolve o snapshot {id, estado} do que
+// foi limpo para o "Desfazer" poder repor exatamente (incl. quem estava no
+// carrinho vs ativo).
 listaRouter.post('/limpar', async (req, res) => {
   try {
-    await getPool().query("UPDATE lista_item SET estado = 'removido' WHERE estado IN ('ativo','carrinho')");
-    res.json({ ok: true });
+    const pool = getPool();
+    const [limpos] = await pool.query("SELECT id, estado FROM lista_item WHERE estado IN ('ativo','carrinho')");
+    await pool.query("UPDATE lista_item SET estado = 'removido' WHERE estado IN ('ativo','carrinho')");
+    res.json({ ok: true, limpos });
   } catch (e) {
     console.error('[lista/limpar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a limpar' });
+  }
+});
+
+// Desfazer o esvaziar: repõe o estado anterior dos itens recém-removidos. Só
+// toca em quem ainda está 'removido' (se já voltou à lista por outra via, não
+// duplica). Janela de uso: o snackbar de Desfazer (poucos segundos).
+listaRouter.post('/restaurar', async (req, res) => {
+  try {
+    const itens = Array.isArray(req.body?.itens) ? req.body.itens.slice(0, 200) : [];
+    const pool = getPool();
+    let restaurados = 0;
+    for (const it of itens) {
+      const id = Number(it?.id);
+      if (!id) continue;
+      const estado = it?.estado === 'carrinho' ? 'carrinho' : 'ativo';
+      const [r] = await pool.query("UPDATE lista_item SET estado = ? WHERE id = ? AND estado = 'removido'", [estado, id]);
+      restaurados += r.affectedRows;
+    }
+    res.json({ ok: true, restaurados });
+  } catch (e) {
+    console.error('[lista/restaurar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a restaurar' });
   }
 });

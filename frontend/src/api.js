@@ -243,10 +243,18 @@ export async function fotoProdutoUrl(id) {
 }
 
 // Lista de compras PARTILHADA da família (servidor = fonte de verdade).
-export async function obterLista(mercado) {
-  const r = await call(`/api/lista${mercado ? `?mercado=${encodeURIComponent(mercado)}` : ''}`);
+export async function obterLista(mercado, etag) {
+  // ETag/304: enquanto a folha está aberta batemos aqui de 3 em 3s. Quando nada
+  // mudou o servidor responde 304 e nem resolve preços — devolvemos { naoMudou }
+  // e o cliente mantém a lista atual (poupa CPU no servidor e bateria no telefone).
+  const r = await call(
+    `/api/lista${mercado ? `?mercado=${encodeURIComponent(mercado)}` : ''}`,
+    etag ? { headers: { 'If-None-Match': etag } } : {},
+  );
+  if (r.status === 304) return { naoMudou: true, etag };
   if (!r.ok) throw new Error(`lista ${r.status}`);
-  return r.json(); // { itens, lojas, mercado }
+  const data = await r.json();
+  return { ...data, etag: r.headers.get('ETag') }; // { itens, lojas, mercado, etag }
 }
 export async function adicionarListaItem({ nome, quantidade, categoria, somar }) {
   const r = await call('/api/lista', {
@@ -295,6 +303,15 @@ export async function removerListaItem(id) {
 export async function limparListaCompras() {
   const r = await call('/api/lista/limpar', { method: 'POST' });
   if (!r.ok) throw new Error(`lista limpar ${r.status}`);
+  return r.json(); // { ok, limpos: [{id, estado}] } — p/ o Desfazer
+}
+export async function restaurarLista(itens) {
+  const r = await call('/api/lista/restaurar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itens }),
+  });
+  if (!r.ok) throw new Error(`lista restaurar ${r.status}`);
   return r.json();
 }
 

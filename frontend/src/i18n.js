@@ -65,6 +65,8 @@ const STRINGS = {
     'cart.sheetTitle': 'Lista de Compras',
     'cart.empty': 'Sua lista está vazia. Abra “produtos que compro sempre” e toque para adicionar.',
     'cart.clear': 'Esvaziar lista',
+    'cart.esvaziada': 'Lista esvaziada',
+    'cart.desfazer': 'Desfazer',
     'cart.left': '{n|item|itens}',
     'cart.total': 'Total estimado',
     'cart.addHint': 'Toque num produto para adicionar/remover do carrinho.',

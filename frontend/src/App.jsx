@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -221,10 +221,12 @@ function Chat({ onSair, nome }) {
   // otimistas; adicionar OFFLINE vai para uma fila (localStorage) e segue depois.
   const [lista, setLista] = useState(null); // null = a carregar
   const listaIdsRef = useRef(null); // ids conhecidos (p/ avisar de adições de OUTRO membro)
+  const listaEtagRef = useRef(null); // ETag da última carga (304 = nada mudou, mantém a lista)
   const [listaLojas, setListaLojas] = useState([]);
   const [mercadoSel, setMercadoSel] = useState(''); // '' = todas as lojas
   const [listaOffline, setListaOffline] = useState(false);
   const [novosIds, setNovosIds] = useState(new Set()); // itens acabados de chegar de OUTRO membro (animação)
+  const [undoLimpar, setUndoLimpar] = useState(null); // snapshot do esvaziar p/ o snackbar "Desfazer"
   const [habituaisAberto, setHabituaisAberto] = useState(false);
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
   const [notasAberto, setNotasAberto] = useState(false);
@@ -488,7 +490,9 @@ function Chat({ onSair, nome }) {
       }
     } catch { /* sem rede → fica para a próxima */ }
     try {
-      const d = await obterLista(mercado);
+      const d = await obterLista(mercado, listaEtagRef.current);
+      if (d.naoMudou) { setListaOffline(false); return; } // 304: lista igual, nada a fazer
+      listaEtagRef.current = d.etag || null;
       const novos = d.itens || [];
       // Ponto 2: alguém (a Sue) adicionou itens enquanto estou na loja → aviso.
       // Compara com os ids já conhecidos; só os de OUTRO membro e fora da 1.ª carga.
@@ -515,8 +519,10 @@ function Chat({ onSair, nome }) {
   // polling enquanto a folha está aberta (a "sincronização em tempo real" p/ 2 pessoas)
   useEffect(() => {
     if (!carrinhoAberto) return undefined;
+    listaEtagRef.current = null; // ao abrir (e ao trocar de mercado) força carga fresca dos preços
     carregarLista();
-    const id = setInterval(() => carregarLista(), 4000);
+    // 3s: com o 304 a maioria das batidas é barata, dá "tempo real" p/ 2 pessoas
+    const id = setInterval(() => carregarLista(), 3000);
     const vis = () => { if (!document.hidden) carregarLista(); };
     document.addEventListener('visibilitychange', vis);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis); };
@@ -593,9 +599,32 @@ function Chat({ onSair, nome }) {
     if (String(id).startsWith('tmp')) return;
     try { await atualizarListaItem(id, { nome }); carregarLista(); } catch { setListaOffline(true); }
   }
+  // Esvaziar com rede de segurança: snackbar "Desfazer" durante 7s. O servidor
+  // devolve o snapshot {id, estado} do que limpou → repõe exatamente (carrinho
+  // vs ativo). Esvaziar a lista da casa toda sem undo era perda fácil e irreversível.
+  const undoTimerRef = useRef(null);
   async function limparCarrinho() {
+    const snapshot = (lista || []).filter((i) => !String(i.id).startsWith('tmp')).map((i) => ({ id: i.id, estado: i.estado || 'ativo' }));
     setLista([]);
-    try { await limparListaCompras(); } catch { setListaOffline(true); }
+    try {
+      const r = await limparListaCompras();
+      listaEtagRef.current = null;
+      const limpos = (r?.limpos?.length ? r.limpos : snapshot).filter((x) => !String(x.id).startsWith('tmp'));
+      if (limpos.length) {
+        setUndoLimpar(limpos);
+        clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = setTimeout(() => setUndoLimpar(null), 7000);
+      }
+    } catch { setListaOffline(true); }
+  }
+  async function desfazerLimpar() {
+    const itens = undoLimpar;
+    setUndoLimpar(null);
+    clearTimeout(undoTimerRef.current);
+    if (!itens?.length) return;
+    try { await restaurarLista(itens); track('lista_desfazer_limpar', { n: itens.length }); } catch { setListaOffline(true); }
+    listaEtagRef.current = null;
+    carregarLista();
   }
 
   // ── Lista PESSOAL (itens que só este membro consome → "+" passa à da casa) ──
@@ -946,6 +975,12 @@ function Chat({ onSair, nome }) {
       <CompararSheet aberto={compararAberto} onFechar={() => setCompararAberto(false)} />
       <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
       {toast && <div className="toast" onClick={() => setToast('')}>{toast}</div>}
+      {undoLimpar && (
+        <div className="snackbar" role="status">
+          <span>{t('cart.esvaziada')}</span>
+          <button type="button" onClick={desfazerLimpar}>{t('cart.desfazer')}</button>
+        </div>
+      )}
       <ProdutoIdentSheet item={identItem} onFechar={() => setIdentItem(null)} onIdentificado={marcarIdentificado} />
       <ProdutoInfoSheet
         item={infoItem}

@@ -1143,6 +1143,15 @@ body { background: #0c1814; }
   max-width: min(92vw, 460px); padding: 12px 16px; border-radius: 12px; background: #223129; border: 1px solid var(--line2);
   color: var(--text-bb); font-size: 13.5px; line-height: 1.4; box-shadow: 0 8px 30px rgba(0,0,0,.5); text-align: center; cursor: pointer; }
 
+/* Snackbar com ação (Desfazer o esvaziar) */
+.bb .snackbar { position: fixed; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 72;
+  display: flex; align-items: center; gap: 14px; max-width: min(92vw, 460px); padding: 11px 12px 11px 16px; border-radius: 12px;
+  background: #223129; border: 1px solid var(--line2); color: var(--text-bb); font-size: 13.5px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  animation: bbSnack .18s ease-out; }
+.bb .snackbar button { flex: none; padding: 7px 14px; border-radius: 9px; border: none; background: var(--accent); color: #06231a;
+  font-weight: 700; font-size: 13px; cursor: pointer; }
+@keyframes bbSnack { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
 /* Scanner de código de barras */
 .bb .scan-body { padding: 14px 16px 22px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
 .bb .scan-cam { position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 58vh; border-radius: 16px; overflow: hidden; background: #000; }
