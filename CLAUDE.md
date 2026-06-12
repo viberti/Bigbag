@@ -46,7 +46,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor.
 - Quando fechares uma "decisão em aberto", regista a escolha e o porquê no `Conceito`.
 
-## Estado atual (2026-06-12 · app v0.0.114.0 — fase BETA)
+## Estado atual (2026-06-12 · app v0.0.117.0 — fase BETA)
 
 **Três superfícies** (routing por path em `frontend/src/main.jsx`):
 - **App de chat (`/`)** — PWA do utilizador: envia notas (📷 câmara **inteligente**: barras → consulta produto; senão → talão), faz perguntas, **carrinho/lista partilhada**, scanner de barras, despensa, gastos, "por identificar", perfil nutricional. Abrir produto → **ficha factual** (Nutri-Score/NOVA/réguas UE/parecer) + **avaliação personalizada** se houver perfil ativo. **Base LOCAL no telefone** (IndexedDB) → scan instantâneo/offline; cresce com o uso.
@@ -84,7 +84,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 
 ## Internacionalização (i18n) — base PT-BR, código localizável
 - **Idioma base: português do Brasil (PT-BR)**, tratando o usuário por "você". Mas **nunca hardcodar texto visível** ao usuário — codificar de forma a permitir tradução fácil. Aplica-se a **TODO o texto enviado ao usuário**, incluindo o **gerado por LLM** (os prompts pedem explicitamente PT-BR + "você").
-- **Nomes de produtos NUNCA se traduzem** (decisão do dono, 2026-06-10): usam-se **como vêm dos mercados** (PT-PT), para não causar confusão. *(Exceção interna: o catálogo Mercadona ES tem `nome_pt` traduzido por léxico SÓ para o matching — não é texto de UI.)*
+- **Nomes de produtos não se traduzem ENTRE variantes do português** (decisão do dono, 2026-06-10): nomes de mercados **PT-PT** ficam como vêm (não se "abrasileiram"). *MAS* nomes que o **OFF** traz **noutra língua** (ES/FR/EN — o rótulo da embalagem, ex.: "Yogur griego"/"Tomato Paste"/"Maïs doux") **traduzem-se para PT** — marcas e nomes próprios nunca (`ingest/traduz.js`). Em fundo na ficha; **síncrono no scan→lista** (`consultarOuGuardar(ean,{traduzir})` via `?pt=1`, 2026-06-12) para o nome estrangeiro não chegar à lista de compras. *(Mercadona ES tem `nome_pt` por léxico, preferido em todos os ramos da consulta.)*
 - **Frontend:** todo o texto da UI passa por `frontend/src/i18n.js` via `t('chave', vars)` (interpolação `{var}`, plural `{n|sing|plur}`). **Traduzir = adicionar um dicionário**; os componentes não mudam. O `/admin` (operador=dono) está **fora do âmbito** i18n.
 - **Backend (respostas do assistente):** idioma centralizado no system prompt (`consulta.js`); locale-driven quando houver 2.º idioma.
 - **Exceções (dados, não UI):** prompts internos de extração e os nomes de produtos canónicos.
