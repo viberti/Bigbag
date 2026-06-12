@@ -154,22 +154,28 @@ export async function pesoPelaImagem(ean) {
     const jaTentado = cat.length ? cat.every((c) => c.peso_img_em != null) : _tentadosOff.has(cod);
     if (jaTentado) return;
 
-    // 1) catálogo → 2) OFF → 3) busca web. CDNs Demandware (Continente/Auchan)
-    // servem 280px por defeito — pedir 1000px (mesmo URL, parâmetros sw/sh).
-    let img = null;
+    // FASE 1 — imagens locais (catálogo a 1000px + OFF full), juntas numa chamada
+    // VLM. CDNs Demandware (Continente/Auchan) servem 280px por defeito → sw/sh=1000.
+    const locais = [];
     for (const c of cat) {
-      if (!c.imagem_url) continue;
+      if (!c.imagem_url || locais.length >= 2) continue;
       const grande = c.imagem_url.replace(/sw=\d+/, 'sw=1000').replace(/sh=\d+/, 'sh=1000');
-      img = await buscarImagem(grande) || (grande !== c.imagem_url ? await buscarImagem(c.imagem_url) : null);
-      if (img) break;
+      const img = await buscarImagem(grande) || (grande !== c.imagem_url ? await buscarImagem(c.imagem_url) : null);
+      if (img) locais.push(img);
     }
-    if (!img) img = await imagemOff(cod);
-    if (!img) img = await imagemBuscaWeb(pe?.nome, pe?.marca);
+    const off = await imagemOff(cod);
+    if (off && locais.length < 3) locais.push(off);
 
     let peso = null;
-    if (img) {
-      const lido = await lerPesoVlm([img], pe?.nome, pe?.marca);
-      peso = pesoPlausivel(lido);
+    if (locais.length) peso = pesoPlausivel(await lerPesoVlm(locais, pe?.nome, pe?.marca));
+
+    // FASE 2 — a imagem local existe mas não mostra o peso (ou não há local) →
+    // busca web (SerpApi/CSE) e 2.ª chamada VLM. A cascata NÃO pode parar na
+    // primeira imagem que existe (bug original: a foto OFF do Concchiglioni
+    // existia sem peso e a busca web nunca corria).
+    if (!peso) {
+      const web = await imagemBuscaWeb(pe?.nome, pe?.marca);
+      if (web) peso = pesoPlausivel(await lerPesoVlm([web], pe?.nome, pe?.marca));
     }
 
     // marca a tentativa SEMPRE (sucesso ou não) — nunca repetir o custo
