@@ -23,7 +23,7 @@ test('exibirFolha: kebab→legível, conectores minúsculos', () => {
   assert.equal(exibirFolha('Conservas'), 'Conservas');
 });
 
-test('votarCategoria: caso real "polpa de tomate" — a folha funda vence o raso', () => {
+test('votarCategoria: caso real "polpa de tomate" — vota a FAMÍLIA (2.º nível), não a folha', () => {
   const cands = [
     ...Array.from({ length: 20 }, () => ({ fonte: 'continente', path: 'Mercearia/Conservas' })),
     ...Array.from({ length: 19 }, () => ({ fonte: 'auchan', path: 'alimentacao/mercearia/polpas-caldos-e-temperos/polpa-tomate' })),
@@ -31,19 +31,30 @@ test('votarCategoria: caso real "polpa de tomate" — a folha funda vence o raso
     ...Array.from({ length: 2 }, () => ({ fonte: 'mercadona-off', path: 'Polpas de tomate' })),
   ];
   const v = votarCategoria(cands);
-  // Auchan 19×3=57 > PD 16×3=48 > Continente 20×2=40 — a profundidade decide
-  assert.equal(v.folha, 'Polpa Tomate');
+  // famílias: Auchan 'polpas-caldos-e-temperos' 19×3=57 > PD 'temperos-e-molhos' 48 > Cont 'Conservas' 40
+  assert.equal(v.folha, 'Polpas Caldos e Temperos');
   assert.equal(v.fonte, 'auchan');
-  assert.ok(v.confianca > 0.3 && v.confianca < 0.6, `confiança fragmentada honesta (${v.confianca})`);
   assert.ok(v.votos.length >= 3);
 });
 
-test('votarCategoria: ES vale metade; vazio dá null', () => {
+test('votarCategoria: as 5 folhas de massa COLAPSAM na família (caso real da 3.ª iteração)', () => {
   const v = votarCategoria([
-    { fonte: 'mercadona', path: 'Aceite, especias y salsas/Salsas/Tomate frito' }, // 3×0.5=1.5
-    { fonte: 'pingodoce', path: 'mercearia/molhos' },                              // 2×1=2
+    { fonte: 'auchan', path: 'alimentacao/mercearia/arroz-e-massa/massas-especialidades' },
+    { fonte: 'auchan', path: 'alimentacao/mercearia/arroz-e-massa/esparguete-aletria-e-meadas' },
+    { fonte: 'auchan', path: 'alimentacao/mercearia/arroz-e-massa/cotovelos-espiral-e-massinhas' },
+    { fonte: 'auchan', path: 'alimentacao/mercearia/arroz-e-massa/massa' },
+  ]);
+  assert.equal(v.folha, 'Arroz e Massa'); // uma família, não 4 folhas
+  assert.equal(v.confianca, 1);
+});
+
+test('votarCategoria: ES vale metade; raso (1 nível) não vota; vazio dá null', () => {
+  const v = votarCategoria([
+    { fonte: 'mercadona', path: 'Aceite, especias y salsas/Salsas/Tomate frito' }, // família Salsas, 3×0.5=1.5
+    { fonte: 'pingodoce', path: 'mercearia/molhos' },                              // família molhos, 2×1=2
   ]);
   assert.equal(v.folha, 'Molhos');
   assert.equal(votarCategoria([]), null);
   assert.equal(votarCategoria([{ fonte: 'x', path: null }]), null);
+  assert.equal(votarCategoria([{ fonte: 'continente', path: 'Mercearia' }]), null); // raso → sem voto
 });

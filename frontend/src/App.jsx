@@ -5,7 +5,7 @@ import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 // a revisão achou vocabulários paralelos front/back a divergir). Módulo PURO.
 // chaveLite = chaveItemLista: a consolidação otimista usa a MESMA chave do servidor
 // (antes era um clone com singularização naïve '-s').
-import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, cortarGenerico } from '../../backend/src/normaliza/categoria.js';
+import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, cortarGenerico, TIPOS_NOME } from '../../backend/src/normaliza/categoria.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -4069,19 +4069,23 @@ function secaoDe(cat) {
 
 // Organiza a lista para a folha: ATIVOS por grupo (categoria do servidor B1; cai
 // para o keyword local se faltar), ordenados; "no carrinho" à parte (descem ao fim).
+// Tipos SALIENTES por nome (curados pelo dono) — agregam ACIMA da família do
+// catálogo: "Arroz e Massa" (Auchan) e "Massas" (Continente) dividiriam as
+// massas por loja; o tipo curado junta-as numa seção só.
+const TIPOS_SALIENTES = new Set(TIPOS_NOME.map(([id]) => id));
 function organizarCarrinho(itens) {
-  // REGRA DO DONO (2026-06-13): a seção do usuário é a ÚLTIMA subcategoria do
-  // catálogo (it.cat_exib, a folha — "Chá Preto", "Polpa Tomate"), senão metade
-  // do catálogo cai em "Mercearia". Sem voto fiável do catálogo, cai nos tipos
-  // à mão (massa/pão/…) e por fim no grupo. O ícone e a ORDEM vêm do tipo/grupo
-  // subjacente (a folha herda o lugar do corredor a que pertence).
+  // GRANULARIDADE DA LISTA (decisão do dono, 2026-06-13, 3.ª iteração): nem o
+  // corredor ("Mercearia" engole metade do catálogo) nem a folha (calibrada p/
+  // 20k produtos — massas em 5 seções). A seção é: tipo curado SALIENTE
+  // (Massa, Pão, …) > FAMÍLIA do catálogo (it.cat_exib, o 2.º nível:
+  // "Café, Chá e Infusão", "Conservas") > tipo por grupo > Mercearia/Outros.
   const ordem = (id) => { const i = TIPOS_CAT.findIndex((x) => x.id === id); return i < 0 ? 99 : i; };
   const porSec = new Map();
   for (const it of itens) {
     if (it.estado === 'carrinho') continue;
     const tid = tipoConsumidor(it.grupo, it.nome, it.marca);
     const g = TIPOS_CAT.find((x) => x.id === tid) || TIPOS_CAT[TIPOS_CAT.length - 1];
-    const label = it.cat_exib || g.label;
+    const label = TIPOS_SALIENTES.has(tid) ? g.label : (it.cat_exib || g.label);
     const key = label.toLowerCase();
     if (!porSec.has(key)) porSec.set(key, { g: { id: key, label, ic: g.ic }, ord: ordem(g.id), itens: [] });
     porSec.get(key).itens.push(it);

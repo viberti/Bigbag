@@ -21,14 +21,19 @@ const CONECTOR = new Set(['e', 'de', 'da', 'do', 'das', 'dos', 'com', 'para', 'y
 // ── puros (exportados p/ testes) ─────────────────────────────────────────────
 
 // Parte um caminho de loja em níveis legíveis. `es` marca vocabulário não-PT
-// (Mercadona em espanhol; tags OFF 'en:…') — vota com peso reduzido na folha.
+// (Mercadona em espanhol; tags OFF 'en:…') — vota com peso reduzido.
+// `familia` = 2.º nível informativo (corredor/FAMÍLIA/folha) — a granularidade
+// de LISTA DOMÉSTICA (decisão do dono, 2026-06-13: a folha é calibrada p/ 20k
+// produtos e fragmenta — massas em 5 seções; o corredor é grosso demais; o
+// nível do meio, "Arroz e Massa"/"Café, Chá e Infusão", é o da lista de 50).
 export function niveisDePath(fonte, path) {
   if (!path) return null;
   const niveis = String(path).split('/').map((n) => n.trim()).filter((n) => n && !NIVEL_RUIDO.has(normAlfa(n).replace(/ /g, '')));
   if (!niveis.length) return null;
   const folha = niveis[niveis.length - 1];
+  const familia = niveis.length >= 2 ? niveis[1] : null; // path de 1 nível não tem família (raso)
   const es = fonte === 'mercadona' || /^[a-z]{2}:/.test(folha);
-  return { niveis, folha, profundidade: niveis.length, es };
+  return { niveis, folha, familia, profundidade: niveis.length, es };
 }
 
 // Re-acentuação dos slugs de loja (o kebab dos sites perde acentos: "cha-preto").
@@ -59,21 +64,22 @@ export function exibirFolha(folha) {
     .join(' ');
 }
 
-// O voto: candidatos {fonte, path[, score]} → vencedor por FOLHA normalizada,
-// peso = profundidade do caminho (cap 4; ES/estrangeiro × 0.5).
-// Folhas equivalentes de lojas diferentes ("polpa-tomate" vs
-// "polpas-e-concentrados") ainda NÃO somam — fragmentam o voto e baixam a
-// confiança (honesto); o mapa de equivalência minerado por EAN é a Fase 3.
+// O voto: candidatos {fonte, path[, score]} → vencedor por FAMÍLIA (2.º nível)
+// normalizada, peso = profundidade do caminho (cap 4; ES/estrangeiro × 0.5).
+// Votar pela família (não pela folha) também JUNTA folhas-irmãs da mesma loja
+// (cha-preto + infusoes → cafe-cha-e-infusao), subindo a confiança.
+// Famílias equivalentes de lojas diferentes ("arroz-e-massa" vs "massas") ainda
+// não somam; os tipos salientes curados agregam por cima (ver lista/App).
 export function votarCategoria(cands) {
-  const grupos = new Map(); // normAlfa(folha) → { folha, path, fonte, peso, n }
+  const grupos = new Map(); // normAlfa(familia) → { familia, path, fonte, peso, n }
   let total = 0;
   for (const c of cands || []) {
     const nd = niveisDePath(c.fonte, c.path);
-    if (!nd) continue;
+    if (!nd || !nd.familia) continue; // raso (1 nível) não tem família → não vota na seção
     const peso = Math.min(nd.profundidade, 4) * (nd.es ? 0.5 : 1);
     total += peso;
-    const k = normAlfa(nd.folha);
-    const g = grupos.get(k) || { folha: nd.folha, path: c.path, fonte: c.fonte, profundidade: nd.profundidade, peso: 0, n: 0, es: true };
+    const k = normAlfa(nd.familia);
+    const g = grupos.get(k) || { familia: nd.familia, path: c.path, fonte: c.fonte, profundidade: nd.profundidade, peso: 0, n: 0, es: true };
     g.peso += peso; g.n += 1;
     g.es = g.es && nd.es; // só é ES se TODOS os candidatos do grupo o forem
     // representante do grupo: o caminho mais fundo visto
@@ -84,9 +90,9 @@ export function votarCategoria(cands) {
   const lista = [...grupos.values()].sort((a, b) => b.peso - a.peso || b.n - a.n);
   const v = lista[0];
   return {
-    folha: exibirFolha(v.folha), path: v.path, fonte: v.fonte, es: v.es,
+    folha: exibirFolha(v.familia), path: v.path, fonte: v.fonte, es: v.es, // `folha` = o nível de EXIBIÇÃO (a família)
     confianca: Math.round((v.peso / total) * 100) / 100,
-    votos: lista.slice(0, 5).map((g) => ({ folha: exibirFolha(g.folha), n: g.n, peso: Math.round(g.peso * 10) / 10 })),
+    votos: lista.slice(0, 5).map((g) => ({ folha: exibirFolha(g.familia), n: g.n, peso: Math.round(g.peso * 10) / 10 })),
   };
 }
 
