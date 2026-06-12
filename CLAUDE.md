@@ -46,7 +46,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor.
 - Quando fechares uma "decisão em aberto", regista a escolha e o porquê no `Conceito`.
 
-## Estado atual (2026-06-12 · app v0.0.119.0 — fase BETA)
+## Estado atual (2026-06-12 · app v0.0.121.0 — fase BETA)
 
 **Classificação tem DUAS lentes (decisão do dono, 2026-06-12):** **de loja** (`it.grupo`, o corredor — frutas/carne/…/mercearia/padaria; segue como as lojas organizam: massa/arroz/farinha/cereais em *mercearia*, padaria só pão/pastelaria) — preservada, serve comparar/explorar/comprar (mesmo corredor junto na loja); e **da lista** (`tipoConsumidor` no front, derivado do NOME — "o que a coisa É": Massa, Pão, Cereais, Conservas, e Mercearia residual) — é o cabeçalho de secção da lista de compras. "Massa" tem secção; "arroz" cai em Mercearia residual (bom senso, afina-se com o uso). A nutrição-por-classe (`DISPENSA_CLASSE`) é mecanismo SEPARADO, não muda.
 
@@ -59,7 +59,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 
 **Consulta:** 11 funções + tool use (`POST /api/consulta` texto, `POST /api/voz`), modelo `gemini-2.5-flash`.
 
-**Infra FECHADA:** `https://bigbag.hal9klabs.com` (Apache+Let's Encrypt), `bigbag-backend.service` (systemd, porta 4200). BD `app_bigbag`, **migrações até 048** (013-032 base; 033 nutricao_confirmada; 034 lista_compras; 035 conteúdo da embalagem; 036 marca_origem; 037 verificacao_nome; 038 off_produto; 039 chave larga em produto_analise; 040 catalogo nome_pt; 041 sku.grupo; 042 fatura nif_comprador+forma_pagamento; 043 facetas do Mestre como colunas; 044 produto_ean campos largos; 045 catalogo ean_inferido; 046 catalogo descricao_curta; 047 catalogo nutricao oficial; 048 colação única; 049 despensa (inventário por scan)). Migrações novas: aplicar com `mysql … < ficheiro` no servidor.
+**Infra FECHADA:** `https://bigbag.hal9klabs.com` (Apache+Let's Encrypt), `bigbag-backend.service` (systemd, porta 4200). BD `app_bigbag`, **migrações até 048** (013-032 base; 033 nutricao_confirmada; 034 lista_compras; 035 conteúdo da embalagem; 036 marca_origem; 037 verificacao_nome; 038 off_produto; 039 chave larga em produto_analise; 040 catalogo nome_pt; 041 sku.grupo; 042 fatura nif_comprador+forma_pagamento; 043 facetas do Mestre como colunas; 044 produto_ean campos largos; 045 catalogo ean_inferido; 046 catalogo descricao_curta; 047 catalogo nutricao oficial; 048 colação única; 049 despensa (inventário por scan); 050 lista_item.ean (liga item do scan ao produto exato)). Migrações novas: aplicar com `mysql … < ficheiro` no servidor.
 
 **O que está construído (detalhe nos docs-fonte):**
 - **Eixo saúde** — identificação por EAN (scan/foto/linha do talão) + OFF; ficha factual não-clínica; frescos por nome (`produto_generico`); perfil por membro com alertas determinísticos de alergia; comparar produtos na prateleira. Modelo de **3 níveis de nome** (nota → produto real por EAN → nome canónico sem marca). Ver `Visao_Conselheiro`.
@@ -97,5 +97,5 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Custo:** ~97% é a ingestão de talões — metade leitura-VLM, metade normalização item-a-item por LLM. A alavanca de poupança é o **catálogo determinístico** (cada item resolvido sem LLM corta canonicalizar+mestre); a aba Custos mede por feature.
 - `OPENROUTER_TIMEOUT_MS` — vigiar; pode ser curto para imagem grande num VLM.
 - Comparações de preço usam sempre `preco_por_base` (€/kg, €/L, €/un); filtrar `is_clearance` e `is_non_product`.
-- **Preço de CATÁLOGO (online) é só referência, nunca critério** (decisão do dono, 2026-06-11): pode divergir da loja física e mudar de um dia para o outro. No matching entra apenas como **bónus de desempate** (nunca penaliza nem decide — `bonusPreco`, marca manda sobre preço); o **histórico de preços vem exclusivamente dos talões** (preço pago, facto). Mostrar preço de catálogo sempre como aproximação.
+- **Preço de CATÁLOGO (online) é só referência, nunca critério** (decisão do dono, 2026-06-11): pode divergir da loja física e mudar de um dia para o outro. No matching entra apenas como **bónus de desempate** (nunca penaliza nem decide — `bonusPreco`, marca manda sobre preço); o **histórico de preços vem exclusivamente dos talões** (preço pago, facto). Mostrar preço de catálogo sempre como aproximação. **Na lista (v0.0.121.0):** item scaneado nunca comprado → mostra-se o **menor preço de embalagem do catálogo entre lojas** como REFERÊNCIA ("~€x · online", itálico ténue, via `aplicarPrecoRef`/`lista_item.ean`); entra no total estimado mas nunca como facto/critério.
 - PWA: testar câmara e microfone em **dispositivo real** (sobretudo iOS/Safari), não só no desktop.
