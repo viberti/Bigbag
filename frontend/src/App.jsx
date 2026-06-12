@@ -240,7 +240,9 @@ function Chat({ onSair, nome }) {
   // item_id → EAN, dos identificados nesta sessão (atualiza listas sem refresh)
   const [identificados, setIdentificados] = useState({});
   const marcarIdentificado = (itemId, ean) => {
-    if (itemId && ean) setIdentificados((m) => ({ ...m, [itemId]: ean }));
+    // ean pode não existir (fresco identificado só por fotos) — `true` marca o
+    // item como identificado na sessão sem fingir um código de barras.
+    if (itemId) setIdentificados((m) => ({ ...m, [itemId]: ean || true }));
   };
   // stale-while-revalidate: ao reabrir uma folha, mostra LOGO a última versão (sem
   // "a pensar…") e atualiza por trás. Cache de sessão, em memória (some no reload).
@@ -1609,8 +1611,9 @@ function DetalheCompra({ aberto, nota, itens, identificados, onVoltar, onInfo, o
     const qtd = Number(it.quantidade) || 1;
     const linha = Number(it.preco) || 0;
     const unit = qtd ? linha / qtd : linha;
-    const eanItem = it.ean || identificados?.[it.id] || null;
-    const temFicha = !!it.tem_dados || !!identificados?.[it.id] || it.tipo_alimento === 'fresco';
+    const idf = identificados?.[it.id]; // EAN (string) ou true (identificado por fotos, sem código)
+    const eanItem = it.ean || (typeof idf === 'string' ? idf : null);
+    const temFicha = !!it.tem_dados || !!idf || it.tipo_alimento === 'fresco';
     const marca = limparMarca(it.marca) || null;
     const fmt = formatoProduto(it);
     // sub-linha abaixo do nome: tamanho/formato + quantidade (quando há), juntos
@@ -2783,7 +2786,9 @@ function ResumoPerfil({ r }) {
 // Limite de fotos por identificação (acompanha o limite do backend). Mudável.
 const MAX_FOTOS = 10;
 
-// Identificar produto: EAN + fotos → VLM (rótulos) e OFF (EAN). Mostra ambos.
+// Identificar produto: SCAN do código de barras (como na lista de pendências —
+// decisão do dono 2026-06-13: a câmara do item sem ficha só tirava fotos) +
+// fotos do rótulo → VLM (rótulos) e OFF (EAN). Mostra ambos.
 function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
   const [ean, setEan] = useState('');
   const [fotos, setFotos] = useState([]);
@@ -2791,13 +2796,70 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
   const [res, setRes] = useState(null);
   const [a, setA] = useState(false);
   const fotoRef = useRef(null);
+  const videoRef = useRef(null);
+  const controlsRef = useRef(null);
+  const trackRef = useRef(null);
+  const [fase, setFase] = useState('scan'); // scan | fotos | erro
+  const [manual, setManual] = useState('');
+  const [temLuz, setTemLuz] = useState(false);
+  const [luz, setLuz] = useState(false);
   useEffect(() => {
     setEan(item?.ean || ''); // vindo da ficha (fotografar rótulo), o EAN já vem preenchido
     setFotos([]);
     setRes(null);
     setA(false);
+    setManual('');
+    setLuz(false);
+    setTemLuz(false);
+    setFase(item?.ean ? 'fotos' : 'scan'); // com EAN conhecido não há nada a scanear
   }, [item]);
+
+  // scanner ao vivo só na fase 'scan' (mesmo padrão do CapturaIdentSheet)
+  useEffect(() => {
+    if (!item || fase !== 'scan') return undefined;
+    let controls;
+    let parado = false;
+    (async () => {
+      try {
+        const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+        const hints = new Map();
+        hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
+        hints.set(lib.DecodeHintType.TRY_HARDER, true);
+        const reader = new BrowserMultiFormatReader(hints);
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+          videoRef.current,
+          (result) => {
+            if (!result || parado) return;
+            const cod = result.getText().replace(/\D/g, '');
+            if (cod.length < 8) return;
+            parado = true;
+            controls?.stop();
+            try { navigator.vibrate?.(60); } catch { /* noop */ }
+            setEan(cod);
+            setFase('fotos');
+          },
+        );
+        controlsRef.current = controls;
+        const track = videoRef.current?.srcObject?.getVideoTracks?.()[0];
+        if (track) {
+          try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* noop */ }
+          const caps = track.getCapabilities?.() || {};
+          if (caps.torch) { trackRef.current = track; setTemLuz(true); }
+        }
+      } catch { setFase('erro'); }
+    })();
+    return () => { parado = true; controls?.stop(); controlsRef.current = null; trackRef.current = null; };
+  }, [item, fase]);
+
   if (!item) return null;
+
+  async function alternarLuz() {
+    const tr = trackRef.current;
+    if (!tr) return;
+    const novo = !luz;
+    try { await tr.applyConstraints({ advanced: [{ torch: novo }] }); setLuz(novo); } catch { /* noop */ }
+  }
   async function analisar() {
     if (a || (!ean.trim() && !fotos.length)) return;
     setA(true);
@@ -2805,7 +2867,7 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
     try {
       const r = await identificarProduto({ ean: ean.trim() || undefined, skuId: item.sku_id || undefined, itemId: item.id || undefined, fotos });
       setRes(r);
-      if (r && !r.erro && r.ean && item?.id) onIdentificado?.(item.id, r.ean); // remove o ícone/pendência sem refresh
+      if (r && !r.erro && item?.id) onIdentificado?.(item.id, r.ean || null); // remove o ícone/pendência sem refresh (fresco sem EAN também conta)
     } catch (e) {
       setRes({ erro: true, msg: e.message });
     } finally {
@@ -2825,49 +2887,80 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
         </div>
         <div className="ident-body">
           <div className="ident-prod">{item.produto}</div>
-          <label className="ident-lbl">{t('ident.eanLbl')}</label>
-          <input className="ident-ean" inputMode="numeric" placeholder="ex.: 5601234567890" value={ean} onChange={(e) => setEan(e.target.value)} />
-          {/* capture SEM multiple (a combinação devolve 0 ficheiros em iOS); uma foto
-              por toque, acumula. Tocar de novo para a próxima (frente · rótulo · ingredientes). */}
-          <input
-            ref={fotoRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setFotos((x) => (x.length >= MAX_FOTOS ? x : [...x, f]));
-              e.target.value = '';
-            }}
-          />
-          <button
-            type="button"
-            className="ident-add"
-            onClick={() => fotoRef.current?.click()}
-            disabled={fotos.length >= MAX_FOTOS}
-          >
-            <Ico name="camera" size={18} />{' '}
-            {fotos.length >= MAX_FOTOS
-              ? t('capt.maxFotos', { n: MAX_FOTOS })
-              : fotos.length
-                ? t('capt.maisFoto', { i: fotos.length, n: MAX_FOTOS })
-                : t('ident.addFoto')}
-          </button>
-          {fotos.length > 0 && (
-            <div className="ident-fotos">
-              {fotos.map((f, i) => (
-                <span key={i} className="ident-thumb">
-                  <img src={fotoUrls[i]} alt="" />
-                  <button type="button" onClick={() => setFotos((x) => x.filter((_, j) => j !== i))} aria-label="remover">×</button>
-                </span>
-              ))}
-            </div>
+          {fase === 'erro' ? (
+            <>
+              <p className="sheet-vazio">{t('capt.semCamera')}</p>
+              <div className="scan-manual">
+                <input inputMode="numeric" placeholder={t('capt.codigoPh')} value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
+                <button type="button" disabled={manual.length < 8} onClick={() => { setEan(manual); setFase('fotos'); }}>{t('capt.usar')}</button>
+              </div>
+              <button type="button" className="scan-foto" onClick={() => { setEan(''); setFase('fotos'); }}>{t('capt.soFotos')}</button>
+            </>
+          ) : fase === 'scan' ? (
+            <>
+              <div className="scan-cam">
+                <video ref={videoRef} className="scan-video" playsInline muted />
+                <div className="scan-mira" />
+                {temLuz && (
+                  <button type="button" className={`scan-luz ${luz ? 'on' : ''}`} onClick={alternarLuz} aria-label="lanterna"><Ico name="luz" size={20} /></button>
+                )}
+              </div>
+              <p className="scan-hint">{t('capt.aponte')}</p>
+              <div className="scan-manual">
+                <input inputMode="numeric" placeholder={t('scanner.placeholderEan')} value={manual} onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))} />
+                <button type="button" disabled={manual.length < 8} onClick={() => { setEan(manual); setFase('fotos'); }}>{t('capt.usar')}</button>
+              </div>
+              <button type="button" className="scan-foto" onClick={() => { setEan(''); setFase('fotos'); }}>{t('capt.semCodBtn')}</button>
+            </>
+          ) : (
+            <>
+              <div className="capt-ean">
+                {ean ? <span><b>{t('capt.codigo')}</b> {ean}</span> : <span className="capt-semcod">{t('capt.semCodigo')}</span>}
+                <button type="button" className="capt-reler" onClick={() => setFase('scan')}>{t('capt.reler')}</button>
+              </div>
+              {/* capture SEM multiple (a combinação devolve 0 ficheiros em iOS); uma foto
+                  por toque, acumula. Tocar de novo para a próxima (frente · rótulo · ingredientes). */}
+              <input
+                ref={fotoRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) setFotos((x) => (x.length >= MAX_FOTOS ? x : [...x, f]));
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                className="ident-add"
+                onClick={() => fotoRef.current?.click()}
+                disabled={fotos.length >= MAX_FOTOS}
+              >
+                <Ico name="camera" size={18} />{' '}
+                {fotos.length >= MAX_FOTOS
+                  ? t('capt.maxFotos', { n: MAX_FOTOS })
+                  : fotos.length
+                    ? t('capt.maisFoto', { i: fotos.length, n: MAX_FOTOS })
+                    : t('ident.addFoto')}
+              </button>
+              {fotos.length > 0 && (
+                <div className="ident-fotos">
+                  {fotos.map((f, i) => (
+                    <span key={i} className="ident-thumb">
+                      <img src={fotoUrls[i]} alt="" />
+                      <button type="button" onClick={() => setFotos((x) => x.filter((_, j) => j !== i))} aria-label="remover">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <button type="button" className="ident-go" onClick={analisar} disabled={a || (!ean.trim() && !fotos.length)}>
+                {a ? t('ident.analisando') : t('ident.analisar')}
+              </button>
+              {res && <ResultadoIdent res={res} />}
+            </>
           )}
-          <button type="button" className="ident-go" onClick={analisar} disabled={a || (!ean.trim() && !fotos.length)}>
-            {a ? t('ident.analisando') : t('ident.analisar')}
-          </button>
-          {res && <ResultadoIdent res={res} />}
         </div>
       </section>
     </>
