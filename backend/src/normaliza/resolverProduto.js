@@ -299,6 +299,26 @@ function formatoEstrut(fmtQ, fv, ub) {
   return r > 0.8 && r < 1.25;
 }
 
+// VIZINHOS do catálogo para CLASSIFICAÇÃO (estratégia 2026-06-13): devolve os
+// top-K candidatos COM categoria, não só o melhor — o consumidor (voto de
+// categoria em classificarCatalogo.js) quer a VIZINHANÇA, não o match exato.
+// Sem gates de faceta/dieta de propósito: iogurte de morango e de baunilha são
+// vizinhos legítimos para CATEGORIA (a faceta muda o produto, não o corredor).
+export async function vizinhosCatalogo(pool, descricao, { k = 80, minScore = 0.5 } = {}) {
+  const idf = await carregarIdf(pool);
+  const cat = await catalogoEmMemoria(pool);
+  const q = toksB(expandirAbreviaturas(descricao));
+  if (!q.length) return [];
+  const out = [];
+  for (const r of cat) {
+    if (!r.categoria_path) continue;
+    const s = pontuarBusca(q, r.t, idf);
+    if (s >= minScore) out.push({ nome: r.nome, fonte: r.fonte, categoria_path: r.categoria_path, ean: r.ean || null, score: s });
+  }
+  out.sort((a, b) => b.score - a.score);
+  return out.slice(0, k);
+}
+
 // Devolve o melhor candidato { nome, marca, categoria_path, ean?, fonte, score,
 // margem } ou null. `cadeia` dá prior à fonte da mesma loja (marca-própria).
 // `margem` = distância ao 2.º melhor de NOME DIFERENTE — margem ~0 significa

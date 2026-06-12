@@ -1,0 +1,49 @@
+// Testes do voto de categoria por catálogo (Fase 1 da estratégia 2026-06-13).
+// O fixture "polpa de tomate" é REAL — medido no servidor: 20× Continente raso,
+// 19× Auchan 4 níveis, 16× Pingo Doce 3 níveis, 3× mercadona-off.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { niveisDePath, exibirFolha, votarCategoria } from '../src/normaliza/classificarCatalogo.js';
+
+test('niveisDePath: raiz administrativa fora; ES e tags marcados', () => {
+  const a = niveisDePath('auchan', 'alimentacao/mercearia/polpas-caldos-e-temperos/polpa-tomate');
+  assert.equal(a.profundidade, 3); // 'alimentacao' não conta
+  assert.equal(a.folha, 'polpa-tomate');
+  assert.equal(a.es, false);
+  const m = niveisDePath('mercadona', 'Aceite, especias y salsas/Aceite, vinagre y sal/Aceite de oliva');
+  assert.equal(m.es, true);
+  assert.equal(niveisDePath('mercadona-off', 'en:Tomato pulps').es, true);
+  assert.equal(niveisDePath('continente', null), null);
+});
+
+test('exibirFolha: kebab→legível, conectores minúsculos', () => {
+  assert.equal(exibirFolha('polpa-tomate'), 'Polpa Tomate');
+  assert.equal(exibirFolha('polpas-e-concentrados'), 'Polpas e Concentrados');
+  assert.equal(exibirFolha('en:Tomato pulps'), 'Tomato Pulps');
+  assert.equal(exibirFolha('Conservas'), 'Conservas');
+});
+
+test('votarCategoria: caso real "polpa de tomate" — a folha funda vence o raso', () => {
+  const cands = [
+    ...Array.from({ length: 20 }, () => ({ fonte: 'continente', path: 'Mercearia/Conservas' })),
+    ...Array.from({ length: 19 }, () => ({ fonte: 'auchan', path: 'alimentacao/mercearia/polpas-caldos-e-temperos/polpa-tomate' })),
+    ...Array.from({ length: 16 }, () => ({ fonte: 'pingodoce', path: 'mercearia/temperos-e-molhos/polpas-e-concentrados' })),
+    ...Array.from({ length: 2 }, () => ({ fonte: 'mercadona-off', path: 'Polpas de tomate' })),
+  ];
+  const v = votarCategoria(cands);
+  // Auchan 19×3=57 > PD 16×3=48 > Continente 20×2=40 — a profundidade decide
+  assert.equal(v.folha, 'Polpa Tomate');
+  assert.equal(v.fonte, 'auchan');
+  assert.ok(v.confianca > 0.3 && v.confianca < 0.6, `confiança fragmentada honesta (${v.confianca})`);
+  assert.ok(v.votos.length >= 3);
+});
+
+test('votarCategoria: ES vale metade; vazio dá null', () => {
+  const v = votarCategoria([
+    { fonte: 'mercadona', path: 'Aceite, especias y salsas/Salsas/Tomate frito' }, // 3×0.5=1.5
+    { fonte: 'pingodoce', path: 'mercearia/molhos' },                              // 2×1=2
+  ]);
+  assert.equal(v.folha, 'Molhos');
+  assert.equal(votarCategoria([]), null);
+  assert.equal(votarCategoria([{ fonte: 'x', path: null }]), null);
+});
