@@ -46,10 +46,10 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor.
 - Quando fechares uma "decisão em aberto", regista a escolha e o porquê no `Conceito`.
 
-## Estado atual (2026-06-12 · app v0.0.117.0 — fase BETA)
+## Estado atual (2026-06-12 · app v0.0.118.0 — fase BETA)
 
 **Três superfícies** (routing por path em `frontend/src/main.jsx`):
-- **App de chat (`/`)** — PWA do utilizador: envia notas (📷 câmara **inteligente**: barras → consulta produto; senão → talão), faz perguntas, **carrinho/lista partilhada**, scanner de barras, despensa, gastos, "por identificar", perfil nutricional. Abrir produto → **ficha factual** (Nutri-Score/NOVA/réguas UE/parecer) + **avaliação personalizada** se houver perfil ativo. **Base LOCAL no telefone** (IndexedDB) → scan instantâneo/offline; cresce com o uso.
+- **App de chat (`/`)** — PWA do utilizador: envia notas (📷 câmara **inteligente**: barras → consulta produto; senão → talão), faz perguntas, **carrinho/lista partilhada**, scanner de barras, **despensa = inventário por scan** (o ícone de barras na lista põe o produto na lista E na despensa "tenho em casa"; já NÃO deriva das compras — migração 049), gastos, "por identificar", perfil nutricional. Abrir produto → **ficha factual** (Nutri-Score/NOVA/réguas UE/parecer) + **avaliação personalizada** se houver perfil ativo. **Base LOCAL no telefone** (IndexedDB) → scan instantâneo/offline; cresce com o uso.
 - **Operador (`/admin`)** — desktop. Abas: Painel · Produtos/SKUs · Mestres · Ligar nomes · Nomes · **EANs** (matching nome→EAN, operador é juiz) · **Mercadona** (talões PT × catálogo Mercadona ES) · Itens (item cru) · Fichas (editar produto por EAN) · Revisão · Qualidade · Preços · Saúde · **Uso** (telemetria) · **Custos** (gasto OpenRouter por feature/modelo/dia).
 - **Comprador (`/explorar`)** — desktop, tema "talão": explorar produtos, preço pago vs €/base, variação, por mercado.
 
@@ -57,7 +57,7 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 
 **Consulta:** 11 funções + tool use (`POST /api/consulta` texto, `POST /api/voz`), modelo `gemini-2.5-flash`.
 
-**Infra FECHADA:** `https://bigbag.hal9klabs.com` (Apache+Let's Encrypt), `bigbag-backend.service` (systemd, porta 4200). BD `app_bigbag`, **migrações até 048** (013-032 base; 033 nutricao_confirmada; 034 lista_compras; 035 conteúdo da embalagem; 036 marca_origem; 037 verificacao_nome; 038 off_produto; 039 chave larga em produto_analise; 040 catalogo nome_pt; 041 sku.grupo; 042 fatura nif_comprador+forma_pagamento; 043 facetas do Mestre como colunas; 044 produto_ean campos largos; 045 catalogo ean_inferido; 046 catalogo descricao_curta; 047 catalogo nutricao oficial; 048 colação única). Migrações novas: aplicar com `mysql … < ficheiro` no servidor.
+**Infra FECHADA:** `https://bigbag.hal9klabs.com` (Apache+Let's Encrypt), `bigbag-backend.service` (systemd, porta 4200). BD `app_bigbag`, **migrações até 048** (013-032 base; 033 nutricao_confirmada; 034 lista_compras; 035 conteúdo da embalagem; 036 marca_origem; 037 verificacao_nome; 038 off_produto; 039 chave larga em produto_analise; 040 catalogo nome_pt; 041 sku.grupo; 042 fatura nif_comprador+forma_pagamento; 043 facetas do Mestre como colunas; 044 produto_ean campos largos; 045 catalogo ean_inferido; 046 catalogo descricao_curta; 047 catalogo nutricao oficial; 048 colação única; 049 despensa (inventário por scan)). Migrações novas: aplicar com `mysql … < ficheiro` no servidor.
 
 **O que está construído (detalhe nos docs-fonte):**
 - **Eixo saúde** — identificação por EAN (scan/foto/linha do talão) + OFF; ficha factual não-clínica; frescos por nome (`produto_generico`); perfil por membro com alertas determinísticos de alergia; comparar produtos na prateleira. Modelo de **3 níveis de nome** (nota → produto real por EAN → nome canónico sem marca). Ver `Visao_Conselheiro`.
