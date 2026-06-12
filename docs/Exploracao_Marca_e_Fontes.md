@@ -41,6 +41,11 @@
 - "Bom" parte-se: **factual/absoluto** (Nutri-Score/NOVA/ficha — para a Penne: massa limpa, boa) vs **bom para quem** (perfil; glúten ⇒ mau para celíaco).
 - Reviews só ganham sinal nos **processados** (num básico são ruído: "boa massa, 5★"); mesma fronteira do veredicto-por-produto.
 
+### Marca errada vinda do OFF — guarda por prefixo GS1 (PROBLEMA ANOTADO 2026-06-12)
+- Caso real: EAN `8000270013801` (Cannelloni) vinha do OFF (live, crowdsourcing) como marca **Buitoni**; é **Delverde** (marcas de grupos diferentes — não relacionadas). Corrigido à mão (`produto_ean.marca='Delverde'`). A marca importa (exprime gosto pessoal), por isso vale resolver.
+- **O prefixo GS1 identifica o FABRICANTE, não a marca de consumo.** No nosso catálogo: prefixo-7 `8000270` = Delverde ×11 (+3 Bimbo, prováveis erros nossos). Prefixo→marca é **limpo em ~56%** (1047/1886); 44% ambíguos — porque **retalhistas usam 1 prefixo para dezenas de marcas próprias** (Lidl `4056489`→Cien/Alesto/Deluxe…; Continente `5601312`→50+; Mercadona `8480000`→Hacendado+).
+- **Proposta:** guarda de marca por prefixo — do catálogo (marca fiável) mapear prefixo→marca DOMINANTE; quando o OFF é a única fonte e dá uma marca que contradiz um prefixo claramente de-uma-marca, desconfiar do OFF. Funciona p/ **marcas independentes** (Delverde/Barilla/Rummo), ignora prefixos ambíguos (retalho) sem risco. Construir como **correção em lote REVISTA** (gera "que mudaria e porquê" → revisão → aplica), não às cegas na ingestão. Heurística (prefixo-7 fixo, limiar de dominância) — validar antes de confiar.
+
 ## 2. Propostas em aberto (minhas sugestões durante a exploração — para retomar)
 
 1. **Priorizar o catálogo de loja na ficha factual** (ingredientes/categoria/nutrição), em vez de buscar fontes novas. Detetadas 2 fugas na própria Penne: `produto_ean.categoria` em inglês ("Dry durum wheat pasta…") quando o Auchan tem `mercearia/arroz-e-massa/massas-especialidades`; ingredientes na versão curta quando o Auchan tem a completa com alergénios. Determinístico, sem scraping novo.

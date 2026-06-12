@@ -200,15 +200,35 @@ async function aplicarDadosEan(pool, itens) {
   }
 }
 
-// Tamanho legível para a linha do item: extrai o peso/volume do texto da ficha
-// ("250g e" → "250g", "500 g" → "500 g", "4 x 125 g" intacto). Devolve null para
+// Número PT (sem casas inúteis, vírgula decimal): 250→"250", 1.5→"1,5".
+function fmtNum(n) {
+  const r = Math.round(n * 1000) / 1000;
+  return (Number.isInteger(r) ? String(r) : String(r)).replace('.', ',');
+}
+// Formata um valor+unidade na ESCALA certa (regra do dono): peso <1000g em g,
+// ≥1000g em kg; volume <1000ml em ml, ≥1000ml em L.
+function fmtTamanho(v, unidade) {
+  const u = unidade.toLowerCase();
+  if (u === 'kg' || u === 'g' || u === 'gr' || u === 'mg') {
+    const g = u === 'kg' ? v * 1000 : u === 'mg' ? v / 1000 : v;
+    return g >= 1000 ? `${fmtNum(g / 1000)} kg` : `${fmtNum(g)} g`;
+  }
+  const ml = u === 'l' ? v * 1000 : u === 'cl' ? v * 10 : v;
+  return ml >= 1000 ? `${fmtNum(ml / 1000)} L` : `${fmtNum(ml)} ml`;
+}
+// Tamanho legível e NORMALIZADO para a linha do item: extrai o peso/volume do
+// texto da ficha e mostra na escala certa ("0.25kg" → "250 g", "500 g" → "500 g",
+// "1500 g" → "1,5 kg"). Multipack mantém a estrutura ("4 x 125 g"). null para
 // contagens puras ("1un") e quando não há padrão de tamanho.
 function limparTamanho(q) {
   if (!q) return null;
-  const s = String(q).trim().replace(/\s+/g, ' ');
+  const s = String(q).trim().replace(/\s+/g, ' ').replace(',', '.');
   if (/^\d+\s*un[d]?\.?$/i.test(s)) return null;
-  const m = s.match(/(\d+\s*x\s*)?[\d.,]+\s*(kg|g|gr|mg|ml|cl|l)\b/i);
-  return m ? m[0].replace(/\s+/g, ' ').trim() : null;
+  const multi = s.match(/(\d+)\s*x\s*([\d.]+)\s*(kg|g|gr|mg|ml|cl|l)\b/i);
+  if (multi) return `${multi[1]} x ${fmtTamanho(parseFloat(multi[2]), multi[3])}`;
+  const m = s.match(/([\d.]+)\s*(kg|g|gr|mg|ml|cl|l)\b/i);
+  if (!m) return null;
+  return fmtTamanho(parseFloat(m[1]), m[2]);
 }
 
 // Variantes HABITUAIS de um item da lista ("iogurte" → os iogurtes que ESTA casa
