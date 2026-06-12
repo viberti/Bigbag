@@ -230,7 +230,7 @@ export const TIPOS_NOME = [ // regexes sobre norm() (minúsculas, SEM acentos)
   // Café, Chá e Infusão (dono, 2026-06-13 — a folha do Auchan virou secção da
   // lista). 'cha' exige fronteira e NÃO seguido de gelado/frio (esses são
   // bebidas prontas); 'chave/salsicha' não casam (fronteira + ).
-  ['cafe_cha', /(^|[^a-z])(chas?\b(?! gelad| fri)|cafes?\b|infus|descafeinado|tisana|rooibos|camomila|cidreira|earl grey)/],
+  ['cafe_cha', /(^|[^a-z])(chas?\b(?! gelad| fri)|teas?\b|cafes?\b|infus|descafeinado|tisana|rooibos|camomila|cidreira|earl grey)/],
 ];
 export function tipoConsumidor(grupo, nome, marca) {
   const s = norm(nome);

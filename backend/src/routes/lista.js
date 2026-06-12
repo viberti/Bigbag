@@ -549,7 +549,7 @@ async function montarLista(pool, mercado) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 5; // 5: cat_exib = folha do catálogo como seção (regra do dono); 4: chá→mercearia + nome>OFF; 3: grupo por vizinhança
+const RESOLVER_V = 6; // 6: cat_exib = FAMÍLIA (2.º nível) + 'tea' no cafe_cha; 5: folha como seção; 4: chá→mercearia + nome>OFF
 function listaSig(itens, mercado, maxItemId) {
   const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
