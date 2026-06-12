@@ -194,9 +194,10 @@ async function aplicarDadosEan(pool, itens) {
   // classifica ('outros'), o categoria_path do catálogo resolve — as hierarquias
   // das lojas cobrem 78–95% dos paths PT via grupoDeTexto (vocabulário inclui ES).
   const [paths] = await pool.query(
-    `SELECT ean, MAX(COALESCE(NULLIF(categoria_path,''), categoria)) AS path
+    `SELECT ean, MAX(COALESCE(NULLIF(categoria_path,''), categoria)) AS path, MAX(NULLIF(marca,'')) AS marca
        FROM catalogo_produto WHERE ean IN (${ph}) GROUP BY ean`, eans);
   const pathPorEan = new Map(paths.map((r) => [String(r.ean), r.path]));
+  const marcaCatPorEan = new Map(paths.map((r) => [String(r.ean), r.marca]));
   const [pe] = await pool.query(
     `SELECT ean, MAX(NULLIF(marca,'')) AS marca, MAX(NULLIF(quantidade,'')) AS quantidade FROM produto_ean WHERE ean IN (${ph}) GROUP BY ean`, eans);
   const pePorEan = new Map(pe.map((r) => [String(r.ean), r]));
@@ -209,7 +210,12 @@ async function aplicarDadosEan(pool, itens) {
     const r = precoPorEan.get(String(it.ean));
     if (r) { it.preco_ref = num(r.preco); it.preco_ref_loja = r.fonte || null; }
     const fe = pePorEan.get(String(it.ean));
-    if (fe?.marca) it.marca = fe.marca; // ficha (por EAN) vence a deteção pelo nome
+    // MARCA: catálogo > ficha > deteção no nome (caso Felicia 2026-06-13: o OFF
+    // marca produtos de terceiros vendidos na Mercadona como "Hacendado"; o
+    // catálogo da loja é curado e tem a forma limpa — mesma regra do nome PT-first).
+    const mc = marcaCatPorEan.get(String(it.ean));
+    if (mc) it.marca = mc;
+    else if (fe?.marca) it.marca = fe.marca;
     it.tamanho = limparTamanho(fe?.quantidade) || limparTamanho(fmtPorEan.get(String(it.ean)));
     if ((!it.grupo || it.grupo === 'outros') && pathPorEan.get(String(it.ean))) {
       const gPath = grupoDeTexto(pathPorEan.get(String(it.ean)));

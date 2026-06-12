@@ -220,7 +220,7 @@ export const TIPOS_NOME = [ // regexes sobre norm() (minúsculas, SEM acentos)
   // NOTA: "pasta" sozinho NÃO classifica (ambíguo: pasta de dentes/amendoim/folhada).
   // A massa real vem pelo formato (penne, cannelloni…) ou por "massa"/marca. No
   // DISPLAY, porém, "pasta" é genérico a cortar no tipo massa (ver GEN_RE).
-  ['massa', /(^|[^a-z])(massas?|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchigli|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini)/],
+  ['massa', /(^|[^a-z])(massas?|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchigli|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini|estrellas)/],
   ['cereais', /(^|[^a-z])(cereais?|muesli|granola|aveia|flocos|cornflake|chocapic|estrelitas)/],
   ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa]|polpa de tomate)/], // marcador explícito (atum "fresco" fica peixe)
   ['pao', /(^|[^a-z])(pao|paes|tosta|wrap|broa|baguet|croissant|brioche)/],

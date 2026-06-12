@@ -43,6 +43,16 @@ const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(
 // (léxico Mercadona) → loja PT (Continente é o mais limpo) → null (só fontes
 // estrangeiras como lidl-fr ou Mercadona-ES sem nome_pt → deixa OFF+tradução).
 const FONTES_PT = ['continente', 'auchan', 'mercadona-off', 'lidl', 'pingodoce'];
+// Marca do catálogo para um EAN (qualquer fonte; a mais frequente não-nula). O
+// catálogo é curado pela loja — vence a marca do OFF (crowdsourcing marca
+// produtos de terceiros como marca-própria; caso Felicia/Hacendado 2026-06-13).
+async function marcaCatalogo(ean) {
+  try {
+    const [[c]] = await getPool().query(
+      "SELECT marca FROM catalogo_produto WHERE ean = ? AND marca IS NOT NULL AND marca <> '' GROUP BY marca ORDER BY COUNT(*) DESC LIMIT 1", [ean]);
+    return c?.marca || null;
+  } catch { return null; }
+}
 async function nomeCatalogoPt(ean) {
   try {
     const [rows] = await getPool().query(
@@ -130,7 +140,7 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
          VALUES (?,NULL,NULL,?,?,?,?,?,?,?,1,?,?)
        ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
          ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), nutricao=VALUES(nutricao), nutricao_confirmada=1, fonte=VALUES(fonte), off_json=VALUES(off_json)`,
-      [ean, lim(tituloProduto(nomeFinal), 200), lim(tituloProduto(off.marca), 120), lim(off.quantidade, 60), lim(off.categoria, 255), off.ingredientes, off.alergenios,
+      [ean, lim(tituloProduto(nomeFinal), 200), lim(tituloProduto((await marcaCatalogo(ean)) || off.marca), 120), lim(off.quantidade, 60), lim(off.categoria, 255), off.ingredientes, off.alergenios,
         off.nutricao_100g ? JSON.stringify(off.nutricao_100g) : null, 'off', JSON.stringify(off)],
     );
     await guardarNomes(ean, null, [{ nome: nomeFinal, origem: nomePT ? 'catalogo' : 'off' }]);
