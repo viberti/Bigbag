@@ -46,7 +46,9 @@ Mantém estes documentos atualizados **após cada alteração que mude o que nel
 - **Runbook de bootstrap** (versão limpa, sem segredos) — passos de servidor.
 - Quando fechares uma "decisão em aberto", regista a escolha e o porquê no `Conceito`.
 
-## Estado atual (2026-06-12 · app v0.0.118.0 — fase BETA)
+## Estado atual (2026-06-12 · app v0.0.119.0 — fase BETA)
+
+**Classificação tem DUAS lentes (decisão do dono, 2026-06-12):** **de loja** (`it.grupo`, o corredor — frutas/carne/…/mercearia/padaria; segue como as lojas organizam: massa/arroz/farinha/cereais em *mercearia*, padaria só pão/pastelaria) — preservada, serve comparar/explorar/comprar (mesmo corredor junto na loja); e **da lista** (`tipoConsumidor` no front, derivado do NOME — "o que a coisa É": Massa, Pão, Cereais, Conservas, e Mercearia residual) — é o cabeçalho de secção da lista de compras. "Massa" tem secção; "arroz" cai em Mercearia residual (bom senso, afina-se com o uso). A nutrição-por-classe (`DISPENSA_CLASSE`) é mecanismo SEPARADO, não muda.
 
 **Três superfícies** (routing por path em `frontend/src/main.jsx`):
 - **App de chat (`/`)** — PWA do utilizador: envia notas (📷 câmara **inteligente**: barras → consulta produto; senão → talão), faz perguntas, **carrinho/lista partilhada**, scanner de barras, **despensa = inventário por scan** (o ícone de barras na lista põe o produto na lista E na despensa "tenho em casa"; já NÃO deriva das compras — migração 049), gastos, "por identificar", perfil nutricional. Abrir produto → **ficha factual** (Nutri-Score/NOVA/réguas UE/parecer) + **avaliação personalizada** se houver perfil ativo. **Base LOCAL no telefone** (IndexedDB) → scan instantâneo/offline; cresce com o uso.
