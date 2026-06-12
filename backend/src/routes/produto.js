@@ -519,7 +519,9 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     // massa normal NÃO é alternativa); e o normal não recebe os de dieta (prior
     // do simples). Igualdade do CONJUNTO de facetas de dieta, nos dois sentidos.
     // Lista vazia é honesta: "sem iguais para comparar" > comparação enganosa.
-    const dietaAtual = facetasDe(info.nome || '').dieta;
+    // nome p/ facetas: info.nome e null em EAN-sem-item — usar a cascata da ficha
+    const nomeFacetas = info.nome || info.off?.nome || info.vlm?.nome || info.base?.nome || '';
+    const dietaAtual = facetasDe(nomeFacetas).dieta;
     const mesmaDieta = (nome) => {
       const d = facetasDe(nome || '').dieta;
       return d.size === dietaAtual.size && [...d].every((x) => dietaAtual.has(x));
