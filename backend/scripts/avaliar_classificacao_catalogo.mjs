@@ -18,27 +18,32 @@ const [skus] = await pool.query(`
 console.log(`SKUs a avaliar: ${skus.length}`);
 
 let comVoto = 0, viaEan = 0, acordoGrupo = 0, comGrupoAmbos = 0;
+let fiaveis = 0, acordoFiavel = 0, ambosFiavel = 0;
 const desacordos = [], folhas = new Map(), confs = [];
 for (const s of skus) {
   const r = await classificarPorCatalogo(pool, { nome: s.nome_canonico, ean: s.ean });
   if (!r) continue;
   comVoto++; confs.push(r.confianca);
   if (r.via === 'ean') viaEan++;
+  if (r.fiavel) fiaveis++;
   if (s.grupo && s.grupo !== 'outros' && r.grupo && r.grupo !== 'outros') {
     comGrupoAmbos++;
-    if (r.grupo === s.grupo) acordoGrupo++;
-    else if (desacordos.length < 25) desacordos.push({ nome: s.nome_canonico, sku: s.grupo, voto: r.grupo, folha: r.folha, conf: r.confianca });
+    if (r.fiavel) ambosFiavel++;
+    if (r.grupo === s.grupo) { acordoGrupo++; if (r.fiavel) acordoFiavel++; }
+    else if (desacordos.length < 25) desacordos.push({ nome: s.nome_canonico, sku: s.grupo, voto: r.grupo, folha: r.folha, conf: r.confianca, fiavel: r.fiavel });
   }
+  if (!r.fiavel) continue; // o relatório de folhas só com voto fiável
   const f = folhas.get(r.folha) || { n: 0, exemplo: s.nome_canonico, conf: 0 };
   f.n++; f.conf += r.confianca; folhas.set(r.folha, f);
 }
 
-console.log(`\n— Cobertura: ${comVoto}/${skus.length} (${Math.round((100 * comVoto) / skus.length)}%) · via EAN: ${viaEan} · via vizinhança: ${comVoto - viaEan}`);
+console.log(`\n— Cobertura: ${comVoto}/${skus.length} (${Math.round((100 * comVoto) / skus.length)}%) · via EAN: ${viaEan} · via vizinhança: ${comVoto - viaEan} · fiáveis: ${fiaveis}`);
 confs.sort((a, b) => a - b);
 console.log(`— Confiança: mediana ${confs[Math.floor(confs.length / 2)] ?? '—'} · p25 ${confs[Math.floor(confs.length * 0.25)] ?? '—'}`);
 console.log(`— Acordo de GRUPO (voto vs sku.grupo, ambos != outros): ${acordoGrupo}/${comGrupoAmbos} (${comGrupoAmbos ? Math.round((100 * acordoGrupo) / comGrupoAmbos) : 0}%)`);
+console.log(`— Acordo SÓ FIÁVEIS: ${acordoFiavel}/${ambosFiavel} (${ambosFiavel ? Math.round((100 * acordoFiavel) / ambosFiavel) : 0}%)`);
 console.log('\n— Desacordos (amostra p/ inspeção — quem tem razão?):');
-for (const d of desacordos) console.log(`  ${d.nome.slice(0, 38).padEnd(38)} sku=${d.sku.padEnd(10)} voto=${d.voto.padEnd(10)} folha="${d.folha}" conf=${d.conf}`);
+for (const d of desacordos) console.log(`  ${d.fiavel ? '⚠' : ' '} ${d.nome.slice(0, 38).padEnd(38)} sku=${d.sku.padEnd(10)} voto=${d.voto.padEnd(10)} folha="${d.folha}" conf=${d.conf}`);
 
 console.log('\n— Folhas vencedoras SEM tipoConsumidor (candidatas a tipo de UI, n≥3):');
 // tipoConsumidor(grupo, nome): tipo SALIENTE pelo nome da folha? (grupo 'outros'

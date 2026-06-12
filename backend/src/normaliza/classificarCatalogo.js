@@ -88,5 +88,14 @@ export async function classificarPorCatalogo(pool, { nome = null, ean = null } =
   }
   const voto = votarCategoria(cands);
   if (!voto) return null;
-  return { via, n: cands.length, grupo: grupoDeTexto(voto.path), ...voto };
+  // GRUPO por voto majoritário entre TODOS os candidatos — não pelo path
+  // vencedor (achado do avaliador: "Tablete Chocolate LEITE Branco e Negro"
+  // dava lacticinios com a folha certa; um termo do path não decide sozinho).
+  const gv = new Map();
+  for (const c of cands) { const g = grupoDeTexto(c.path); if (g && g !== 'outros') gv.set(g, (gv.get(g) || 0) + 1); }
+  const grupo = [...gv.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'outros';
+  // fiavel: confiança e suporte suficientes (achado: os erros vivem quase todos
+  // abaixo de 0.5 — frescos de 1 token viram "aroma de" nos processados).
+  const fiavel = voto.confianca >= 0.5 && cands.length >= 5;
+  return { via, n: cands.length, grupo, fiavel, ...voto };
 }
