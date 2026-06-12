@@ -93,6 +93,7 @@ async function resolverItensLista(pool, itens, mercado) {
     it.grupo = matched.find((s) => s.grupo && s.grupo !== 'outros')?.grupo || grupoDeTexto(it.nome);
     it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null; it.unidade_base = null;
     it.preco_ref = null; it.preco_ref_loja = null; // referência de catálogo (sem talão)
+    it.tamanho = null; // peso/volume da embalagem (linha de baixo, antes do preço)
     it.produto_sugerido = null; it.variantes_n = 0; it.qtd_habitual = null;
     it.unidade_venda = unidadeVenda(it.nome);
     // MARCA detetada no nome (gazetteer determinístico) → o cliente mostra-a à
@@ -182,16 +183,32 @@ async function aplicarDadosEan(pool, itens) {
     `SELECT ean, MIN(preco) AS preco, SUBSTRING_INDEX(GROUP_CONCAT(fonte ORDER BY preco ASC), ',', 1) AS fonte
        FROM catalogo_produto WHERE ean IN (${ph}) AND preco IS NOT NULL AND preco > 0 GROUP BY ean`, eans);
   const precoPorEan = new Map(refs.map((r) => [String(r.ean), r]));
-  const [marcas] = await pool.query(
-    `SELECT ean, MAX(NULLIF(marca,'')) AS marca FROM produto_ean WHERE ean IN (${ph}) GROUP BY ean`, eans);
-  const marcaPorEan = new Map(marcas.map((r) => [String(r.ean), r.marca]));
+  const [pe] = await pool.query(
+    `SELECT ean, MAX(NULLIF(marca,'')) AS marca, MAX(NULLIF(quantidade,'')) AS quantidade FROM produto_ean WHERE ean IN (${ph}) GROUP BY ean`, eans);
+  const pePorEan = new Map(pe.map((r) => [String(r.ean), r]));
+  // formato do catálogo SÓ se for tamanho real (exclui "Nun" = parse de peso falhado)
+  const [cf] = await pool.query(
+    `SELECT ean, MAX(formato) AS formato FROM catalogo_produto WHERE ean IN (${ph}) AND formato IS NOT NULL AND formato NOT REGEXP '^[0-9]+ ?un$' GROUP BY ean`, eans);
+  const fmtPorEan = new Map(cf.map((r) => [String(r.ean), r.formato]));
   for (const it of itens) {
     if (!it.ean) continue;
     const r = precoPorEan.get(String(it.ean));
     if (r) { it.preco_ref = num(r.preco); it.preco_ref_loja = r.fonte || null; }
-    const m = marcaPorEan.get(String(it.ean));
-    if (m) it.marca = m; // ficha (por EAN) vence a deteção pelo nome
+    const fe = pePorEan.get(String(it.ean));
+    if (fe?.marca) it.marca = fe.marca; // ficha (por EAN) vence a deteção pelo nome
+    it.tamanho = limparTamanho(fe?.quantidade) || limparTamanho(fmtPorEan.get(String(it.ean)));
   }
+}
+
+// Tamanho legível para a linha do item: extrai o peso/volume do texto da ficha
+// ("250g e" → "250g", "500 g" → "500 g", "4 x 125 g" intacto). Devolve null para
+// contagens puras ("1un") e quando não há padrão de tamanho.
+function limparTamanho(q) {
+  if (!q) return null;
+  const s = String(q).trim().replace(/\s+/g, ' ');
+  if (/^\d+\s*un[d]?\.?$/i.test(s)) return null;
+  const m = s.match(/(\d+\s*x\s*)?[\d.,]+\s*(kg|g|gr|mg|ml|cl|l)\b/i);
+  return m ? m[0].replace(/\s+/g, ' ').trim() : null;
 }
 
 // Variantes HABITUAIS de um item da lista ("iogurte" → os iogurtes que ESTA casa

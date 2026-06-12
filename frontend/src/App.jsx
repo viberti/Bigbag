@@ -3599,17 +3599,18 @@ function ItemCarrinho({ it, novo, tipo, onRemover, onMarcar, onDelta, onCard }) 
           <span className="cn" style={riscado ? { textDecorationColor: corMembro(it.marcado_por) } : undefined}>
             {(() => { const f = formatarNomeLista(it.nome, it.marca, tipo); return (<>{f.core}{f.marca ? <span className="cn-marca"> {f.marca}</span> : null}</>); })()}{textoQtd(it)}
           </span>
-          {preco != null && !it.unidade_venda && (
-            // sem preço quando se vende por embalagem (ovos→dúzia): o €/un não
-            // representa como o produto é vendido — enganaria.
+          {!it.unidade_venda && (it.tamanho || preco != null || it.preco_ref != null) && (
+            // linha de baixo: TAMANHO · PREÇO. Sem preço/€-un quando se vende por
+            // embalagem (ovos→dúzia): o €/un enganaria.
             <span className="csub">
-              {eur(preco)}{it.unidade_base ? `/${it.unidade_base}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}
+              {it.tamanho ? <span className="csub-tam">{it.tamanho}</span> : null}
+              {it.tamanho && (preco != null || it.preco_ref != null) ? ' · ' : ''}
+              {preco != null
+                ? <>{eur(preco)}{it.unidade_base ? `/${it.unidade_base}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}</>
+                : it.preco_ref != null
+                  ? <span className="csub-ref">~{eur(it.preco_ref)} · {t('cart.online')}</span>
+                  : null}
             </span>
-          )}
-          {preco == null && it.preco_ref != null && !it.unidade_venda && (
-            // nunca comprado → preço de catálogo (menor valor entre lojas) como
-            // REFERÊNCIA, marcado "~ online" e em tom mais ténue — nunca facto.
-            <span className="csub csub-ref">~{eur(it.preco_ref)} · {t('cart.online')}</span>
           )}
         </span>
         {/* já no carrinho ("comprado") → o +/− deixa de fazer sentido; a ×N
