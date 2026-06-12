@@ -45,11 +45,11 @@ export const GRUPOS = [
   // mapeamento-de-loja segue o mercado). A nutrição-por-classe dos básicos é um
   // mecanismo SEPARADO (DISPENSA_CLASSE) e não muda com isto.
   { id: 'padaria', t: ['pao', 'bread', 'padaria', 'bakery', 'pastelaria', 'tosta', 'wrap', 'croissant', 'broa', 'baguete', 'brioche', 'tortilha', 'tortilla', 'panaderia', 'bolleria', 'pan'] },
-  { id: 'bebidas', t: ['bebida', 'beverage', 'drink', 'agua', 'water', 'sumo', 'juice', 'refrigerante', 'soda', 'cerveja', 'beer', 'vinho', 'wine', 'cafe', 'coffee', 'cha', 'tea', 'alcool', 'alcohol', 'espumante', 'nectar_', 'nectare', 'infus', 'cerveza', 'vino', 'bodega', 'zumo'] },
+  { id: 'bebidas', t: ['bebida', 'beverage', 'drink', 'agua', 'water', 'sumo', 'juice', 'refrigerante', 'soda', 'cerveja', 'beer', 'vinho', 'wine', 'ice tea', 'iced tea', 'cha gelado', 'cha frio', 'alcool', 'alcohol', 'espumante', 'nectar_', 'nectare', 'cerveza', 'vino', 'bodega', 'zumo'] },
   { id: 'doces', t: ['chocolate', 'doce', 'sweet', 'guloseima', 'candy', 'gelado', 'ice cream', 'snack', 'bolacha', 'biscuit', 'biscoito', 'cookie', 'sobremesa', 'dessert', 'mel', 'honey', 'compota', 'marmelada', 'jam'] },
   { id: 'congelados', t: ['congelado', 'frozen', 'ultracongelado'] },
   { id: 'higiene', t: ['higiene', 'hygiene', 'limpeza', 'cleaning', 'nao alimentar', 'detergente', 'detergent', 'papel', 'paper', 'cosmetic', 'sabonete', 'champo', 'beleza', 'lixivia', 'amaciador', 'champu', 'maquillaje', 'perfume', 'desodor', 'jabon', 'colonia', 'cabello', 'parafarmacia'] },
-  { id: 'mercearia', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'leguminosa', 'feijao', 'grao', 'tofu', 'massa', 'macarrao', 'penne', 'fusilli', 'talharim', 'esparguete', 'espaguete', 'noodles', 'lasanha', 'gnocchi', 'nhoque', 'arroz', 'rice', 'farinha', 'flour', 'cuscuz', 'cereai', 'cereal', 'breakfast', 'muesli', 'granola', 'aveia', 'cotovelo', 'cotovelinho', 'conchigli', 'capellini', 'vermicell', 'aletria', 'linguine', 'pappardel', 'paccheri', 'bucatini', 'rigaton', 'tagliatel', 'fettuccin', 'farfalle', 'tortelin', 'raviol', 'cannellon', 'canelone', 'orecchiet', 'ditalini', 'fideo', 'azeitona', 'aceituna', 'encurtido', 'aperitivo', 'picles', 'pickles', 'passata', 'palmito'] },
+  { id: 'mercearia', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'leguminosa', 'feijao', 'grao', 'tofu', 'massa', 'macarrao', 'penne', 'fusilli', 'talharim', 'esparguete', 'espaguete', 'noodles', 'lasanha', 'gnocchi', 'nhoque', 'arroz', 'rice', 'farinha', 'flour', 'cuscuz', 'cereai', 'cereal', 'breakfast', 'muesli', 'granola', 'aveia', 'cotovelo', 'cotovelinho', 'conchigli', 'capellini', 'vermicell', 'aletria', 'linguine', 'pappardel', 'paccheri', 'bucatini', 'rigaton', 'tagliatel', 'fettuccin', 'farfalle', 'tortelin', 'raviol', 'cannellon', 'canelone', 'orecchiet', 'ditalini', 'fideo', 'azeitona', 'aceituna', 'encurtido', 'aperitivo', 'picles', 'pickles', 'passata', 'palmito', 'cafe', 'coffee', 'cha', 'tea', 'infus', 'descafeinado'] },
 ];
 export const GRUPO_OUTROS = 'outros';
 export const GRUPOS_IDS = [...GRUPOS.map((g) => g.id), GRUPO_OUTROS];
@@ -199,6 +199,10 @@ export function grupoDe({ foodGroups = null, categoria = null, nome = null } = {
     // EXCEÇÃO bebidas-vs-lácteos: o OFF chama "beverages" a kefir/leite achocolatado/
     // iogurte líquido; na nossa organização, bebida LÁCTEA fica nos laticínios.
     if (g === 'bebidas' && porNome === 'lacticinios') return 'lacticinios';
+    // EXCEÇÃO bebidas-vs-mercearia: o OFF chama "beverages" a chá em saquinho/
+    // café/infusões (secos); na lente de loja vivem na mercearia (Auchan:
+    // Mercearia > Café, Chá e Infusão). Decisão do dono, 2026-06-13.
+    if (g === 'bebidas' && porNome === 'mercearia') return 'mercearia';
     return g;
   }
   // EXCEÇÃO congelados: a categoria de loja "Congelados" é um sinal FÍSICO
