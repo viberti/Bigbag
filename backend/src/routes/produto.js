@@ -90,8 +90,8 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
       // desconhecido (não descartar): a casa scaneou-o, fica para resolver quando o
       // catálogo crescer / o OFF atualizar / identificação manual. No-op se já existe.
       await getPool().query(
-        "INSERT INTO produto_ean (ean, item_id, sku_id, fonte) VALUES (?, NULL, NULL, 'desconhecido') ON DUPLICATE KEY UPDATE ean = ean",
-        [ean]).catch((e) => console.error('[ean-desconhecido]', e.message));
+        "INSERT INTO produto_ean (ean, item_id, sku_id, fonte) VALUES (?, NULL, NULL, 'pendente') ON DUPLICATE KEY UPDATE ean = ean",
+        [ean]).catch((e) => console.error('[ean-pendente]', e.message));
       return { encontrado: false, registado: true };
     }
     try {
