@@ -97,6 +97,7 @@ async function resolverItensLista(pool, itens, mercado) {
     // parte, noutra cor (formato do talão: nome sem marca + marca destacada).
     it.marca = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
   }
+  await aplicarPrecoRef(pool, itens); // referência de catálogo (corre haja ou não SKU casado)
   if (!allSkuIds.size) return;
   const ids = [...allSkuIds];
   const ph = ids.map(() => '?').join(',');
@@ -164,20 +165,23 @@ async function resolverItensLista(pool, itens, mercado) {
       if (mv != null && (it.preco_mercado == null || mv < it.preco_mercado)) { it.preco_mercado = mv; it.unidade_base = mu; }
     }
   }
-  // PREÇO DE REFERÊNCIA (catálogo online) — SÓ para itens sem preço-facto (nunca
-  // comprados) que vieram do scan (têm ean). MENOR preço de embalagem entre lojas,
-  // marcado como aproximação (decisão do dono: catálogo nunca é critério, só referência).
-  const eansRef = [...new Set(itens.filter((it) => it.melhor_preco == null && it.preco_mercado == null && it.ean).map((it) => it.ean))];
-  if (eansRef.length) {
-    const ph2 = eansRef.map(() => '?').join(',');
-    const [refs] = await pool.query(
-      `SELECT ean, MIN(preco) AS preco, SUBSTRING_INDEX(GROUP_CONCAT(fonte ORDER BY preco ASC), ',', 1) AS fonte
-         FROM catalogo_produto WHERE ean IN (${ph2}) AND preco IS NOT NULL AND preco > 0 GROUP BY ean`, eansRef);
-    const refPorEan = new Map(refs.map((r) => [String(r.ean), r]));
-    for (const it of itens) {
-      const r = it.ean ? refPorEan.get(String(it.ean)) : null;
-      if (r) { it.preco_ref = num(r.preco); it.preco_ref_loja = r.fonte || null; }
-    }
+}
+
+// PREÇO DE REFERÊNCIA (catálogo online) por EAN — MENOR preço de embalagem entre
+// lojas, marcado como aproximação (decisão do dono: catálogo nunca é critério, só
+// referência). Corre p/ todos os itens com ean; o cliente só o mostra quando NÃO
+// há preço-facto (nunca comprado). Independente de haver SKU casado (a Penne não tem).
+async function aplicarPrecoRef(pool, itens) {
+  const eans = [...new Set(itens.filter((it) => it.ean).map((it) => it.ean))];
+  if (!eans.length) return;
+  const ph = eans.map(() => '?').join(',');
+  const [refs] = await pool.query(
+    `SELECT ean, MIN(preco) AS preco, SUBSTRING_INDEX(GROUP_CONCAT(fonte ORDER BY preco ASC), ',', 1) AS fonte
+       FROM catalogo_produto WHERE ean IN (${ph}) AND preco IS NOT NULL AND preco > 0 GROUP BY ean`, eans);
+  const porEan = new Map(refs.map((r) => [String(r.ean), r]));
+  for (const it of itens) {
+    const r = it.ean ? porEan.get(String(it.ean)) : null;
+    if (r) { it.preco_ref = num(r.preco); it.preco_ref_loja = r.fonte || null; }
   }
 }
 
