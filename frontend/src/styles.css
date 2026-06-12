@@ -1464,6 +1464,8 @@ body { background: #0c1814; }
 .bb .cnwrap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .bb .crow.riscado .cn { text-decoration: line-through; text-decoration-thickness: 2.5px; opacity: .55; }
 .bb .csub { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* marca à parte no nome (formato do talão): outra cor, mais leve */
+.bb .cn-marca { color: var(--muted-bb); font-weight: 500; }
 /* chips inteligentes da lista (sugestao do historico, variantes, qtd habitual) */
 .bb .cchips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
 .bb .cchip { padding: 2.5px 9px; border-radius: 99px; border: 1px solid var(--line2); background: rgba(255,255,255,.05);

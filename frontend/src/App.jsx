@@ -1543,6 +1543,26 @@ function tipoConsumidor(grupo, nome) {
   return 'outros';
 }
 
+// Nome "à talão" para a lista: o genérico que repete a secção é supérfluo ("Massa"
+// numa lista debaixo de Massa) → corta-se; a MARCA mostra-se à parte, noutra cor
+// (it.marca vem detetada do servidor). Determinístico, sobre o nome livre.
+const GEN_RE = { massa: /^massas?$/, pao: /^(pao|paes)$/, cereais: /^cereais?$/, conservas: /^conservas?$/ };
+function formatarNomeLista(nome, marca, tipoId) {
+  let words = String(nome || '').trim().split(/\s+/).filter(Boolean);
+  const marcaTxt = marca ? limparMarca(marca) : null;
+  if (marcaTxt) {
+    const mt = new Set(normCat(marcaTxt).split(/\s+/).filter(Boolean));
+    const sem = words.filter((w) => !mt.has(normCat(w)));
+    if (sem.length) words = sem; // nunca esvaziar (marca == nome todo)
+  }
+  // corta o genérico da frente SÓ se a palavra seguinte não for um conector — senão
+  // é um nome composto e o genérico é a cabeça ("Pão de Forma" ≠ "de Forma").
+  const re = GEN_RE[tipoId];
+  const CONECT = new Set(['de', 'do', 'da', 'dos', 'das', 'com', 'para', 'e', 'em', 'sem', 'ao']);
+  if (re && words.length > 1 && re.test(normCat(words[0])) && !CONECT.has(normCat(words[1]))) words.shift();
+  return { core: words.join(' ') || String(nome || ''), marca: marcaTxt };
+}
+
 // Tamanho/formato do produto (cerveja "33 cl · lata", leite "1 l", fiambre "200 g"):
 // junta o tamanho (produto_ean.quantidade) com o contentor lido na descrição crua do
 // talão (LATA / GARRAFA / TP=tara perdida). Útil sobretudo em bebidas/embalados.
@@ -3452,7 +3472,7 @@ function TabNut({ n }) {
 // com a cor de quem riscou); SEGURAR (~450ms parado) abre o CARD do item (sugestão,
 // variantes, qtd habitual, histórico, remover); arrastar p/ a DIREITA remove.
 // A linha em si fica mínima: ponto de cor · nome · preço · − / +.
-function ItemCarrinho({ it, novo, onRemover, onMarcar, onDelta, onCard }) {
+function ItemCarrinho({ it, novo, tipo, onRemover, onMarcar, onDelta, onCard }) {
   const [dx, setDx] = useState(0);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
   const lp = useRef({ timer: null, fired: false }); // long-press (abre o card)
@@ -3520,7 +3540,7 @@ function ItemCarrinho({ it, novo, onRemover, onMarcar, onDelta, onCard }) {
         <span className="cmembro" style={{ background: corMembro(it.adicionado_por) }} title={it.adicionado_por} aria-label={it.adicionado_por} />
         <span className="cnwrap">
           <span className="cn" style={riscado ? { textDecorationColor: corMembro(it.marcado_por) } : undefined}>
-            {it.nome}{textoQtd(it)}
+            {(() => { const f = formatarNomeLista(it.nome, it.marca, tipo); return (<>{f.core}{f.marca ? <span className="cn-marca"> {f.marca}</span> : null}</>); })()}{textoQtd(it)}
           </span>
           {preco != null && !it.unidade_venda && (
             // sem preço quando se vende por embalagem (ovos→dúzia): o €/un não
@@ -3715,7 +3735,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                 <div key={g.id}>
                   <div className="cart-cat">{g.label}</div>
                   {its.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
+                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} tipo={g.id} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
                   ))}
                 </div>
               ))}
@@ -3723,7 +3743,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
                 <div className="cart-feito">
                   <div className="cart-cat cart-cat-feito"><Ico name="cart" size={26} /> <span>{noCarrinho.length}</span></div>
                   {noCarrinho.map((it) => (
-                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
+                    <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} tipo={tipoConsumidor(it.grupo, it.nome)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
                   ))}
                 </div>
               )}

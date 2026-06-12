@@ -8,6 +8,7 @@ import { createHash } from 'crypto';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista } from '../normaliza/categoria.js';
+import { marcaDeterministica } from '../normaliza/marca.js';
 import { chatCompletion } from '../openrouter.js';
 import { config } from '../config.js';
 
@@ -91,6 +92,9 @@ async function resolverItensLista(pool, itens, mercado) {
     it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null; it.unidade_base = null;
     it.produto_sugerido = null; it.variantes_n = 0; it.qtd_habitual = null;
     it.unidade_venda = unidadeVenda(it.nome);
+    // MARCA detetada no nome (gazetteer determinístico) → o cliente mostra-a à
+    // parte, noutra cor (formato do talão: nome sem marca + marca destacada).
+    it.marca = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
   }
   if (!allSkuIds.size) return;
   const ids = [...allSkuIds];
