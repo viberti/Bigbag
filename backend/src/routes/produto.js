@@ -12,7 +12,7 @@ import { config } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
-import { grupoDe, tokenCasa, singularizar, norm as normN, tipoConsumidor } from '../normaliza/categoria.js';
+import { grupoDe, grupoDeNome, tokenCasa, singularizar, norm as normN, tipoConsumidor } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
 import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
@@ -544,6 +544,35 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       if (vistos.has(k) || !a.nutricao) return false; vistos.add(k); return true;
     }).sort((a, b) => (b.eur_base != null) - (a.eur_base != null)).slice(0, 6);
 
+    // FALLBACK AO CATÁLOGO (dono, 2026-06-13 — caso Felicia): a casa pode não ter
+    // iguais (ex.: massas sem glúten), mas as LOJAS têm (55 no catálogo, muitas
+    // c/ nutrição oficial). Mesmos gates (dieta igual + tipo saliente); preferem-se
+    // linhas com nutrição; preço = preco_por_base de CATÁLOGO, marcado origem
+    // 'catalogo' (referência, nunca facto — regra do preço de catálogo).
+    if (alternativas.length < 2) {
+      const [catCands] = await getPool().query(
+        `SELECT nome, marca, fonte, preco_por_base, unidade_base, formato, nutricao
+           FROM catalogo_produto
+          WHERE nome IS NOT NULL AND nome <> '' AND nutricao IS NOT NULL
+          LIMIT 20000`);
+      const vistosCat = new Set(alternativas.map((a) => a.nome.toLowerCase()));
+      const doCatalogo = [];
+      for (const c of catCands) {
+        if (!mesmaDieta(c.nome)) continue;
+        if (['massa', 'pao', 'cereais', 'conservas'].includes(tipoAtual) && tipoConsumidor(grupo, c.nome, c.marca) !== tipoAtual) continue;
+        if (!['massa', 'pao', 'cereais', 'conservas'].includes(tipoAtual) && grupoDeNome(c.nome) !== grupo) continue;
+        const k = c.nome.toLowerCase();
+        if (vistosCat.has(k) || k === String(nomeFacetas).toLowerCase()) continue;
+        vistosCat.add(k);
+        doCatalogo.push({
+          sku_id: null, nome: c.nome, marca: c.marca || null, origem: 'catalogo', fonte: c.fonte,
+          eur_base: c.preco_por_base != null ? Number(c.preco_por_base) : null,
+          unidade_base: c.unidade_base || null, formato: c.formato || null, nutricao: parseJson(c.nutricao),
+        });
+        if (alternativas.length + doCatalogo.length >= 6) break;
+      }
+      alternativas.push(...doCatalogo);
+    }
     res.json({ grupo, nivel, categoria: mestreCat, produto: { nome: info.nome, nutricao: nutAtual }, alternativas });
   } catch (e) {
     console.error('[produto/alternativas] erro:', e.message);
