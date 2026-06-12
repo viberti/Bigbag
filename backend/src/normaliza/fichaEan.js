@@ -99,8 +99,8 @@ export function escolherIngredientes(cands) {
     if (/[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{4,}/.test(t)) s += 20;     // alergénios destacados (MAIÚSCULAS)
     if (/\d+\s*%/.test(t)) s += 10;                  // percentagens (rótulo a sério)
     if (/cont[eé]m|vest[ií]gios|pode conter/i.test(t)) s += 15; // frases de alergénio
-    if (/pode conter|vest[ií]gios|cont[ée]m\b|tra[çc]os de|[ãõ]/i.test(t)) s += 25; // PT > estrangeiro (ã/õ só existem em PT)
-    if (/puede contener|trazas?\b|may contain|peut contenir|pu[òo] contenere|ingredienti\b|huevos?\b/i.test(t)) s -= 20;
+    if (/pode conter|vest[ií]gios|cont[ée]m\b|tra[çc]os de|[ãõ]|água|açúcar|sêmola|óleo|dióxido|enxofre|molho/i.test(t)) s += 25; // PT > estrangeiro
+    if (/puede contener|trazas?\b|may contain|peut contenir|pu[òo] contenere|ingredienti\b|huevos?\b|leche|pescado|aceite\b|\beau\b|s[ée]ch[ée]|conservateur|anhydride|farine|di grano|semola di|contiene|habas/i.test(t)) s -= 20;
     s -= (t.match(/\b\w*[a-z][A-Z]\w*\b/g) || []).length * 12; // lixo-OCR: minúscula→MAIÚSCULA dentro da palavra
     const curtos = (t.match(/(^|\s)[A-Z][a-z]?(?=\s|$)/g) || []).length;
     if (curtos > 3) s -= (curtos - 3) * 5;           // excesso de tokens de 1-2 letras = OCR
@@ -116,13 +116,15 @@ export function escolherIngredientes(cands) {
 export function escolherAlergenios(cands) {
   const vivos = cands.filter((c) => c.texto && String(c.texto).trim() !== '');
   if (!vivos.length) return null;
-  const PT = /leite|gl[úu]ten|soja|ovos?\b|frutos de casca|amendoim|peixe|crust[áa]ceos?|s[ée]samo|mostarda|aipo|sulfitos?|cevada|trigo|nozes/i;
+  const PT = /leite|gl[úu]ten|soja|ovos?\b|frutos de casca|amendoim|peixe|crust[áa]ceos?|s[ée]samo|gergelim|mostarda|aipo|sulfitos?|cevada|trigo|nozes|avel[ãa]|tremo[çc]o|moluscos?|dióxido/i;
   const score = (t) => {
     let s = 0;
     if (PT.test(t)) s += 10;
-    if (/[ãõç]/i.test(t)) s += 5;
+    if (/[áéíóúâêôãõç]/i.test(t)) s += 2;                     // desempate: 'glúten' > 'gluten'
+    s += Math.min((t.match(/,/g) || []).length, 5);           // mais completo ('leite, soja' > 'LEITE')
     if (/\b[a-z]{2}:/.test(t)) s -= 10;                       // tags cruas 'en:milk'
-    if (/milk|leche|huevo|wheat|barley|cebada|orge|soybeans/i.test(t)) s -= 8;
+    if (/milk|leche|huevos?|wheat|barley|cebada|orge|soybeans|eggs|fish\b|nuts\b|sulphur|sulphites|lupin\b/i.test(t)) s -= 8;
+    if (/[[\]{}"]/.test(t)) s -= 15;                          // lixo serializado ('[{"value":…')
     return s;
   };
   let melhor = vivos[0];
