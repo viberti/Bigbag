@@ -116,10 +116,13 @@ async function resolverItensLista(pool, itens, mercado) {
   // PREÇO = preco_por_base (€/L, €/kg, €/un): comparável entre tamanhos de embalagem.
   // preco_liquido/quantidade dava o preço POR UNIDADE DO PACK (9 mini-garrafas de
   // 200ml a 0,31 contaminavam o mínimo do "leite"). Quando não há ppb (peso não
-  // extraído, ex.: Farinha) cai para preco_unitario (preço da embalagem, sem unidade).
+  // extraído, ex.: Farinha) cai para preco_unitario/quantidade (preço POR EMBALAGEM:
+// a coluna preco_unitario guarda o VALOR DA LINHA por desenho do reconcile — nome
+// enganador; com qtd>1, 11 pães a €0,15 apareciam como €1,65. Achado 2026-06-13,
+// talão Makro. Correção de fundo (semântica da coluna) anotada p/ sessão de ingestão.
   const [rows] = await pool.query(
     `SELECT sku_id, ppb, pu, unidade, loja, data FROM (
-       SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario AS pu, s.unidade_base AS unidade, COALESCE(l.cadeia,l.nome) AS loja,
+       SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario/GREATEST(i.quantidade,1) AS pu, s.unidade_base AS unidade, COALESCE(l.cadeia,l.nome) AS loja,
               f.data_compra AS data, ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
          FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id JOIN sku_normalizado s ON s.id=i.sku_id
         WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND (i.preco_por_base IS NOT NULL OR i.preco_unitario IS NOT NULL)
@@ -129,7 +132,7 @@ async function resolverItensLista(pool, itens, mercado) {
   if (mercado) {
     const [mrows] = await pool.query(
       `SELECT sku_id, ppb, pu, unidade FROM (
-         SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario AS pu, s.unidade_base AS unidade,
+         SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario/GREATEST(i.quantidade,1) AS pu, s.unidade_base AS unidade,
                 ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
            FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id AND COALESCE(l.cadeia,l.nome)=? JOIN sku_normalizado s ON s.id=i.sku_id
           WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND (i.preco_por_base IS NOT NULL OR i.preco_unitario IS NOT NULL)
@@ -348,7 +351,7 @@ listaRouter.get('/variantes', async (req, res) => {
     // preço mais recente por SKU (€/base quando há; senão preço de embalagem)
     const [prec] = await pool.query(
       `SELECT sku_id, ppb, pu, unidade, loja FROM (
-         SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario AS pu, s.unidade_base AS unidade,
+         SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario/GREATEST(i.quantidade,1) AS pu, s.unidade_base AS unidade,
                 COALESCE(l.cadeia,l.nome) AS loja,
                 ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
            FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id JOIN sku_normalizado s ON s.id=i.sku_id
