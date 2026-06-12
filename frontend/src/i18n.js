@@ -93,6 +93,7 @@ const STRINGS = {
     'cart.add': 'Adicionar',
     'cart.scan': 'Ler código de barras',
     'cart.online': 'online',
+    'cart.estimado': 'estimado',
     'cart.hist': 'histórico de compras',
     'cart.histLoad': 'carregando…',
     'cart.histEmpty': 'Sem preço por unidade (€/kg) registrado para comparar.',

@@ -3588,7 +3588,7 @@ function ItemCarrinho({ it, novo, tipo, onRemover, onMarcar, onDelta, onCard }) 
               {preco != null
                 ? <>{eur(preco)}{it.unidade_base ? `/${it.unidade_base}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}</>
                 : it.preco_ref != null
-                  ? <span className="csub-ref">~{eur(it.preco_ref)} · {t('cart.online')}</span>
+                  ? <span className="csub-ref">~{eur(it.preco_ref)} · {t(it.preco_ref_tipo === 'estimado' ? 'cart.estimado' : 'cart.online')}</span>
                   : null}
             </span>
           )}
