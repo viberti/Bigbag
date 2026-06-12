@@ -132,11 +132,38 @@ export function chaveItemLista(nome) {
 // "sal" casar "salmão"); ou o nome é a raiz de um pedido mais longo (nome ≥4,
 // p/ abreviaturas tipo "BOL"→"bolachas" ao contrário).
 // Partilhado pelos matchers por token (lista, consulta, ficha) para não divergirem.
+// SINÓNIMOS entre línguas/grafias no MATCHING (2026-06-13, revisão 3.2). Semente
+// curada: casos reais (esparguete↔spaghetti do OFF; iogurte↔yogur do Mercadona)
+// + minados dos 3.565 pares mesmo-EAN entre fontes (tampão↔tampones, mozarela↔
+// mozzarella, humus↔hummus). A mineração automática rendeu POUCO além disto —
+// os catálogos PT escrevem parecido; crescer este mapa com casos reais, não em massa.
+// Só no MATCHING (tokenCasa) — NÃO na chave de consolidação (chaveItemLista).
+const SINONIMOS = {
+  spaghetti: 'esparguete', espaguete: 'esparguete',
+  gnocchi: 'nhoque',
+  mozzarella: 'mozarela',
+  hummus: 'humus',
+  tampone: 'tampao', // chave PÓS-singularização ('tampones'→singularizar→'tampone')
+  yogur: 'iogurte', yogurt: 'iogurte',
+  queso: 'queijo',
+};
+const sinCanon = (t) => SINONIMOS[t] || t;
 export function tokenCasa(nomeTok, pedidoTok) {
   if (nomeTok === pedidoTok) return true;
-  if (singularizar(nomeTok) === singularizar(pedidoTok)) return true;
+  const a = sinCanon(singularizar(nomeTok)), b = sinCanon(singularizar(pedidoTok));
+  if (a === b) return true;
   if (pedidoTok.startsWith(nomeTok) && nomeTok.length >= 4) return true;
   return false;
+}
+
+// Corta o GENÉRICO da frente do nome no display da lista (revisão 3.7a — a lógica
+// vivia inline no App.jsx sem testes). Regras: só corta se o tipo tem genérico
+// (GEN_RE), há mais palavras, e a seguinte NÃO é conector ("Pão de Forma" intacto).
+// Recebe e devolve o ARRAY de palavras (o chamador trata da marca/join).
+export function cortarGenerico(words, tipoId) {
+  const re = GEN_RE[tipoId];
+  if (re && words.length > 1 && re.test(norm(words[0])) && !CONECTORES.has(norm(words[1]))) return words.slice(1);
+  return words;
 }
 
 // Grupo de um SKU a partir das fontes disponíveis, por força decrescente:

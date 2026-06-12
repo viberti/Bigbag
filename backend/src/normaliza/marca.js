@@ -46,13 +46,19 @@ export async function carregarGazetteer(pool) {
   _gaz = new Map();
   for (const { marca } of rows) {
     const k = norm(marca);
-    if (k.length >= 4 && !_gaz.has(k)) _gaz.set(k, marca);
+    // marcas curtas REAIS ficavam fora do limiar >=4 (revisão 3.7b; evidência no
+    // catálogo: W5 ×403, Bic, Cif, Axe, Uhu, Tuc, Ogx…). O matching é por TOKEN
+    // exato (palavra inteira por natureza) → allowlist é segura.
+    const curtaOk = MARCAS_CURTAS_OK.has(k);
+    if ((k.length >= 4 || curtaOk) && !_gaz.has(k)) _gaz.set(k, marca);
   }
   return _gaz;
 }
 
 // Núcleo PURO (testável): deteta a marca em `descricao` com o gazetteer dado.
 // `idf` opcional pesa a distintividade dos tokens (sem ele, só comprimento+blocklist).
+const MARCAS_CURTAS_OK = new Set(['w5', 'w4', 'bic', 'cif', 'axe', 'uhu', 'tuc', 'ogx', 'xau']);
+
 export function detetarMarca(descricao, gazetteer, idf = null) {
   const s = String(descricao || '');
   for (const [re, marca] of MARCADORES_CADEIA) {

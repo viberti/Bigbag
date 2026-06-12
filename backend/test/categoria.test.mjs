@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { grupoDeTexto, grupoDe, grupoDeNome, tokenCasa, singularizar, chaveItemLista } from '../src/normaliza/categoria.js';
+import { grupoDeTexto, grupoDe, grupoDeNome, tokenCasa, singularizar, chaveItemLista, cortarGenerico } from '../src/normaliza/categoria.js';
 
 test('chaveItemLista: plurais/acentos/maiusculas consolidam no MESMO item', () => {
   assert.equal(chaveItemLista('Ovo'), chaveItemLista('ovos'));
@@ -113,4 +113,26 @@ test('fallback pelo nome quando a categoria não diz nada', () => {
 test('food_groups do OFF é autoritativo', () => {
   assert.equal(grupoDe({ foodGroups: ['en:sugary-snacks'], categoria: 'Mercearia', nome: 'X' }), 'doces');
   assert.equal(grupoDe({ foodGroups: ['en:beverages'], nome: 'Coisa' }), 'bebidas');
+});
+
+test('SINÓNIMOS no matching (3.2): línguas/grafias casam, sem falsos positivos', () => {
+  assert.ok(tokenCasa('spaghetti', 'esparguete'));   // OFF italiano ↔ pedido PT
+  assert.ok(tokenCasa('esparguete', 'spaghetti'));
+  assert.ok(tokenCasa('yogur', 'iogurte'));          // Mercadona ES
+  assert.ok(tokenCasa('queso', 'queijos'));          // sinónimo + plural
+  assert.ok(tokenCasa('mozzarella', 'mozarela'));
+  assert.ok(tokenCasa('tampones', 'tampao'));
+  assert.ok(!tokenCasa('queso', 'queijada'));        // não é prefixo-mágico
+  assert.ok(!tokenCasa('vino', 'vinagre'));          // sem sinónimo, sem casamento
+});
+
+test('cortarGenerico (3.7a): genérico por-tipo, compostos protegidos', () => {
+  const j = (w, t) => cortarGenerico(w, t).join(' ');
+  assert.equal(j(['Massa', 'Penne', 'Rigate'], 'massa'), 'Penne Rigate');
+  assert.equal(j(['Pasta', 'Cannelloni'], 'massa'), 'Cannelloni');
+  assert.equal(j(['Massa', 'de', 'Pizza'], 'massa'), 'Massa de Pizza');     // conector protege
+  assert.equal(j(['Pão', 'de', 'Forma'], 'pao'), 'Pão de Forma');
+  assert.equal(j(['Conserva', 'de', 'Atum'], 'conservas'), 'Conserva de Atum');
+  assert.equal(j(['Pães'], 'pao'), 'Pães');                                  // nunca esvazia
+  assert.equal(j(['Pasta', 'de', 'Dentes'], 'higiene'), 'Pasta de Dentes'); // tipo sem genérico
 });

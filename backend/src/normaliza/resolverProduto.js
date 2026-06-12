@@ -380,7 +380,9 @@ export async function candidatosOFF(item, limite = 8) {
     const t = setTimeout(() => ctrl.abort(), 12000);
     const r = await fetch(u, { headers: { 'User-Agent': 'Bigbag/0.1 (laboratorio pessoal)' }, signal: ctrl.signal });
     clearTimeout(t);
-    if (!r.ok) return [];
+    // logging de erros do OFF (revisão 3.7d): 429 = rate-limit a caminho — vigiar
+    // ANTES de precisar de rate-limiter (só se houver incidente real).
+    if (!r.ok) { console.warn('[candidatosOFF] OFF respondeu', r.status); return []; }
     const j = await r.json();
     return (j.products || [])
       .filter((p) => p.code && p.product_name)

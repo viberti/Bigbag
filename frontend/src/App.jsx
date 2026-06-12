@@ -5,7 +5,7 @@ import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 // a revisão achou vocabulários paralelos front/back a divergir). Módulo PURO.
 // chaveLite = chaveItemLista: a consolidação otimista usa a MESMA chave do servidor
 // (antes era um clone com singularização naïve '-s').
-import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, GEN_RE, CONECTORES } from '../../backend/src/normaliza/categoria.js';
+import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, cortarGenerico } from '../../backend/src/normaliza/categoria.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -1546,10 +1546,8 @@ function formatarNomeLista(nome, marca, tipoId) {
     const sem = words.filter((w) => !mt.has(normCat(w)));
     if (sem.length) words = sem; // nunca esvaziar (marca == nome todo)
   }
-  // corta o genérico da frente SÓ se a palavra seguinte não for um conector — senão
-  // é um nome composto e o genérico é a cabeça ("Pão de Forma" ≠ "de Forma").
-  const re = GEN_RE[tipoId];
-  if (re && words.length > 1 && re.test(normCat(words[0])) && !CONECTORES.has(normCat(words[1]))) words.shift();
+  // genérico da frente: regra partilhada com testes (cortarGenerico em categoria.js)
+  words = cortarGenerico(words, tipoId);
   return { core: words.join(' ') || String(nome || ''), marca: marcaTxt };
 }
 

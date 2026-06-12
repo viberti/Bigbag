@@ -16,13 +16,13 @@
 //       MODELO=openai/gpt-4o-mini node scripts/auditar_grupos.mjs
 import { getPool } from '../src/db.js';
 import { chatCompletion } from '../src/openrouter.js';
-import { grupoDe } from '../src/normaliza/categoria.js';
+import { grupoDe, grupoDeNome } from '../src/normaliza/categoria.js';
 
 const MODELO = process.env.MODELO || 'openai/gpt-4o-mini';
 const LOTE = 40;
 
 const PROMPT = (lista) => `Auditoria de classificação de produtos de supermercado (PT).
-Grupos (fechados): frutas (e legumes) · carne · peixe · lacticinios (e ovos) · padaria (cereais, massas, arroz, farinha, muesli) · bebidas · doces (bolachas, snacks, gelados, chocolate) · congelados · higiene (e limpeza) · mercearia (conservas, azeite, molhos, sal, açúcar, leguminosas, tofu) · outros.
+Grupos (fechados): frutas (e legumes) · carne · peixe · lacticinios (e ovos) · padaria (SÓ pão e pastelaria fresca) · bebidas · doces (bolachas, snacks, gelados, chocolate) · congelados · higiene (e limpeza) · mercearia (SECOS: massas, arroz, farinha, cereais + conservas, azeite, molhos, sal, açúcar, leguminosas, tofu) · outros.
 Verifique LINHA A LINHA (id|nome|grupo_atual): o grupo está certo para esse nome?
 Liste os ERRADOS em JSON: {"suspeitos":[{"id":N,"sugerido":"...","motivo":"max 6 palavras"}]}.
 
@@ -38,11 +38,27 @@ async function julgar(lote) {
   return (JSON.parse(r || '{}').suspeitos || []).map((x) => ({ ...x, id: Number(x.id) }));
 }
 
+// --scan (revisão 3.4, 2026-06-13): audita os NOMES vindos do SCAN (lista+despensa
+// vivos) — o fluxo novo que não passa por auditoria nenhuma. Classifica com
+// grupoDeNome (o caminho que a lista usa sem SKU) e manda ao MESMO juiz calibrado.
+// Cadência sugerida: MENSAL, ou após sessão grande de scans (regra no CLAUDE.md).
+const MODO_SCAN = process.argv.includes('--scan');
+
 async function main() {
   const pool = getPool();
-  const [skus] = await pool.query("SELECT id, nome_canonico, grupo FROM sku_normalizado WHERE grupo IS NOT NULL ORDER BY id");
+  let skus;
+  if (MODO_SCAN) {
+    const [nomes] = await pool.query(`
+      SELECT DISTINCT nome FROM lista_item WHERE nome IS NOT NULL AND estado IN ('ativo','carrinho')
+      UNION SELECT DISTINCT nome FROM despensa WHERE nome IS NOT NULL`);
+    skus = nomes.map((r, i) => ({ id: i + 1, nome_canonico: r.nome, grupo: grupoDeNome(r.nome) }));
+    console.log(`[--scan] ${skus.length} nomes de lista/despensa (classificados por grupoDeNome)`);
+  } else {
+    [skus] = await pool.query("SELECT id, nome_canonico, grupo FROM sku_normalizado WHERE grupo IS NOT NULL ORDER BY id");
+  }
 
-  // ── 1. concordância com o OFF (grátis) ──────────────────────────────────────
+  // ── 1. concordância com o OFF (grátis; só no modo SKUs) ─────────────────────
+  if (!MODO_SCAN) {
   const [comOff] = await pool.query(`
     SELECT s.id, s.nome_canonico nome, s.grupo, MAX(o.grupos_alimento) fg
       FROM sku_normalizado s
@@ -58,6 +74,7 @@ async function main() {
   }
   console.log(`[OFF] concordância: ${conc}/${conc + discOff.length} (${Math.round(100 * conc / Math.max(1, conc + discOff.length))}%)`);
   for (const d of discOff) console.log('   ⚠', d);
+  }
 
   // ── 2. calibrar o juiz com CANÁRIOS ─────────────────────────────────────────
   const ABS = { lacticinios: 'peixe', carne: 'bebidas', frutas: 'higiene', padaria: 'peixe', mercearia: 'carne', bebidas: 'carne', doces: 'peixe', peixe: 'doces', congelados: 'higiene', higiene: 'doces', outros: 'peixe' };

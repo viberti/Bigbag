@@ -47,6 +47,7 @@ Regras:
   ou preços (ex.: "2,426 kg 1,29 EUR/kg") — NÃO adivinhes um produto: devolve
   nome_canonico "(desconhecido)" e "confianca" 0.
 - NUNCA incluas no nome números, preços, pesos ou códigos.
+Operadores como "com", "sem", "para" no nome sao conectores de facetas (ex.: "Sal com Iodo" e um produto inteiro) — mantem o nome completo no nome_canonico, sem fragmentar.
 O nome_canonico NUNCA inclui a marca nem o formato/peso. Dois produtos iguais de
 marcas diferentes partilham o mesmo nome_canonico (distinguem-se pela marca).`;
 
