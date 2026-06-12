@@ -13,6 +13,7 @@ import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { grupoDe, tokenCasa, singularizar, norm as normN } from '../normaliza/categoria.js';
+import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from '../ingest/traduz.js';
@@ -325,7 +326,11 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
     const eanRejeitado = !!(eanCandidato && !ean); // leu um código mas o dígito verificador falhou
     const off = await consultarOFF(ean);
 
-    let nutricao = off?.nutricao_100g || vlm?.nutricao_100g || null;
+    // nutrição SÓ-VLM passa o gate de plausibilidade (revisão 3.6): leitura OCR
+    // absurda (kcal>950, açúcar>hidratos…) é DESCARTADA em vez de entrar na ficha.
+    const nutVlm = vlm?.nutricao_100g && nutricaoPlausivel(vlm.nutricao_100g) ? vlm.nutricao_100g : null;
+    if (vlm?.nutricao_100g && !nutVlm) console.warn('[identificar] nutrição VLM implausível descartada', ean || '');
+    let nutricao = off?.nutricao_100g || nutVlm || null;
     // 3.ª fonte: NUTRIÇÃO oficial de loja no catálogo (047, Auchan) — confirmada.
     let nutCatalogo = false;
     if (ean && (!nutricao || Object.values(nutricao).every((v) => v == null))) {

@@ -48,3 +48,28 @@ export function validarAtribuicao({ unidade, precoBase, categoria } = {}, ctx = 
   if (!marcaCompativel(categoria, ctx.afinidadeDaMarca)) motivos.push('marca não faz esta categoria');
   return { ok: motivos.length === 0, motivos };
 }
+
+// Plausibilidade da NUTRIÇÃO por 100 g/ml (revisão 3.6, 2026-06-13): o peso lido
+// por VLM tem guarda (pesoPlausivel) mas a nutrição lida do rótulo não tinha —
+// um OCR de "3590 kcal" entrava na ficha. Gates físicos simples: kcal ≤950/100g
+// (azeite ≈900), macros 0–100 g/100g, açúcares ≤ hidratos, saturada ≤ gordura,
+// soma de macros ≤105. null/ausente não invalida (valida-se o que há).
+export function nutricaoPlausivel(n) {
+  if (!n || typeof n !== 'object') return false;
+  const v = (x) => (n[x] == null ? null : Number(n[x]));
+  const kcal = v('energia_kcal');
+  const campos = ['gordura', 'gordura_saturada', 'hidratos', 'acucares', 'proteina', 'fibra', 'sal'];
+  let algum = kcal != null;
+  for (const c of campos) {
+    const x = v(c);
+    if (x == null) continue;
+    algum = true;
+    if (!Number.isFinite(x) || x < 0 || x > 100) return false;
+  }
+  if (kcal != null && (!Number.isFinite(kcal) || kcal < 0 || kcal > 950)) return false;
+  if (v('acucares') != null && v('hidratos') != null && v('acucares') > v('hidratos') + 1) return false;
+  if (v('gordura_saturada') != null && v('gordura') != null && v('gordura_saturada') > v('gordura') + 1) return false;
+  const soma = (v('gordura') || 0) + (v('hidratos') || 0) + (v('proteina') || 0);
+  if (soma > 105) return false;
+  return algum; // objeto sem nenhum valor não é "nutrição plausível"
+}

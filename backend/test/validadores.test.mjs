@@ -1,7 +1,7 @@
 // Guardas de atribuição ao Mestre: unidade · €/base · marca-afinidade. Pura.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { unidadeCompativel, precoPlausivel, marcaCompativel, validarAtribuicao } from '../src/normaliza/validadores.js';
+import { unidadeCompativel, precoPlausivel, marcaCompativel, validarAtribuicao, nutricaoPlausivel } from '../src/normaliza/validadores.js';
 
 // ───────── unidade ─────────
 test('unidade: un vs L é incompatível (ovos vs caldo)', () => {
@@ -55,4 +55,17 @@ test('validarAtribuicao: produto coerente → ok', () => {
   );
   assert.equal(r.ok, true);
   assert.equal(r.motivos.length, 0);
+});
+
+test('nutricaoPlausivel (3.6): fisica do rotulo', () => {
+  const ok = { energia_kcal: 359, gordura: 2, gordura_saturada: 0.5, hidratos: 71, acucares: 3.5, proteina: 13, sal: 0.01, fibra: 3 };
+  assert.ok(nutricaoPlausivel(ok));                                          // massa real
+  assert.ok(nutricaoPlausivel({ energia_kcal: 899, gordura: 100 }));         // azeite
+  assert.ok(!nutricaoPlausivel({ energia_kcal: 3590 }));                     // OCR a juntar digitos
+  assert.ok(!nutricaoPlausivel({ hidratos: 10, acucares: 50 }));             // açúcar > hidratos
+  assert.ok(!nutricaoPlausivel({ gordura: 5, gordura_saturada: 30 }));       // saturada > total
+  assert.ok(!nutricaoPlausivel({ proteina: 250 }));                          // >100g/100g
+  assert.ok(!nutricaoPlausivel({ gordura: 60, hidratos: 60, proteina: 20 }));// soma >105
+  assert.ok(!nutricaoPlausivel({}));                                         // vazio nao e nutricao
+  assert.ok(!nutricaoPlausivel(null));
 });
