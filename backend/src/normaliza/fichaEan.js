@@ -226,7 +226,8 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
 
   // CATEGORIA: caminho de loja PT mais fundo > OFF > VLM
   const catLoja = cat.filter((c) => FONTES_PT.includes(c.fonte) && c.categoria)
-    .sort((a, b) => String(b.categoria).length - String(a.categoria).length)[0]?.categoria || null;
+    .sort((a, b) => String(b.categoria).length - String(a.categoria).length
+      || String(a.categoria).localeCompare(String(b.categoria)))[0]?.categoria || null;
   const categoria = escolhe('categoria', [
     { valor: catLoja, fonte: 'catalogo' },
     { valor: off?.categoria, fonte: 'off' },
@@ -276,7 +277,7 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
       nome: nome ? tituloProduto(nome) : null, marca: marca ? tituloProduto(marca) : null,
       // ℮ (símbolo "quantidade estimada" do rótulo) vira "e" no VLM → fora
       quantidade: quantidade ? String(quantidade).replace(/℮/g, '').replace(/\s+e$/i, '').trim() || null : null,
-      categoria: categoria || null,
+      categoria: categoria ? String(categoria).slice(0, 255) : null, // cap da coluna — senão re-fusões "mudam" sempre
       ingredientes: ing?.texto || null, alergenios: alergenios || null, validade: validade || null,
       nutricao, nutricao_confirmada: nutConfirmada,
     },
