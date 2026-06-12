@@ -407,7 +407,10 @@ export async function consultarOFF(ean) {
 // (marcas próprias, cervejas, não-alimentares; dump OFF só 16% c/ nutrição).
 export async function consultarCatalogo(ean) {
   const [[c]] = await getPool().query(
-    `SELECT nome, marca, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria, formato AS quantidade, fonte,
+    // nome_pt existe para o catálogo Mercadona (ES) — é o nome em português; preferi-lo
+    // evita servir "Yogur Griego" num app PT (decisão do dono, 2026-06-12). Os outros
+    // catálogos têm nome_pt NULL → cai no nome original (já PT-PT).
+    `SELECT COALESCE(NULLIF(nome_pt,''), nome) AS nome, marca, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria, formato AS quantidade, fonte,
             nutricao, ingredientes
        FROM catalogo_produto
       WHERE ean = ? AND nome IS NOT NULL AND nome <> ''

@@ -14,7 +14,7 @@ const KEY_VER = 'bb_base_ver';
 // Versão da base: INCREMENTAR quando o servidor re-normaliza dados existentes
 // (ex.: capitalização uniforme) — o cursor incremental não os re-desceria.
 // Mudança de versão → resync completo na próxima sincronização.
-const BASE_VER = '2';
+const BASE_VER = '3'; // v3: nome_pt do Mercadona no catálogo (era ES no scan)
 const INTERVALO_MS = 60 * 60 * 1000; // 1 h entre sincronizações automáticas
 
 const parse = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };

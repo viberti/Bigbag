@@ -592,7 +592,9 @@ produtoRouter.get('/base-local', requireAuth, async (req, res) => {
         GROUP BY pe.ean`,
     );
     const [catalogo] = await getPool().query(
-      `SELECT id, ean, nome, marca, formato AS quantidade
+      // nome_pt (Mercadona ES) preferido → a base local do telefone guarda o nome PT
+      // (scan não traz "Yogur Griego"); restantes catálogos têm nome_pt NULL → nome original.
+      `SELECT id, ean, COALESCE(NULLIF(nome_pt,''), nome) AS nome, marca, formato AS quantidade
          FROM catalogo_produto
         WHERE ean IS NOT NULL AND ean <> '' AND id > ?
         ORDER BY id
