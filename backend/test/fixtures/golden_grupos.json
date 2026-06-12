@@ -1,5 +1,5 @@
 {
- "gerado": "2026-06-13 (baseline scan regenerado: +picles/passata/palmito no vocabulário — auditoria --scan)",
+ "gerado": "2026-06-12",
  "nota": "Regenerar com backend/scripts/gerar_golden_grupos.mjs (ver cabeçalho). Mudança INTENCIONAL de vocabulário => regenerar e commitar o diff no mesmo commit.",
  "casos": [
   {
@@ -1007,7 +1007,7 @@
    "categoria": "Mercearia Doce",
    "cat_gen": "bebida",
    "foodGroups": null,
-   "ouro": "bebidas"
+   "ouro": "mercearia"
   },
   {
    "nome": "Café Torrado Moído Descafeinado",
@@ -1015,7 +1015,7 @@
    "categoria": "Mercearia Salgada",
    "cat_gen": "bebidas",
    "foodGroups": null,
-   "ouro": "bebidas"
+   "ouro": "mercearia"
   },
   {
    "nome": "Café",
@@ -1023,7 +1023,7 @@
    "categoria": "Mercearia Geral",
    "cat_gen": "bebidas",
    "foodGroups": null,
-   "ouro": "bebidas"
+   "ouro": "mercearia"
   },
   {
    "nome": "Salada de Frutas",
@@ -1786,7 +1786,7 @@
    "categoria": "Bebidas Quentes",
    "cat_gen": "bebida",
    "foodGroups": null,
-   "ouro": "bebidas"
+   "ouro": "mercearia"
   },
   {
    "nome": "Café descafeinado em Cápsulas",
@@ -1794,7 +1794,7 @@
    "categoria": "Mercearia",
    "cat_gen": "bebidas não-alcoólicas",
    "foodGroups": null,
-   "ouro": "bebidas"
+   "ouro": "mercearia"
   },
   {
    "nome": "Vinho do Porto Tawny 10 Anos",
@@ -1850,7 +1850,7 @@
    "categoria": "Mercearia Salgada",
    "cat_gen": "outros",
    "foodGroups": null,
-   "ouro": "bebidas"
+   "ouro": "mercearia"
   },
   {
    "nome": "Torta de Missão Oriental",
@@ -2389,7 +2389,7 @@
    "categoria": "Mercearia Salgada",
    "cat_gen": null,
    "foodGroups": null,
-   "ouro": "bebidas"
+   "ouro": "mercearia"
   },
   {
    "nome": "Tablete de Chocolate Ferrero",
@@ -2639,6 +2639,38 @@
     "en:unsweetened-beverages"
    ],
    "ouro": "lacticinios"
+  },
+  {
+   "nome": "Presunto Serrano Reserva Fatias",
+   "simplificado": null,
+   "categoria": "Charcutaria",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "carne"
+  },
+  {
+   "nome": "Cereja",
+   "simplificado": null,
+   "categoria": "Frutas e Legumes",
+   "cat_gen": "fruta",
+   "foodGroups": null,
+   "ouro": "frutas"
+  },
+  {
+   "nome": "Pão de Brioche",
+   "simplificado": null,
+   "categoria": "Padaria e Pastelaria",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "padaria"
+  },
+  {
+   "nome": "Creme Extra",
+   "simplificado": null,
+   "categoria": "Mercearia Salgada",
+   "cat_gen": null,
+   "foodGroups": null,
+   "ouro": "mercearia"
   }
  ],
  "scan": [
@@ -2772,7 +2804,7 @@
   },
   {
    "nome": "Café",
-   "esperado": "bebidas"
+   "esperado": "mercearia"
   },
   {
    "nome": "Cerveja",
@@ -2848,7 +2880,7 @@
   },
   {
    "nome": "Café em Cápsulas",
-   "esperado": "bebidas"
+   "esperado": "mercearia"
   },
   {
    "nome": "ovos frescos",
@@ -3009,6 +3041,62 @@
   {
    "nome": "Pasta Cannelloni",
    "esperado": "mercearia"
+  },
+  {
+   "nome": "Pasta Estrellas sem Gluten Felicia",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Chá Preto Lipton Pyramid Limao 20 Saq",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Chá Infusão Nº 10 Colesterolcontrol Saquetas Cem Porcento",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Infusão Manzanilla Hacendado",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Ahmad Green Jasmine Tea",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "English Breakfast Tea",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Chá Preto Lipton Earl Grey 20 Un",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Infusão Camomila Pyramid Saquetas Lipton",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Polpa de Tomate Continente",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Passata com Manjericão",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Picles em Vinagre",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Carciofi Alla Contadina In Olio",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Pão para Hambúrguer",
+   "esperado": "padaria"
+  },
+  {
+   "nome": "Carne Picada de Porco",
+   "esperado": "carne"
   }
  ]
 }

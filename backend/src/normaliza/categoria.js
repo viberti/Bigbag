@@ -63,7 +63,7 @@ const FOOD_GROUPS = {
   // OFF só dá o pai, deixa o NOME decidir.
   'fish-and-seafood': 'peixe',
   'milk-and-dairy-products': 'lacticinios', 'dairy-desserts': 'lacticinios', 'cheese': 'lacticinios', 'eggs': 'lacticinios',
-  'cereals-and-potatoes': 'padaria', 'bread': 'padaria', 'breakfast-cereals': 'padaria', 'cereals': 'padaria',
+  'cereals-and-potatoes': 'mercearia', 'bread': 'padaria', 'breakfast-cereals': 'mercearia', 'cereals': 'mercearia', // cereais = mercearia desde 2026-06-12 (o mapa tinha ficado na taxonomia antiga)
   'beverages': 'bebidas', 'alcoholic-beverages': 'bebidas', 'unsweetened-beverages': 'bebidas', 'sweetened-beverages': 'bebidas',
   'sugary-snacks': 'doces', 'salty-snacks': 'doces', 'sweets': 'doces', 'biscuits-and-cakes': 'doces', 'ice-cream': 'doces',
   'fats-and-sauces': 'mercearia', 'dressings-and-sauces': 'mercearia', 'fats': 'mercearia', 'canned-foods': 'mercearia',
@@ -190,27 +190,22 @@ export function grupoDeNome(nome) {
   return grupoDeTexto(n);
 }
 
+// Ordem dos sinais INVERTIDA (decisão do dono, 2026-06-13): NOME antes dos
+// food_groups do OFF — coerente com o resolvedor único (o nosso vocabulário e o
+// catálogo valem mais que o crowdsourcing do OFF). A ordem antiga (OFF primeiro)
+// acumulava exceções-remendo (bebidas-vs-lácteos, bebidas-vs-mercearia) e
+// contaminava o ouro: "Patê de Alho" era padaria porque o OFF dizia 'bread';
+// "Muesli" era padaria por 'breakfast-cereals' quando a loja diz mercearia.
 export function grupoDe({ foodGroups = null, categoria = null, nome = null } = {}) {
-  const porNome = grupoDeNome(nome);
-  for (const fg of Array.isArray(foodGroups) ? foodGroups : []) {
-    const slug = String(fg).replace(/^en:/, '');
-    const g = FOOD_GROUPS[slug];
-    if (!g) continue;
-    // EXCEÇÃO bebidas-vs-lácteos: o OFF chama "beverages" a kefir/leite achocolatado/
-    // iogurte líquido; na nossa organização, bebida LÁCTEA fica nos laticínios.
-    if (g === 'bebidas' && porNome === 'lacticinios') return 'lacticinios';
-    // EXCEÇÃO bebidas-vs-mercearia: o OFF chama "beverages" a chá em saquinho/
-    // café/infusões (secos); na lente de loja vivem na mercearia (Auchan:
-    // Mercearia > Café, Chá e Infusão). Decisão do dono, 2026-06-13.
-    if (g === 'bebidas' && porNome === 'mercearia') return 'mercearia';
-    return g;
-  }
-  // EXCEÇÃO congelados: a categoria de loja "Congelados" é um sinal FÍSICO
-  // inequívoco (batata palitos congelada organiza-se nos congelados, não nos
-  // legumes) — única categoria que vence o nome (a lição "Charcutaria e Queijos"
-  // mantém-se para as restantes).
+  // congelados: a categoria de loja "Congelados" é um sinal FÍSICO inequívoco
+  // (batata palitos congelada organiza-se nos congelados) — vence até o nome.
   if (grupoDeTexto(categoria) === 'congelados') return 'congelados';
+  const porNome = grupoDeNome(nome);
   if (porNome !== GRUPO_OUTROS) return porNome;
+  for (const fg of Array.isArray(foodGroups) ? foodGroups : []) {
+    const g = FOOD_GROUPS[String(fg).replace(/^en:/, '')];
+    if (g) return g;
+  }
   return grupoDeTexto(categoria);
 }
 
