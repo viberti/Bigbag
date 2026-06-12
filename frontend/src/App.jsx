@@ -5,7 +5,7 @@ import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 // a revisão achou vocabulários paralelos front/back a divergir). Módulo PURO.
 // chaveLite = chaveItemLista: a consolidação otimista usa a MESMA chave do servidor
 // (antes era um clone com singularização naïve '-s').
-import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, cortarGenerico, TIPOS_NOME } from '../../backend/src/normaliza/categoria.js';
+import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, cortarGenerico, cortarQuantidadeNome, TIPOS_NOME } from '../../backend/src/normaliza/categoria.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -1543,6 +1543,7 @@ const TIPOS_CAT = [
 // "pasta de dentes/amendoim" e deve ficar).
 
 function formatarNomeLista(nome, marca, tipoId) {
+  nome = cortarQuantidadeNome(nome); // quantidade embutida ("20 Saq") sai da exibição
   let words = String(nome || '').trim().split(/\s+/).filter(Boolean);
   const marcaTxt = marca ? limparMarca(marca) : null;
   if (marcaTxt) {

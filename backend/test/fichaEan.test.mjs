@@ -13,6 +13,17 @@ test('limparNomeProduto: marca e formato saem; nunca esvazia', () => {
   assert.equal(limparNomeProduto('Nutella', 'Nutella'), 'Nutella');
   // marca composta limpa as duas partes
   assert.equal(limparNomeProduto('Conchiglioni Arrighi', 'Arrighi, Pasta Berruto'), 'Conchiglioni');
+  // QUANTIDADE embutida no nome (regra geral do dono, 2026-06-14 — caso Pyramid):
+  // par número+unidade-de-contagem e unidade órfã no fim saem
+  assert.equal(limparNomeProduto('Chá Preto Lipton Pyramid Limao 20 Saq', 'Lipton'), 'Chá Preto Pyramid Limao');
+  assert.equal(limparNomeProduto('Infusão Camomila Pyramid Saquetas', null), 'Infusão Camomila Pyramid');
+  assert.equal(limparNomeProduto('Café 10 Cápsulas', null), 'Café');
+  // falsos positivos protegidos: número NO MEIO é nome; cabeça legítima fica
+  assert.equal(limparNomeProduto('Pão 7 Sementes', null), 'Pão 7 Sementes');
+  assert.equal(limparNomeProduto('Pizza 4 Queijos', null), 'Pizza 4 Queijos');
+  assert.equal(limparNomeProduto('Folhas de Louro', null), 'Folhas de Louro');
+  // número solto no FIM é quantidade pendurada
+  assert.equal(limparNomeProduto('Chá Lipton 20', 'Lipton'), 'Chá');
 });
 
 test('escolherNome: o caso Barilla COLAPSA após limpeza (decisão do dono)', () => {

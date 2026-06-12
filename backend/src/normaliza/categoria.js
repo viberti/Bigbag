@@ -160,6 +160,23 @@ export function tokenCasa(nomeTok, pedidoTok) {
 // vivia inline no App.jsx sem testes). Regras: só corta se o tipo tem genérico
 // (GEN_RE), há mais palavras, e a seguinte NÃO é conector ("Pão de Forma" intacto).
 // Recebe e devolve o ARRAY de palavras (o chamador trata da marca/join).
+// QUANTIDADE embutida no NOME (regra geral do dono, 2026-06-14: "20 Saq" do chá
+// Pyramid é quantidade, não nome — vale p/ qualquer unidade de CONTAGEM/embalagem).
+// (a) par "número + unidade" sai em qualquer posição ("20 Saq", "2 Rolos",
+// "10 Doses"); (b) unidade de embalagem ÓRFÃ no fim também sai ("… Saquetas").
+// Partilhada: a fusão da ficha limpa na origem; a lista limpa na exibição
+// (nomes já gravados). Nunca esvazia.
+const UNIDADES_CONTAGEM = 'saqs?|saquetas?|saquinhos?|sach[eê]s?|sachets?|c[áa]psulas?|caps|doses?|rolos?|folhas?|pastilhas?|comprimidos?|unidades?|unid|pe[çc]as?|lavagens?';
+const RE_NUM_UNIDADE = new RegExp(`(^|\\s)\\d+\\s*(${UNIDADES_CONTAGEM})(?=\\s|$)`, 'gi');
+const RE_UNIDADE_FIM = new RegExp(`\\s+(${UNIDADES_CONTAGEM})\\s*$`, 'i');
+export function cortarQuantidadeNome(nome) {
+  if (!nome) return nome;
+  let r = String(nome).replace(RE_NUM_UNIDADE, ' ').replace(/\s{2,}/g, ' ').trim();
+  const semFim = r.replace(RE_UNIDADE_FIM, '').trim();
+  if (semFim) r = semFim; // unidade órfã no fim ("… Saquetas") sai se sobrar nome
+  return r || String(nome).trim();
+}
+
 export function cortarGenerico(words, tipoId) {
   const re = GEN_RE[tipoId];
   if (re && words.length > 1 && re.test(norm(words[0])) && !CONECTORES.has(norm(words[1]))) return words.slice(1);

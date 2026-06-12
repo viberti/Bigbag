@@ -27,7 +27,7 @@
 // Sem LLM aqui dentro (determinístico, testável); OFF live e VLM entram como
 // `extra` trazidos pelo chamador. Re-fusão barata: fontes_hash no JSON `fusao`.
 import { createHash } from 'crypto';
-import { norm, normAlfa } from './categoria.js';
+import { norm, normAlfa, cortarQuantidadeNome } from './categoria.js';
 import { nutricaoPlausivel } from './validadores.js';
 import { tituloProduto } from './titulo.js';
 
@@ -39,14 +39,19 @@ const FONTES_PT = ['continente', 'auchan', 'mercadona-off', 'lidl', 'pingodoce']
 // Nunca esvazia: se sobrar nada (marca É o nome, ex. "Nutella"), devolve o original.
 export function limparNomeProduto(nome, marca) {
   if (!nome) return nome;
+  nome = cortarQuantidadeNome(nome); // "20 Saq"/"2 Rolos"/"… Saquetas" = quantidade, não nome
   const mt = new Set(normAlfa(marca || '').split(' ').filter(Boolean));
-  const FORMATO = /^\d+([.,]\d+)?(g|gr|kg|mg|ml|cl|l|lt|un|uni|x)$|^x?\d+$|^\d+x\d+.*$/i;
+  // formato COLADO (500g, 1L, x4, 4x115g) sai em qualquer posição; número PURO
+  // só sai no FIM do nome ("Chá Lipton 20") — no meio é nome ("Pão 7 Sementes",
+  // "Pizza 4 Queijos"); o par "20 Saq" já saiu no cortarQuantidadeNome.
+  const FORMATO = /^\d+([.,]\d+)?(g|gr|kg|mg|ml|cl|l|lt|un|uni)$|^x\d+$|^\d+x$|^\d+x\d+.*$/i;
   const palavras = String(nome).split(/\s+/).filter(Boolean);
-  const limpas = palavras.filter((w) => {
+  const limpas = palavras.filter((w, i) => {
     const t = normAlfa(w).replace(/\s/g, '');
     if (!t) return false;
     if (mt.has(t)) return false;
     if (FORMATO.test(t)) return false;
+    if (/^\d+$/.test(t) && i === palavras.length - 1) return false;
     return true;
   });
   return (limpas.length ? limpas : palavras).join(' ');
