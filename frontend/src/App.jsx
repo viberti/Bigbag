@@ -1529,7 +1529,10 @@ const TIPOS_CAT = [
 // tipos salientes da despensa, por NOME (vence o grupo-de-loja). Conservas exige
 // marcador explícito de conserva (atum fresco ≠ atum em lata). Ordem importa.
 const TIPOS_NOME = [ // testados contra normCat (minúsculas, SEM acentos)
-  ['massa', /(^|[^a-z])(massas?|pasta|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchigli|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini)/],
+  // NOTA: "pasta" sozinho NÃO classifica (ambíguo: pasta de dentes/amendoim/folhada).
+  // A massa real vem pelo formato (penne, cannelloni…) ou por "massa"/marca. No
+  // DISPLAY, porém, "pasta" é genérico a cortar no tipo massa (ver GEN_RE).
+  ['massa', /(^|[^a-z])(massas?|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchigli|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini)/],
   ['cereais', /(^|[^a-z])(cereais?|muesli|granola|aveia|flocos|cornflake|chocapic|estrelitas)/],
   ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa]|polpa de tomate)/], // marcador explícito (atum "fresco" fica peixe)
   ['pao', /(^|[^a-z])(pao|paes|tosta|wrap|broa|baguet|croissant|brioche)/],
@@ -1549,7 +1552,10 @@ function tipoConsumidor(grupo, nome, marca) {
 // Nome "à talão" para a lista: o genérico que repete a secção é supérfluo ("Massa"
 // numa lista debaixo de Massa) → corta-se; a MARCA mostra-se à parte, noutra cor
 // (it.marca vem detetada do servidor). Determinístico, sobre o nome livre.
-const GEN_RE = { massa: /^massas?$/, pao: /^(pao|paes)$/, cereais: /^cereais?$/, conservas: /^conservas?$/ };
+// genéricos a CORTAR do nome, por TIPO (lógica do dono: a palavra ignorada está
+// associada à categoria — "pasta" é genérico de massa, mas noutras categorias é
+// "pasta de dentes/amendoim" e deve ficar).
+const GEN_RE = { massa: /^(massas?|pasta)$/, pao: /^(pao|paes)$/, cereais: /^cereais?$/, conservas: /^conservas?$/ };
 function formatarNomeLista(nome, marca, tipoId) {
   let words = String(nome || '').trim().split(/\s+/).filter(Boolean);
   const marcaTxt = marca ? limparMarca(marca) : null;
