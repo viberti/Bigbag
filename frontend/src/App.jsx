@@ -2405,6 +2405,7 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
   const [gravandoVoz, setGravandoVoz] = useState(false);
   const [aOuvirVoz, setAOuvirVoz] = useState(false);
   const [erroVoz, setErroVoz] = useState(null); // mensagem visível — NUNCA falhar mudo
+  const [fotosIdent, setFotosIdent] = useState([]); // fotos acumuladas p/ identificar EAN desconhecido
   const mrRef = useRef(null);
 
   // Microfone: a Sue DIZ o produto ("carne de porco") → áudio → nome → consulta.
@@ -2481,17 +2482,20 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
     }
   }
 
-  // EAN desconhecido → o utilizador tira foto(s) do produto e o VLM identifica-o
-  // (nome/marca/nutrição), GUARDANDO a ficha sob este EAN (deixa de ser pendente).
+  // EAN desconhecido → o utilizador tira VÁRIAS fotos (frente, rótulo nutricional,
+  // ingredientes) e o VLM identifica o produto (nome/marca/nutrição), GUARDANDO a
+  // ficha sob ESTE ean. O ean scaneado é autoritativo: o backend ignora qualquer
+  // código que o VLM leia nas fotos (eanManual vence) — não há risco de trocar o EAN.
   // Reusa POST /identificar. Caso real: produto Mercadona Hacendado sem EAN na base.
-  async function identificarPorFoto(files) {
-    const fotos = [...(files || [])].slice(0, 4);
-    if (!fotos.length || !ean) return;
+  const MAX_IDENT = 5;
+  async function identificarPorFoto(fotos) {
+    const arr = (fotos || []).slice(0, MAX_IDENT);
+    if (!arr.length || !ean) return;
     setFase('identificando');
     try {
-      const r = await identificarProduto({ ean, fotos });
+      const r = await identificarProduto({ ean, fotos: arr });
       const nome = r?.vlm?.nome || r?.off?.nome || null;
-      if (nome) onEncontrado({ ean, nome }); // o pai resolve (lista adiciona / ficha abre)
+      if (nome) { setFotosIdent([]); onEncontrado({ ean, nome }); } // pai resolve (lista/ficha)
       else setFase('naoidentificado');
     } catch {
       setFase('naoidentificado');
@@ -2530,6 +2534,7 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
     if (!aberto) return undefined;
     setFase('scan');
     setEan(null);
+    setFotosIdent([]);
     setTemLuz(false);
     setLuz(false);
     let controls;
@@ -2618,16 +2623,27 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
                   <div className="scan-overlay">
                     <p>{t('scanner.naoEncontrado', { ean })}</p>
                     {/* não conhecemos o EAN → identificar por foto (VLM) e guardar a ficha */}
-                    <button className="scan-retry" onClick={() => fotoIdentRef.current?.click()}>
+                    <button className="scan-retry" onClick={() => { setFotosIdent([]); fotoIdentRef.current?.click(); }}>
                       <Ico name="camera" size={16} /> {t('scanner.identificarFoto')}
                     </button>
                     <button className="scan-foto" onClick={() => setTentativa((x) => x + 1)}>{t('scanner.lerOutro')}</button>
                   </div>
                 )}
+                {fase === 'capturar' && (
+                  <div className="scan-overlay">
+                    <p>{t('scanner.fotosTiradas', { n: fotosIdent.length })}</p>
+                    <button className="scan-retry" onClick={() => fotoIdentRef.current?.click()} disabled={fotosIdent.length >= MAX_IDENT}>
+                      <Ico name="camera" size={16} /> {fotosIdent.length >= MAX_IDENT ? t('scanner.maxFotos', { n: MAX_IDENT }) : t('scanner.maisFoto')}
+                    </button>
+                    <button className="scan-foto" onClick={() => identificarPorFoto(fotosIdent)} disabled={!fotosIdent.length}>
+                      {t('scanner.identificarN', { n: fotosIdent.length })}
+                    </button>
+                  </div>
+                )}
                 {fase === 'naoidentificado' && (
                   <div className="scan-overlay">
                     <p>{t('scanner.naoIdentificado')}</p>
-                    <button className="scan-retry" onClick={() => fotoIdentRef.current?.click()}>{t('scanner.tentarFoto')}</button>
+                    <button className="scan-retry" onClick={() => { setFotosIdent([]); fotoIdentRef.current?.click(); }}>{t('scanner.tentarFoto')}</button>
                     <button className="scan-foto" onClick={() => setTentativa((x) => x + 1)}>{t('scanner.lerOutro')}</button>
                   </div>
                 )}
@@ -2657,7 +2673,8 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
                 {erroVoz && <p className="sheet-offline">{erroVoz}</p>}
               </div>
               <input ref={fotoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { lerFoto(e.target.files?.[0]); e.target.value = ''; }} />
-              <input ref={fotoIdentRef} type="file" accept="image/*" capture="environment" multiple hidden onChange={(e) => { identificarPorFoto(e.target.files); e.target.value = ''; }} />
+              {/* capture SEM multiple (a combinação devolve 0 ficheiros no iOS) — acumula 1 a 1 */}
+              <input ref={fotoIdentRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFotosIdent((x) => (x.length >= MAX_IDENT ? x : [...x, f])); setFase('capturar'); } e.target.value = ''; }} />
               <button type="button" className="scan-foto" onClick={() => fotoRef.current?.click()}>
                 <Ico name="camera" size={18} /> {t('scanner.tirarFoto')}
               </button>
