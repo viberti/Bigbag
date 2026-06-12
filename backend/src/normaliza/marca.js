@@ -9,7 +9,7 @@
 // valor válido e isolado (regra do Mestre §4.1).
 import { carregarIdf } from './resolverProduto.js';
 
-const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+import { normAlfa as norm } from './categoria.js'; // unificação 2026-06-13
 
 // Marcadores de marca-própria/insígnia vistos nos talões reais.
 export const MARCADORES_CADEIA = [

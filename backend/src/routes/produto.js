@@ -12,7 +12,7 @@ import { config } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
-import { grupoDe, tokenCasa, singularizar } from '../normaliza/categoria.js';
+import { grupoDe, tokenCasa, singularizar, norm as normN } from '../normaliza/categoria.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from '../ingest/traduz.js';
@@ -546,7 +546,7 @@ produtoRouter.get('/consultar', requireAuth, async (req, res) => {
   }
 });
 
-const normN = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+// normN = norm de normaliza/categoria.js (unificação 2026-06-13)
 // Procura um produto JÁ CONHECIDO (SKU com ficha/nutrição) pelo nome, por TOKENS
 // com prioridade ao substantivo-cabeça (igual à consulta). Devolve {sku_id, ean}
 // do melhor candidato com nutrição — embalado (ean→ficha OFF) ou fresco (genérico).

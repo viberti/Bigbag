@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { createHash } from 'crypto';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista } from '../normaliza/categoria.js';
+import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista, norm } from '../normaliza/categoria.js';
 import { marcaDeterministica } from '../normaliza/marca.js';
 import { pesoPelaImagem, versaoPesoImg } from '../ingest/pesoImagem.js';
 import { chatCompletion } from '../openrouter.js';
@@ -17,7 +17,7 @@ export const listaRouter = Router();
 listaRouter.use(requireAuth);
 
 const num = (v) => (v == null ? null : Math.round(Number(v) * 100) / 100);
-const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+// norm vem de normaliza/categoria.js (unificação 2026-06-13)
 
 // Unidade de VENDA de um item da lista (como se compra de facto, não "à unidade"):
 // ovos vendem-se à dúzia, não 1 a 1. Devolve o rótulo singular (o frontend

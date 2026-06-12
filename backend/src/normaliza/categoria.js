@@ -3,7 +3,15 @@
 // o que o frontend remendava por keywords (categoriaAlto em App.jsx) — os ids são
 // OS MESMOS para a UI usar o grupo do servidor diretamente. A `categoria` texto
 // livre mantém-se como detalhe; o grupo é o eixo estável para agrupar/filtrar.
-const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+// NORMALIZADORES PARTILHADOS (unificação 2026-06-13 — a revisão achou norm()
+// redefinida em 7+ ficheiros). Este módulo é PURO (zero imports) e é importado
+// também pelo FRONTEND (App.jsx) — não acrescentar dependências de node aqui.
+//   norm     — minúsculas, sem acentos, espaços colapsados (pontuação PRESERVADA)
+//   normAlfa — idem, mas pontuação vira espaço (p/ tokenizar: marca, matching)
+// Variantes que FICAM próprias (de propósito): facetas.js (preserva %/),
+// verificarNomes.js (compacta tudo, sem espaços).
+export const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+export const normAlfa = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 // Categorias alimentares que DISPENSAM ficha nutricional POR-PRODUTO (não entram na
 // worklist "por identificar"): a nutrição vem da CLASSE (cereais/massas; pão, que é
@@ -174,3 +182,35 @@ export function grupoDe({ foodGroups = null, categoria = null, nome = null } = {
   if (porNome !== GRUPO_OUTROS) return porNome;
   return grupoDeTexto(categoria);
 }
+
+// ── TIPO-CONSUMIDOR da lista de compras (PARTILHADO front/back, 2026-06-13) ───
+// A lista agrupa pelo "o que a coisa É" (Massa, Pão, Cereais, Conservas + Mercearia
+// residual) — lente DISTINTA do grupo-de-loja acima (decisão do dono, 2026-06-12).
+// Vivia duplicado no frontend (App.jsx) com vocabulário paralelo ao GRUPOS — a
+// revisão técnica achou 3+ cópias (front + back + réplicas inline em testes e2e).
+// Agora a DEFINIÇÃO vive aqui e o frontend importa (módulo puro, ver cabeçalho).
+export const TIPOS_NOME = [ // regexes sobre norm() (minúsculas, SEM acentos)
+  // NOTA: "pasta" sozinho NÃO classifica (ambíguo: pasta de dentes/amendoim/folhada).
+  // A massa real vem pelo formato (penne, cannelloni…) ou por "massa"/marca. No
+  // DISPLAY, porém, "pasta" é genérico a cortar no tipo massa (ver GEN_RE).
+  ['massa', /(^|[^a-z])(massas?|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchigli|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini)/],
+  ['cereais', /(^|[^a-z])(cereais?|muesli|granola|aveia|flocos|cornflake|chocapic|estrelitas)/],
+  ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa]|polpa de tomate)/], // marcador explícito (atum "fresco" fica peixe)
+  ['pao', /(^|[^a-z])(pao|paes|tosta|wrap|broa|baguet|croissant|brioche)/],
+];
+export function tipoConsumidor(grupo, nome, marca) {
+  const s = norm(nome);
+  for (const [id, re] of TIPOS_NOME) if (re.test(s)) return id;
+  // a MARCA é fabricante de massa ("Pasta Berruto", "Pasta Zara") → massa. Apanha
+  // nomes errados/estranhos sem categoria (ex.: "Concchiglioni" com cc duplo).
+  if (marca && /(^|[^a-z])(pasta|massa)([^a-z]|$)/.test(norm(marca))) return 'massa';
+  if (['frutas', 'carne', 'peixe', 'lacticinios', 'bebidas', 'doces', 'congelados', 'higiene'].includes(grupo)) return grupo;
+  if (grupo === 'padaria') return 'pao';        // padaria sem massa/cereais ≈ pão
+  if (grupo === 'mercearia') return 'mercearia'; // residual dos secos (arroz, farinha, azeite, sal…)
+  return 'outros';
+}
+// genéricos a CORTAR do nome no display, POR TIPO (lógica do dono: a palavra
+// ignorada está associada à categoria — "pasta" corta-se em Massa, fica em
+// "Pasta de Dentes"). CONECTORES protegem nomes compostos ("Pão de Forma").
+export const GEN_RE = { massa: /^(massas?|pasta)$/, pao: /^(pao|paes)$/, cereais: /^cereais?$/, conservas: /^conservas?$/ };
+export const CONECTORES = new Set(['de', 'do', 'da', 'dos', 'das', 'com', 'para', 'e', 'em', 'sem', 'ao']);

@@ -9,7 +9,7 @@ import { nomesPorEan } from './mestreEan.js';
 import { expandirAbreviaturas } from './abreviaturas.js';
 
 const STOP = new Set(['de','da','do','e','com','sem','para','por','kg','kgs','g','gr','grs','ml','cl','lt','l','un','und','unid','sabor','tipo','pack','x','the','of']);
-const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+import { normAlfa as norm } from './categoria.js'; // unificação 2026-06-13
 const toks = (s) => norm(s).split(' ').filter((t) => t.length >= 3 && !STOP.has(t));
 
 // SABOR/TEOR/DIETA: discriminadores DUROS — vocabulário ÚNICO e multilingue em

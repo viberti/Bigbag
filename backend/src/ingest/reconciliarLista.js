@@ -6,7 +6,7 @@
 // tolerância a acentos (PT-BR "higiênico" ↔ PT "higiénico") e singular/plural
 // ("Bananas" casa "Banana"). Conservador: token a mais na lista → NÃO casa.
 const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'com', 'sem', 'para', 'em', 'a', 'o', 'os', 'as', 'un', 'kg', 'g', 'ml', 'l', 'cl']);
-const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ');
+import { normAlfa as norm } from '../normaliza/categoria.js'; // unificação 2026-06-13 (collapse/trim extra é inócuo: usos tokenizam)
 const stem = (t) => t.replace(/s$/, '');
 const toks = (s) => [...new Set(norm(s).split(/\s+/).filter((t) => t.length >= 3 && !STOP.has(t)).map(stem))];
 

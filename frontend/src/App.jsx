@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, adicionarDespensa, removerDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
 import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
+// CLASSIFICACAO/NORMALIZACAO PARTILHADA com o backend (unificação 2026-06-13 —
+// a revisão achou vocabulários paralelos front/back a divergir). Módulo PURO.
+// chaveLite = chaveItemLista: a consolidação otimista usa a MESMA chave do servidor
+// (antes era um clone com singularização naïve '-s').
+import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, GEN_RE, CONECTORES } from '../../backend/src/normaliza/categoria.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -37,9 +42,7 @@ const eur = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ','
 // Chave LOCAL de consolidação (aproximação otimista da do servidor): minúsculas,
 // sem acentos, -s final fora. "Bananas"≈"banana", "Pão"≈"pao". O servidor é a
 // verdade (singularização completa); isto só evita duplicado visual imediato.
-const chaveLite = (n) => String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/)
-  .map((t) => (t.length > 3 && t.endsWith('s') && !t.endsWith('ss') ? t.slice(0, -1) : t)).join(' ');
+// chaveLite/normCat/tipoConsumidor/GEN_RE: importados do módulo partilhado (ver topo)
 
 // Sufixo de quantidade de um item da lista: na UNIDADE DE VENDA quando se conhece
 // (ex.: ovos → "· 1 dúzia" / "· 2 dúzias", em vez de "×1" que se lia como 1 ovo);
@@ -1461,7 +1464,7 @@ function NotasSheet({ aberto, notas, onFechar, onIdentificar, onInfo, identifica
 // Categorias de alto nível para a vista "por categoria" do detalhe da nota.
 // Mapeia a categoria existente (frescos do `produto_generico` + OFF, PT+EN, suja)
 // para ~10 grupos. v1 "começa com o que temos"; evoluirá para categoria por SKU.
-const normCat = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 const GRUPOS_CAT = [
   { id: 'frutas', label: 'Frutas e Vegetais', ic: '🍎', t: ['fruta', 'fruit', 'legume', 'vegetal', 'vegetable', 'verdura', 'hortic', 'hortofrut', 'salada', 'cogumelo', 'meloa', 'melao', 'melancia', 'salsa'] },
   { id: 'carne', label: 'Carne e Charcutaria', ic: '🥩', t: ['carne', 'meat', 'charcutaria', 'fiambre', 'ham', 'enchido', 'salsicha', 'sausage', 'salam', 'talho', 'aves', 'poultry', 'bovino', 'beef', 'suino', 'pork', 'porco', 'frango', 'chicken', 'peru'] },
@@ -1528,34 +1531,13 @@ const TIPOS_CAT = [
 ];
 // tipos salientes da despensa, por NOME (vence o grupo-de-loja). Conservas exige
 // marcador explícito de conserva (atum fresco ≠ atum em lata). Ordem importa.
-const TIPOS_NOME = [ // testados contra normCat (minúsculas, SEM acentos)
-  // NOTA: "pasta" sozinho NÃO classifica (ambíguo: pasta de dentes/amendoim/folhada).
-  // A massa real vem pelo formato (penne, cannelloni…) ou por "massa"/marca. No
-  // DISPLAY, porém, "pasta" é genérico a cortar no tipo massa (ver GEN_RE).
-  ['massa', /(^|[^a-z])(massas?|penne|pennette|esparguete|espaguete|macarrao|fusilli|talharim|tagliatel|fettuccin|farfalle|rigaton|lasanha|noodles|gnocchi|nhoque|cuscuz|raviol|tortelin|fideos?|cotovelos?|cotovelinhos?|conchigli|capellini|vermicell|aletria|linguine|pappardel|paccheri|bucatini|cannellon|canelone|orecchiet|ditalini)/],
-  ['cereais', /(^|[^a-z])(cereais?|muesli|granola|aveia|flocos|cornflake|chocapic|estrelitas)/],
-  ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa]|polpa de tomate)/], // marcador explícito (atum "fresco" fica peixe)
-  ['pao', /(^|[^a-z])(pao|paes|tosta|wrap|broa|baguet|croissant|brioche)/],
-];
-function tipoConsumidor(grupo, nome, marca) {
-  const s = normCat(nome);
-  for (const [id, re] of TIPOS_NOME) if (re.test(s)) return id;
-  // a MARCA é fabricante de massa ("Pasta Berruto", "Pasta Zara") → massa. Apanha
-  // nomes errados/estranhos sem categoria (ex.: "Concchiglioni" com cc duplo).
-  if (marca && /(^|[^a-z])(pasta|massa)([^a-z]|$)/.test(normCat(marca))) return 'massa';
-  if (['frutas', 'carne', 'peixe', 'lacticinios', 'bebidas', 'doces', 'congelados', 'higiene'].includes(grupo)) return grupo;
-  if (grupo === 'padaria') return 'pao';        // padaria sem massa/cereais ≈ pão
-  if (grupo === 'mercearia') return 'mercearia'; // residual dos secos (arroz, farinha, azeite, sal…)
-  return 'outros';
-}
-
 // Nome "à talão" para a lista: o genérico que repete a secção é supérfluo ("Massa"
 // numa lista debaixo de Massa) → corta-se; a MARCA mostra-se à parte, noutra cor
 // (it.marca vem detetada do servidor). Determinístico, sobre o nome livre.
 // genéricos a CORTAR do nome, por TIPO (lógica do dono: a palavra ignorada está
 // associada à categoria — "pasta" é genérico de massa, mas noutras categorias é
 // "pasta de dentes/amendoim" e deve ficar).
-const GEN_RE = { massa: /^(massas?|pasta)$/, pao: /^(pao|paes)$/, cereais: /^cereais?$/, conservas: /^conservas?$/ };
+
 function formatarNomeLista(nome, marca, tipoId) {
   let words = String(nome || '').trim().split(/\s+/).filter(Boolean);
   const marcaTxt = marca ? limparMarca(marca) : null;
@@ -1567,8 +1549,7 @@ function formatarNomeLista(nome, marca, tipoId) {
   // corta o genérico da frente SÓ se a palavra seguinte não for um conector — senão
   // é um nome composto e o genérico é a cabeça ("Pão de Forma" ≠ "de Forma").
   const re = GEN_RE[tipoId];
-  const CONECT = new Set(['de', 'do', 'da', 'dos', 'das', 'com', 'para', 'e', 'em', 'sem', 'ao']);
-  if (re && words.length > 1 && re.test(normCat(words[0])) && !CONECT.has(normCat(words[1]))) words.shift();
+  if (re && words.length > 1 && re.test(normCat(words[0])) && !CONECTORES.has(normCat(words[1]))) words.shift();
   return { core: words.join(' ') || String(nome || ''), marca: marcaTxt };
 }
 
