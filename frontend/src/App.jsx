@@ -289,6 +289,7 @@ function Chat({ onSair, nome }) {
     mostrarToast(t('toast.enviados', { n: ok }) + (falhou ? t('toast.falharam', { n: falhou }) : '') + '.');
   }
   const [scannerAberto, setScannerAberto] = useState(false);
+  const scanListaRef = useRef(false); // scan disparado da lista → produto vai direto p/ a lista
   const [compararAberto, setCompararAberto] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [toast, setToast] = useState('');
@@ -966,6 +967,7 @@ function Chat({ onSair, nome }) {
         onLimpar={limparCarrinho}
         onAbrirHabituais={abrirHabituais}
         onAbrirMinha={abrirMinhaLista}
+        onScan={() => { scanListaRef.current = true; setScannerAberto(true); track('scanner_abrir', { via: 'lista' }); }}
         onFechar={() => setCarrinhoAberto(false)}
       />
       <MinhaListaSheet
@@ -998,8 +1000,19 @@ function Chat({ onSair, nome }) {
       />
       <ScannerSheet
         aberto={scannerAberto}
-        onFechar={() => setScannerAberto(false)}
-        onEncontrado={(p) => { setScannerAberto(false); setInfoItem({ ean: p.ean || undefined, sku_id: p.sku_id || undefined, produto: p.nome || p.ean, local: p.local }); }}
+        onFechar={() => { scanListaRef.current = false; setScannerAberto(false); }}
+        onEncontrado={(p) => {
+          setScannerAberto(false);
+          // scan iniciado a partir da lista → o produto lido vai DIRETO para a
+          // lista (exatamente aquele), em vez de abrir a ficha. "Vi a acabar, fiz scan."
+          if (scanListaRef.current) {
+            scanListaRef.current = false;
+            const nome = p.nome || p.produto || p.ean;
+            if (nome) { adicionarAoCarrinho(nome); navigator.vibrate?.(15); track('lista_scan_adicionar'); }
+            return;
+          }
+          setInfoItem({ ean: p.ean || undefined, sku_id: p.sku_id || undefined, produto: p.nome || p.ean, local: p.local });
+        }}
       />
       <CompararSheet aberto={compararAberto} onFechar={() => setCompararAberto(false)} />
       <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
@@ -3462,18 +3475,22 @@ function ItemCarrinho({ it, novo, onRemover, onMarcar, onDelta, onCard }) {
             </span>
           )}
         </span>
-        <span className="cqtd" onClick={(e) => e.stopPropagation()}>
-          <button type="button" onClick={() => onDelta(it.id, -1)} aria-label="-">−</button>
-          <button type="button" aria-label="+"
-            onClick={() => { if (rep.current.fired) { rep.current.fired = false; return; } onDelta(it.id, +1); }}
-            onPointerDown={repStart} onPointerUp={repStop} onPointerLeave={repStop} onContextMenu={(e) => e.preventDefault()}>+</button>
-        </span>
+        {/* já no carrinho ("comprado") → o +/− deixa de fazer sentido; a ×N
+            continua visível no nome. Só os itens por comprar ajustam quantidade. */}
+        {!riscado && (
+          <span className="cqtd" onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => onDelta(it.id, -1)} aria-label="-">−</button>
+            <button type="button" aria-label="+"
+              onClick={() => { if (rep.current.fired) { rep.current.fired = false; return; } onDelta(it.id, +1); }}
+              onPointerDown={repStart} onPointerUp={repStop} onPointerLeave={repStop} onContextMenu={(e) => e.preventDefault()}>+</button>
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onDelta, onLote, novosIds, onRemover, onRenomear, onLimpar, onAbrirHabituais, onAbrirMinha, onFechar }) {
+function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAdicionar, onMarcar, onQtd, onDelta, onLote, novosIds, onRemover, onRenomear, onLimpar, onAbrirHabituais, onAbrirMinha, onScan, onFechar }) {
   const [novo, setNovo] = useState('');
   // "provavelmente está a acabar" (cadência das compras, determinístico):
   // alimenta o estado vazio (✨ Começar por mim) e o cartão de sugestões.
@@ -3649,7 +3666,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
               ))}
               {noCarrinho.length > 0 && (
                 <div className="cart-feito">
-                  <div className="cart-cat cart-cat-feito"><Ico name="cart" size={22} /> <span>{noCarrinho.length}</span></div>
+                  <div className="cart-cat cart-cat-feito"><Ico name="cart" size={26} /> <span>{noCarrinho.length}</span></div>
                   {noCarrinho.map((it) => (
                     <ItemCarrinho key={it.id} it={it} novo={novosIds?.has(it.id)} onRemover={onRemover} onMarcar={onMarcar} onDelta={onDelta} onCard={abrirCard} />
                   ))}
@@ -3688,21 +3705,26 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
         )}
         {erroVoz && <p className="sheet-offline">{erroVoz}</p>}
         <div className="cart-add">
-          <button type="button" className="voz" onClick={onAbrirHabituais} aria-label={t('habituais.title')} title={t('habituais.title')}>
-            <Ico name="usual" size={18} />
-          </button>
-          <button type="button" className="voz" onClick={onAbrirMinha} aria-label={t('plista.title')} title={t('plista.title')}>
-            <Ico name="pessoa" size={18} />
-          </button>
-          <input
-            placeholder={t('cart.addPh')}
-            value={novo}
-            onChange={(e) => setNovo(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') adicionar(); }}
-          />
-          <button type="button" disabled={!novo.trim()} onClick={adicionar} aria-label={t('cart.add')}>
-            <Ico name="plus" size={18} stroke={2.4} />
-          </button>
+          {/* Ações de entrada DENTRO da área de digitação (habituais · pessoal ·
+              scan). O scan é uma forma de 1.º toque de pôr na lista: vejo um
+              produto a acabar, leio o código de barras e ELE vai para a lista. */}
+          <div className="cart-inwrap">
+            <button type="button" className="cart-inico" onClick={onAbrirHabituais} aria-label={t('habituais.title')} title={t('habituais.title')}>
+              <Ico name="usual" size={18} />
+            </button>
+            <button type="button" className="cart-inico" onClick={onAbrirMinha} aria-label={t('plista.title')} title={t('plista.title')}>
+              <Ico name="pessoa" size={18} />
+            </button>
+            <button type="button" className="cart-inico" onClick={onScan} aria-label={t('cart.scan')} title={t('cart.scan')}>
+              <Ico name="barras" size={18} />
+            </button>
+            <input
+              placeholder={t('cart.addPh')}
+              value={novo}
+              onChange={(e) => setNovo(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') adicionar(); }}
+            />
+          </div>
           <button type="button" className={`voz${gravando ? ' rec' : ''}`} onClick={alternarVoz} disabled={aOuvir} aria-label={t('cart.voz')} title={t('cart.voz')}>
             {aOuvir ? '…' : <Ico name={gravando ? 'stop' : 'mic'} size={18} />}
           </button>

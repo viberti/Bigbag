@@ -1492,10 +1492,15 @@ body { background: #0c1814; }
   color: var(--muted-bb); font-size: 12px; font-weight: 700; cursor: pointer; }
 .bb .cart-mercados button.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: var(--text-bb); }
 /* adicionar produto à mão (pode não estar nos habituais) */
-.bb .cart-add { display: flex; gap: 8px; padding: 10px 18px 0; flex: 0 0 auto; }
-.bb .cart-add input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text-bb); font-size: 14.5px; }
-.bb .cart-add button { flex: 0 0 auto; width: 42px; border-radius: 11px; border: none; background: var(--accent); color: #06231a; display: grid; place-items: center; cursor: pointer; }
-.bb .cart-add button:disabled { opacity: .45; }
+.bb .cart-add { display: flex; gap: 8px; padding: 10px 18px 0; flex: 0 0 auto; align-items: stretch; }
+/* área de digitação: a borda envolve os ícones de ação (habituais·pessoal·scan)
+   e o campo; o microfone fica fora, à direita. */
+.bb .cart-inwrap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 1px; padding: 0 4px 0 5px; border-radius: 11px; border: 1px solid var(--line); background: rgba(255,255,255,.04); }
+.bb .cart-inwrap input { flex: 1; min-width: 0; padding: 10px 8px; border: none; background: none; color: var(--text-bb); font-size: 14.5px; }
+.bb .cart-inwrap input:focus { outline: none; }
+.bb .cart-add .cart-inico { flex: 0 0 auto; width: 32px; height: 34px; border-radius: 9px; border: none; background: none; color: var(--muted-bb); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.bb .cart-add .cart-inico:active { background: rgba(255,255,255,.08); color: var(--text-bb); }
+.bb .cart-add .voz:disabled { opacity: .45; }
 .bb .cart-foot { padding: 15px 18px 18px; border-top: 1px solid var(--line); flex: 0 0 auto; }
 .bb .cart-total { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 13px; font-size: 15px; color: var(--muted-bb); font-weight: 600; }
 .bb .cart-total b { font-size: 24px; color: var(--txt); font-weight: 800; font-variant-numeric: tabular-nums; }
