@@ -29,6 +29,23 @@ if ! gunzip -t "$F" || ! gunzip -c "$F" | tail -1 | grep -q "Dump completed"; th
   exit 1
 fi
 
-# retenção: 14 dias
+# retenção local: 14 dias
 find "$DIR" -name 'app_bigbag_*.sql.gz' -mtime +14 -delete
-echo "backup OK: $F ($(du -h "$F" | cut -f1)) · $(ls "$DIR" | wc -l) na retenção"
+echo "backup OK: $F ($(du -h "$F" | cut -f1)) · $(ls "$DIR" | wc -l) na retenção local"
+
+# ── OFF-SITE (Cloudflare R2, 2026-06-13): o backup local vive no MESMO disco do
+# servidor — não protege de morte do VPS. Encripta client-side (gpg simétrico,
+# passphrase no .env E no doc privado do PC do dono — o R2 só vê blobs opacos)
+# e envia por rclone. Gracioso: sem remote configurado, avisa e não falha (o
+# backup local continua válido). Retenção remota: 90 dias.
+RCLONE=/home/dev/bin/rclone
+if [[ -n "${BACKUP_GPG_PASS:-}" ]] && "$RCLONE" listremotes 2>/dev/null | grep -q '^r2:'; then
+  G="$F.gpg"
+  gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_GPG_PASS" -o "$G" "$F"
+  "$RCLONE" copyto "$G" "r2:bigbag-backups/$(basename "$G")" --s3-no-check-bucket
+  rm -f "$G"  # o .gpg local é só veículo; o claro fica na retenção local
+  "$RCLONE" delete "r2:bigbag-backups/" --min-age 90d 2>/dev/null || true
+  echo "off-site OK: r2:bigbag-backups/$(basename "$G") · $("$RCLONE" ls r2:bigbag-backups/ | wc -l) no R2"
+else
+  echo "off-site: remote r2 não configurado (rclone config) — só backup local"
+fi
