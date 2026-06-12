@@ -19,7 +19,7 @@ A aba Qualidade do `/admin` não tem métricas de grupo. **Fazer:** taxa de 'out
 
 ### 1.3 ~~Saturação da confiança do alias~~ — ALARME FALSO (corrigido 2026-06-13)
 A investigação mostrou que a alegação original estava **errada por erro de escala na query da própria revisão** (`>=0.8` numa coluna 0–100 → tudo "≥0.8"). A realidade: a confiança do alias **é um código de VIA, não probabilidade** (migração 016): 100=manual ×112 · 90=match ×23 · 75=juiz ×6 · 60=SKU-novo ×319. O LLM da canonicalização usa 0–1 e compara com 0.6 na mesma escala — **sem bug**. A worklist usa limiar 70 (escala certa) e funciona.
-**O achado real que sobra:** a confiança **nunca sobe com o uso** — um alias via-novo usado em N talões sem correção fica 60 para sempre; a worklist tem 319 entradas permanentes que o operador nunca esvazia. Promover com o uso (ex.: ≥3 talões sem correção → 75) é **mudança de semântica da migração 016 → decisão do dono pendente**.
+**O achado real que sobra:** a confiança **nunca sobe com o uso** — um alias via-novo usado em N talões sem correção fica 60 para sempre; a worklist tem 319 entradas permanentes que o operador nunca esvazia. Promover com o uso seria mudança de semântica da migração 016. **DECISÃO (dono, 2026-06-13, por conselho):** confiança intacta (proveniência); a worklist ganhou **maturidade derivada em runtime** (≥3 talões distintos sem correção → escondido por defeito, toggle; ordenação menos-usado-primeiro). Implementado em v0.0.134.0.
 
 ## Prioridade 2 — consolidação (eliminar duplicação que vai divergir)
 
