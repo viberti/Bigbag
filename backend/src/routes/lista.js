@@ -9,6 +9,7 @@ import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
 import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista } from '../normaliza/categoria.js';
 import { marcaDeterministica } from '../normaliza/marca.js';
+import { pesoPelaImagem, versaoPesoImg } from '../ingest/pesoImagem.js';
 import { chatCompletion } from '../openrouter.js';
 import { config } from '../config.js';
 
@@ -102,6 +103,11 @@ async function resolverItensLista(pool, itens, mercado) {
   }
   await aplicarDadosEan(pool, itens); // preço-ref + marca da ficha (corre haja ou não SKU casado)
   await aplicarTamanhoPorNome(pool, itens); // peso em falta → match por nome no catálogo
+  // ainda sem peso? → ferramenta "peso pela imagem" EM FUNDO (VLM lê a foto do
+  // catálogo/OFF, 1x por EAN, ~$0,001). Não bloqueia; o poll seguinte traz o peso.
+  for (const it of itens) {
+    if (!it.tamanho && it.ean) pesoPelaImagem(it.ean); // fire-and-forget (dedup interno)
+  }
   if (!allSkuIds.size) return;
   const ids = [...allSkuIds];
   const ph = ids.map(() => '?').join(',');
@@ -436,7 +442,7 @@ async function montarLista(pool, mercado) {
 // (nome/qtd/estado/quem riscou), o mercado selecionado, ou quando entra uma
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 function listaSig(itens, mercado, maxItemId) {
-  const s = `${mercado || ''}|${maxItemId || 0}|` +
+  const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
   return createHash('sha1').update(s).digest('base64').slice(0, 22);
 }
