@@ -101,6 +101,7 @@ async function resolverItensLista(pool, itens, mercado) {
     it.marca = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
   }
   await aplicarDadosEan(pool, itens); // preço-ref + marca da ficha (corre haja ou não SKU casado)
+  await aplicarTamanhoPorNome(pool, itens); // peso em falta → match por nome no catálogo
   if (!allSkuIds.size) return;
   const ids = [...allSkuIds];
   const ph = ids.map(() => '?').join(',');
@@ -216,6 +217,40 @@ function fmtTamanho(v, unidade) {
   const ml = u === 'l' ? v * 1000 : u === 'cl' ? v * 10 : v;
   return ml >= 1000 ? `${fmtNum(ml / 1000)} L` : `${fmtNum(ml)} ml`;
 }
+// Tokens-CONTEÚDO de um nome (sem marca, genéricos e tamanhos) — base do match
+// entre lojas por nome (mesmo produto, EAN/fonte diferente).
+const STOP_TAM = new Set(['massa', 'massas', 'pasta', 'de', 'do', 'da', 'dos', 'das', 'com', 'e', 'em', 'para']);
+function tokensConteudo(nome, marca) {
+  const m = new Set(norm(marca || '').split(' ').filter(Boolean));
+  return new Set(norm(nome).replace(/[^a-z0-9 ]/g, ' ').split(' ')
+    .filter((t) => t && !STOP_TAM.has(t) && !m.has(t) && !/\d/.test(t)));
+}
+// Preenche o TAMANHO por NOME quando o EAN não o deu: o MESMO produto existe no
+// catálogo sob outro EAN/fonte, com o peso (ex.: Cannelloni Delverde 250g). Match
+// estrito por marca + conjunto-de-tokens-conteúdo; escolhe a linha com peso real
+// (ignora "1un"). Determinístico, sem falsos positivos (penne ≠ penne s/glúten).
+async function aplicarTamanhoPorNome(pool, itens) {
+  const alvos = itens.filter((it) => !it.tamanho && it.marca);
+  if (!alvos.length) return;
+  const marcas = [...new Set(alvos.map((it) => it.marca))];
+  const ph = marcas.map(() => '?').join(',');
+  const [rows] = await pool.query(
+    `SELECT marca, nome, formato FROM catalogo_produto WHERE marca IN (${ph}) AND formato IS NOT NULL`, marcas);
+  const porMarca = new Map();
+  for (const r of rows) (porMarca.get(r.marca) || porMarca.set(r.marca, []).get(r.marca)).push(r);
+  for (const it of alvos) {
+    const refC = tokensConteudo(it.nome, it.marca);
+    if (!refC.size) continue;
+    for (const r of porMarca.get(it.marca) || []) {
+      const c = tokensConteudo(r.nome, it.marca);
+      if (c.size === refC.size && [...c].every((x) => refC.has(x))) {
+        const t = limparTamanho(r.formato);
+        if (t) { it.tamanho = t; break; }
+      }
+    }
+  }
+}
+
 // Tamanho legível e NORMALIZADO para a linha do item: extrai o peso/volume do
 // texto da ficha e mostra na escala certa ("0.25kg" → "250 g", "500 g" → "500 g",
 // "1500 g" → "1,5 kg"). Multipack mantém a estrutura ("4 x 125 g"). null para
