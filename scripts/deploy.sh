@@ -34,6 +34,13 @@ if [[ -n "$(git log origin/bootstrap-infra..HEAD --oneline 2>/dev/null)" ]]; the
   exit 1
 fi
 
+# 2b) git tag da versão (alvo para scripts/rollback.sh) — criada no deploy, não
+# no commit, para etiquetar só o que chegou a produção. Push de tags é livre.
+VER="v$(node -e "console.log(require('./frontend/package.json').version)")"
+if ! git rev-parse -q --verify "refs/tags/$VER" >/dev/null; then
+  git tag -a "$VER" -m "deploy $(date +%F)" && git push -q origin "$VER" && echo "tag $VER criada"
+fi
+
 # 3) servidor: pull (+build) + restart + health
 ssh pitacos-prod "set -e
   cd /home/dev/bigbag && sudo -u dev git pull -q
