@@ -227,6 +227,10 @@ export const TIPOS_NOME = [ // regexes sobre norm() (minúsculas, SEM acentos)
   ['tomate', /(^|[^a-z])(polpa de tomate|passatas?|pelati|tomate pelado|concentrado de tomate|tomate triturado)/],
   ['conservas', /(^|[^a-z])(conserva|enlatad|em lata|pelad[oa])/], // marcador explícito (atum "fresco" fica peixe)
   ['pao', /(^|[^a-z])(pao|paes|tosta|wrap|broa|baguet|croissant|brioche)/],
+  // Café, Chá e Infusão (dono, 2026-06-13 — a folha do Auchan virou secção da
+  // lista). 'cha' exige fronteira e NÃO seguido de gelado/frio (esses são
+  // bebidas prontas); 'chave/salsicha' não casam (fronteira + ).
+  ['cafe_cha', /(^|[^a-z])(chas?\b(?! gelad| fri)|cafes?\b|infus|descafeinado|tisana|rooibos|camomila|cidreira|earl grey)/],
 ];
 export function tipoConsumidor(grupo, nome, marca) {
   const s = norm(nome);

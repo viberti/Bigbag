@@ -1525,6 +1525,7 @@ const TIPOS_CAT = [
   { id: 'cereais', label: 'Cereais', ic: '🥣' },
   { id: 'tomate', label: 'Polpas de Tomate', ic: '🍅' },
   { id: 'conservas', label: 'Conservas', ic: '🥫' },
+  { id: 'cafe_cha', label: 'Café, Chá e Infusão', ic: '☕' },
   { id: 'mercearia', label: 'Mercearia', ic: '🛒' },
   { id: 'bebidas', label: 'Bebidas', ic: '🥤' },
   { id: 'doces', label: 'Doces e Snacks', ic: '🍫' },
