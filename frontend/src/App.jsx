@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
+import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -470,16 +471,35 @@ function Chat({ onSair, nome }) {
   const eu = String(nome || '').toLowerCase(); // user id (a prop `nome` é o id capitalizado)
   const outboxLista = () => { try { return JSON.parse(localStorage.getItem('bb_lista_outbox') || '[]'); } catch { return []; } };
   const gravarOutboxLista = (arr) => localStorage.setItem('bb_lista_outbox', JSON.stringify(arr));
+  // Enfileira uma operação offline (com coalescing) e marca o estado offline. As
+  // entradas antigas (pré-outbox-completo) eram só {nome,...} sem `op` → o despacho
+  // trata-as como 'add'. A operação fica em localStorage e segue na próxima rede.
+  const enfileirar = (op) => { gravarOutboxLista(coalescar(outboxLista(), op)); setListaOffline(true); };
 
   const carregarLista = useCallback(async (mercado = mercadoSel) => {
-    // 1) despachar adições feitas offline (fila), pela ordem
+    // 1) despachar as operações feitas offline, por ORDEM (FIFO). Itens criados
+    // offline têm id tmp; quando o `add` é aceite o servidor dá o id real e as
+    // ops seguintes que o referiam são remapeadas (resolverIdOutbox).
     let fila = outboxLista();
+    const remap = {};
     while (fila.length) {
+      const op = fila[0];
       try {
-        await adicionarListaItem(fila[0]);
+        if (!op.op || op.op === 'add') {
+          const r = await adicionarListaItem({ nome: op.nome, quantidade: op.quantidade, categoria: op.categoria });
+          if (op.tmp && r?.id != null) remap[op.tmp] = r.id;
+        } else {
+          const id = resolverIdOutbox(op.id, remap);
+          if (id == null || String(id).startsWith('tmp')) { /* alvo nunca materializou → descarta */ }
+          else if (op.op === 'inc') await atualizarListaItem(id, { inc: op.inc });
+          else if (op.op === 'qtd') await atualizarListaItem(id, { quantidade: op.quantidade });
+          else if (op.op === 'marcar') await atualizarListaItem(id, { marcado: op.marcado });
+          else if (op.op === 'nome') await atualizarListaItem(id, { nome: op.nome });
+          else if (op.op === 'remover') await removerListaItem(id);
+        }
         fila = fila.slice(1);
         gravarOutboxLista(fila);
-      } catch { break; }
+      } catch { break; } // ainda offline → tenta na próxima carga
     }
     // 2) migração única do carrinho local antigo (pré-lista-partilhada)
     try {
@@ -532,6 +552,15 @@ function Chat({ onSair, nome }) {
   useEffect(() => { carregarLista(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const noCarrinho = (n) => (lista || []).some((i) => chaveLite(i.nome) === chaveLite(n));
+  // Trata o caso de um item ainda TMP (criado offline). Se o seu `add` já está no
+  // outbox, enfileira a operação (sincroniza depois do add, via remap tmp→real);
+  // se for um add online ainda em voo, ignora (o reload reconcilia). Devolve true
+  // quando o item é tmp (não há id real para bater no servidor).
+  const tratarTmp = (id, op) => {
+    if (!String(id).startsWith('tmp')) return false;
+    if (outboxLista().some((e) => e.op === 'add' && e.tmp === id)) enfileirar(op);
+    return true;
+  };
   async function adicionarAoCarrinho(n, categoria, quantidade = 1) {
     const nome = String(n || '').trim();
     if (!nome) return;
@@ -541,19 +570,19 @@ function Chat({ onSair, nome }) {
     if (existente) {
       setLista((xs) => (xs || []).map((i) => (i.id === existente.id
         ? { ...i, quantidade: Math.min(99, (i.quantidade || 1) + quantidade), estado: 'ativo', marcado_por: null } : i)));
-      if (!String(existente.id).startsWith('tmp')) {
-        try { await atualizarListaItem(existente.id, { inc: quantidade, marcado: false }); } catch { setListaOffline(true); }
-      }
+      if (tratarTmp(existente.id, { op: 'inc', id: existente.id, inc: quantidade })) return;
+      try { await atualizarListaItem(existente.id, { inc: quantidade, marcado: false }); setListaOffline(false); }
+      catch { enfileirar({ op: 'inc', id: existente.id, inc: quantidade }); }
       return;
     }
     const cat = categoria || catPorNome[nome] || null;
-    setLista((xs) => [...(xs || []), { id: `tmp${Date.now()}`, nome, quantidade, categoria: cat, estado: 'ativo', adicionado_por: eu, melhor_preco: null }]);
+    const tmpId = `tmp${Date.now()}`;
+    setLista((xs) => [...(xs || []), { id: tmpId, nome, quantidade, categoria: cat, estado: 'ativo', adicionado_por: eu, melhor_preco: null }]);
     try {
       await adicionarListaItem({ nome, quantidade, categoria: cat });
       carregarLista();
     } catch {
-      gravarOutboxLista([...outboxLista(), { nome, quantidade, categoria: cat }]); // offline → segue depois
-      setListaOffline(true);
+      enfileirar({ op: 'add', tmp: tmpId, nome, quantidade, categoria: cat }); // offline → segue depois (com remap)
     }
   }
   const alternarCarrinho = (n, categoria) => {
@@ -563,20 +592,20 @@ function Chat({ onSair, nome }) {
   };
   async function marcarItemLista(id, marcado) {
     setLista((xs) => (xs || []).map((i) => (i.id === id ? { ...i, estado: marcado ? 'carrinho' : 'ativo', marcado_por: marcado ? eu : null } : i)));
-    if (String(id).startsWith('tmp')) return;
-    try { await atualizarListaItem(id, { marcado }); } catch { setListaOffline(true); }
+    if (tratarTmp(id, { op: 'marcar', id, marcado })) return;
+    try { await atualizarListaItem(id, { marcado }); setListaOffline(false); } catch { enfileirar({ op: 'marcar', id, marcado }); }
   }
   async function qtdItemLista(id, quantidade) {
     setLista((xs) => (xs || []).map((i) => (i.id === id ? { ...i, quantidade } : i)));
-    if (String(id).startsWith('tmp')) return;
-    try { await atualizarListaItem(id, { quantidade }); } catch { setListaOffline(true); }
+    if (tratarTmp(id, { op: 'qtd', id, quantidade })) return;
+    try { await atualizarListaItem(id, { quantidade }); setListaOffline(false); } catch { enfileirar({ op: 'qtd', id, quantidade }); }
   }
   // Incremento por DELTA (servidor soma): dois membros a carregar "+" ao mesmo
   // tempo somam os dois — valor absoluto era last-write-wins e perdia um.
   async function deltaItemLista(id, inc) {
     setLista((xs) => (xs || []).map((i) => (i.id === id ? { ...i, quantidade: Math.min(99, Math.max(1, (i.quantidade || 1) + inc)) } : i)));
-    if (String(id).startsWith('tmp')) return;
-    try { await atualizarListaItem(id, { inc }); } catch { setListaOffline(true); }
+    if (tratarTmp(id, { op: 'inc', id, inc })) return;
+    try { await atualizarListaItem(id, { inc }); setListaOffline(false); } catch { enfileirar({ op: 'inc', id, inc }); }
   }
   // Ditado por VOZ em lote: 1 round-trip, devolve a lista completa + o resumo
   // do que entrou (para a barra de confirmação editável).
@@ -589,15 +618,15 @@ function Chat({ onSair, nome }) {
   }
   async function removerItemLista(id) {
     setLista((xs) => (xs || []).filter((i) => i.id !== id));
-    if (String(id).startsWith('tmp')) return;
-    try { await removerListaItem(id); } catch { setListaOffline(true); }
+    if (tratarTmp(id, { op: 'remover', id })) return;
+    try { await removerListaItem(id); setListaOffline(false); } catch { enfileirar({ op: 'remover', id }); }
   }
   // Concretizar um item (sugestão/variante escolhida): renomeia e recarrega para
   // os preços/chips refletirem o produto agora exato.
   async function renomearItemLista(id, nome) {
     setLista((xs) => (xs || []).map((i) => (i.id === id ? { ...i, nome } : i)));
-    if (String(id).startsWith('tmp')) return;
-    try { await atualizarListaItem(id, { nome }); carregarLista(); } catch { setListaOffline(true); }
+    if (tratarTmp(id, { op: 'nome', id, nome })) return;
+    try { await atualizarListaItem(id, { nome }); setListaOffline(false); carregarLista(); } catch { enfileirar({ op: 'nome', id, nome }); }
   }
   // Esvaziar com rede de segurança: snackbar "Desfazer" durante 7s. O servidor
   // devolve o snapshot {id, estado} do que limpou → repõe exatamente (carrinho
