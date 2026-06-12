@@ -90,6 +90,7 @@ async function resolverItensLista(pool, itens, mercado) {
     // GRUPO (ponto 3): do SKU casado (1.º com grupo definido); senão do NOME.
     it.grupo = matched.find((s) => s.grupo && s.grupo !== 'outros')?.grupo || grupoDeTexto(it.nome);
     it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null; it.unidade_base = null;
+    it.preco_ref = null; it.preco_ref_loja = null; // referência de catálogo (sem talão)
     it.produto_sugerido = null; it.variantes_n = 0; it.qtd_habitual = null;
     it.unidade_venda = unidadeVenda(it.nome);
     // MARCA detetada no nome (gazetteer determinístico) → o cliente mostra-a à
@@ -161,6 +162,21 @@ async function resolverItensLista(pool, itens, mercado) {
       const mv = m.ppb != null ? num(m.ppb) : (m.pu != null ? num(m.pu) : null);
       const mu = m.ppb != null ? m.unidade : null;
       if (mv != null && (it.preco_mercado == null || mv < it.preco_mercado)) { it.preco_mercado = mv; it.unidade_base = mu; }
+    }
+  }
+  // PREÇO DE REFERÊNCIA (catálogo online) — SÓ para itens sem preço-facto (nunca
+  // comprados) que vieram do scan (têm ean). MENOR preço de embalagem entre lojas,
+  // marcado como aproximação (decisão do dono: catálogo nunca é critério, só referência).
+  const eansRef = [...new Set(itens.filter((it) => it.melhor_preco == null && it.preco_mercado == null && it.ean).map((it) => it.ean))];
+  if (eansRef.length) {
+    const ph2 = eansRef.map(() => '?').join(',');
+    const [refs] = await pool.query(
+      `SELECT ean, MIN(preco) AS preco, SUBSTRING_INDEX(GROUP_CONCAT(fonte ORDER BY preco ASC), ',', 1) AS fonte
+         FROM catalogo_produto WHERE ean IN (${ph2}) AND preco IS NOT NULL AND preco > 0 GROUP BY ean`, eansRef);
+    const refPorEan = new Map(refs.map((r) => [String(r.ean), r]));
+    for (const it of itens) {
+      const r = it.ean ? refPorEan.get(String(it.ean)) : null;
+      if (r) { it.preco_ref = num(r.preco); it.preco_ref_loja = r.fonte || null; }
     }
   }
 }
@@ -321,7 +337,7 @@ listaRouter.get('/sugestoes', async (req, res) => {
 // pelo POST /lote (que devolve a lista atualizada num só round-trip).
 async function montarLista(pool, mercado) {
   const [itens] = await pool.query(
-    `SELECT id, nome, quantidade, categoria, estado, adicionado_por, marcado_por
+    `SELECT id, nome, ean, quantidade, categoria, estado, adicionado_por, marcado_por
        FROM lista_item WHERE estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
   );
   await resolverItensLista(pool, itens, mercado);
@@ -336,7 +352,7 @@ async function montarLista(pool, mercado) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 function listaSig(itens, mercado, maxItemId) {
   const s = `${mercado || ''}|${maxItemId || 0}|` +
-    itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.nome}`).join(';');
+    itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
   return createHash('sha1').update(s).digest('base64').slice(0, 22);
 }
 
@@ -350,7 +366,7 @@ listaRouter.get('/', async (req, res) => {
     const mercado = String(req.query.mercado || '').trim() || null;
     const pool = getPool();
     const [itens] = await pool.query(
-      `SELECT id, nome, quantidade, categoria, estado, adicionado_por, marcado_por
+      `SELECT id, nome, ean, quantidade, categoria, estado, adicionado_por, marcado_por
          FROM lista_item WHERE estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
     );
     const [[mx]] = await pool.query('SELECT MAX(id) AS m FROM item');
@@ -416,21 +432,23 @@ const nomeValido = (n) => n && n.length >= 2 && !/\[object|^undefined$|^null$/i.
 // singular): "ovos" e "Ovo", "Bananas" e "banana" são o MESMO item → SOMA a
 // quantidade em vez de duplicar (decisão do dono). Um item já riscado volta a
 // ativo (nova necessidade). Partilhado pelo POST unitário e pelo /lote.
-async function adicionarConsolidado(pool, { nome, quantidade, categoria, user }) {
+async function adicionarConsolidado(pool, { nome, quantidade, categoria, ean, user }) {
   const qtd = Math.max(1, Math.min(99, Number(quantidade) || 1));
+  const cod = String(ean || '').replace(/\D/g, '') || null;
   const chave = chaveItemLista(nome);
   const [ativos] = await pool.query(
     `SELECT id, nome, quantidade, estado FROM lista_item WHERE estado IN ('ativo','carrinho')`);
   const ja = ativos.find((x) => chaveItemLista(x.nome) === chave);
   if (ja) {
+    // consolida; se o item ainda não tinha EAN e este scan trouxe um, fixa-o.
     await pool.query(
-      `UPDATE lista_item SET quantidade = LEAST(99, quantidade + ?), estado = 'ativo', marcado_por = NULL WHERE id = ?`,
-      [qtd, ja.id]);
+      `UPDATE lista_item SET quantidade = LEAST(99, quantidade + ?), estado = 'ativo', marcado_por = NULL, ean = COALESCE(ean, ?) WHERE id = ?`,
+      [qtd, cod, ja.id]);
     return { id: ja.id, consolidado: true };
   }
   const [r] = await pool.query(
-    'INSERT INTO lista_item (nome, quantidade, categoria, adicionado_por) VALUES (?,?,?,?)',
-    [nome, qtd, categoria || null, user]);
+    'INSERT INTO lista_item (nome, ean, quantidade, categoria, adicionado_por) VALUES (?,?,?,?,?)',
+    [nome, cod, qtd, categoria || null, user]);
   return { id: r.insertId, consolidado: false };
 }
 
@@ -439,7 +457,7 @@ listaRouter.post('/', async (req, res) => {
     const nome = String(req.body?.nome || '').trim().slice(0, 160);
     if (!nomeValido(nome)) return res.status(400).json({ erro: 'nome inválido' });
     const categoria = String(req.body?.categoria || '').trim().slice(0, 80) || null;
-    const r = await adicionarConsolidado(getPool(), { nome, quantidade: req.body?.quantidade, categoria, user: req.user.id });
+    const r = await adicionarConsolidado(getPool(), { nome, quantidade: req.body?.quantidade, categoria, ean: req.body?.ean, user: req.user.id });
     res.json({ ok: true, id: r.id, existia: r.consolidado, consolidado: r.consolidado });
   } catch (e) {
     console.error('[lista POST] erro:', e.message);
@@ -458,7 +476,7 @@ listaRouter.post('/lote', async (req, res) => {
     for (const p of pedidos) {
       const nome = String(p?.nome || '').trim().slice(0, 160);
       if (!nomeValido(nome)) continue;
-      const r = await adicionarConsolidado(pool, { nome, quantidade: p?.quantidade, categoria: null, user: req.user.id });
+      const r = await adicionarConsolidado(pool, { nome, quantidade: p?.quantidade, categoria: null, ean: p?.ean, user: req.user.id });
       adicionados.push({ id: r.id, nome, quantidade: Math.max(1, Math.min(99, Number(p?.quantidade) || 1)), consolidado: r.consolidado });
     }
     const mercado = String(req.body?.mercado || '').trim() || null;

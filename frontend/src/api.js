@@ -272,11 +272,11 @@ export async function obterLista(mercado, etag) {
   const data = await r.json();
   return { ...data, etag: r.headers.get('ETag') }; // { itens, lojas, mercado, etag }
 }
-export async function adicionarListaItem({ nome, quantidade, categoria, somar }) {
+export async function adicionarListaItem({ nome, quantidade, categoria, somar, ean }) {
   const r = await call('/api/lista', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome, quantidade, categoria, somar }),
+    body: JSON.stringify({ nome, quantidade, categoria, somar, ean }),
   });
   if (!r.ok) throw new Error(`lista add ${r.status}`);
   return r.json();

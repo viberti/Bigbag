@@ -491,7 +491,7 @@ function Chat({ onSair, nome }) {
       const op = fila[0];
       try {
         if (!op.op || op.op === 'add') {
-          const r = await adicionarListaItem({ nome: op.nome, quantidade: op.quantidade, categoria: op.categoria });
+          const r = await adicionarListaItem({ nome: op.nome, quantidade: op.quantidade, categoria: op.categoria, ean: op.ean });
           if (op.tmp && r?.id != null) remap[op.tmp] = r.id;
         } else {
           const id = resolverIdOutbox(op.id, remap);
@@ -566,7 +566,7 @@ function Chat({ onSair, nome }) {
     if (outboxLista().some((e) => e.op === 'add' && e.tmp === id)) enfileirar(op);
     return true;
   };
-  async function adicionarAoCarrinho(n, categoria, quantidade = 1) {
+  async function adicionarAoCarrinho(n, categoria, quantidade = 1, ean = null) {
     const nome = String(n || '').trim();
     if (!nome) return;
     // CONSOLIDAÇÃO: "ovos" quando já há "Ovo" não duplica — soma a quantidade
@@ -574,7 +574,7 @@ function Chat({ onSair, nome }) {
     const existente = (lista || []).find((i) => chaveLite(i.nome) === chaveLite(nome));
     if (existente) {
       setLista((xs) => (xs || []).map((i) => (i.id === existente.id
-        ? { ...i, quantidade: Math.min(99, (i.quantidade || 1) + quantidade), estado: 'ativo', marcado_por: null } : i)));
+        ? { ...i, quantidade: Math.min(99, (i.quantidade || 1) + quantidade), estado: 'ativo', marcado_por: null, ean: i.ean || ean } : i)));
       if (tratarTmp(existente.id, { op: 'inc', id: existente.id, inc: quantidade })) return;
       try { await atualizarListaItem(existente.id, { inc: quantidade, marcado: false }); setListaOffline(false); }
       catch { enfileirar({ op: 'inc', id: existente.id, inc: quantidade }); }
@@ -582,12 +582,12 @@ function Chat({ onSair, nome }) {
     }
     const cat = categoria || catPorNome[nome] || null;
     const tmpId = `tmp${Date.now()}`;
-    setLista((xs) => [...(xs || []), { id: tmpId, nome, quantidade, categoria: cat, estado: 'ativo', adicionado_por: eu, melhor_preco: null }]);
+    setLista((xs) => [...(xs || []), { id: tmpId, nome, ean, quantidade, categoria: cat, estado: 'ativo', adicionado_por: eu, melhor_preco: null }]);
     try {
-      await adicionarListaItem({ nome, quantidade, categoria: cat });
+      await adicionarListaItem({ nome, quantidade, categoria: cat, ean });
       carregarLista();
     } catch {
-      enfileirar({ op: 'add', tmp: tmpId, nome, quantidade, categoria: cat }); // offline → segue depois (com remap)
+      enfileirar({ op: 'add', tmp: tmpId, nome, quantidade, categoria: cat, ean }); // offline → segue depois (com remap)
     }
   }
   const alternarCarrinho = (n, categoria) => {
@@ -1017,7 +1017,7 @@ function Chat({ onSair, nome }) {
             (async () => {
               let nome = p.nome || p.produto || p.ean;
               if (p.ean) { try { const r = await consultarProdutoEan(p.ean, { pt: true }); if (r?.nome) nome = r.nome; } catch { /* usa o local */ } }
-              if (nome) { adicionarAoCarrinho(nome); navigator.vibrate?.(15); track('lista_scan_adicionar'); }
+              if (nome) { adicionarAoCarrinho(nome, null, 1, p.ean || null); navigator.vibrate?.(15); track('lista_scan_adicionar'); }
               // aproveita o scan para registar na DESPENSA ("tenho isto em casa")
               if (p.ean) adicionarDespensa(p.ean, nome).catch(() => {});
             })();
@@ -3549,6 +3549,11 @@ function ItemCarrinho({ it, novo, tipo, onRemover, onMarcar, onDelta, onCard }) 
               {eur(preco)}{it.unidade_base ? `/${it.unidade_base}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}
             </span>
           )}
+          {preco == null && it.preco_ref != null && !it.unidade_venda && (
+            // nunca comprado → preço de catálogo (menor valor entre lojas) como
+            // REFERÊNCIA, marcado "~ online" e em tom mais ténue — nunca facto.
+            <span className="csub csub-ref">~{eur(it.preco_ref)} · {t('cart.online')}</span>
+          )}
         </span>
         {/* já no carrinho ("comprado") → o +/− deixa de fazer sentido; a ×N
             continua visível no nome. Só os itens por comprar ajustam quantidade. */}
@@ -3670,7 +3675,7 @@ function CarrinhoSheet({ aberto, itens, lojas, mercado, onMercado, offline, onAd
   }
   const lista = itens || [];
   // total estimado: melhor preço conhecido (ou o do mercado escolhido) × quantidade
-  const total = lista.reduce((s, it) => s + (Number(it.preco_mercado ?? it.melhor_preco) || 0) * (it.quantidade || 1), 0);
+  const total = lista.reduce((s, it) => s + (Number(it.preco_mercado ?? it.melhor_preco ?? it.preco_ref) || 0) * (it.quantidade || 1), 0);
   function textoLista() {
     const L = [`🛒 *${t('cart.title')}* · BigBag`];
     for (const it of lista) L.push(`${it.estado === 'carrinho' ? '✓' : '•'} ${it.nome}${it.quantidade > 1 ? ` ×${it.quantidade}` : ''}`);
