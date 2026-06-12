@@ -1656,10 +1656,13 @@ function TabItens({ onAbrirNota }) {
 
 function TabRevisao() {
   const [limiar, setLimiar] = useState(70);
+  // maturidade por uso (2026-06-13): aliases vistos em >=3 talões sem correção
+  // saem da vista por defeito — a worklist mostra primeiro o que merece olhos.
+  const [maduros, setMaduros] = useState(false);
   const [dados, setDados] = useState(null);
   useEffect(() => {
-    adm.baixaConfianca(limiar).then(setDados).catch(() => setDados({ naoResolvidos: [], baixaConfianca: [] }));
-  }, [limiar]);
+    adm.baixaConfianca(limiar, maduros).then(setDados).catch(() => setDados({ naoResolvidos: [], baixaConfianca: [] }));
+  }, [limiar, maduros]);
 
   const nr = dados?.naoResolvidos || [];
   const bc = dados?.baixaConfianca || [];
@@ -1672,8 +1675,18 @@ function TabRevisao() {
             &lt;{l}
           </button>
         ))}
-        <span className="adm-sug-dica">do pior para o melhor — corrige na aba Produtos (renomear/associar/fundir)</span>
+        <span className="adm-sug-dica">menos-usado primeiro — corrige na aba Produtos (renomear/associar/fundir)</span>
       </div>
+      {dados?.maduros > 0 && (
+        <p className="adm-sug-dica">
+          {maduros
+            ? `a incluir ${dados.maduros} alias(es) maduros (≥3 talões sem correção) — `
+            : `${dados.maduros} alias(es) maduros escondidos (≥3 talões sem correção) — `}
+          <button type="button" className="adm-link-min" onClick={() => setMaduros((x) => !x)}>
+            {maduros ? 'esconder' : 'mostrar'}
+          </button>
+        </p>
+      )}
       {dados?.semPontuacao > 0 && (
         <p className="adm-sug-dica">
           {dados.semPontuacao} mapeamento(s) legado(s) ainda sem pontuação — serão pontuados ao reprocessar a nota.

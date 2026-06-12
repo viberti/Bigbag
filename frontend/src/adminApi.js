@@ -43,7 +43,7 @@ export const capturas = (q) => jget(`/api/admin/capturas${q ? '?q=' + encodeURIC
 export const mestres = () => jget('/api/admin/mestres');
 export const desligarMestre = (skuId) => jsend('/api/admin/mestres/desligar', 'POST', { skuId });
 export const qualidade = () => jget('/api/admin/qualidade');
-export const baixaConfianca = (limiar) => jget(`/api/admin/baixa-confianca${limiar ? '?limiar=' + limiar : ''}`);
+export const baixaConfianca = (limiar, maduros) => jget(`/api/admin/baixa-confianca?limiar=${limiar || 70}${maduros ? '&maduros=1' : ''}`);
 export const qualidadePreco = (fator) => jget(`/api/admin/qualidade-preco${fator ? '?fator=' + fator : ''}`);
 export const saude = () => jget('/api/admin/saude');
 

@@ -1215,10 +1215,18 @@ adminRouter.get('/baixa-confianca', async (req, res) => {
         WHERE i.sku_id IS NULL AND i.is_non_product = 0
         GROUP BY i.descricao_original ORDER BY n_itens DESC LIMIT 200`,
     );
+    // MATURIDADE por uso (decisão do dono, 2026-06-13): um alias visto em ≥3
+    // talões DISTINTOS sem nunca ter sido corrigido é "maduro" — sai da vista por
+    // defeito (?maduros=1 inclui). A confiança NÃO muda (é código de VIA, migração
+    // 016 — proveniência preservada); a maturidade é DERIVADA em runtime, como os
+    // hábitos da lista. Ordenação: menos-usado primeiro (onde um erro ainda não
+    // teve oportunidade de aparecer), depois confiança.
+    const incluirMaduros = req.query.maduros === '1';
+    const LIMIAR_MADURO = 3;
     const [baixaConfianca] = await pool.query(
       `SELECT a.descricao_original AS descricao, a.confianca, a.origem,
               s.id AS sku_id, s.nome_canonico AS sku, s.unidade_base,
-              COUNT(i.id) AS n_itens, MAX(l.cadeia) AS cadeia
+              COUNT(i.id) AS n_itens, COUNT(DISTINCT i.fatura_id) AS n_faturas, MAX(l.cadeia) AS cadeia
          FROM sku_alias a
          JOIN sku_normalizado s ON s.id = a.sku_id
          LEFT JOIN item i ON i.descricao_original = a.descricao_original AND i.is_non_product = 0
@@ -1226,9 +1234,20 @@ adminRouter.get('/baixa-confianca', async (req, res) => {
          LEFT JOIN loja l ON l.id = f.loja_id
         WHERE a.confianca < ?
         GROUP BY a.descricao_original
-        HAVING n_itens > 0
-        ORDER BY a.confianca ASC, n_itens DESC
+        HAVING n_itens > 0${incluirMaduros ? '' : ` AND n_faturas < ${LIMIAR_MADURO}`}
+        ORDER BY n_faturas ASC, a.confianca ASC, n_itens DESC
         LIMIT 200`,
+      [limiar],
+    );
+    const [[{ maduros }]] = await pool.query(
+      `SELECT COUNT(*) AS maduros FROM (
+         SELECT a.descricao_original
+           FROM sku_alias a
+           JOIN item i ON i.descricao_original = a.descricao_original AND i.is_non_product = 0
+          WHERE a.confianca < ?
+          GROUP BY a.descricao_original
+         HAVING COUNT(DISTINCT i.fatura_id) >= ${LIMIAR_MADURO}
+       ) t`,
       [limiar],
     );
     // Aliases ainda sem pontuação (legado, antes da migração 016): NULL ≠ baixo.
@@ -1236,7 +1255,7 @@ adminRouter.get('/baixa-confianca', async (req, res) => {
     const [[{ sem_pontuacao }]] = await pool.query(
       'SELECT COUNT(*) AS sem_pontuacao FROM sku_alias WHERE confianca IS NULL',
     );
-    res.json({ limiar, naoResolvidos, baixaConfianca, semPontuacao: sem_pontuacao });
+    res.json({ limiar, naoResolvidos, baixaConfianca, semPontuacao: sem_pontuacao, maduros, incluiMaduros: incluirMaduros });
   } catch (e) {
     console.error('[admin/baixa-confianca] erro:', e.message);
     res.status(500).json({ erro: 'Falha a listar baixa confiança' });
