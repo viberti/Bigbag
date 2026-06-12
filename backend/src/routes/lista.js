@@ -23,7 +23,9 @@ const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-
 // pluraliza) ou null (= contagem simples). Determinístico; extensível por caso.
 function unidadeVenda(nome) {
   const n = norm(nome);
-  if (/\bovos?\b/.test(n)) return 'dúzia';
+  // SÓ quando o produto É ovos (palavra-CABEÇA, início do nome) — não "Massa com
+  // Ovo", "Doce de Ovos", "Pão de Ovo", onde o ovo é ingrediente. Ovos → dúzia.
+  if (/^ovos?\b/.test(n)) return 'dúzia';
   return null;
 }
 
