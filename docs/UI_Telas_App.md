@@ -8,6 +8,56 @@ A app é um **chat** com uma **barra de ações inferior** e ícones de topo que
 
 ---
 
+## Mapa de navegação
+
+Não há "páginas" no sentido clássico — há **uma tela-casa (chat)** e tudo o resto são **sheets** que sobem por cima e fecham (X, swipe-down ou toque fora) voltando ao chat. Dois conjuntos de controlos estão **sempre visíveis**: os **ícones de topo** e a **barra inferior**.
+
+```
+APP  (/)  ── chat (histórico) + input + 2 barras sempre visíveis
+│
+├─ TOPO
+│   ├─ [lista] 🟢 ──────────→ LISTA DE COMPRAS (sheet)
+│   │                           ├ tap num item ─────→ FICHA DE PRODUTO
+│   │                           ├ swipe no item ────→ remover
+│   │                           ├ long-press item ─→ card de opções (renomear/variantes)
+│   │                           └ ícone scan ───────→ SCANNER (item entra NA LISTA)
+│   ├─ [despensa] 🟡 ─────────→ DESPENSA (sheet)
+│   │                           ├ tap num item ─────→ FICHA DE PRODUTO
+│   │                           ├ swipe no item ────→ remover
+│   │                           └ "Escanear produto" → SCANNER (item entra NA DESPENSA → destaca + scroll)
+│   ├─ [⋮ kebab] ─────────────→ MENU
+│   │     ├ Digitalizar documento ─→ câmara nativa ─→ (lê TALÃO)
+│   │     ├ Galeria (várias) ──────→ ficheiros ─────→ (lê TALÃO)
+│   │     ├ Arquivo / PDF ─────────→ ficheiros ─────→ (lê TALÃO)
+│   │     ├ Consultar produto ─────→ SCANNER
+│   │     ├ Meus gastos ───────────→ GASTOS (sheet)
+│   │     ├ Produtos por identificar → POR IDENTIFICAR (sheet)
+│   │     └ Diagnóstico do scanner ─→ /diag (página)
+│   └─ [avatar] ──────────────→ CONTA
+│         ├ Perfil nutricional ─────→ PERFIL (sheet)
+│         ├ Nova conversa
+│         └ Sair
+│
+└─ BARRA INFERIOR
+    ├─ Câmara ──→ câmara nativa (foto) ─→ inteligente: barras→PRODUTO, senão→TALÃO
+    ├─ Scanner ─→ SCANNER "Consultar produto" (sheet) ─→ FICHA
+    ├─ Comparar → COMPARAR (sheet, scan de 2–6) ─→ comparação lado a lado
+    ├─ Compras ─→ NOTAS/talões (sheet) ─→ tap numa nota → DETALHE → tap item → FICHA
+    └─ Voz ─────→ grava nota de voz ─→ resposta aparece no chat
+```
+
+**Convergências importantes (para o designer):**
+- O **SCANNER** é alcançado por **≥4 caminhos** (tab Scanner · kebab "Consultar produto" · ícone scan da lista · "Escanear produto" da despensa) e **comporta-se diferente conforme a origem** — mas mostra **sempre a mesma tela** (ver achado da secção 9).
+- A **FICHA DE PRODUTO** é o destino comum de quase tudo (lista, despensa, notas, scanner) — é o "hub" de leitura.
+- **Ler um TALÃO** tem 4 entradas (câmara/digitalizar/galeria/arquivo) → todas caem no mesmo pipeline.
+- **Gastos** (kebab) e **Compras/Notas** (barra) são coisas diferentes mas próximas: Gastos = agregados; Notas = lista de talões individuais.
+
+**Gestos (sistematizados):** tap = abrir/selecionar · **swipe horizontal** = remover (lista e despensa) · long-press num item da lista = card de opções · long-press no "+" da lista = incrementar rápido · swipe-down/X/toque-fora = fechar sheet.
+
+**Rotas (superfícies, por path):** `/` app do utilizador · `/admin` operador (desktop) · `/explorar` comprador (desktop) · `/diag` diagnóstico do scanner.
+
+---
+
 ## 1. Principal (chat) · `01_principal.png`
 ![principal](ui/01_principal.png)
 
