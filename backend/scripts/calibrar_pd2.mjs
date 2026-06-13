@@ -59,7 +59,16 @@ for (let i = 0; i < ids.length; i += 500) {
 }
 
 const nm = (s) => normAlfa(s || '');
-const marcaEstado = (a, b) => { a = nm(a); b = nm(b); if (!a || !b) return 'desc'; return (a === b || a.includes(b) || b.includes(a)) ? 'igual' : 'conflito'; };
+// marca por TOKENS (não substring): "Garnier Ultra Suave" == "Ultra Suave Garnier"
+// (mesma marca, ordem diferente). Partilham ≥1 token significativo → mesma marca;
+// ambas com tokens mas zero em comum → conflito; alguma vazia → desconhecido.
+const marcaEstado = (a, b) => {
+  const A = new Set(nm(a).split(' ').filter((t) => t.length >= 3));
+  const B = new Set(nm(b).split(' ').filter((t) => t.length >= 3));
+  if (!A.size || !B.size) return 'desc';
+  for (const t of A) if (B.has(t)) return 'igual';
+  return 'conflito';
+};
 const pesoEstado = (pf, pu, cf, cu) => {
   if (pf == null || cf == null || !pu || !cu) return 'desc';
   if (nm(pu) !== nm(cu)) return 'difere';
