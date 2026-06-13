@@ -4,6 +4,8 @@
 
 > **Três superfícies** (routing por path): **`/`** app do utilizador (este doc), **`/admin`** operador (desktop), **`/explorar`** comprador (desktop). Aqui só a app do utilizador — a PWA mobile-first.
 
+> 🖱️ **Protótipo clicável:** [`prototipo.html`](ui/prototipo.html) — abre no browser e navega como o app (zonas clicáveis sobre os screenshots reais, seguindo o mapa de navegação abaixo). Single-file, basta abrir. Liga "mostrar zonas" para ver onde se pode clicar.
+
 A app é um **chat** com uma **barra de ações inferior** e ícones de topo que abrem **sheets** (folhas deslizantes). Tudo o que segue são sheets sobre a tela principal.
 
 ---
