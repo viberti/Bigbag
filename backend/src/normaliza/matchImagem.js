@@ -34,7 +34,9 @@ export async function matchPorVetor(vec, { k = 10, limiar = 0 } = {}) {
     const ean = p.payload?.ean;
     if (!ean || p.score < limiar) continue;
     const ex = porEan.get(ean);
-    if (!ex || p.score > ex.score) porEan.set(ean, { ean, fonte: p.payload.fonte, score: Math.round(p.score * 1000) / 1000 });
+    // `id` = id do ponto Qdrant = id da linha de catálogo (a FOTO exata que casou)
+    // → serve a miniatura recortada dessa imagem no carrossel.
+    if (!ex || p.score > ex.score) porEan.set(ean, { ean, id: p.id, fonte: p.payload.fonte, score: Math.round(p.score * 1000) / 1000 });
   }
   return [...porEan.values()].sort((a, b) => b.score - a.score);
 }

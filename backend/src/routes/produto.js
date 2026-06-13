@@ -22,6 +22,7 @@ import { garantirFichaPT } from '../ingest/traduz.js';
 import { resolverItensLista } from './lista.js';
 import { matchImagemB64 } from '../normaliza/matchImagem.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
+import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -663,7 +664,10 @@ produtoRouter.post('/match-foto', requireAuth, upload.single('foto'), async (req
     // EAN; o map preserva a ordem por score). Sequencial somava ~1s; paralelo ~200ms.
     const out = await Promise.all(cands.slice(0, 6).map(async (c) => {
       const m = await mestrePorEan(getPool(), c.ean).catch(() => null);
-      return { ean: c.ean, score: c.score, fonte: c.fonte, nome: m?.nomes?.[0] || null, marca: m?.marca || null, imagem: m?.imagem || null };
+      // imagem = miniatura RECORTADA da foto que casou (id do ponto Qdrant); se não
+      // houver id, cai na imagem do CDN do catálogo (sem recorte).
+      const imagem = c.id ? `/api/produto/foto-catalogo/${c.id}` : (m?.imagem || null);
+      return { ean: c.ean, score: c.score, fonte: c.fonte, nome: m?.nomes?.[0] || null, marca: m?.marca || null, imagem };
     }));
     res.json({ candidatos: out });
   } catch (e) {
@@ -972,6 +976,24 @@ produtoRouter.post('/comparar', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[produto/comparar] erro:', e.message);
     res.status(500).json({ erro: 'Falha ao comparar os produtos' });
+  }
+});
+
+// Serve a MINIATURA NORMALIZADA (recortada + quadrada) de uma imagem de catálogo,
+// por id da linha de catálogo. Serve a cache do disco; gera on-the-fly se faltar
+// (e cacheia). Usada pelo carrossel do "buscar por foto". 7 dias de cache (estável).
+produtoRouter.get('/foto-catalogo/:id', requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).end();
+    const ficheiro = await gerarThumbCatalogo(id);
+    if (!ficheiro) return res.status(404).end();
+    res.type('image/webp');
+    res.set('Cache-Control', 'public, max-age=604800');
+    res.sendFile(ficheiro, (err) => { if (err && !res.headersSent) res.status(404).end(); });
+  } catch (e) {
+    console.error('[foto-catalogo] erro:', e.message);
+    if (!res.headersSent) res.status(500).end();
   }
 });
 
