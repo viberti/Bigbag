@@ -37,17 +37,28 @@ export async function mestrePorEan(pool, ean) {
     "SELECT nome, marca, categoria, nutricao, off_json FROM produto_ean WHERE ean=?", [cod]);
 
   const nomes = [...new Set([...cat.map((r) => r.nome), ...pe.map((r) => r.nome)].filter(Boolean))];
-  const marca = cat.find((r) => r.marca)?.marca || pe.find((r) => r.marca)?.marca || null;
-  const categoria = cat.find((r) => r.categoria_path)?.categoria_path || pe.find((r) => r.categoria)?.categoria || null;
+  let marca = cat.find((r) => r.marca)?.marca || pe.find((r) => r.marca)?.marca || null;
+  let categoria = cat.find((r) => r.categoria_path)?.categoria_path || pe.find((r) => r.categoria)?.categoria || null;
   const imagem = cat.find((r) => r.imagem_url)?.imagem_url || null;
   const fontes = [...new Set([...cat.map((r) => r.fonte), ...(pe.length ? ['ident'] : [])])];
 
-  // nutrição: 1.º do que já temos (produto_ean.nutricao/off_json), senão consulta OFF.
+  // OFF: consulta quando falta nutrição OU nome (caso EAN SÓ-OFF — dos ~21k que só
+  // o OFF tem; sem isto o mestre vinha sem nome/marca). Aproveita TUDO do OFF, não
+  // só a nutrição (regra P0: nenhuma fonte fica por consultar). consultarOFF é
+  // local-first (lê o dump off_produto; só toca a API live se faltar).
   let nutricao = parseNutri(pe.find((r) => r.nutricao)?.nutricao);
   let off = parseNutri(pe.find((r) => r.off_json)?.off_json);
-  if (!nutricao) {
+  if (!nutricao || !nomes.length) {
     const c = await consultarOFF(cod);
-    if (c) { nutricao = c.nutricao_100g; off = off || c; }
+    if (c) {
+      if (!nutricao) nutricao = c.nutricao_100g;
+      off = off || c;
+      const nomeOff = c.nome_pt || c.nome;
+      if (!nomes.length && nomeOff) nomes.push(nomeOff);
+      if (!marca && c.marca) marca = c.marca;
+      if (!categoria && c.categoria) categoria = c.categoria;
+      if (!fontes.includes('off')) fontes.push('off');
+    }
   }
   return { ean: cod, nomes, marca, categoria, imagem, fontes, nutricao, off, n_fontes: fontes.length };
 }

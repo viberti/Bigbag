@@ -45,29 +45,6 @@ const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(
 // para PREFERI-LO ao OFF (melhor que traduzir o inglês). Prioridade: nome_pt
 // (léxico Mercadona) → loja PT (Continente é o mais limpo) → null (só fontes
 // estrangeiras como lidl-fr ou Mercadona-ES sem nome_pt → deixa OFF+tradução).
-const FONTES_PT = ['continente', 'auchan', 'mercadona-off', 'lidl', 'pingodoce'];
-// Marca do catálogo para um EAN (qualquer fonte; a mais frequente não-nula). O
-// catálogo é curado pela loja — vence a marca do OFF (crowdsourcing marca
-// produtos de terceiros como marca-própria; caso Felicia/Hacendado 2026-06-13).
-async function marcaCatalogo(ean) {
-  try {
-    const [[c]] = await getPool().query(
-      "SELECT marca FROM catalogo_produto WHERE ean = ? AND marca IS NOT NULL AND marca <> '' GROUP BY marca ORDER BY COUNT(*) DESC LIMIT 1", [ean]);
-    return c?.marca || null;
-  } catch { return null; }
-}
-async function nomeCatalogoPt(ean) {
-  try {
-    const [rows] = await getPool().query(
-      "SELECT nome, nome_pt, fonte FROM catalogo_produto WHERE ean = ? AND nome IS NOT NULL AND nome <> ''", [ean]);
-    if (!rows.length) return null;
-    const comPt = rows.find((r) => r.nome_pt && r.nome_pt.trim());
-    if (comPt) return comPt.nome_pt.trim();
-    for (const f of FONTES_PT) { const r = rows.find((x) => x.fonte === f); if (r) return r.nome; }
-    return null;
-  } catch { return null; }
-}
-
 export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
   // RESOLVEDOR ÚNICO (2026-06-13): toda a escrita da ficha passa pela FUSÃO de
   // fontes (normaliza/fichaEan.js — tabela de prioridades única, proveniência e
