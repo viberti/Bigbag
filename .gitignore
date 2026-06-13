@@ -45,3 +45,6 @@ tmp_img/
 backend/infer/cache/
 
 tmp_ui/
+
+# artefacto do pacote para o designer (regeravel)
+BigBag_Pacote_Designer.zip
