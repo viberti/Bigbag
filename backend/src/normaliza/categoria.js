@@ -97,6 +97,7 @@ function termRe(term) {
 const FRASE_GRUPO = [
   [/(^|[^a-z])(frutos?\s+secos?|frutos?\s+desecad\w*|fruta\s+(seca|desecada|deshidratada|desidratada))/, 'mercearia'],
   [/(^|[^a-z])(milho\s+doce|maiz\s+dulce)/, 'mercearia'],
+  [/(^|[^a-z])em\s+calda/, 'mercearia'], // fruta em calda = conserva de prateleira (pêssego, ananás…)
 ];
 
 export function grupoDeTexto(texto) {
