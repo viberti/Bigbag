@@ -214,5 +214,13 @@ function toMysqlDate(iso) {
   // 'YYYY-MM-DDTHH:mm:ss' → 'YYYY-MM-DD HH:mm:ss'; aceita só data também.
   if (!iso) return null;
   const s = String(iso).replace('T', ' ').slice(0, 19);
-  return s.length === 10 ? `${s} 00:00:00` : s;
+  const full = s.length === 10 ? `${s} 00:00:00` : s;
+  // GUARDA contra data ABSURDA lida pelo VLM (ano futuro/muito antigo): uma data
+  // inválida (caso real 2088) tornava-se o "mês mais recente" e desnorteava o
+  // resumo de gastos, a ordenação de notas e os preços por data. Cai para HOJE
+  // (o talão foi capturado hoje — a melhor aproximação) em vez de gravar lixo.
+  const ano = Number(full.slice(0, 4));
+  const anoAgora = new Date().getFullYear();
+  if (!(ano >= 2010 && ano <= anoAgora + 1)) return `${new Date().toISOString().slice(0, 10)} 12:00:00`;
+  return full;
 }

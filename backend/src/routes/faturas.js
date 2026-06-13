@@ -286,10 +286,13 @@ faturasRouter.get('/', requireAuth, async (req, res) => {
 faturasRouter.get('/gastos', requireAuth, async (req, res) => {
   try {
     const [[hoje]] = await getPool().query('SELECT YEAR(CURDATE()) y, MONTH(CURDATE()) m');
+    // só datas PLAUSÍVEIS: uma leitura de data errada (ex.: VLM lê 2088) não pode
+    // virar o "mês mais recente" e desnortear o resumo (caso real ZZDEDUP, 2026-06-13).
     const [meses] = await getPool().query(`
       SELECT YEAR(data_compra) ano, MONTH(data_compra) mes,
              ROUND(SUM(total_impresso), 2) total, COUNT(*) n
         FROM fatura
+       WHERE data_compra >= '2010-01-01' AND data_compra < (CURDATE() + INTERVAL 1 DAY)
        GROUP BY ano, mes ORDER BY ano, mes`);
     const acha = (y, m) => meses.find((x) => x.ano === y && x.mes === m) || { ano: y, mes: m, total: 0, n: 0 };
     const atual = acha(hoje.y, hoje.m);
