@@ -758,6 +758,8 @@ body { background: #0c1814; }
 /* sheet da despensa: cabeçalho/secções com toque âmbar p/ não confundir com a lista */
 .bb .despensa-sheet .cart-cat { color: #e0a82e; }
 .bb .desp-crow { cursor: pointer; }
+/* item acabado de escanear: border âmbar completo (+ glow herdado de .crow.novo) */
+.bb .desp-crow.novo { outline: 2px solid var(--cor-novo); outline-offset: -2px; border-radius: 10px; }
 .bb .desp-val-in { color: #e0a82e; font-weight: 600; }
 .bb .desp-add { background: #e0a82e; color: #2a1d04; }
 

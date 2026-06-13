@@ -337,6 +337,7 @@ function Chat({ onSair, nome }) {
   const abrirNotas = () => abrirComCache('notas', setNotasAberto, setNotasLista, listarNotas, []);
   const [despensaAberto, setDespensaAberto] = useState(false);
   const [despensaLista, setDespensaLista] = useState(null); // null=a carregar · []=vazio
+  const [despensaNovoEan, setDespensaNovoEan] = useState(null); // item acabado de escanear → destaca + scroll
   const abrirDespensa = () => abrirComCache('despensa', setDespensaAberto, setDespensaLista, listarDespensa, []);
   async function removerDaDespensa(ean) {
     setDespensaLista((xs) => (xs || []).filter((p) => p.ean !== ean));
@@ -1079,7 +1080,7 @@ function Chat({ onSair, nome }) {
         onFechar={() => { setMinhaAberta(false); setCarrinhoAberto(true); }}
       />
       <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} identificados={identificados} />
-      <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} onRemover={removerDaDespensa}
+      <DespensaSheet aberto={despensaAberto} produtos={despensaLista} novoEan={despensaNovoEan} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} onRemover={removerDaDespensa}
         onScan={() => { scanDespensaRef.current = true; setDespensaAberto(false); setScannerAberto(true); track('scanner_abrir', { via: 'despensa' }); }} />
       <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
       <PorIdentificarSheet
@@ -1112,8 +1113,14 @@ function Chat({ onSair, nome }) {
             (async () => {
               let nome = p.nome || p.produto || p.ean;
               if (p.ean) { try { const r = await consultarProdutoEan(p.ean, { pt: true }); if (r?.nome) nome = r.nome; } catch { /* usa o local */ } }
-              if (p.ean) { try { await adicionarDespensa(p.ean, nome); } catch { /* offline */ } recarregarDespensa(); navigator.vibrate?.(15); track('despensa_scan_adicionar'); }
               setDespensaAberto(true);
+              if (p.ean) {
+                try { await adicionarDespensa(p.ean, nome); } catch { /* offline */ }
+                await recarregarDespensa();
+                setDespensaNovoEan(p.ean); // destaca + faz scroll até ele (lista grande)
+                setTimeout(() => setDespensaNovoEan((e) => (e === p.ean ? null : e)), 5000);
+                navigator.vibrate?.(15); track('despensa_scan_adicionar');
+              }
             })();
             return;
           }
@@ -1828,11 +1835,14 @@ function tsData(s) {
 // Uma linha da despensa: mesmo formato rico da lista (nome + marca noutra cor +
 // tamanho · preço) + VALIDADE quando existe. Clicável → ficha; X → remover.
 // Sem +/− nem riscar (a despensa é inventário, não compras).
-function ItemDespensa({ it, tipo, onInfo, onRemover }) {
+function ItemDespensa({ it, novo, tipo, onInfo, onRemover }) {
   // mesmo GESTO da lista de compras (uniformidade da UI, decisão do dono): arrastar
   // para o lado remove; tocar abre a ficha. Sem botão X.
   const [dx, setDx] = useState(0);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
+  const ref = useRef(null);
+  // acabado de escanear → faz scroll até ele (a despensa é grande de propósito)
+  useEffect(() => { if (novo) ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, [novo]);
   const preco = it.preco_mercado ?? it.melhor_preco;
   const temSub = it.tamanho || preco != null || it.preco_ref != null || it.validade;
   function start(e) { const tt = e.touches[0]; g.current = { x0: tt.clientX, y0: tt.clientY, horiz: false, mov: true, dx: 0 }; }
@@ -1848,9 +1858,10 @@ function ItemDespensa({ it, tipo, onInfo, onRemover }) {
     setDx(0);
   }
   return (
-    <div className="crow-li">
+    <div className="crow-li" ref={ref}>
       <div className="crow-bg"><Ico name="close" size={18} /></div>
-      <div className="crow desp-crow" style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+      <div className={`crow desp-crow${novo ? ' novo' : ''}`}
+        style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s', ...(novo ? { '--cor-novo': '#e0a82e' } : {}) }}
         onTouchStart={start} onTouchMove={move} onTouchEnd={end}
         onClick={() => { if (g.current.horiz) return; onInfo({ ean: it.ean, produto: it.nome }); }}>
         <span className="cnwrap">
@@ -1875,7 +1886,7 @@ function ItemDespensa({ it, tipo, onInfo, onRemover }) {
   );
 }
 
-function DespensaSheet({ aberto, produtos, onFechar, onInfo, onRemover, onScan }) {
+function DespensaSheet({ aberto, produtos, novoEan, onFechar, onInfo, onRemover, onScan }) {
   const secoes = produtos && produtos.length ? organizarPorCategoria(produtos) : [];
   return (
     <>
@@ -1898,7 +1909,7 @@ function DespensaSheet({ aberto, produtos, onFechar, onInfo, onRemover, onScan }
               <div key={g.id}>
                 <div className="cart-cat">{g.label}</div>
                 {its.map((it) => (
-                  <ItemDespensa key={it.ean} it={it} tipo={tipoConsumidor(it.grupo, it.nome, it.marca)} onInfo={onInfo} onRemover={onRemover} />
+                  <ItemDespensa key={it.ean} it={it} novo={it.ean === novoEan} tipo={tipoConsumidor(it.grupo, it.nome, it.marca)} onInfo={onInfo} onRemover={onRemover} />
                 ))}
               </div>
             ))
