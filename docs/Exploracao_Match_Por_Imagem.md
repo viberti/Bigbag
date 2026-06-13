@@ -25,10 +25,23 @@
 
 **Conclusão:** a hipótese confirma-se **no regime catálogo×catálogo** — a aparência visual sozinha basta para casar o mesmo produto entre lojas e separá-lo de parecidos (AUC ~0,985, F1 ~0,94). E é **aparência PURA**: o DINOv2, que nunca viu texto, iguala/supera o CLIP → o sinal é forma/cor/estrutura, não a marca escrita lida pelo encoder. **DINOv2 é o candidato preferível** para produção (separação mais limpa, desenhado para retrieval).
 
+## Recuperação 1-para-muitos (o protocolo REAL, não só par-a-par)
+
+O AUC acima é par-a-par (1:1): dado UM par, são o mesmo? O uso real é **recuperação** (1:N): uma foto do Continente procura a sua entre as **200 do Auchan** (galeria) — 199 distratores por consulta. Script: `exp_img_retrieval.py`.
+
+| N=200 queries vs 200 galeria | precisão@1 | @5 | @10 | MRR | rank mediano |
+|---|---|---|---|---|---|
+| **DINOv2** | 0,955 (191/200) | 0,990 | 0,990 | 0,969 | 1 |
+| **CLIP** | **0,965** (193/200) | 0,995 | **1,000** | 0,981 | 1 |
+
+- **A hipótese aguenta o protocolo realista:** ~96% encontram o produto certo à 1.ª, ~99% no top-5. Concorda com o par-a-par (não era otimismo do modo fácil).
+- **Reviravolta CLIP↔DINOv2:** o DINOv2 separa melhor pares isolados (AUC), mas o **CLIP recupera melhor numa multidão** — desambiguar entre parecidos beneficia de "ler" a marca, que o DINOv2 não faz. Cada um brilha num protocolo.
+- **Os erros SÃO a cautela das variantes (2), medida:** quando o CLIP falha o top-1, é quase sempre para um **irmão da mesma marca/linha** — "Queijo Limiano Meio Gordo"→"Limiano Fatias", "L'Or Ristretto"→"L'Or Espresso", "Estrelitas 270g"→"Estrelitas Mel 550g" (cosseno 0,81 vs 0,81, empate). Erra para o primo, nunca para um produto qualquer.
+
 ## Cautelas (o que isto NÃO prova ainda)
 
-1. **Domain gap da foto-real.** Testámos catálogo×catálogo (foto de estúdio, fundo branco). O uso real — **foto do utilizador no supermercado** (fundo, luz, ângulo, dedos) vs catálogo — é muito mais difícil. AUC 0,98 aqui não se transfere automaticamente.
-2. **Variantes de tamanho.** Os negativos-difíceis são da mesma família, mas falta o caso mais adversarial: a **mesma marca, EAN/tamanho diferente** (Nutella 400g vs 750g — caixa quase idêntica). CLIP pode não distinguir tamanhos — o que para o **Produto Mestre** até é desejável (mesma entidade), mas para preço-por-tamanho não.
+1. **Domain gap da foto-real.** Testámos catálogo×catálogo (foto de estúdio, fundo branco). O uso real — **foto do utilizador no supermercado** (fundo, luz, ângulo, dedos) vs catálogo — é muito mais difícil. p@1 0,96 aqui não se transfere automaticamente.
+2. **Variantes de tamanho/linha — CONFIRMADA empiricamente** (ver recuperação acima): os erros do top-1 são irmãos da mesma marca (tamanho/sabor). Para o **Produto Mestre** fundir a entidade é desejável; para preço-por-tamanho é um problema — a imagem sozinha não separa "Estrelitas 270g" de "550g". Precisaria do peso/formato (que já temos por outras vias) como desempate.
 3. ~~**CLIP "lê" texto grande.**~~ **RESOLVIDA (DINOv2):** corria-se o risco de o sinal vir da marca escrita que o CLIP decodifica. Mas o DINOv2 — self-supervised, **sem texto no treino** — iguala/supera o CLIP (AUC 0,986 vs 0,984). Logo o match é **aparência cega** (forma/cor/estrutura), não tipografia. Cautela eliminada.
 
 ## Onde isto encaixa / próximos passos
