@@ -82,7 +82,7 @@ async function habitosDosSkus(pool, skuIds) {
 
 // Resolve preço + GRUPO de cada item da lista. Carrega os SKUs uma vez (tabela
 // pequena), casa por tokens, e pede os preços recentes desses SKUs numa query só.
-async function resolverItensLista(pool, itens, mercado) {
+export async function resolverItensLista(pool, itens, mercado) {
   if (!itens.length) return;
   const skus = await carregarSkus(pool);
   const skuIdsPorItem = new Map();   // lista_id → Set(sku_id)

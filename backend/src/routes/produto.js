@@ -19,6 +19,7 @@ import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from '../ingest/traduz.js';
+import { resolverItensLista } from './lista.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -721,10 +722,16 @@ produtoRouter.get('/base-local', requireAuth, async (req, res) => {
 // o que ainda está em casa). Partilhada; ordenada pelo scan mais recente.
 produtoRouter.get('/despensa', requireAuth, async (req, res) => {
   try {
+    const mercado = req.query.mercado || null;
     const [rows] = await getPool().query(
       `SELECT ean, nome, marca, validade, atualizado_em AS data FROM despensa ORDER BY atualizado_em DESC, id DESC`);
     const limparVal = (v) => { const s = String(v ?? '').trim(); return s && !/^null$/i.test(s) ? s : null; };
-    res.json({ produtos: rows.map((r) => ({ ean: r.ean, nome: r.nome, marca: r.marca, validade: limparVal(r.validade), data: r.data })) });
+    // MESMO enriquecimento da lista de compras (categoria/secção, marca, tamanho,
+    // preço) → a despensa mostra-se com o mesmo formato rico. id = ean (único).
+    const itens = rows.map((r) => ({ id: r.ean, nome: r.nome, ean: r.ean, estado: 'ativo', quantidade: 1, marca_scan: r.marca, validade: limparVal(r.validade), data: r.data }));
+    await resolverItensLista(getPool(), itens, mercado);
+    for (const it of itens) { if (!it.marca) it.marca = it.marca_scan || null; delete it.marca_scan; }
+    res.json({ produtos: itens });
   } catch (e) {
     console.error('[produto/despensa] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar a despensa' });

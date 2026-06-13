@@ -745,6 +745,24 @@ body { background: #0c1814; }
 @keyframes bbpop { 0% { transform: scale(1); } 45% { transform: scale(1.4); } 100% { transform: scale(1); } }
 .bb .li-n.pop { animation: bbpop .32s ease; }
 
+/* DESPENSA — botão do topo em ÂMBAR (distinto da lista de compras, verde); é um teste */
+.bb .despbtn { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 13px;
+  background: transparent; color: #e0a82e; border: 0; cursor: pointer; transition: .15s; }
+.bb .despbtn:hover { background: rgba(224,168,46,.1); }
+.bb .despbtn:active { transform: scale(.93); }
+.bb .despbtn .desp-ic { display: grid; place-items: center; filter: drop-shadow(0 2px 7px rgba(224,168,46,.4)); }
+.bb .desp-n { position: absolute; top: -3px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+  background: #e0a82e; color: #2a1d04; font-size: 12px; font-weight: 800; display: grid; place-items: center;
+  border: 2px solid #15231e; font-variant-numeric: tabular-nums; box-shadow: 0 1px 5px rgba(0,0,0,.45); }
+.bb .desp-n.pop { animation: bbpop .32s ease; }
+/* sheet da despensa: cabeçalho/secções com toque âmbar p/ não confundir com a lista */
+.bb .despensa-sheet .cart-cat { color: #e0a82e; }
+.bb .desp-crow { cursor: default; }
+.bb .desp-clic { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; align-items: flex-start;
+  text-align: left; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; font: inherit; }
+.bb .desp-val-in { color: #e0a82e; font-weight: 600; }
+.bb .desp-add { background: #e0a82e; color: #2a1d04; }
+
 /* chat */
 .bb .chat { position: relative; z-index: 1; flex: 1; overflow-y: auto; min-height: 0; padding: 20px 16px 8px;
   display: flex; flex-direction: column; gap: 14px; }

@@ -230,9 +230,10 @@ const STRINGS = {
     'desp.ordData': 'Recente',
     'desp.ordNome': 'Nome',
     'desp.ordVal': 'Validade',
-    'desp.vazio': 'Despensa vazia. Na lista de compras, toque no ícone de código de barras e leia os produtos que você tem em casa — eles aparecem aqui.',
+    'desp.vazio': 'Despensa vazia. Toque em "Escanear produto" e leia os códigos de barras do que você tem em casa — aparecem aqui, separados da lista de compras.',
     'desp.val': 'Val. {data}',
     'desp.remover': 'Tirar da despensa',
+    'desp.add': 'Escanear produto',
     // gastos
     'gastos.title': 'Meus gastos',
     'gastos.falha': 'Falha ao carregar os gastos.',

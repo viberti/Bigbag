@@ -299,6 +299,8 @@ function Chat({ onSair, nome }) {
   }
   const [scannerAberto, setScannerAberto] = useState(false);
   const scanListaRef = useRef(false); // scan disparado da lista → produto vai direto p/ a lista
+  const scanDespensaRef = useRef(false); // scan disparado da despensa → produto vai p/ a despensa (independente da lista)
+  const recarregarDespensa = () => listarDespensa().then((d) => setDespensaLista(d || [])).catch(() => {});
   const [compararAberto, setCompararAberto] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [toast, setToast] = useState('');
@@ -560,6 +562,7 @@ function Chat({ onSair, nome }) {
 
   // carrega 1x no arranque (badge do cabeçalho)
   useEffect(() => { carregarLista(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { recarregarDespensa(); }, []); // contagem da despensa p/ a pílula do topo
 
   const noCarrinho = (n) => (lista || []).some((i) => chaveLite(i.nome) === chaveLite(n));
   // Trata o caso de um item ainda TMP (criado offline). Se o seu `add` já está no
@@ -752,6 +755,12 @@ function Chat({ onSair, nome }) {
           <span className="li-ic"><Ico name="list" size={32} stroke={2} /></span>
           {(lista?.length || 0) > 0 && <span className="li-n pop" key={lista.length}>{lista.length}</span>}
         </button>
+        {/* Despensa — "tenho em casa": lista paralela e independente da de compras.
+            Cor distinta (âmbar) para não confundir; é um teste (decisão do dono). */}
+        <button className="despbtn" onClick={() => { abrirDespensa(); track('despensa_abrir', { via: 'topo' }); }} title={t('desp.title')} aria-label={t('desp.title')}>
+          <span className="desp-ic"><Ico name="despensa" size={26} /></span>
+          {(despensaLista?.length || 0) > 0 && <span className="desp-n pop" key={despensaLista.length}>{despensaLista.length}</span>}
+        </button>
         <button className="kebab" onClick={() => { setMenuAberto(true); track('menu_abrir'); }} title={t('menu.mais')} aria-label={t('menu.mais')}>
           <Ico name="kebab" size={22} />
         </button>
@@ -917,7 +926,6 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
             <button onClick={() => { setMenuAberto(false); setScannerAberto(true); track('scanner_abrir', { via: 'menu' }); }}><Ico name="search" size={18} /> {t('menu.consultar')}</button>
-            <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> {t('menu.despensa')}</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> {t('menu.gastos')}</button>
             <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> {t('menu.porident')}</button>
             <div className="cap-menu-sep" />
@@ -991,7 +999,8 @@ function Chat({ onSair, nome }) {
         onFechar={() => { setMinhaAberta(false); setCarrinhoAberto(true); }}
       />
       <NotasSheet aberto={notasAberto} notas={notasLista} onFechar={() => setNotasAberto(false)} onIdentificar={setIdentItem} onInfo={setInfoItem} identificados={identificados} />
-      <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} onRemover={removerDaDespensa} />
+      <DespensaSheet aberto={despensaAberto} produtos={despensaLista} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} onRemover={removerDaDespensa}
+        onScan={() => { scanDespensaRef.current = true; setDespensaAberto(false); setScannerAberto(true); track('scanner_abrir', { via: 'despensa' }); }} />
       <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
       <PorIdentificarSheet
         aberto={porIdentAberto}
@@ -1011,22 +1020,32 @@ function Chat({ onSair, nome }) {
       />
       <ScannerSheet
         aberto={scannerAberto}
-        onFechar={() => { scanListaRef.current = false; setScannerAberto(false); }}
+        onFechar={() => { scanListaRef.current = false; scanDespensaRef.current = false; setScannerAberto(false); }}
         onEncontrado={(p) => {
           setScannerAberto(false);
           // scan iniciado a partir da lista → o produto lido vai DIRETO para a
           // lista (exatamente aquele), em vez de abrir a ficha. "Vi a acabar, fiz scan."
+          // scan disparado da DESPENSA → produto vai SÓ para a despensa (independente
+          // da lista; decisão do dono 2026-06-13: listas separadas).
+          if (scanDespensaRef.current) {
+            scanDespensaRef.current = false;
+            (async () => {
+              let nome = p.nome || p.produto || p.ean;
+              if (p.ean) { try { const r = await consultarProdutoEan(p.ean, { pt: true }); if (r?.nome) nome = r.nome; } catch { /* usa o local */ } }
+              if (p.ean) { try { await adicionarDespensa(p.ean, nome); } catch { /* offline */ } recarregarDespensa(); navigator.vibrate?.(15); track('despensa_scan_adicionar'); }
+              setDespensaAberto(true);
+            })();
+            return;
+          }
           if (scanListaRef.current) {
             scanListaRef.current = false;
             // garante o nome em PT (o OFF pode ter vindo em FR/EN/ES) antes de pôr
             // na lista — pede ?pt=1 ao servidor, que espera a tradução. Cai no nome
-            // local se a rede falhar.
+            // local se a rede falhar. (Já NÃO grava na despensa — listas independentes.)
             (async () => {
               let nome = p.nome || p.produto || p.ean;
               if (p.ean) { try { const r = await consultarProdutoEan(p.ean, { pt: true }); if (r?.nome) nome = r.nome; } catch { /* usa o local */ } }
               if (nome) { adicionarAoCarrinho(nome, null, 1, p.ean || null); navigator.vibrate?.(15); track('lista_scan_adicionar'); }
-              // aproveita o scan para registar na DESPENSA ("tenho isto em casa")
-              if (p.ean) adicionarDespensa(p.ean, nome).catch(() => {});
             })();
             return;
           }
@@ -1726,62 +1745,74 @@ function tsData(s) {
   return Number.isNaN(d) ? null : d;
 }
 
-function DespensaSheet({ aberto, produtos, onFechar, onInfo, onRemover }) {
-  const [ordem, setOrdem] = useState('data'); // data | nome | validade
-  let lista = produtos;
-  if (produtos) {
-    lista = [...produtos];
-    if (ordem === 'nome') {
-      lista.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt', { sensitivity: 'base' }));
-    } else if (ordem === 'validade') {
-      lista.sort((a, b) => (tsData(a.validade) ?? Infinity) - (tsData(b.validade) ?? Infinity)); // a expirar primeiro
-    } else {
-      lista.sort((a, b) => (tsData(b.data) ?? -Infinity) - (tsData(a.data) ?? -Infinity)); // compra mais recente primeiro
-    }
-  }
+// Uma linha da despensa: mesmo formato rico da lista (nome + marca noutra cor +
+// tamanho · preço) + VALIDADE quando existe. Clicável → ficha; X → remover.
+// Sem +/− nem riscar (a despensa é inventário, não compras).
+function ItemDespensa({ it, tipo, onInfo, onRemover }) {
+  const preco = it.preco_mercado ?? it.melhor_preco;
+  const temSub = it.tamanho || preco != null || it.preco_ref != null || it.validade;
+  return (
+    <div className="crow-li">
+      <div className="crow desp-crow">
+        <button type="button" className="cnwrap desp-clic" onClick={() => onInfo({ ean: it.ean, produto: it.nome })}>
+          <span className="cn">
+            {(() => { const f = formatarNomeLista(it.nome, it.marca, tipo); return (<>{f.core}{f.marca ? <span className="cn-marca"> {f.marca}</span> : null}</>); })()}
+          </span>
+          {temSub && (
+            <span className="csub">
+              {it.tamanho ? <span className="csub-tam">{it.tamanho}</span> : null}
+              {it.tamanho && (preco != null || it.preco_ref != null) ? ' · ' : ''}
+              {preco != null
+                ? <>{eur(preco)}{it.unidade_base ? `/${it.unidade_base}` : ''}{!it.preco_mercado && it.melhor_loja ? ` · ${it.melhor_loja}` : ''}</>
+                : it.preco_ref != null
+                  ? <span className="csub-ref">~{eur(it.preco_ref)} · {t(it.preco_ref_tipo === 'estimado' ? 'cart.estimado' : 'cart.online')}</span>
+                  : null}
+              {it.validade ? <span className="desp-val-in">{(it.tamanho || preco != null || it.preco_ref != null) ? ' · ' : ''}{t('desp.val', { data: fmtValidade(it.validade) })}</span> : null}
+            </span>
+          )}
+        </button>
+        <button type="button" className="desp-x" aria-label={t('desp.remover')} title={t('desp.remover')}
+          onClick={() => { onRemover(it.ean); navigator.vibrate?.(8); }}>
+          <Ico name="close" size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DespensaSheet({ aberto, produtos, onFechar, onInfo, onRemover, onScan }) {
+  const secoes = produtos && produtos.length ? organizarPorCategoria(produtos) : [];
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
-      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('desp.title')}>
+      <section className={`sheet ${aberto ? 'open' : ''} despensa-sheet`} aria-label={t('desp.title')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">{t('desp.title')}</span>
+          <span className="t">{t('desp.title')}{produtos?.length ? ` · ${produtos.length}` : ''}</span>
           <button className="sheet-x" onClick={onFechar} aria-label="fechar">
             <Ico name="close" size={18} />
           </button>
         </div>
-        {produtos && produtos.length > 0 && (
-          <div className="desp-ord">
-            <span className="desp-ord-k">{t('desp.ordenar')}</span>
-            {[['data', t('desp.ordData')], ['nome', t('desp.ordNome')], ['validade', t('desp.ordVal')]].map(([k, lbl]) => (
-              <button key={k} className={ordem === k ? 'on' : ''} onClick={() => setOrdem(k)}>{lbl}</button>
-            ))}
-          </div>
-        )}
-        <div className="despensa-list">
+        <div className="despensa-list cart-list">
           {produtos === null ? (
             <p className="sheet-vazio">{t('chat.thinking')}</p>
           ) : produtos.length === 0 ? (
             <p className="sheet-vazio">{t('desp.vazio')}</p>
           ) : (
-            lista.map((p) => (
-              <div key={p.ean} className="desp-row">
-                <button type="button" className="desp-abre" onClick={() => onInfo({ ean: p.ean, produto: p.nome })}>
-                  <span className="desp-corpo">
-                    <span className="desp-nome">{p.nome}</span>
-                    {limparMarca(p.marca) && <span className="desp-sub">{limparMarca(p.marca)}</span>}
-                  </span>
-                  {p.validade && <span className="desp-val">{t('desp.val', { data: fmtValidade(p.validade) })}</span>}
-                </button>
-                {onRemover && (
-                  <button type="button" className="desp-x" aria-label={t('desp.remover')} title={t('desp.remover')}
-                    onClick={() => { onRemover(p.ean); navigator.vibrate?.(8); }}>
-                    <Ico name="close" size={16} />
-                  </button>
-                )}
+            secoes.map(({ g, itens: its }) => (
+              <div key={g.id}>
+                <div className="cart-cat">{g.label}</div>
+                {its.map((it) => (
+                  <ItemDespensa key={it.ean} it={it} tipo={tipoConsumidor(it.grupo, it.nome, it.marca)} onInfo={onInfo} onRemover={onRemover} />
+                ))}
               </div>
             ))
           )}
+        </div>
+        <div className="pid-enviar">
+          <button type="button" className="pid-enviar-btn desp-add" onClick={onScan}>
+            <Ico name="scan" size={18} /> {t('desp.add')}
+          </button>
         </div>
       </section>
     </>
@@ -4076,16 +4107,15 @@ function secaoDe(cat) {
 // catálogo: "Arroz e Massa" (Auchan) e "Massas" (Continente) dividiriam as
 // massas por loja; o tipo curado junta-as numa seção só.
 const TIPOS_SALIENTES = new Set(TIPOS_NOME.map(([id]) => id));
-function organizarCarrinho(itens) {
-  // GRANULARIDADE DA LISTA (decisão do dono, 2026-06-13, 3.ª iteração): nem o
-  // corredor ("Mercearia" engole metade do catálogo) nem a folha (calibrada p/
-  // 20k produtos — massas em 5 seções). A seção é: tipo curado SALIENTE
-  // (Massa, Pão, …) > FAMÍLIA do catálogo (it.cat_exib, o 2.º nível:
-  // "Café, Chá e Infusão", "Conservas") > tipo por grupo > Mercearia/Outros.
+// Agrupa itens por SECÇÃO de exibição (partilhado pela lista e pela despensa).
+// GRANULARIDADE (decisão do dono, 2026-06-13, 3.ª iteração): nem o corredor
+// ("Mercearia" engole metade) nem a folha (massas em 5 seções). A seção é: tipo
+// curado SALIENTE (Massa, Pão, …) > FAMÍLIA do catálogo (it.cat_exib, 2.º nível:
+// "Café, Chá e Infusão", "Conservas") > tipo por grupo > Mercearia/Outros.
+function organizarPorCategoria(itens) {
   const ordem = (id) => { const i = TIPOS_CAT.findIndex((x) => x.id === id); return i < 0 ? 99 : i; };
   const porSec = new Map();
   for (const it of itens) {
-    if (it.estado === 'carrinho') continue;
     const tid = tipoConsumidor(it.grupo, it.nome, it.marca);
     const g = TIPOS_CAT.find((x) => x.id === tid) || TIPOS_CAT[TIPOS_CAT.length - 1];
     const label = TIPOS_SALIENTES.has(tid) ? g.label : (it.cat_exib || g.label);
@@ -4093,8 +4123,11 @@ function organizarCarrinho(itens) {
     if (!porSec.has(key)) porSec.set(key, { g: { id: key, label, ic: g.ic }, ord: ordem(g.id), itens: [] });
     porSec.get(key).itens.push(it);
   }
-  const secoes = [...porSec.values()].sort((a, b) => a.ord - b.ord || a.g.label.localeCompare(b.g.label, 'pt'));
-  return { secoes, noCarrinho: itens.filter((i) => i.estado === 'carrinho') };
+  return [...porSec.values()].sort((a, b) => a.ord - b.ord || a.g.label.localeCompare(b.g.label, 'pt'));
+}
+// Lista: ATIVOS por secção; "no carrinho" (riscados) à parte, descem ao fim.
+function organizarCarrinho(itens) {
+  return { secoes: organizarPorCategoria(itens.filter((i) => i.estado !== 'carrinho')), noCarrinho: itens.filter((i) => i.estado === 'carrinho') };
 }
 
 // Captura guiada ao vivo: câmara traseira + moldura de alinhamento.
