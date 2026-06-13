@@ -145,6 +145,7 @@ const STRINGS = {
     'match.erro': 'A busca por foto está indisponível no momento.',
     'match.repetir': 'Tirar outra foto',
     'match.naoEstaAqui': 'Nenhum é — tirar outra',
+    'match.eEste': 'É este',
     // toasts da câmara inteligente / envio
     'toast.analisando': 'analisando a foto…',
     'toast.naoNaBase': 'Produto {cod} não está na base nem no Open Food Facts.',

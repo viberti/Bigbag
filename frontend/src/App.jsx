@@ -1226,16 +1226,19 @@ function MatchFotoSheet({ estado, onFechar, onEscolher, onRepetir }) {
         {fase === 'resultados' && (
           <>
             <p className="matchfoto-hint">{t('match.qual')}</p>
-            <div className="matchfoto-list">
+            <div className="matchfoto-carrossel">
               {cands.map((c) => (
-                <button key={c.ean} className="matchfoto-cand" onClick={() => onEscolher(c)}>
-                  {c.imagem ? <img src={c.imagem} alt="" loading="lazy" /> : <span className="matchfoto-noimg"><Ico name="camera" size={20} /></span>}
-                  <span className="matchfoto-info">
-                    <span className="matchfoto-nome">{c.nome || c.ean}</span>
-                    {c.marca && <span className="matchfoto-marca">{c.marca}</span>}
-                  </span>
-                  <span className={`matchfoto-score ${conf(c.score)}`}>{Math.round(c.score * 100)}%</span>
-                </button>
+                <div key={c.ean} className="mf-card">
+                  <button className="mf-card-foto" onClick={() => onEscolher(c)} aria-label={c.nome || c.ean}>
+                    {c.imagem ? <img src={c.imagem} alt="" loading="lazy" /> : <span className="mf-card-noimg"><Ico name="camera" size={44} /></span>}
+                    <span className={`mf-card-score ${conf(c.score)}`}>{Math.round(c.score * 100)}%</span>
+                  </button>
+                  <div className="mf-card-info">
+                    <span className="mf-card-nome">{c.nome || c.ean}</span>
+                    {c.marca && <span className="mf-card-marca">{c.marca}</span>}
+                  </div>
+                  <button className="mf-card-btn" onClick={() => onEscolher(c)}>{t('match.eEste')}</button>
+                </div>
               ))}
             </div>
             <button className="matchfoto-repetir" onClick={onRepetir}><Ico name="camera" size={16} /> {t('match.naoEstaAqui')}</button>
