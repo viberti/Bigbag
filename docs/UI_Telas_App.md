@@ -39,11 +39,25 @@ Carregar/colar o perfil (gerado por LLM) de um **membro** ("Sue"). Fica ativo pa
 
 ## 8. Comparar produtos · `08_comparar.png`
 ![comparar](ui/08_comparar.png)
-Scanner ao vivo (moldura) para ler 2–6 produtos e comparar lado a lado. Campo manual de EAN. *(Câmara preta = captura headless sem câmara real.)*
+Scanner ao vivo (moldura) para ler 2–6 produtos e comparar lado a lado. Campo manual de EAN. *(A moldura verde com o disco é o vídeo de teste da câmara falsa; em uso real é a câmara.)*
 
-## 9. Scanner / Consultar produto · `09_scanner.png`
+## 9. Scanner / "Consultar produto" · `09_scanner.png` — ⚠️ CANDIDATA Nº 1 A REDESENHO
 ![scanner](ui/09_scanner.png)
-Lê um código de barras → abre a ficha do produto. *(Idem câmara headless.)*
+A tela mais sobrecarregada da app. Numa só folha empilha **quatro** formas de input com **dois objetivos diferentes misturados**:
+- **Ler código de barras**: (a) câmara ao vivo com moldura; (b) "Não lê? Tire uma foto do código"; (c) "ou digite o código (EAN)" + botão **Consultar**.
+- **Procurar por nome**: (d) "Consultar pelo nome (escreva ou fale)" — mic + campo + botão **Consultar**.
+
+Problemas de UX evidentes:
+1. **Dois botões "Consultar" idênticos** (um para nome, outro para EAN) na mesma tela.
+2. **Dois objetivos não relacionados** competem pelo mesmo espaço (scan de código vs busca por nome).
+3. **A MESMA tela é reutilizada em 3 fluxos** (consultar produto · adicionar à lista · adicionar à despensa — ver `13_scan_despensa.png`, idêntica) **sem adaptar ao contexto**: ao escanear para a despensa/lista, mostra "Consultar pelo nome", "tire uma foto" e EAN manual, que aí são ruído — o objetivo é só ler o código.
+4. Hierarquia plana: 4 caixas com pesos visuais semelhantes, sem um caminho primário claro.
+
+Direção possível (para o designer decidir): câmara como ação primária dominante; "por nome" e "EAN manual" recolhidos atrás de um "outras formas"; e **variar por contexto** (no fluxo despensa/lista, só ler código).
+
+## 9b. Scan a partir da despensa · `13_scan_despensa.png`
+![scan-despensa](ui/13_scan_despensa.png)
+Prova do ponto 3 acima: abrir "Escanear produto" na despensa leva à **mesma** tela "Consultar produto" — com inputs que não servem o contexto.
 
 ## 10. Ficha de produto · `11_ficha.png`
 ![ficha](ui/11_ficha.png)
@@ -67,6 +81,8 @@ Captura de nota de voz (pergunta ou ditado para a lista).
 5. **Marca com loja colada**: "Campo Largo, Lidl".
 6. **Menu kebab mistura naturezas**: ações de captura (digitalizar/galeria/PDF) + navegação (gastos, por identificar) + ferramenta (diagnóstico) — candidato a reorganização.
 7. **Duas barras de navegação** competem pela atenção: ícones de topo (lista/despensa/kebab/avatar) + tab bar inferior (câmara/scanner/comparar/compras/voz). Há sobreposição funcional (scanner no topo via lista e em baixo via tab).
+
+8. **A tela de scan "Consultar produto" (nº 9) é a candidata Nº 1 a redesenho** (decisão do dono): 4 inputs / 2 objetivos / 2 botões iguais, reutilizada sem adaptação em 3 fluxos. Ver detalhe na secção 9.
 
 **Pontos fortes a preservar:** a ficha de produto (parecer personalizado + Nutri-Score + réguas) é densa mas legível; o gesto de swipe unificado (lista e despensa); a cor âmbar como distinção de superfície; o estado-vazio acionável da lista ("Começar por mim").
 
