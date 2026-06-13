@@ -44,7 +44,8 @@ while (true) {
   if (LIMITE && total >= LIMITE) break;
   const [rows] = await pool.query(
     `SELECT id, ean, fonte, imagem_url FROM catalogo_produto
-      WHERE imagem_url IS NOT NULL AND imagem_url <> '' AND ean IS NOT NULL AND ean <> '' AND vetor_em IS NULL
+      WHERE imagem_url IS NOT NULL AND imagem_url <> '' AND ean IS NOT NULL AND ean <> ''
+        AND vetor_em IS NULL AND foto_em IS NULL
       ORDER BY id LIMIT ?`, [LOTE]);
   if (!rows.length) break;
   // baixar (paralelo controlado)
