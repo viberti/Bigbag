@@ -183,8 +183,8 @@ async function lerCodigoBarras(videoEl, onCode, onErro, { continuo = false } = {
         nativo = true;
         const loop = async () => {
           if (parado) return;
-          if (videoEl.readyState >= 2) { try { const r = await det.detect(videoEl); if (r.length) return emit(r[0].rawValue); } catch { /* frame */ } }
-          raf = requestAnimationFrame(loop);
+          if (videoEl.readyState >= 2) { try { const r = await det.detect(videoEl); if (r.length) emit(r[0].rawValue); } catch { /* frame */ } }
+          if (!parado) raf = requestAnimationFrame(loop); // CONTINUA a ler (o consenso precisa de ≥2 leituras; emit pára quando aceita)
         };
         loop();
       }
