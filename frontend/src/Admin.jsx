@@ -47,6 +47,9 @@ export default function Admin() {
           <button className={aba === 'eans' ? 'on' : ''} onClick={() => setAba('eans')}>
             EANs
           </button>
+          <button className={aba === 'elos' ? 'on' : ''} onClick={() => setAba('elos')}>
+            Elos foto
+          </button>
           <button className={aba === 'mercadona' ? 'on' : ''} onClick={() => setAba('mercadona')}>
             Mercadona
           </button>
@@ -96,6 +99,8 @@ export default function Admin() {
         <TabNomes />
       ) : aba === 'eans' ? (
         <TabEans />
+      ) : aba === 'elos' ? (
+        <TabElos />
       ) : aba === 'mercadona' ? (
         <TabMercadona />
       ) : aba === 'itens' ? (
@@ -2287,6 +2292,78 @@ function TabNotas({ notaAlvo, onConsumir }) {
             ✕
           </button>
           <img src={img} alt="nota ampliada" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Revisão dos ELOS cross-loja por imagem (Pingo Doce → catálogo com EAN). Mostra
+// as duas fotos lado a lado + nome/marca/peso; o humano decide: mesmo / outro
+// tamanho / não é. Só aqui se confirma — o lote não aplica nada.
+function TabElos() {
+  const [banda, setBanda] = useState('auto');
+  const [counts, setCounts] = useState({});
+  const [elos, setElos] = useState([]);
+  const [ocupado, setOcupado] = useState(false);
+
+  const recarregar = (b = banda) =>
+    adm.elosFoto(b).then((r) => { setCounts(r.counts || {}); setElos(r.elos || []); }).catch(() => setElos([]));
+  useEffect(() => { recarregar(); }, [banda]);
+
+  async function decidir(elo, acao) {
+    setOcupado(true);
+    setElos((xs) => xs.filter((e) => e.id !== elo.id)); // otimista
+    try { await adm.decidirElo(elo.id, acao); } catch { recarregar(); }
+    finally {
+      setCounts((c) => ({ ...c, [banda]: Math.max(0, (c[banda] || 1) - 1) }));
+      setOcupado(false);
+    }
+  }
+
+  const ABAS = [['auto', 'Mesmo SKU'], ['outro_tamanho', 'Outro tamanho'], ['revisao', 'Revisão']];
+  return (
+    <div className="adm-elos">
+      <div className="adm-elos-bandas">
+        {ABAS.map(([b, lbl]) => (
+          <button key={b} className={banda === b ? 'on' : ''} onClick={() => setBanda(b)}>
+            {lbl} <span className="adm-elos-n">{counts[b] || 0}</span>
+          </button>
+        ))}
+        <button className="adm-elos-rec" onClick={() => recarregar()}>↻</button>
+      </div>
+      {elos.length === 0 ? (
+        <p className="adm-elos-vazio">Sem elos pendentes nesta banda. (O lote ainda pode estar a correr — usa ↻.)</p>
+      ) : (
+        <div className="adm-elos-lista">
+          {elos.map((e) => (
+            <div key={e.id} className="adm-elo">
+              <div className="adm-elo-par">
+                <figure className="adm-elo-prod">
+                  <img src={e.o_img} alt="" loading="lazy" />
+                  <figcaption>
+                    <b>{e.o_marca || '—'}</b><br />{e.o_nome}<br /><span>{e.o_fmt || ''} · Pingo Doce</span>
+                  </figcaption>
+                </figure>
+                <div className="adm-elo-meio">
+                  <span className="adm-elo-score">{Math.round(e.score * 100)}%</span>
+                  <span className={`adm-elo-sin ${e.marca_estado}`}>marca {e.marca_estado}</span>
+                  <span className={`adm-elo-sin ${e.peso_estado}`}>peso {e.peso_estado}</span>
+                </div>
+                <figure className="adm-elo-prod">
+                  <img src={`/api/produto/foto-catalogo/${e.c_id}`} alt="" loading="lazy" />
+                  <figcaption>
+                    <b>{e.c_marca || '—'}</b><br />{e.c_nome}<br /><span>{e.c_fmt || ''} · {e.c_fonte}</span>
+                  </figcaption>
+                </figure>
+              </div>
+              <div className="adm-elo-acoes">
+                <button className="ok" disabled={ocupado} onClick={() => decidir(e, 'mesmo')}>✓ Mesmo produto</button>
+                <button disabled={ocupado} onClick={() => decidir(e, 'tamanho')}>≈ Outro tamanho</button>
+                <button className="no" disabled={ocupado} onClick={() => decidir(e, 'nao')}>✗ Não é</button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

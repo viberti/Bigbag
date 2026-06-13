@@ -1567,3 +1567,29 @@ body { background: #0c1814; }
 .bb .mf-card-marca { font-size: 13px; color: var(--muted-bb); }
 .bb .mf-card-btn { padding: 11px; border-radius: 12px; border: none; background: var(--accent); color: #06231a; font-weight: 700; font-size: 15px; cursor: pointer; }
 .bb .matchfoto-repetir { display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% - 32px); margin: 10px 16px 16px; padding: 12px; border-radius: 12px; border: 1px solid #2a3942; background: none; color: var(--muted-bb); cursor: pointer; font-size: 14px; }
+
+/* Admin · revisão de elos cross-loja por imagem */
+.adm-elos { padding: 16px 24px; overflow-y: auto; }
+.adm-elos-bandas { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+.adm-elos-bandas button { background: none; border: 1px solid #2a3942; color: var(--muted); padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.adm-elos-bandas button.on { background: #2a3942; color: var(--texto); }
+.adm-elos-n { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 10px; background: rgba(255,255,255,.12); font-size: 12px; }
+.adm-elos-rec { margin-left: auto; }
+.adm-elos-vazio { color: var(--muted); padding: 30px 0; }
+.adm-elos-lista { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.adm-elo { border: 1px solid #2a3942; border-radius: 12px; padding: 14px; }
+.adm-elo-par { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; }
+.adm-elo-prod { margin: 0; text-align: center; }
+.adm-elo-prod img { width: 120px; height: 120px; object-fit: contain; background: #fff; border-radius: 10px; }
+.adm-elo-prod figcaption { font-size: 12px; color: var(--texto); margin-top: 6px; line-height: 1.35; }
+.adm-elo-prod figcaption span { color: var(--muted); }
+.adm-elo-meio { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.adm-elo-score { font-size: 17px; font-weight: 700; color: var(--accent-bright); }
+.adm-elo-sin { font-size: 11px; padding: 2px 7px; border-radius: 10px; white-space: nowrap; background: rgba(255,255,255,.08); color: var(--muted); }
+.adm-elo-sin.igual { background: rgba(46,196,110,.18); color: var(--accent-bright); }
+.adm-elo-sin.conflito, .adm-elo-sin.difere { background: rgba(232,180,79,.18); color: #e8b44f; }
+.adm-elo-acoes { display: flex; gap: 8px; margin-top: 14px; justify-content: center; }
+.adm-elo-acoes button { border: 1px solid #2a3942; background: none; color: var(--texto); padding: 9px 16px; border-radius: 9px; cursor: pointer; font-size: 14px; }
+.adm-elo-acoes button.ok { background: rgba(46,196,110,.16); border-color: rgba(46,196,110,.4); color: var(--accent-bright); }
+.adm-elo-acoes button.no { color: var(--muted); }
+.adm-elo-acoes button:disabled { opacity: .5; cursor: default; }

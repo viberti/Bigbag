@@ -27,6 +27,8 @@ export const descricoesLivres = (q) => jget(`/api/admin/descricoes-livres${q ? '
 export const associar = (id, descricao) => jsend(`/api/admin/skus/${id}/associar`, 'POST', { descricao });
 export const dissociar = (id, descricao) => jsend(`/api/admin/skus/${id}/dissociar`, 'POST', { descricao });
 export const fundirSkus = (de, para) => jsend('/api/admin/skus/merge', 'POST', { de, para });
+export const elosFoto = (banda) => jget(`/api/admin/catalogo-match?banda=${encodeURIComponent(banda || 'auto')}`);
+export const decidirElo = (id, acao) => jsend(`/api/admin/catalogo-match/${id}`, 'POST', { acao });
 export const sugestoesMerge = (limiar) => jget(`/api/admin/sugestoes-merge?limiar=${limiar}`);
 export const autoMergeIdenticos = () => jsend('/api/admin/skus/auto-merge', 'POST', {});
 export const painel = () => jget('/api/admin/painel');

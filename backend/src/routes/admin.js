@@ -1557,3 +1557,53 @@ adminRouter.post('/faturas/:id/revisao', async (req, res) => {
     res.status(500).json({ erro: 'Falha a guardar revisão' });
   }
 });
+
+// ── Revisão dos ELOS cross-loja por imagem (catalogo_match) ──────────────────
+// Liga produtos sem EAN (Pingo Doce) ao catálogo com EAN. A revisão humana decide:
+// MESMO produto (escreve o EAN no produto-origem) · OUTRO TAMANHO (regista, sem EAN)
+// · NÃO É (rejeita). Nada foi aplicado pelo lote — só aqui se confirma.
+adminRouter.get('/catalogo-match', async (req, res) => {
+  try {
+    const banda = ['auto', 'outro_tamanho', 'revisao'].includes(req.query.banda) ? req.query.banda : 'auto';
+    const [contRows] = await getPool().query(
+      `SELECT banda, COUNT(*) n FROM catalogo_match WHERE estado='pendente' AND banda IN ('auto','outro_tamanho','revisao') GROUP BY banda`);
+    const counts = {}; for (const r of contRows) counts[r.banda] = r.n;
+    const [elos] = await getPool().query(
+      `SELECT m.id, m.score, m.ean, m.marca_estado, m.peso_estado, m.banda,
+              o.nome o_nome, o.marca o_marca, o.formato o_fmt, o.imagem_url o_img,
+              c.id c_id, c.nome c_nome, c.marca c_marca, c.formato c_fmt, c.fonte c_fonte
+         FROM catalogo_match m
+         JOIN catalogo_produto o ON o.id = m.origem_id
+         JOIN catalogo_produto c ON c.id = m.cand_id
+        WHERE m.estado='pendente' AND m.banda = ?
+        ORDER BY m.score DESC LIMIT 40`, [banda]);
+    res.json({ counts, elos });
+  } catch (e) {
+    console.error('[admin/catalogo-match] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar elos' });
+  }
+});
+
+adminRouter.post('/catalogo-match/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const acao = str(req.body?.acao, 12);
+    if (!Number.isInteger(id)) return res.status(400).json({ erro: 'id inválido' });
+    const pool = getPool();
+    const [[m]] = await pool.query('SELECT origem_id, ean FROM catalogo_match WHERE id = ?', [id]);
+    if (!m) return res.status(404).json({ erro: 'elo não existe' });
+    if (acao === 'mesmo') {
+      // escreve o EAN no produto-origem (PD) — só se ainda não tiver um (reversível)
+      if (m.ean) await pool.query("UPDATE catalogo_produto SET ean = ? WHERE id = ? AND (ean IS NULL OR ean = '')", [m.ean, m.origem_id]);
+      await pool.query("UPDATE catalogo_match SET estado='aprovado', banda='auto', decidido_em=NOW() WHERE id = ?", [id]);
+    } else if (acao === 'tamanho') {
+      await pool.query("UPDATE catalogo_match SET estado='aprovado', banda='outro_tamanho', decidido_em=NOW() WHERE id = ?", [id]);
+    } else if (acao === 'nao') {
+      await pool.query("UPDATE catalogo_match SET estado='rejeitado', decidido_em=NOW() WHERE id = ?", [id]);
+    } else return res.status(400).json({ erro: 'ação inválida' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/catalogo-match POST] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a decidir elo' });
+  }
+});
