@@ -5,7 +5,7 @@ import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 // a revisão achou vocabulários paralelos front/back a divergir). Módulo PURO.
 // chaveLite = chaveItemLista: a consolidação otimista usa a MESMA chave do servidor
 // (antes era um clone com singularização naïve '-s').
-import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, cortarGenerico, cortarQuantidadeNome, TIPOS_NOME } from '../../backend/src/normaliza/categoria.js';
+import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, grupoDeNome, cortarGenerico, cortarQuantidadeNome, TIPOS_NOME } from '../../backend/src/normaliza/categoria.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -381,7 +381,9 @@ function Chat({ onSair, nome }) {
   const [scannerAberto, setScannerAberto] = useState(false);
   const scanListaRef = useRef(false); // scan disparado da lista → produto vai direto p/ a lista
   const scanDespensaRef = useRef(false); // scan disparado da despensa → produto vai p/ a despensa (independente da lista)
-  const recarregarDespensa = () => listarDespensa().then((d) => setDespensaLista(d || [])).catch(() => {});
+  // atualiza TAMBÉM o cache de abrirComCache → o open seguinte é instantâneo (o
+  // recarregar no mount pré-aquece o cache; o pós-scan deixa-o fresco e enriquecido).
+  const recarregarDespensa = () => listarDespensa().then((d) => { setDespensaLista(d || []); cacheListas.current.despensa = d || []; }).catch(() => {});
   const [compararAberto, setCompararAberto] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [toast, setToast] = useState('');
@@ -1112,15 +1114,24 @@ function Chat({ onSair, nome }) {
             scanDespensaRef.current = false;
             (async () => {
               let nome = p.nome || p.produto || p.ean;
-              if (p.ean) { try { const r = await consultarProdutoEan(p.ean, { pt: true }); if (r?.nome) nome = r.nome; } catch { /* usa o local */ } }
               setDespensaAberto(true);
-              if (p.ean) {
-                try { await adicionarDespensa(p.ean, nome); } catch { /* offline */ }
-                await recarregarDespensa();
-                setDespensaNovoEan(p.ean); // destaca + faz scroll até ele (lista grande)
-                setTimeout(() => setDespensaNovoEan((e) => (e === p.ean ? null : e)), 5000);
-                navigator.vibrate?.(15); track('despensa_scan_adicionar');
-              }
+              if (!p.ean) return;
+              // OTIMISTA (a despensa enriquecida demora ~2-3s a resolver no servidor):
+              // mostra JÁ o item com o que sabemos + secção calculada no cliente, e
+              // destaca/scrolla imediatamente. A rede reconcilia em fundo (nome PT,
+              // marca/tamanho/preço, secção exata) sem o utilizador esperar.
+              setDespensaLista((xs) => {
+                const semDup = (xs || []).filter((x) => x.ean !== p.ean);
+                return [{ ean: p.ean, id: p.ean, nome, grupo: grupoDeNome(nome), marca: p.marca || null, estado: 'ativo', quantidade: 1 }, ...semDup];
+              });
+              setDespensaNovoEan(p.ean); // realce + scroll AGORA
+              navigator.vibrate?.(15); track('despensa_scan_adicionar');
+              const limparRealce = () => setTimeout(() => setDespensaNovoEan((e) => (e === p.ean ? null : e)), 5000);
+              // reconcilia em fundo: nome PT → persistir → recarregar enriquecido
+              try { const r = await consultarProdutoEan(p.ean, { pt: true }); if (r?.nome) nome = r.nome; } catch { /* usa o local */ }
+              try { await adicionarDespensa(p.ean, nome); } catch { /* offline → fica o otimista */ }
+              try { await recarregarDespensa(); setDespensaNovoEan(p.ean); } catch { /* mantém o otimista */ }
+              limparRealce();
             })();
             return;
           }
