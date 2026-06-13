@@ -123,6 +123,72 @@ async function decodeEanDeImagem(file) {
   }
 }
 
+// LEITOR de código de barras ao vivo, PARTILHADO por todos os scanners (2026-06-13).
+// Corrige o caso real "funciona no /diag mas não na app" (telemóvel da Sue):
+//  (a) usa 1280×720 — a alta resolução (1920) falhava em vários Androids;
+//  (b) PREFERE o BarcodeDetector NATIVO (mais robusto/rápido que o ZXing; existe
+//      na maioria dos Android Chrome) e só cai no ZXing como alternativa;
+//  (c) gere o getUserMedia nós (como o /diag) em vez do decodeFromConstraints.
+// Devolve { stop, getTrack } — o chamador usa o track p/ lanterna/foco e pára no
+// cleanup. onCode recebe só dígitos (≥8). onErro chamado se a câmara falhar.
+async function lerCodigoBarras(videoEl, onCode, onErro, { continuo = false } = {}) {
+  let parado = false, stream = null, zx = null, raf = 0, ultimo = '', ultimoT = 0;
+  const stop = () => {
+    parado = true; cancelAnimationFrame(raf);
+    try { zx?.stop(); } catch { /* noop */ }
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+  };
+  const emit = (bruto) => {
+    if (parado) return;
+    const c = String(bruto).replace(/\D/g, '');
+    if (c.length < 8) return;
+    if (continuo) { // multi-scan: NÃO pára; deduplica o mesmo código por 2,5s
+      const agora = Date.now();
+      if (c === ultimo && agora - ultimoT < 2500) return;
+      ultimo = c; ultimoT = agora;
+      try { navigator.vibrate?.(40); } catch { /* noop */ }
+      onCode(c); return;
+    }
+    stop(); try { navigator.vibrate?.(60); } catch { /* noop */ }
+    onCode(c);
+  };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false,
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+  } catch (e) { onErro?.(e); return { stop, getTrack: () => null }; }
+  videoEl.srcObject = stream;
+  try { await videoEl.play(); } catch { /* autoplay */ }
+  // via 1: BarcodeDetector nativo (preferido)
+  let nativo = false;
+  if ('BarcodeDetector' in window) {
+    try {
+      const fmts = await window.BarcodeDetector.getSupportedFormats();
+      const quer = ['ean_13', 'ean_8', 'upc_a', 'upc_e'].filter((f) => fmts.includes(f));
+      if (quer.length) {
+        const det = new window.BarcodeDetector({ formats: quer });
+        nativo = true;
+        const loop = async () => {
+          if (parado) return;
+          if (videoEl.readyState >= 2) { try { const r = await det.detect(videoEl); if (r.length) return emit(r[0].rawValue); } catch { /* frame */ } }
+          raf = requestAnimationFrame(loop);
+        };
+        loop();
+      }
+    } catch { /* cai no zxing */ }
+  }
+  // via 2: ZXing sobre o vídeo já com stream (alternativa)
+  if (!nativo) {
+    try {
+      const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+      const hints = new Map();
+      hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
+      hints.set(lib.DecodeHintType.TRY_HARDER, true);
+      zx = await new BrowserMultiFormatReader(hints).decodeFromVideoElement(videoEl, (r) => { if (r) emit(r.getText()); });
+    } catch (e) { onErro?.(e); }
+  }
+  return { stop, getTrack: () => stream?.getVideoTracks?.()[0] || null };
+}
+
 // Realce subtil na resposta do assistente: valores em € (verde) e cadeias (menta).
 const CADEIAS = /\b(Continente|Pingo Doce|Mercadona|Lidl|Aldi|Auchan|Minipre[çc]o|Makro|Intermarch[ée])\b/g;
 const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1962,39 +2028,18 @@ function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
   // scanner ao vivo só enquanto na fase 'scan'
   useEffect(() => {
     if (!item || fase !== 'scan') return undefined;
-    let controls;
-    let parado = false;
+    let leitor;
     (async () => {
-      try {
-        const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
-        const hints = new Map();
-        hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
-        hints.set(lib.DecodeHintType.TRY_HARDER, true);
-        const reader = new BrowserMultiFormatReader(hints);
-        controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
-          videoRef.current,
-          (result) => {
-            if (!result || parado) return;
-            const cod = result.getText().replace(/\D/g, '');
-            if (cod.length < 8) return;
-            parado = true;
-            controls?.stop();
-            try { navigator.vibrate?.(60); } catch { /* noop */ }
-            setEan(cod);
-            setFase('fotos');
-          },
-        );
-        controlsRef.current = controls;
-        const track = videoRef.current?.srcObject?.getVideoTracks?.()[0];
-        if (track) {
-          try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* noop */ }
-          const caps = track.getCapabilities?.() || {};
-          if (caps.torch) { trackRef.current = track; setTemLuz(true); }
-        }
-      } catch { setFase('erro'); }
+      leitor = await lerCodigoBarras(videoRef.current, (cod) => { setEan(cod); setFase('fotos'); }, () => setFase('erro'));
+      controlsRef.current = { stop: () => leitor?.stop() };
+      const track = leitor.getTrack();
+      if (track) {
+        try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* noop */ }
+        const caps = track.getCapabilities?.() || {};
+        if (caps.torch) { trackRef.current = track; setTemLuz(true); }
+      }
     })();
-    return () => { parado = true; controls?.stop(); controlsRef.current = null; trackRef.current = null; };
+    return () => { leitor?.stop(); controlsRef.current = null; trackRef.current = null; };
   }, [item, fase]);
 
   if (!item) return null;
@@ -2269,29 +2314,17 @@ function CompararSheet({ aberto, onFechar }) {
   // scanner CONTÍNUO enquanto na fase 'scan' (não para no 1.º código)
   useEffect(() => {
     if (!aberto || fase !== 'scan') return undefined;
-    let controls;
-    let parado = false;
+    let leitor;
     (async () => {
-      try {
-        const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
-        const hints = new Map();
-        hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
-        hints.set(lib.DecodeHintType.TRY_HARDER, true);
-        const reader = new BrowserMultiFormatReader(hints);
-        controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
-          videoRef.current,
-          (result) => { if (!result || parado) return; adicionar(result.getText()); },
-        );
-        const track2 = videoRef.current?.srcObject?.getVideoTracks?.()[0];
-        if (track2) {
-          try { await track2.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* noop */ }
-          const caps = track2.getCapabilities?.() || {};
-          if (caps.torch) { trackRef.current = track2; setTemLuz(true); }
-        }
-      } catch { setAviso(t('scanner.semCamera')); }
+      leitor = await lerCodigoBarras(videoRef.current, (cod) => adicionar(cod), () => setAviso(t('scanner.semCamera')), { continuo: true });
+      const track2 = leitor.getTrack();
+      if (track2) {
+        try { await track2.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* noop */ }
+        const caps = track2.getCapabilities?.() || {};
+        if (caps.torch) { trackRef.current = track2; setTemLuz(true); }
+      }
     })();
-    return () => { parado = true; controls?.stop(); trackRef.current = null; };
+    return () => { leitor?.stop(); trackRef.current = null; };
   }, [aberto, fase]);
 
   async function alternarLuz() {
@@ -2561,42 +2594,20 @@ function ScannerSheet({ aberto, onFechar, onEncontrado }) {
     setFotosIdent([]);
     setTemLuz(false);
     setLuz(false);
-    let controls;
-    let parado = false;
+    let leitor;
     (async () => {
-      try {
-        const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
-        const hints = new Map();
-        hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
-        hints.set(lib.DecodeHintType.TRY_HARDER, true);
-        const reader = new BrowserMultiFormatReader(hints);
-        controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
-          videoRef.current,
-          (result) => {
-            if (!result || parado) return;
-            const cod = result.getText().replace(/\D/g, '');
-            if (cod.length < 8) return;
-            parado = true;
-            controls?.stop();
-            consultarCod(cod);
-          },
-        );
-        controlsRef.current = controls;
-        // foco contínuo + deteção de lanterna (torch), quando suportados
-        const track = videoRef.current?.srcObject?.getVideoTracks?.()[0];
-        if (track) {
-          try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* ignora */ }
-          const caps = track.getCapabilities?.() || {};
-          if (caps.torch) { trackRef.current = track; setTemLuz(true); }
-        }
-      } catch {
-        setFase('erro');
+      leitor = await lerCodigoBarras(videoRef.current, (cod) => consultarCod(cod), () => setFase('erro'));
+      controlsRef.current = { stop: () => leitor?.stop() };
+      // foco contínuo + deteção de lanterna (torch), quando suportados
+      const track = leitor.getTrack();
+      if (track) {
+        try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* ignora */ }
+        const caps = track.getCapabilities?.() || {};
+        if (caps.torch) { trackRef.current = track; setTemLuz(true); }
       }
     })();
     return () => {
-      parado = true;
-      controls?.stop();
+      leitor?.stop();
       controlsRef.current = null;
       trackRef.current = null;
     };
@@ -2852,39 +2863,18 @@ function ProdutoIdentSheet({ item, onFechar, onIdentificado }) {
   // scanner ao vivo só na fase 'scan' (mesmo padrão do CapturaIdentSheet)
   useEffect(() => {
     if (!item || fase !== 'scan') return undefined;
-    let controls;
-    let parado = false;
+    let leitor;
     (async () => {
-      try {
-        const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
-        const hints = new Map();
-        hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E]);
-        hints.set(lib.DecodeHintType.TRY_HARDER, true);
-        const reader = new BrowserMultiFormatReader(hints);
-        controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
-          videoRef.current,
-          (result) => {
-            if (!result || parado) return;
-            const cod = result.getText().replace(/\D/g, '');
-            if (cod.length < 8) return;
-            parado = true;
-            controls?.stop();
-            try { navigator.vibrate?.(60); } catch { /* noop */ }
-            setEan(cod);
-            setFase('fotos');
-          },
-        );
-        controlsRef.current = controls;
-        const track = videoRef.current?.srcObject?.getVideoTracks?.()[0];
-        if (track) {
-          try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* noop */ }
-          const caps = track.getCapabilities?.() || {};
-          if (caps.torch) { trackRef.current = track; setTemLuz(true); }
-        }
-      } catch { setFase('erro'); }
+      leitor = await lerCodigoBarras(videoRef.current, (cod) => { setEan(cod); setFase('fotos'); }, () => setFase('erro'));
+      controlsRef.current = { stop: () => leitor?.stop() };
+      const track = leitor.getTrack();
+      if (track) {
+        try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch { /* noop */ }
+        const caps = track.getCapabilities?.() || {};
+        if (caps.torch) { trackRef.current = track; setTemLuz(true); }
+      }
     })();
-    return () => { parado = true; controls?.stop(); controlsRef.current = null; trackRef.current = null; };
+    return () => { leitor?.stop(); controlsRef.current = null; trackRef.current = null; };
   }, [item, fase]);
 
   if (!item) return null;
