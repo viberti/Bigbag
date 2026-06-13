@@ -73,16 +73,26 @@ Verificado por `EXPLAIN` (todas as quentes usam índice, `rows≈1`):
 
 ## 5. Recomendações (priorizadas)
 
-### P0 — disciplina de código (resolve o "fonte não consultada", custo ~0)
-**Toda a resolução por EAN passa por `fundirFichaEan`** (já consulta tudo), em vez de queries soltas a uma tabela. É uma regra, não uma tabela nova. Auditar os pontos que ainda leem só `catalogo_produto` **ou** só `off_produto` e encaminhá-los para o resolvedor.
+### P0 — disciplina de código (resolve o "fonte não consultada", custo ~0) — ✅ FEITO (2026-06-13)
+**Toda a resolução por EAN passa por `fundirFichaEan`** (já consulta tudo), em vez de queries soltas a uma tabela. Auditoria feita (grep de todas as queries por EAN a `catalogo_produto`/`off_produto`):
+- O resolvedor `consultarOuGuardar`→`fundirFichaEan` já estava completo (catálogo+OFF dump+live+fiche+VLM).
+- **Achado 1:** `marcaCatalogo`/`nomeCatalogoPt` em `produto.js` eram **código morto** (zero chamadores) → removidos.
+- **Achado 2 (o "fonte não consultada" real):** `mestrePorEan` (usado no `/admin`) consultava o OFF **só para nutrição** — um EAN só-OFF (dos 21k) vinha sem nome/marca. **Corrigido:** consulta o OFF também quando falta nome e aproveita nome/marca/categoria.
+- Sobra (sem impacto prático, anotado): a classificação ao vivo (`resolverItensLista`) usa `food_groups` do OFF só via fiche já fundida — mas os itens da lista/despensa são escaneados (têm fiche) ou digitados (sem EAN), por isso não há buraco real; encaminhá-la pelo OFF custaria queries no caminho quente (contra o trabalho de perf).
 
-### P1 — VISTA/REGISTO do universo de EANs (a "tabela auxiliar com todos os EANs" que pediste)
-Uma **vista** `v_ean_universo` (zero manutenção, sempre fresca) que faz `UNION` dos EANs distintos de `catalogo_produto` + `off_produto` + `produto_ean`, com flags de presença por fonte. Valor:
-- **Um denominador único** de "tudo o que conhecemos" — hoje contamos por tabela (foi o que te confundiu na vetorização de imagens: "36k? 42k? 62k?"). A vista dá um número só.
-- **Garante que nenhum processo esquece uma fonte:** `SELECT * FROM v_ean_universo WHERE ean=?` diz logo onde procurar.
-- Backbone natural para o **Produto Mestre** e para a cobertura da vetorização de imagens.
+### P1 — VISTA do universo de EANs (a "tabela auxiliar com todos os EANs") — ✅ FEITO (migração 055)
+A vista **`v_ean_universo`** (zero manutenção, sempre fresca): `UNION` dos EANs de `catalogo_produto`+`off_produto`+`produto_ean`+`item`, com flags `em_catalogo/em_off/em_fiche/em_talao`, `fontes_catalogo` e `tem_foto`. Números reais (o denominador único que faltava):
 
-Se quisermos guardar também o *resolvido* (nome/marca/grupo canónico) por EAN, aí sim uma **tabela** (materializada): é estender o conceito do `produto_ean` (hoje só cobre os ~290 já vistos) para todo o universo. Maior esforço; decisão do dono.
+| | EANs |
+|---|---:|
+| **Universo total (distintos)** | **63.699** |
+| só catálogo | 36.569 · só OFF **21.045** · ambos 5.837 |
+| **com foto (denominador da vetorização)** | **32.631** / 42.577 no catálogo |
+
+- Responde de uma vez ao "36k? 42k? 62k?" que confundia a vetorização: `SELECT COUNT(*) FROM v_ean_universo`.
+- O MySQL 8 empurra o predicado pela vista (`WHERE ean=?` examina ~14 linhas), por isso também serve para localizar um EAN, não só o denominador.
+
+Guardar também o *resolvido* (nome/marca/grupo canónico) por EAN seria estender o `produto_ean` (hoje só os ~290 vistos) a todo o universo — **materializar** em vez de vista. Maior esforço; decisão futura do dono.
 
 ### P2 — FULLTEXT em `catalogo_produto(nome, nome_pt)`
 Só quando o matching da ingestão for prioridade (ver §3). Elimina o último *full-scan* e melhora a qualidade do match por palavra.

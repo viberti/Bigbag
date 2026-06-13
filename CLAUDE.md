@@ -75,7 +75,7 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 
 **Pipeline:** `POST /api/faturas` (câmara/galeria · ficheiro · Share Target Android) → VLM-imagem ou texto-PDF+LLM → extração com loop de auto-correção (reconcilia com o total) → dedup → normalização (formato→`preco_por_base`) → canonicalização + matching → verificação de nomes. **Consulta:** tool use (`POST /api/consulta` texto, `/api/voz`).
 
-**Infra FECHADA:** Apache+Let's Encrypt, systemd porta 4200. BD `app_bigbag`, **migrações até 054** (lista no `Schema_e_Funcoes_ToolUse.md §1d`). Migrações novas: `mysql … < ficheiro` no servidor (aditivas por regra).
+**Infra FECHADA:** Apache+Let's Encrypt, systemd porta 4200. BD `app_bigbag`, **migrações até 055** (lista no `Schema_e_Funcoes_ToolUse.md §1d`). Migrações novas: `mysql … < ficheiro` no servidor (aditivas por regra).
 
 ### Sistema de classificação (o eixo desta fase — detalhe nos docs-fonte)
 - **Duas lentes** (dono, 2026-06-12): **de loja** (`it.grupo`, o corredor — segue como as lojas organizam; massa/arroz/cereais em *mercearia*) serve comparar/comprar; **da lista** (seção de exibição) é o cabeçalho da lista de compras. São eixos distintos de propósito.
