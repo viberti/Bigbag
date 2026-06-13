@@ -84,7 +84,10 @@ async function habitosDosSkus(pool, skuIds) {
 // pequena), casa por tokens, e pede os preços recentes desses SKUs numa query só.
 export async function resolverItensLista(pool, itens, mercado) {
   if (!itens.length) return;
+  let _last = Date.now(); // PROF_FASES: tempo por fase (one-off, sem custo se off)
+  const mark = (n) => { if (process.env.PROF_FASES) { const now = Date.now(); console.error('  fase', n.padEnd(16), (now - _last) + 'ms'); _last = now; } };
   const skus = await carregarSkus(pool);
+  mark('carregarSkus');
   const skuIdsPorItem = new Map();   // lista_id → Set(sku_id)
   const allSkuIds = new Set();
   for (const it of itens) {
@@ -104,6 +107,7 @@ export async function resolverItensLista(pool, itens, mercado) {
     // parte, noutra cor (formato do talão: nome sem marca + marca destacada).
     it.marca = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
   }
+  mark('loop+marca');
   // PREÇO-FACTO POR EAN (dono, 2026-06-14, caso Picles do Aldi): o nome da lista
   // pode não casar o do talão ("Picles" vs "PICKLES"), mas o EAN liga DIRETO à
   // compra — duas fontes que faltavam: item.ean (talão Makro/Aldi) e
@@ -130,10 +134,15 @@ export async function resolverItensLista(pool, itens, mercado) {
       }
     }
   }
+  mark('ean-sku');
   await aplicarDadosEan(pool, itens); // preço-ref + marca da ficha (corre haja ou não SKU casado)
+  mark('dadosEan');
   await aplicarCatalogoLista(pool, itens); // voto do catálogo: cat_exib (folha p/ seção) + grupo-fallback
+  mark('catalogo');
   await aplicarTamanhoPorNome(pool, itens); // peso em falta → match por nome no catálogo
+  mark('tamanhoNome');
   await aplicarPrecoPorIrmao(pool, itens); // sem preço? estima pelo €/kg do IRMÃO (mesma marca/família)
+  mark('precoIrmao');
   // ainda sem peso? → ferramenta "peso pela imagem" EM FUNDO (VLM lê a foto do
   // catálogo/OFF, 1x por EAN, ~$0,001). Não bloqueia; o poll seguinte traz o peso.
   for (const it of itens) {
@@ -157,6 +166,7 @@ export async function resolverItensLista(pool, itens, mercado) {
          FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id JOIN sku_normalizado s ON s.id=i.sku_id
         WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND (i.preco_por_base IS NOT NULL OR i.preco_unitario IS NOT NULL)
      ) t WHERE t.rn <= 3`, ids);
+  mark('precoQuery');
   // preço no mercado selecionado (a compra mais recente nesse mercado), por SKU
   let noMercado = new Map();
   if (mercado) {
@@ -176,6 +186,7 @@ export async function resolverItensLista(pool, itens, mercado) {
   // ESTA casa compra quando escreve "iogurte"), o nº de opções (abre o seletor de
   // variantes) e a quantidade habitual. Determinístico — o histórico é a inteligência.
   const habitoPorSku = await habitosDosSkus(pool, ids);
+  mark('habitos');
   const skuById = new Map(skus.map((s) => [s.id, s]));
   // Por item: preferimos €/base (comparável) ao preço de embalagem. Só caímos para
   // a embalagem (pu) se NENHUM dos SKUs casados tiver ppb — evita misturar unidades.
