@@ -91,8 +91,10 @@ export async function resolverItensLista(pool, itens, mercado) {
     const matched = skusDoNome(it.nome, skus);
     skuIdsPorItem.set(it.id, new Set(matched.map((s) => s.id)));
     for (const s of matched) allSkuIds.add(s.id);
-    // GRUPO (ponto 3): do SKU casado (1.º com grupo definido); senão do NOME.
-    it.grupo = matched.find((s) => s.grupo && s.grupo !== 'outros')?.grupo || grupoDeTexto(it.nome);
+    // GRUPO (ponto 3): do SKU casado (1.º com grupo definido); senão do NOME
+    // por grupoDeNome (substantivo-CABEÇA: "Massa … com Ovo" é massa, não ovo —
+    // grupoDeTexto pegava o 'ovo' do meio e mandava p/ lacticínios).
+    it.grupo = matched.find((s) => s.grupo && s.grupo !== 'outros')?.grupo || grupoDeNome(it.nome);
     it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null; it.unidade_base = null;
     it.preco_ref = null; it.preco_ref_loja = null; // referência de catálogo (sem talão)
     it.tamanho = null; // peso/volume da embalagem (linha de baixo, antes do preço)

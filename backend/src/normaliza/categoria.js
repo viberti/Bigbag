@@ -49,7 +49,7 @@ export const GRUPOS = [
   { id: 'doces', t: ['chocolate', 'doce', 'sweet', 'guloseima', 'candy', 'gelado', 'ice cream', 'snack', 'bolacha', 'biscuit', 'biscoito', 'cookie', 'sobremesa', 'dessert', 'mel', 'honey', 'compota', 'marmelada', 'jam'] },
   { id: 'congelados', t: ['congelado', 'frozen', 'ultracongelado'] },
   { id: 'higiene', t: ['higiene', 'hygiene', 'limpeza', 'cleaning', 'nao alimentar', 'detergente', 'detergent', 'papel', 'paper', 'cosmetic', 'sabonete', 'champo', 'beleza', 'lixivia', 'amaciador', 'champu', 'maquillaje', 'perfume', 'desodor', 'jabon', 'colonia', 'cabello', 'parafarmacia'] },
-  { id: 'mercearia', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'leguminosa', 'feijao', 'grao', 'tofu', 'massa', 'macarrao', 'penne', 'fusilli', 'talharim', 'esparguete', 'espaguete', 'noodles', 'lasanha', 'gnocchi', 'nhoque', 'arroz', 'rice', 'farinha', 'flour', 'cuscuz', 'cereai', 'cereal', 'breakfast', 'muesli', 'granola', 'aveia', 'cotovelo', 'cotovelinho', 'conchigli', 'capellini', 'vermicell', 'aletria', 'linguine', 'pappardel', 'paccheri', 'bucatini', 'rigaton', 'tagliatel', 'fettuccin', 'farfalle', 'tortelin', 'raviol', 'cannellon', 'canelone', 'orecchiet', 'ditalini', 'fideo', 'azeitona', 'aceituna', 'encurtido', 'aperitivo', 'picles', 'pickles', 'passata', 'palmito', 'cafe', 'coffee', 'cha', 'tea', 'infus', 'descafeinado'] },
+  { id: 'mercearia', t: ['mercearia', 'grocery', 'conserva', 'azeite', 'olive oil', 'oleo', 'oil', 'molho', 'sauce', 'tempero', 'especiaria', 'spice', 'enlatado', 'canned', 'sal', 'salt', 'acucar', 'sugar', 'leguminosa', 'feijao', 'grao', 'lentilha', 'lenteja', 'tofu', 'massa', 'macarrao', 'penne', 'fusilli', 'talharim', 'esparguete', 'espaguete', 'noodles', 'lasanha', 'gnocchi', 'nhoque', 'arroz', 'rice', 'farinha', 'flour', 'cuscuz', 'cereai', 'cereal', 'breakfast', 'muesli', 'granola', 'aveia', 'cotovelo', 'cotovelinho', 'conchigli', 'capellini', 'vermicell', 'aletria', 'linguine', 'pappardel', 'paccheri', 'bucatini', 'rigaton', 'tagliatel', 'fettuccin', 'farfalle', 'tortelin', 'raviol', 'cannellon', 'canelone', 'orecchiet', 'ditalini', 'fideo', 'azeitona', 'aceituna', 'encurtido', 'aperitivo', 'picles', 'pickles', 'passata', 'palmito', 'cafe', 'coffee', 'cha', 'tea', 'infus', 'descafeinado'] },
 ];
 export const GRUPO_OUTROS = 'outros';
 export const GRUPOS_IDS = [...GRUPOS.map((g) => g.id), GRUPO_OUTROS];
@@ -86,9 +86,23 @@ function termRe(term) {
   return re;
 }
 
+// FRASES que desambiguam ANTES do voto por termo solto (vencem o loop): um termo
+// de produce ('fruta', 'milho') dentro de uma frase muda de grupo. Regra GERAL,
+// por classe — não por artigo. norm() já tirou acentos e baixou as maiúsculas.
+//  - frutos secos / fruta seca/desecada/desidratada = aperitivo de PRATELEIRA
+//    (amêndoa, noz, sésamo, passas…), NÃO fruta fresca → mercearia. ('fruta'
+//    casava "fruta desecada" e "frutos secos" e mandava tudo para Frutas.)
+//  - milho/maíz DOCE = a conserva de milho (produto de prateleira, o corredor da
+//    loja é "Conservas"), distinta do milho fresco/espiga → mercearia.
+const FRASE_GRUPO = [
+  [/(^|[^a-z])(frutos?\s+secos?|frutos?\s+desecad\w*|fruta\s+(seca|desecada|deshidratada|desidratada))/, 'mercearia'],
+  [/(^|[^a-z])(milho\s+doce|maiz\s+dulce)/, 'mercearia'],
+];
+
 export function grupoDeTexto(texto) {
   const s = norm(texto);
   if (!s) return GRUPO_OUTROS;
+  for (const [re, g] of FRASE_GRUPO) if (re.test(s)) return g;
   for (const g of GRUPOS) if (g.t.some((term) => termRe(term).test(s))) return g.id;
   return GRUPO_OUTROS;
 }
