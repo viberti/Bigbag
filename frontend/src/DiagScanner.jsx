@@ -12,6 +12,7 @@ export default function DiagScanner() {
     const v = vRef.current, c = cRef.current, statusEl = statusRef.current, logEl = logRef.current;
     const ctx = c.getContext('2d', { willReadFrequently: true });
     let stream = null, devices = [], devIdx = 0, detector = null, busy = false, raf = 0, parado = false;
+    let loopOn = false, zxingControls = null, zxTentado = false;
     const pills = {};
     const lines = [];
 
@@ -97,7 +98,35 @@ export default function DiagScanner() {
       log('Câmara ativa: "' + (track.label || '?') + '"  ' + s.width + 'x' + s.height + '  facing=' + s.facingMode);
       setPill('cam', 'Câmara: OK ' + s.width + 'x' + s.height, 'ok');
       await listCams();
-      v.onloadedmetadata = () => v.play().then(() => { log('vídeo a reproduzir'); loop(); }).catch((e) => log('play() falhou: ' + e.message));
+      // arrancar o loop de forma FIÁVEL (não depender de onloadedmetadata: com
+      // autoplay o evento já passou depois do await acima → loop nunca arrancava)
+      try { await v.play(); } catch (e) { log('play() falhou: ' + e.message); }
+      log('vídeo a reproduzir (readyState ' + v.readyState + ')');
+      if (!loopOn) { loopOn = true; loop(); }
+      testarZXing(); // o que a app REALMENTE usa
+    };
+
+    // ZXing: replica o scanner real da app (import dinâmico + decode do vídeo).
+    // É aqui que provavelmente está o problema no telemóvel da Sue (não no
+    // BarcodeDetector). Reporta se o import falha, e se deteta ou não.
+    const testarZXing = async () => {
+      if (zxTentado) return; zxTentado = true;
+      try {
+        const [{ BrowserMultiFormatReader }, lib] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+        log('ZXing: bibliotecas importadas OK');
+        const hints = new Map();
+        hints.set(lib.DecodeHintType.POSSIBLE_FORMATS, [lib.BarcodeFormat.EAN_13, lib.BarcodeFormat.EAN_8, lib.BarcodeFormat.UPC_A, lib.BarcodeFormat.UPC_E, lib.BarcodeFormat.CODE_128]);
+        hints.set(lib.DecodeHintType.TRY_HARDER, true);
+        const reader = new BrowserMultiFormatReader(hints);
+        setPill('zx', 'ZXing: a procurar…', 'warn');
+        zxingControls = await reader.decodeFromVideoElement(v, (result) => {
+          if (result) { setPill('zx', 'ZXing: DETETOU', 'ok'); log('>>> ZXing CÓDIGO: ' + result.getText()); }
+        });
+        log('ZXing: a descodificar do vídeo (este é o caminho da app)');
+      } catch (e) {
+        setPill('zx', 'ZXing: ERRO', 'bad');
+        log('ZXing FALHOU: ' + e.name + ' — ' + e.message);
+      }
     };
 
     const btnSwitch = document.getElementById('dg-switch');
@@ -111,6 +140,7 @@ export default function DiagScanner() {
 
     return () => {
       parado = true; cancelAnimationFrame(raf);
+      try { zxingControls?.stop(); } catch { /* noop */ }
       if (stream) stream.getTracks().forEach((t) => t.stop());
       window.removeEventListener('unhandledrejection', onRej);
       btnSwitch.removeEventListener('click', onSwitch);
