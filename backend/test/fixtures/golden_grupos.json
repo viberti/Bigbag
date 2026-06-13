@@ -1,5 +1,5 @@
 {
- "gerado": "2026-06-12",
+ "gerado": "2026-06-13",
  "nota": "Regenerar com backend/scripts/gerar_golden_grupos.mjs (ver cabeçalho). Mudança INTENCIONAL de vocabulário => regenerar e commitar o diff no mesmo commit.",
  "casos": [
   {
@@ -227,7 +227,7 @@
    "categoria": "Snacks e Frutos Secos",
    "cat_gen": "fruto seco",
    "foodGroups": null,
-   "ouro": "doces"
+   "ouro": "mercearia"
   },
   {
    "nome": "Ketchup",
@@ -326,7 +326,7 @@
    "categoria": "Mercearia Salgada",
    "cat_gen": "vegetais enlatados",
    "foodGroups": null,
-   "ouro": "frutas"
+   "ouro": "mercearia"
   },
   {
    "nome": "Nectarina",
@@ -2329,10 +2329,7 @@
    "simplificado": null,
    "categoria": "Mercearia Salgada",
    "cat_gen": null,
-   "foodGroups": [
-    "en:cereals-and-potatoes",
-    "en:bread"
-   ],
+   "foodGroups": null,
    "ouro": "carne"
   },
   {
@@ -2960,7 +2957,7 @@
   },
   {
    "nome": "Milho Doce",
-   "esperado": "frutas"
+   "esperado": "mercearia"
   },
   {
    "nome": "Pickles em Vinagre",
@@ -3097,6 +3094,198 @@
   {
    "nome": "Carne Picada de Porco",
    "esperado": "carne"
+  },
+  {
+   "nome": "Milho Doce Orgânico Freshona",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Sardinha em Azeite",
+   "esperado": "peixe"
+  },
+  {
+   "nome": "Filetes de Cavala Del Sur Contenido Reducido En Sal En Azeite",
+   "esperado": "peixe"
+  },
+  {
+   "nome": "Tortillas de Trigo",
+   "esperado": "padaria"
+  },
+  {
+   "nome": "Arroz Integral de Grano Medio",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Feijão Preto",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Sushi Rice",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Lentilhas",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Risotto Rice",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Arroz Selvagem Pd",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Crunchy Muesli Frutos Secos",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Flocos de Aveia Integral Finos",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Farinha de Aveia",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Sésamo Ajonjolí",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Creme de Leite Culinário",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Leite Achocolatado Light",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Cerveja Extra Reserva Especial",
+   "esperado": "bebidas"
+  },
+  {
+   "nome": "Cereais Frosties Kellogg's",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Cereais Especial Silhueta Original",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Leite de Coco Hacendado",
+   "esperado": "lacticinios"
+  },
+  {
+   "nome": "Café Solúvel Descafeinado",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Amêndoas Descascadas",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Almendra Tostada e Salada com Piel",
+   "esperado": "padaria"
+  },
+  {
+   "nome": "Datteln",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Tomillo",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Pimienta Negra Molida",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Alho e Salsa",
+   "esperado": "frutas"
+  },
+  {
+   "nome": "Orégano",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Poivre Blanc",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Cebola En Polvo",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Comino Molido",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Cayena Molida",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Coentros Grão em Frasco",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Jengibre Molido",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Alho Granulado",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Maçã Desidratada 100% Natural",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Miolo de Amêndoa sem Pele",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Amêndoas Natural",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Brazil Nuts",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Pêssego em Calda",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Gelatina Neutra",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Hefe",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Allseasons",
+   "esperado": "outros"
+  },
+  {
+   "nome": "Fécula de Batata",
+   "esperado": "frutas"
+  },
+  {
+   "nome": "Pão Ralado com Alho e Salsa",
+   "esperado": "padaria"
+  },
+  {
+   "nome": "Farinha de Mandioca",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Farinha Centeio Integral",
+   "esperado": "mercearia"
+  },
+  {
+   "nome": "Farinha de Milho Flocão",
+   "esperado": "mercearia"
   }
  ]
 }
