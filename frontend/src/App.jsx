@@ -1829,12 +1829,31 @@ function tsData(s) {
 // tamanho · preço) + VALIDADE quando existe. Clicável → ficha; X → remover.
 // Sem +/− nem riscar (a despensa é inventário, não compras).
 function ItemDespensa({ it, tipo, onInfo, onRemover }) {
+  // mesmo GESTO da lista de compras (uniformidade da UI, decisão do dono): arrastar
+  // para o lado remove; tocar abre a ficha. Sem botão X.
+  const [dx, setDx] = useState(0);
+  const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
   const preco = it.preco_mercado ?? it.melhor_preco;
   const temSub = it.tamanho || preco != null || it.preco_ref != null || it.validade;
+  function start(e) { const tt = e.touches[0]; g.current = { x0: tt.clientX, y0: tt.clientY, horiz: false, mov: true, dx: 0 }; }
+  function move(e) {
+    const r = g.current; if (!r.mov) return;
+    const tt = e.touches[0]; const dX = tt.clientX - r.x0; const dY = tt.clientY - r.y0;
+    if (!r.horiz && Math.abs(dX) > Math.abs(dY) + 6) r.horiz = true;
+    if (r.horiz) { r.dx = Math.max(0, dX); setDx(r.dx); }
+  }
+  function end() {
+    const r = g.current; r.mov = false;
+    if (r.horiz && r.dx > 90) { onRemover(it.ean); navigator.vibrate?.(8); }
+    setDx(0);
+  }
   return (
     <div className="crow-li">
-      <div className="crow desp-crow">
-        <button type="button" className="cnwrap desp-clic" onClick={() => onInfo({ ean: it.ean, produto: it.nome })}>
+      <div className="crow-bg"><Ico name="close" size={18} /></div>
+      <div className="crow desp-crow" style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+        onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+        onClick={() => { if (g.current.horiz) return; onInfo({ ean: it.ean, produto: it.nome }); }}>
+        <span className="cnwrap">
           <span className="cn">
             {(() => { const f = formatarNomeLista(it.nome, it.marca, tipo); return (<>{f.core}{f.marca ? <span className="cn-marca"> {f.marca}</span> : null}</>); })()}
           </span>
@@ -1850,11 +1869,7 @@ function ItemDespensa({ it, tipo, onInfo, onRemover }) {
               {it.validade ? <span className="desp-val-in">{(it.tamanho || preco != null || it.preco_ref != null) ? ' · ' : ''}{t('desp.val', { data: fmtValidade(it.validade) })}</span> : null}
             </span>
           )}
-        </button>
-        <button type="button" className="desp-x" aria-label={t('desp.remover')} title={t('desp.remover')}
-          onClick={() => { onRemover(it.ean); navigator.vibrate?.(8); }}>
-          <Ico name="close" size={16} />
-        </button>
+        </span>
       </div>
     </div>
   );
