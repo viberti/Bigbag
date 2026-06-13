@@ -52,4 +52,23 @@ Liga diretamente ao **gap da Fase 3 / Produto Mestre** (mesmo produto, EANs dife
 - **Aplicação imediata candidata:** ligar fontes SEM EAN (Pingo Doce, Lidl) ao catálogo com EAN por similaridade de imagem — hoje só ligam por nome.
 - **Scan do utilizador → ficha** mesmo quando o EAN não resolve, por vizinhança visual à base de catálogo.
 - **Validar antes de construir:** (a) teste foto-real×catálogo; (b) teste variantes-de-tamanho; (c) escalar a similaridade (índice de embeddings) e medir precisão@k num match 1-para-muitos (não só par-a-par).
-- **Operacional:** sem GPU; ViT-B-32 em CPU faz ~poucas img/s. Para produção, embeddings pré-computados por EAN de catálogo + ANN (faiss/hnsw). O servidor não tem pip/torch (Python mínimo) — exploração correu no PC; produção exigiria decidir o runtime (ONNX em Node? serviço Python? API hospedada).
+- **Operacional:** sem GPU; ViT-B-32 em CPU faz ~poucas img/s. Para produção, embeddings pré-computados por foto + busca brute-force. O servidor não tem pip/torch (Python mínimo) — exploração correu no PC; produção exige decidir o runtime.
+
+## Plano de produção v1 (decisões fechadas, 2026-06-13)
+
+Visão do dono: vetorizar TODAS as fotos de catálogo com EAN, guardar os vetores, e casar produtos novos por similaridade. Dimensão medida (`contar_fotos_catalogo.mjs`): **51.777 fotos** com imagem · **36.190 com EAN** → **32.631 EANs distintos** (a galeria-referência) · **15.587 sem EAN** (PD/Lidl = casos-query, o que mais beneficia) · 11% dos EANs já têm ≥2 fotos (multi-foto natural).
+
+| Decisão | Escolha | Porquê |
+|---|---|---|
+| **1 vetor por** | FOTO (não por EAN) | preserva as vistas; multi-foto do mesmo EAN vota naturalmente; EAN é o label |
+| **Modelo v1** | **CLIP ViT-B/32** | ganha em recuperação 1:N (p@1 0,965), mais leve (patch 32 vs 14 do DINOv2 ≈ 5× menos compute), ONNX maduro. DINOv2/ensemble guardados p/ v2 ou se o teste foto-real inverter |
+| **Busca** | brute-force numpy/torch | ~36k vetores = <10ms; FAISS/hnsw só a partir de ~1M |
+| **Guardar fotos** | SIM, em disco `/var/lib/bigbag/imagens/` (~10 GB de 729 livres) | seguro contra anti-bot do Continente — re-vetorizar (trocar modelo) sem re-baixar |
+| **Vetores** | ficheiro em disco regenerável + RAM; **NÃO na BD** | o backup R2 tem teto 5 GB / retém 90d — vetores no mysqldump estourariam-no; BD guarda só tracking leve (qual foto já vetorizada) |
+| **Runtime de inferência** | **`@huggingface/transformers` (ONNX) em Node** — a validar por spike | evita meter Python no servidor; mesmo runtime p/ bulk e incremental. Fallback: microserviço Python |
+| **Bulk inicial** | ~3-5h CPU, uma vez (PC ou servidor c/ ONNX) | depois incremental <1s/produto |
+| **Gate de match** | cosseno ≥ ~0,58 (do F1 medido) + voto multi-foto | abaixo do limiar = "não reconhecido" (honesto) |
+
+**Gate de confiança ANTES de produção:** o teste **foto-real×catálogo** (cautela #1) decide se o match aguenta o scan do utilizador. Construir o pipeline e esse teste em paralelo.
+
+**1.º passo (spike) — ✅ VALIDADO (2026-06-13):** `@huggingface/transformers` carrega CLIP-ONNX e vetoriza **em Node puro** (sem Python/torch/GPU). Consistência com o PyTorch openai: cosseno **0,93–0,99**/imagem (a perda vem da quantização int8 por defeito + preprocessing); a separação positivo/negativo mantém-se nos embeddings do Node. **Runtime de produção desbloqueado: inferência no backend Node.** Afinações antes de cravar: (a) `dtype:'fp32'` (não quantizado) p/ subir a fidelidade a ~0,99; (b) o pacote traz `openai` — medir se chega vs o `laion2b` do teste (p@1 0,965); portar laion2b p/ ONNX só se openai ficar aquém.
