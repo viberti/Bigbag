@@ -29,11 +29,11 @@ pool.query = async (...args) => {
 const clone = () => rows.map((r) => ({ id: r.ean, nome: r.nome, ean: r.ean, estado: 'ativo', quantidade: 1, marca_scan: r.marca, validade: r.validade, data: null }));
 console.error('\n━━━ PASSAGEM 1 (FRIA) ━━━');
 const t0 = Date.now();
-await resolverItensLista(pool, clone(), null);
+await resolverItensLista(pool, clone(), null, { leve: true });
 const wall = Date.now() - t0;
 console.error('\n━━━ PASSAGEM 2 (QUENTE — caches já carregados) ━━━');
 const t1 = Date.now();
-await resolverItensLista(pool, clone(), null);
+await resolverItensLista(pool, clone(), null, { leve: true });
 console.error(`  WALL passagem 2 (quente): ${Date.now() - t1}ms`);
 pool.query = orig;
 
