@@ -6,6 +6,8 @@
 
 > 🖱️ **Protótipo clicável:** [`prototipo.html`](ui/prototipo.html) — abre no browser e navega como o app (zonas clicáveis sobre os screenshots reais, seguindo o mapa de navegação abaixo). Single-file, basta abrir. Liga "mostrar zonas" para ver onde se pode clicar.
 
+> 🛠️ **Como isto foi feito (reutilizável):** [`Processo_Documentar_App_para_Designer.md`](Processo_Documentar_App_para_Designer.md) — captura de screenshots (Playwright móvel), catálogo, mapa, e geração do protótipo. Scripts: [`_capturar_telas.mjs`](ui/_capturar_telas.mjs) + [`_gerar_prototipo.mjs`](ui/_gerar_prototipo.mjs).
+
 A app é um **chat** com uma **barra de ações inferior** e ícones de topo que abrem **sheets** (folhas deslizantes). Tudo o que segue são sheets sobre a tela principal.
 
 ---
