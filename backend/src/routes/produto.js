@@ -20,6 +20,8 @@ import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../inge
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT } from '../ingest/traduz.js';
 import { resolverItensLista } from './lista.js';
+import { matchImagemB64 } from '../normaliza/matchImagem.js';
+import { mestrePorEan } from '../normaliza/mestreEan.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -646,6 +648,27 @@ produtoRouter.post('/foto', requireAuth, upload.single('foto'), async (req, res)
   } catch (e) {
     console.error('[produto/foto] erro:', e.message);
     res.status(500).json({ erro: 'Falha a analisar a foto' });
+  }
+});
+
+// BUSCAR POR FOTO (match-por-imagem): vetoriza a foto do produto e procura no
+// Qdrant os mais parecidos no catálogo vetorizado. Devolve candidatos com
+// nome/marca/imagem + score de cosseno — o match é VISUAL (não exato como o EAN),
+// por isso a UI mostra opções para CONFIRMAR, não abre o 1.º cego.
+produtoRouter.post('/match-foto', requireAuth, upload.single('foto'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Falta a foto' });
+    const cands = await matchImagemB64(req.file.buffer.toString('base64'), { k: 15, limiar: 0 });
+    // resolve nome/marca/imagem dos melhores (o matcher já fez dedup por EAN)
+    const out = [];
+    for (const c of cands.slice(0, 6)) {
+      const m = await mestrePorEan(getPool(), c.ean).catch(() => null);
+      out.push({ ean: c.ean, score: c.score, fonte: c.fonte, nome: m?.nomes?.[0] || null, marca: m?.marca || null, imagem: m?.imagem || null });
+    }
+    res.json({ candidatos: out });
+  } catch (e) {
+    console.error('[produto/match-foto] erro:', e.message);
+    res.status(503).json({ erro: 'Busca por foto indisponível' });
   }
 });
 
