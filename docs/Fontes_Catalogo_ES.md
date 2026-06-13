@@ -28,7 +28,13 @@
 
 **Prova concreta da tese cross-fronteira:** o mesmo GTIN (ex.: Lavazza `8000070019362`, Dolce Gusto `7613034365774`) aparece no Consum-ES e no nosso catálogo-PT → ligação por EAN, gratуita. Extrapolando do probe (30 termos), o catálogo Consum completo (dezenas de milhar) renderia milhares de sobreposições + dezenas de milhar de EANs novos.
 
-Estrutura da resposta: `catalog.products[]` → `{ ean, code, productData:{name, brand:{id}, imageURL, attributes, format}, priceData:{prices[]} }`. (O campo de preço fica em `priceData.prices[]` — a extração precisa do índice/campo certo; o `test_consum` ainda não o apanha bem.)
+Estrutura da resposta: `catalog.products[]` → `{ ean, code, productData:{name, brand:{id}, imageURL, attributes, format}, priceData:{prices[]}, media:[{url,order,type}] }`.
+
+**Tem EAN + preço + marca + FOTOS** (fonte completa). Dois gotchas confirmados:
+- **Imagem:** usar **`media[].url`** (300×300 JPEG, ~10-16 KB, baixam 200), **NÃO** `productData.imageURL` (esse dá **404** — está partido). Há ≥1 foto por produto (`_001`, `_002`…).
+- **Preço:** fica em `priceData.prices[]` (lista aninhada) — o `test_consum` ainda não o apanha (saiu `[object Object]`); achar o campo certo (`value`/`price`) quando for a sério.
+
+Como tem foto, o Consum serve a **ambos** os caminhos: EAN-join direto (overlap) **e** vetorização+match por imagem (o resto).
 
 ## Como usar (quando for a vez de Espanha)
 
