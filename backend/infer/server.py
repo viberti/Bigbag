@@ -20,39 +20,44 @@ IMG_DIR = os.environ.get('IMG_DIR', '/imagens')
 torch.set_num_threads(int(os.environ.get('THREADS', '8')))
 
 def carregar():
+    # devolve enc_batch(list[PIL.Image]) → np.ndarray [N, DIM] L2-normalizado.
+    # Batching faz UMA forward pass por lote (muito mais rápido em CPU que 1 a 1).
     if TIPO == 'openclip':
         import open_clip
-        arg = MID if MID.startswith('hf-hub:') else MID
-        model, _, pre = open_clip.create_model_and_transforms(arg, pretrained=(MPRE or None))
+        model, _, pre = open_clip.create_model_and_transforms(MID, pretrained=(MPRE or None))
         model.eval()
         @torch.no_grad()
-        def enc(img):
-            v = model.encode_image(pre(img).unsqueeze(0))[0]
-            return (v / v.norm()).cpu().numpy().astype('float32')
-        return enc
+        def enc_batch(imgs):
+            batch = torch.stack([pre(im) for im in imgs])
+            v = model.encode_image(batch)
+            v = v / v.norm(dim=-1, keepdim=True)
+            return v.cpu().numpy().astype('float32')
+        return enc_batch
     if TIPO == 'siglip':
         from transformers import AutoModel, AutoProcessor
         proc = AutoProcessor.from_pretrained(MID); model = AutoModel.from_pretrained(MID).eval()
         @torch.no_grad()
-        def enc(img):
-            x = proc(images=img, return_tensors='pt')
-            v = model.get_image_features(pixel_values=x['pixel_values'])[0]
-            return (v / v.norm()).cpu().numpy().astype('float32')
-        return enc
+        def enc_batch(imgs):
+            x = proc(images=list(imgs), return_tensors='pt')
+            v = model.get_image_features(pixel_values=x['pixel_values'])
+            v = v / v.norm(dim=-1, keepdim=True)
+            return v.cpu().numpy().astype('float32')
+        return enc_batch
     if TIPO == 'dinov2':
         from transformers import AutoModel, AutoImageProcessor
         proc = AutoImageProcessor.from_pretrained(MID); model = AutoModel.from_pretrained(MID).eval()
         @torch.no_grad()
-        def enc(img):
-            x = proc(images=img, return_tensors='pt')
-            v = model(**x).pooler_output[0]
-            return (v / v.norm()).cpu().numpy().astype('float32')
-        return enc
+        def enc_batch(imgs):
+            x = proc(images=list(imgs), return_tensors='pt')
+            v = model(**x).pooler_output
+            v = v / v.norm(dim=-1, keepdim=True)
+            return v.cpu().numpy().astype('float32')
+        return enc_batch
     raise SystemExit(f'MODELO_TIPO desconhecido: {TIPO}')
 
 print(f'a carregar {TIPO}:{MID}:{MPRE} …', file=sys.stderr)
 ENC = carregar()
-DIM = int(ENC(Image.new('RGB', (64, 64))).shape[0])
+DIM = int(ENC([Image.new('RGB', (64, 64))]).shape[1])
 print(f'pronto · dim={DIM}', file=sys.stderr)
 
 app = FastAPI()
@@ -67,17 +72,20 @@ def health():
 
 @app.post('/embed')
 def embed(req: Req):
-    out = []
+    # abre todas as imagens (válidas vão a um batch; inválidas viram erro na ordem)
+    out, imgs, slots = [], [], []
     for i in req.ids:
-        p = f'{IMG_DIR}/{i}.jpg'
         try:
-            out.append({'id': i, 'vec': ENC(Image.open(p).convert('RGB')).tolist()})
+            imgs.append(Image.open(f'{IMG_DIR}/{i}.jpg').convert('RGB')); slots.append(len(out)); out.append({'id': i})
         except Exception as e:
             out.append({'id': i, 'erro': str(e)})
     for b in req.b64:
         try:
-            img = Image.open(io.BytesIO(base64.b64decode(b))).convert('RGB')
-            out.append({'vec': ENC(img).tolist()})
+            imgs.append(Image.open(io.BytesIO(base64.b64decode(b))).convert('RGB')); slots.append(len(out)); out.append({})
         except Exception as e:
             out.append({'erro': str(e)})
+    if imgs:
+        vecs = ENC(imgs)
+        for k, s in enumerate(slots):
+            out[s]['vec'] = vecs[k].tolist()
     return {'dim': DIM, 'itens': out}
