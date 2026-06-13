@@ -93,6 +93,8 @@ Visão do dono: vetorizar TODAS as fotos de catálogo com EAN, guardar os vetore
 - Fotos em `/var/lib/bigbag/imagens/{id}.jpg`; tracking `catalogo_produto.foto_em/vetor_em` (migração 053).
 - `scripts/bulk_vetorizar.mjs` — baixa→/embed→Qdrant→marca. Reentrante. **Bulk em curso** (Marqo-B, ~8h, ~36k).
 
-**Falta:** endpoint de match no backend Node (produto novo → /embed → Qdrant top-k → gate cos≥~0,9⁇ a calibrar); integração na app (scan→match); teste foto-real×catálogo.
+**Pipeline end-to-end VALIDADO** (`matchImagem.js` + `match_imagem_teste.mjs`): vetorizar→Qdrant→top-k funciona. Self-match = **1,000**; vizinhos seguintes são da mesma classe (Ovomaltine → Cola Cao, Tofina, Mokambo… ~0,5). Separação larga "mesmo produto" (~1,0/alto) vs "parecido" (~0,5) → limiar fácil de calibrar (provável ~0,75-0,85, a fixar com positivos reais mesmo-EAN/fontes-diferentes).
+
+**Falta:** bulk terminar (~8h, em curso); calibrar o limiar com positivos reais; integração na app (scan→match→candidatos); aplicação à mineração PD/Lidl→catálogo (produtos sem EAN); teste foto-real×catálogo.
 
 **1.º passo (spike) — ✅ VALIDADO (2026-06-13):** `@huggingface/transformers` carrega CLIP-ONNX e vetoriza **em Node puro** (sem Python/torch/GPU). Consistência com o PyTorch openai: cosseno **0,93–0,99**/imagem (a perda vem da quantização int8 por defeito + preprocessing); a separação positivo/negativo mantém-se nos embeddings do Node. **Runtime de produção desbloqueado: inferência no backend Node.** Afinações antes de cravar: (a) `dtype:'fp32'` (não quantizado) p/ subir a fidelidade a ~0,99; (b) o pacote traz `openai` — medir se chega vs o `laion2b` do teste (p@1 0,965); portar laion2b p/ ONNX só se openai ficar aquém.
