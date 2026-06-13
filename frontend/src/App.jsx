@@ -920,6 +920,8 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); abrirDespensa(); }}><Ico name="despensa" size={18} /> {t('menu.despensa')}</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> {t('menu.gastos')}</button>
             <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> {t('menu.porident')}</button>
+            <div className="cap-menu-sep" />
+            <button onClick={() => { window.location.href = '/diag'; }}><Ico name="scan" size={18} /> {t('menu.diag')}</button>
           </div>
         </>
       )}

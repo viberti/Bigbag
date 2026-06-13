@@ -136,6 +136,7 @@ const STRINGS = {
     'menu.despensa': 'Minha despensa',
     'menu.gastos': 'Meus gastos',
     'menu.porident': 'Produtos por identificar',
+    'menu.diag': 'Diagnóstico do scanner',
     // toasts da câmara inteligente / envio
     'toast.analisando': 'analisando a foto…',
     'toast.naoNaBase': 'Produto {cod} não está na base nem no Open Food Facts.',
