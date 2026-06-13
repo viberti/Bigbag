@@ -37,3 +37,6 @@ docs/*Perfil*
 # NÃO o módulo lidlplus_token.js. Padrão específico ao ficheiro com ponto inicial.
 .lidlplus_token
 */.lidlplus_token
+
+# experimentos locais de imagem (nao versionar)
+tmp_img/
