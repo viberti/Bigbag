@@ -9,8 +9,8 @@
 | **Consum** | `tienda.consum.es/api/rest/V1.0/catalog/searcher/products?q=&limit=&showRecommendations=false` | ✅ **JSON 200** | ✅ **EAN global real** + marca + nome + imagem + preço |
 | **Dia** | `dia.es/api/v1/search-back/search/reduced?q=&page=1` | ✅ JSON 200 | ❌ só `object_id` interno |
 | Eroski | `supermercado.eroski.es/es/search/results/?q=&suggestionsFilter=false` | ⚠️ 200 **HTML** | (parsing de HTML) |
-| Carrefour | `carrefour.es/search-api/query/v1/search?query=&...` | 🔒 403 anti-bot | API existe; precisa sessão/cabeçalhos |
-| Hipercor (El Corte Inglés) | `hipercor.es/alimentacion/api/catalog/supermercado/type_ahead/?question=&...` | 🔒 403 anti-bot | idem |
+| Carrefour | `carrefour.es/search-api/query/v1/search?query=&...` | 🔒 **Cloudflare** — homepage 200, mas a API dá 403 mesmo com cookie `__cf_bm` da sessão (valida o **fingerprint TLS**; o curl não passa). Precisa de browser real / `curl-impersonate`. | ? (não verificado) |
+| Hipercor (El Corte Inglés) | `hipercor.es/...` | 🔴 **Akamai (AkamaiGHost)** — bloqueia **TUDO**, até o `robots.txt` e a homepage (403 de IP de datacenter). O mais defendido; só com browser headless + stealth (+ talvez proxies residenciais). **Saltar.** | — |
 | Alcampo | `compraonline.alcampo.es/api/v5/products/search?term=` | 💀 404 (v5 morta) | — (ficha web tem nutrição/ingredientes mas **não** EAN) |
 | Masymas | `supermasymasonline.com/listado_PDO.php?buscar=` | 💀 404 | — |
 | Alimerka | `alimerkaonline.es/ali-ws/tienda/busqueda/.../false/1/1000/0` | 💀 404 | — |
