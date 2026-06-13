@@ -729,7 +729,7 @@ produtoRouter.get('/despensa', requireAuth, async (req, res) => {
     // MESMO enriquecimento da lista de compras (categoria/secção, marca, tamanho,
     // preço) → a despensa mostra-se com o mesmo formato rico. id = ean (único).
     const itens = rows.map((r) => ({ id: r.ean, nome: r.nome, ean: r.ean, estado: 'ativo', quantidade: 1, marca_scan: r.marca, validade: limparVal(r.validade), data: r.data }));
-    await resolverItensLista(getPool(), itens, mercado);
+    await resolverItensLista(getPool(), itens, mercado, { leve: true }); // inventário: salta a estimativa de preço pelo irmão (~1,7s)
     for (const it of itens) { if (!it.marca) it.marca = it.marca_scan || null; delete it.marca_scan; }
     res.json({ produtos: itens });
   } catch (e) {

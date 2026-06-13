@@ -81,9 +81,17 @@ export function detetarMarca(descricao, gazetteer, idf = null) {
 }
 
 // Wrapper com BD (cacheado). Devolve { marca, origem } ou null.
+const _memoMarca = new Map(); // norm(descricao) → resultado (detetarMarca varre o
+// gazetteer INTEIRO por chamada; a lista/despensa chamam-na por item, nomes que
+// se repetem entre cargas/polls. Memo limitada por processo.)
 export async function marcaDeterministica(pool, descricao) {
+  const k = norm(descricao);
+  if (_memoMarca.has(k)) return _memoMarca.get(k);
   const gaz = await carregarGazetteer(pool);
   let idf = null;
   try { idf = await carregarIdf(pool); } catch { /* sem catálogo → segue sem pesos */ }
-  return detetarMarca(descricao, gaz, idf);
+  const r = detetarMarca(descricao, gaz, idf);
+  if (_memoMarca.size > 5000) _memoMarca.clear();
+  _memoMarca.set(k, r);
+  return r;
 }

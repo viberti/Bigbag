@@ -38,13 +38,14 @@ function unidadeVenda(nome) {
 function skusDoNome(nome, skus) {
   const q = norm(nome).split(' ').filter((t) => t.length >= 2);
   if (!q.length) return [];
+  const q0s = singularizar(q[0]);
   const fortes = [], fracos = [];
   for (const s of skus) {
-    const nt = norm(`${s.nome_canonico} ${s.nome_simplificado || ''}`).split(' ').filter(Boolean);
+    const nt = s._toks || norm(`${s.nome_canonico} ${s.nome_simplificado || ''}`).split(' ').filter(Boolean);
     const casa = q.every((qt) => nt.some((w) => tokenCasa(w, qt)));
     if (!casa) continue;
-    const head = norm(s.nome_canonico).split(' ')[0] || '';
-    (singularizar(head).startsWith(singularizar(q[0])) ? fortes : fracos).push(s);
+    const head = s._head || singularizar(norm(s.nome_canonico).split(' ')[0] || '');
+    (head.startsWith(q0s) ? fortes : fracos).push(s);
   }
   return fortes.length ? fortes : fracos;
 }
@@ -58,6 +59,13 @@ async function carregarSkus(pool) {
   const agora = Date.now();
   if (_skuCache && agora - _skuCacheAt < 30000) return _skuCache;
   const [skus] = await pool.query('SELECT id, nome_canonico, nome_simplificado, grupo FROM sku_normalizado');
+  // PRÉ-TOKENIZAÇÃO (1x por carga, não por item): skusDoNome corria norm() em
+  // TODOS os SKUs a CADA item (85 itens × 329 SKUs = ~28k norm/load). Guardamos
+  // os tokens e a cabeça singularizada uma vez — o match passa a ser só comparação.
+  for (const s of skus) {
+    s._toks = norm(`${s.nome_canonico} ${s.nome_simplificado || ''}`).split(' ').filter(Boolean);
+    s._head = singularizar(norm(s.nome_canonico).split(' ')[0] || '');
+  }
   _skuCache = skus; _skuCacheAt = agora;
   return skus;
 }
@@ -82,8 +90,12 @@ async function habitosDosSkus(pool, skuIds) {
 
 // Resolve preço + GRUPO de cada item da lista. Carrega os SKUs uma vez (tabela
 // pequena), casa por tokens, e pede os preços recentes desses SKUs numa query só.
-export async function resolverItensLista(pool, itens, mercado) {
+export async function resolverItensLista(pool, itens, mercado, opts = {}) {
   if (!itens.length) return;
+  // `leve` (despensa/inventário): salta a estimativa de preço pelo IRMÃO (nível 2
+  // faz `nome LIKE '%...%'` por item órfão, não-indexável — ~1,7s) que só serve p/
+  // DECIDIR a compra. O inventário mostra grupo/marca/tamanho/validade + preço-facto.
+  const leve = !!opts.leve;
   let _last = Date.now(); // PROF_FASES: tempo por fase (one-off, sem custo se off)
   const mark = (n) => { if (process.env.PROF_FASES) { const now = Date.now(); console.error('  fase', n.padEnd(16), (now - _last) + 'ms'); _last = now; } };
   const skus = await carregarSkus(pool);
@@ -141,7 +153,7 @@ export async function resolverItensLista(pool, itens, mercado) {
   mark('catalogo');
   await aplicarTamanhoPorNome(pool, itens); // peso em falta → match por nome no catálogo
   mark('tamanhoNome');
-  await aplicarPrecoPorIrmao(pool, itens); // sem preço? estima pelo €/kg do IRMÃO (mesma marca/família)
+  if (!leve) await aplicarPrecoPorIrmao(pool, itens); // sem preço? estima pelo €/kg do IRMÃO (mesma marca/família)
   mark('precoIrmao');
   // ainda sem peso? → ferramenta "peso pela imagem" EM FUNDO (VLM lê a foto do
   // catálogo/OFF, 1x por EAN, ~$0,001). Não bloqueia; o poll seguinte traz o peso.
