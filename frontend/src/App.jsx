@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, adicionarDespensa, removerDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, adicionarDespensa, removerDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, matchFoto, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
 import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 // CLASSIFICACAO/NORMALIZACAO PARTILHADA com o backend (unificação 2026-06-13 —
 // a revisão achou vocabulários paralelos front/back a divergir). Módulo PURO.
@@ -397,6 +397,8 @@ function Chat({ onSair, nome }) {
   const fileRef = useRef(null);
   const fotoRef = useRef(null); // foto crua (escape: "Foto normal")
   const galeriaRef = useRef(null);
+  const fotoMatchRef = useRef(null); // buscar produto pela FOTO (match visual)
+  const [buscaFoto, setBuscaFoto] = useState(null); // null | {fase:'procurando'|'resultados'|'nada'|'erro', cands?}
   const mrRef = useRef(null);
   const chunksRef = useRef([]);
 
@@ -997,6 +999,24 @@ function Chat({ onSair, nome }) {
               faturaLote(arr, 'galeria');
             }}
           />
+          <input
+            ref={fotoMatchRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              setBuscaFoto({ fase: 'procurando' });
+              try {
+                const r = await matchFoto(f);
+                const cands = r.candidatos || [];
+                setBuscaFoto(cands.length ? { fase: 'resultados', cands } : { fase: 'nada' });
+              } catch { setBuscaFoto({ fase: 'erro' }); }
+            }}
+          />
         </div>
       </form>
 
@@ -1009,6 +1029,7 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); fileRef.current?.click(); }}><Ico name="ficheiro" size={18} /> {t('cap.file')}</button>
             <div className="cap-menu-sep" />
             <button onClick={() => { setMenuAberto(false); setScannerAberto(true); track('scanner_abrir', { via: 'menu' }); }}><Ico name="search" size={18} /> {t('menu.consultar')}</button>
+            <button onClick={() => { setMenuAberto(false); fotoMatchRef.current?.click(); track('match_foto_abrir', { via: 'menu' }); }}><Ico name="camera" size={18} /> {t('menu.buscarFoto')}</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> {t('menu.gastos')}</button>
             <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> {t('menu.porident')}</button>
             <div className="cap-menu-sep" />
@@ -1165,7 +1186,63 @@ function Chat({ onSair, nome }) {
         onFechar={() => setInfoItem(null)}
         onFotografar={(it) => { setInfoItem(null); setIdentItem({ id: it.id, sku_id: it.sku_id, produto: it.produto || '', ean: it.ean }); }}
       />
+      <MatchFotoSheet
+        estado={buscaFoto}
+        onFechar={() => setBuscaFoto(null)}
+        onEscolher={(c) => { setBuscaFoto(null); setInfoItem({ ean: c.ean, produto: c.nome || c.ean }); }}
+        onRepetir={() => { setBuscaFoto(null); fotoMatchRef.current?.click(); }}
+      />
     </div>
+  );
+}
+
+// Folha de resultados da BUSCA POR FOTO. O match é VISUAL (não exato como o EAN),
+// por isso mostra os candidatos para o utilizador CONFIRMAR qual é — não abre o
+// 1.º cego. Score = cosseno; cor por confiança (provável/talvez/fraco).
+function MatchFotoSheet({ estado, onFechar, onEscolher, onRepetir }) {
+  const { fase, cands } = estado || {};
+  const conf = (s) => (s >= 0.85 ? 'forte' : s >= 0.7 ? 'media' : 'fraca');
+  return (
+    <>
+      <div className={`scrim ${estado ? 'open' : ''}`} onClick={onFechar} />
+      <section className={`sheet ${estado ? 'open' : ''} matchfoto-sheet`} aria-label={t('match.title')}>
+        <div className="sheet-h">
+          <span className="t">{t('match.title')}</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar"><Ico name="close" size={18} /></button>
+        </div>
+        {fase === 'procurando' && <div className="matchfoto-msg"><span className="spin" /> {t('match.procurando')}</div>}
+        {fase === 'nada' && (
+          <div className="matchfoto-msg col">
+            <p>{t('match.nada')}</p>
+            <button className="pid-enviar-btn" onClick={onRepetir}><Ico name="camera" size={18} /> {t('match.repetir')}</button>
+          </div>
+        )}
+        {fase === 'erro' && (
+          <div className="matchfoto-msg col">
+            <p>{t('match.erro')}</p>
+            <button className="pid-enviar-btn" onClick={onRepetir}><Ico name="camera" size={18} /> {t('match.repetir')}</button>
+          </div>
+        )}
+        {fase === 'resultados' && (
+          <>
+            <p className="matchfoto-hint">{t('match.qual')}</p>
+            <div className="matchfoto-list">
+              {cands.map((c) => (
+                <button key={c.ean} className="matchfoto-cand" onClick={() => onEscolher(c)}>
+                  {c.imagem ? <img src={c.imagem} alt="" loading="lazy" /> : <span className="matchfoto-noimg"><Ico name="camera" size={20} /></span>}
+                  <span className="matchfoto-info">
+                    <span className="matchfoto-nome">{c.nome || c.ean}</span>
+                    {c.marca && <span className="matchfoto-marca">{c.marca}</span>}
+                  </span>
+                  <span className={`matchfoto-score ${conf(c.score)}`}>{Math.round(c.score * 100)}%</span>
+                </button>
+              ))}
+            </div>
+            <button className="matchfoto-repetir" onClick={onRepetir}><Ico name="camera" size={16} /> {t('match.naoEstaAqui')}</button>
+          </>
+        )}
+      </section>
+    </>
   );
 }
 

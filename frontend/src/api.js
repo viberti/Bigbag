@@ -168,6 +168,17 @@ export async function lerEanFoto(file) {
   return r.json(); // { ean }
 }
 
+// Busca por FOTO do produto: vetoriza a foto e devolve candidatos do catálogo por
+// semelhança visual. 800px chega (o modelo redimensiona para a sua entrada; menos
+// = upload mais leve). Devolve { candidatos: [{ean, score, nome, marca, imagem}] }.
+export async function matchFoto(file) {
+  const fd = new FormData();
+  fd.append('foto', await redimensionarImagem(file, { maxLargura: 800, qualidade: 0.85 }));
+  const r = await call('/api/produto/match-foto', { method: 'POST', body: fd });
+  if (!r.ok) throw new Error(`match-foto ${r.status}`);
+  return r.json();
+}
+
 export async function fotoInteligente(file) {
   const fd = new FormData();
   // Era a ÚNICA via que enviava a foto ORIGINAL (5–12 MB) — só para classificar.
