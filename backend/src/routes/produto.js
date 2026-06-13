@@ -659,12 +659,12 @@ produtoRouter.post('/match-foto', requireAuth, upload.single('foto'), async (req
   try {
     if (!req.file) return res.status(400).json({ erro: 'Falta a foto' });
     const cands = await matchImagemB64(req.file.buffer.toString('base64'), { k: 15, limiar: 0 });
-    // resolve nome/marca/imagem dos melhores (o matcher já fez dedup por EAN)
-    const out = [];
-    for (const c of cands.slice(0, 6)) {
+    // resolve nome/marca/imagem dos melhores EM PARALELO (o matcher já fez dedup por
+    // EAN; o map preserva a ordem por score). Sequencial somava ~1s; paralelo ~200ms.
+    const out = await Promise.all(cands.slice(0, 6).map(async (c) => {
       const m = await mestrePorEan(getPool(), c.ean).catch(() => null);
-      out.push({ ean: c.ean, score: c.score, fonte: c.fonte, nome: m?.nomes?.[0] || null, marca: m?.marca || null, imagem: m?.imagem || null });
-    }
+      return { ean: c.ean, score: c.score, fonte: c.fonte, nome: m?.nomes?.[0] || null, marca: m?.marca || null, imagem: m?.imagem || null };
+    }));
     res.json({ candidatos: out });
   } catch (e) {
     console.error('[produto/match-foto] erro:', e.message);
