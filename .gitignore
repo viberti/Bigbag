@@ -40,3 +40,6 @@ docs/*Perfil*
 
 # experimentos locais de imagem (nao versionar)
 tmp_img/
+
+# artefactos de inferencia (modelos, cache)
+backend/infer/cache/
