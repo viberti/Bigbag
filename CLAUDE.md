@@ -69,7 +69,7 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 ## Estado atual (2026-06-14 · app v0.0.147.0 — fase BETA)
 
 **Três superfícies** (routing por path em `frontend/src/main.jsx`):
-- **App de chat (`/`)** — PWA do utilizador: notas (📷 câmara inteligente: barras→produto, senão→talão), perguntas, **lista/carrinho partilhada**, scanner, **despensa = inventário por scan** (049), gastos, "por identificar", perfil nutricional. Produto → ficha factual + avaliação personalizada. Base LOCAL no telefone (IndexedDB) p/ scan instantâneo/offline.
+- **App de chat (`/`)** — PWA do utilizador: notas (📷 câmara inteligente: barras→produto, senão→talão), perguntas, **lista/carrinho partilhada**, scanner, **despensa** (049), gastos, "por identificar", perfil nutricional. Produto → ficha factual + avaliação personalizada. Base LOCAL no telefone (IndexedDB) p/ scan instantâneo/offline. **Despensa INDEPENDENTE da lista (v0.0.149.0, decisão do dono):** ícone próprio no topo (armário, cor âmbar) com pílula de contagem — saiu do kebab; entrada SÓ pela tela de despensa (scan), já NÃO pelo scan→lista (que enchia a lista do que já se tem); mesmo formato rico da lista (`GET /despensa` reusa `resolverItensLista`: secção, marca, tamanho, preço + validade).
 - **Operador (`/admin`)** — desktop. Abas: Painel · SKUs · Mestres · Ligar nomes · Nomes · EANs · Mercadona · Itens · Fichas · Revisão · Qualidade · Preços · Saúde · Uso · Custos.
 - **Comprador (`/explorar`)** — desktop, tema "talão": explorar produtos, preço pago vs €/base, por mercado.
 
