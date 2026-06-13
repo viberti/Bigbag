@@ -37,6 +37,8 @@ O AUC acima é par-a-par (1:1): dado UM par, são o mesmo? O uso real é **recup
 - **A hipótese aguenta o protocolo realista:** ~96% encontram o produto certo à 1.ª, ~99% no top-5. Concorda com o par-a-par (não era otimismo do modo fácil).
 - **Reviravolta CLIP↔DINOv2:** o DINOv2 separa melhor pares isolados (AUC), mas o **CLIP recupera melhor numa multidão** — desambiguar entre parecidos beneficia de "ler" a marca, que o DINOv2 não faz. Cada um brilha num protocolo.
 - **Os erros SÃO a cautela das variantes (2), medida:** quando o CLIP falha o top-1, é quase sempre para um **irmão da mesma marca/linha** — "Queijo Limiano Meio Gordo"→"Limiano Fatias", "L'Or Ristretto"→"L'Or Espresso", "Estrelitas 270g"→"Estrelitas Mel 550g" (cosseno 0,81 vs 0,81, empate). Erra para o primo, nunca para um produto qualquer.
+- **Os dois modelos são COMPLEMENTARES, não redundantes** (`exp_img_overlap.py`): das falhas top-1, só **3/200 falham em AMBOS**; 6 só o DINOv2 erra (CLIP acerta #1), 4 só o CLIP erra (DINOv2 acerta #1). **Ensemble** (aceitar se qualquer um põe em #1) → **197/200 = 98,5%** top-1. Justifica usar os dois juntos.
+- **Os 3 casos que ambos falham = o teto dos DADOS, não dos modelos:** (a) *Estrelitas 270g↔550g* (variante de tamanho, imagem idêntica de propósito); (b) *Pão Schar sem glúten* (fotos muito diferentes); (c) *Torta de Laranja* — o Auchan fotografa **o bolo servido num prato**, o Continente **a caixa de plástico embalada**: imagens de coisas visualmente diferentes (produto preparado vs embalagem). Nenhum encoder de aparência casa isto — e prenuncia a cautela #1: a foto-real do utilizador (embalagem na mão) pareceria a versão "embalada", não a "servida".
 
 ## Cautelas (o que isto NÃO prova ainda)
 
