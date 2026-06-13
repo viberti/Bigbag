@@ -49,9 +49,11 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 - **`Normalizacao.md`** — normalização atual (problema, dificuldades, solução, lacunas).
 - **`Taxonomia_Produto.md`** — modelo-alvo facetado (Produto Mestre); o norte da migração.
 - **`Analise_Fontes_Normalizacao.md`** — fontes (números reais) + plano v2 (fases A/B/C/**D=classificação por catálogo**).
+- **`Visao_Multi_Pais.md`** — direção multi-país (Europa) + **arquitetura de 2 camadas**: IDENTIDADE universal (EAN, partilhada, enriquece com cada país) vs PREÇO+LOCALE (por país, parametrizável). Princípio **locale-ready, não locale-completo**.
 - **`Visao_Conselheiro_Saude_Alimentar.md`** · **`Vertical_Espanha_Mercadona.md`** · **`Paper_Resolucao_Produtos_Talao.md`** · **`Aula_Classificacao_Produtos.md`** (didático) · Runbook de bootstrap.
 
 ## Internacionalização (i18n)
+- **Visão multi-país (dono, 2026-06-13):** o app não é só PT. Separar **IDENTIDADE universal por EAN** (partilhada entre países) de **PREÇO+LOCALE por país**. Alimentar a 1.ª (agnóstica), manter a 2.ª parametrizável — **locale-ready, não locale-completo** (ver `Visao_Multi_Pais.md`). Não construir a maquinaria multi-país agora; só parar de cravar PT mais fundo onde a versão por `locale` custa o mesmo.
 - **Base PT-BR**, tratar o usuário por "você". **Nunca hardcodar texto visível** — incl. o gerado por LLM (os prompts pedem PT-BR + "você").
 - **Frontend:** todo o texto da UI por `frontend/src/i18n.js` via `t('chave', vars)`. Traduzir = adicionar um dicionário. O `/admin` está fora do âmbito i18n.
 - **Resolução do nome de um EAN é PT-first** (catálogo PT > OFF traduzido; marcas/nomes próprios nunca se traduzem; nomes PT-PT não se abrasileiram). Detalhe no Conceito.
