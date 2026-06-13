@@ -280,3 +280,29 @@ export function tipoConsumidor(grupo, nome, marca) {
 // "Pasta de Dentes"). CONECTORES protegem nomes compostos ("Pão de Forma").
 export const GEN_RE = { massa: /^(massas?|pasta)$/, pao: /^(pao|paes)$/, cereais: /^cereais?$/, conservas: /^conservas?$/ };
 export const CONECTORES = new Set(['de', 'do', 'da', 'dos', 'das', 'com', 'para', 'e', 'em', 'sem', 'ao']);
+
+// ── SECÇÃO da LISTA/DESPENSA: conjunto FECHADO de 13 (decisão do dono, 2026-06-13)
+// O ecrã da lista e da despensa agrupa por estas — pequenas e práticas (percurso da
+// loja), em vez da folha do catálogo (que fragmentava). Mapeia o `grupo` (lente de
+// loja, já calculado) → secção, com 3 cortes por NOME dentro de carne/mercearia.
+// Queijo → 'laticinios' (decisão provisória) já vem de graça (grupoDe põe 'queijo'
+// em lacticínios). IDs neutros (a UI traduz as labels) — locale-ready.
+export const SECCOES_LISTA = ['frutas', 'carne', 'peixe', 'charcutaria', 'padaria', 'laticinios',
+  'congelados', 'mercearia', 'condimentos', 'bebidas', 'doces', 'cafe_cha', 'higiene', 'outros'];
+const SECCAO_DE_GRUPO = { frutas: 'frutas', carne: 'carne', peixe: 'peixe', lacticinios: 'laticinios',
+  padaria: 'padaria', congelados: 'congelados', bebidas: 'bebidas', doces: 'doces', higiene: 'higiene', mercearia: 'mercearia' };
+const RE_CHARCUTARIA = /(^|[^a-z])(fiambre|presunto|chouric|salsich|salame|salami|pate|mortadela|chistorra|bacon|enchido|fuet|morcela|farinheira|alheira|salpicao|chorizo|salchich|embutido|charcutaria|jamon|lomo)/;
+const RE_CONDIMENTOS = /(^|[^a-z])(azeite|olive oil|\boleos?\b|\boil\b|molho|sauce|ketchup|maionese|mayon|mostarda|mustard|vinagre|vinegar|\bsal\b|tempero|especiaria|condimento|caldo|pesto|aderezo|alino|sofrito)/;
+const RE_CAFE_CHA = /(^|[^a-z])(chas?\b(?! gelad| fri)|teas?\b|cafes?\b|infus|descafeinado|tisana|rooibos|camomila|cidreira|earl grey)/;
+
+// Secção da lista de UM item, a partir do grupo (loja) + nome. Determinístico.
+export function seccaoLista(grupo, nome) {
+  const s = norm(nome);
+  if (grupo === 'carne' && RE_CHARCUTARIA.test(s)) return 'charcutaria';
+  if (grupo === 'mercearia') {
+    if (RE_CAFE_CHA.test(s)) return 'cafe_cha';      // café/chá/infusão (são mercearia) → secção própria
+    if (RE_CONDIMENTOS.test(s)) return 'condimentos'; // azeite/molho/sal/especiarias → Molhos, Azeites e Condimentos
+    return 'mercearia';                               // resto: arroz, massa, conservas, farinha, açúcar…
+  }
+  return SECCAO_DE_GRUPO[grupo] || 'outros';
+}

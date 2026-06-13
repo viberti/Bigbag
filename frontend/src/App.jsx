@@ -5,7 +5,7 @@ import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 // a revisão achou vocabulários paralelos front/back a divergir). Módulo PURO.
 // chaveLite = chaveItemLista: a consolidação otimista usa a MESMA chave do servidor
 // (antes era um clone com singularização naïve '-s').
-import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, grupoDeNome, cortarGenerico, cortarQuantidadeNome, TIPOS_NOME } from '../../backend/src/normaliza/categoria.js';
+import { norm as normCat, chaveItemLista as chaveLite, tipoConsumidor, seccaoLista, grupoDeNome, cortarGenerico, cortarQuantidadeNome } from '../../backend/src/normaliza/categoria.js';
 import { lerCacheHabituais, gravarCacheHabituais } from './habituaisCache.js';
 import { lerCapturas, guardarCaptura, removerCaptura } from './capturas.js';
 import { fichaLocal, catalogoLocal, sincronizarBaseLocal } from './baseLocal.js';
@@ -1714,21 +1714,23 @@ function grupoProduto(categoria, nome) {
 // junto). Aqui a despensa parte-se em tipos concretos: Massa tem secção própria;
 // arroz/farinha/azeite/sal caem em "Mercearia" (residual) — por bom senso, não um
 // grupo por produto. Afina-se com o uso. Granularidade do dono: "Massa" sim, "Arroz" não.
+// SECÇÕES da lista/despensa — conjunto FECHADO de 13 (dono, 2026-06-13), na ordem
+// do percurso da loja. A secção de cada item vem de seccaoLista(grupo, nome) no
+// módulo partilhado (ids neutros; estas labels traduzem-se por locale). Substitui
+// a folha do catálogo (cat_exib) que fragmentava a lista.
 const TIPOS_CAT = [
-  { id: 'frutas', label: 'Frutas e Vegetais', ic: '🍎' },
-  { id: 'carne', label: 'Carne e Charcutaria', ic: '🥩' },
+  { id: 'frutas', label: 'Frutas e Verduras', ic: '🍎' },
+  { id: 'carne', label: 'Carne e Aves', ic: '🥩' },
   { id: 'peixe', label: 'Peixe e Marisco', ic: '🐟' },
-  { id: 'lacticinios', label: 'Laticínios e Ovos', ic: '🥛' },
-  { id: 'massa', label: 'Massa', ic: '🍝' },
-  { id: 'pao', label: 'Pão', ic: '🥖' },
-  { id: 'cereais', label: 'Cereais', ic: '🥣' },
-  { id: 'tomate', label: 'Polpas de Tomate', ic: '🍅' },
-  { id: 'conservas', label: 'Conservas', ic: '🥫' },
-  { id: 'cafe_cha', label: 'Café, Chá e Infusão', ic: '☕' },
-  { id: 'mercearia', label: 'Mercearia', ic: '🛒' },
-  { id: 'bebidas', label: 'Bebidas', ic: '🥤' },
-  { id: 'doces', label: 'Doces e Snacks', ic: '🍫' },
+  { id: 'charcutaria', label: 'Charcutaria e Queijos', ic: '🧀' },
+  { id: 'padaria', label: 'Padaria e Pastelaria', ic: '🥖' },
+  { id: 'lacticinios', label: 'Laticínios', ic: '🥛' },
   { id: 'congelados', label: 'Congelados', ic: '❄️' },
+  { id: 'mercearia', label: 'Mercearia', ic: '🛒' },
+  { id: 'condimentos', label: 'Molhos, Azeites e Condimentos', ic: '🫒' },
+  { id: 'bebidas', label: 'Bebidas e Vinhos', ic: '🥤' },
+  { id: 'doces', label: 'Doces e Snacks', ic: '🍫' },
+  { id: 'cafe_cha', label: 'Café, Chás e Infusões', ic: '☕' },
   { id: 'higiene', label: 'Higiene e Limpeza', ic: '🧼' },
   { id: 'outros', label: 'Outros', ic: '⋯' },
 ];
@@ -4221,30 +4223,19 @@ function secaoDe(cat) {
   if (c.includes('mercearia') || c.includes('doce') || c.includes('snack') || c.includes('cereal')) return 'Mercearia';
   return cat ? 'Mercearia' : 'Outros';
 }
-
-// Organiza a lista para a folha: ATIVOS por grupo (categoria do servidor B1; cai
-// para o keyword local se faltar), ordenados; "no carrinho" à parte (descem ao fim).
-// Tipos SALIENTES por nome (curados pelo dono) — agregam ACIMA da família do
-// catálogo: "Arroz e Massa" (Auchan) e "Massas" (Continente) dividiriam as
-// massas por loja; o tipo curado junta-as numa seção só.
-const TIPOS_SALIENTES = new Set(TIPOS_NOME.map(([id]) => id));
-// Agrupa itens por SECÇÃO de exibição (partilhado pela lista e pela despensa).
-// GRANULARIDADE (decisão do dono, 2026-06-13, 3.ª iteração): nem o corredor
-// ("Mercearia" engole metade) nem a folha (massas em 5 seções). A seção é: tipo
-// curado SALIENTE (Massa, Pão, …) > FAMÍLIA do catálogo (it.cat_exib, 2.º nível:
-// "Café, Chá e Infusão", "Conservas") > tipo por grupo > Mercearia/Outros.
+// Agrupa itens pela SECÇÃO FECHADA (13, dono 2026-06-13), partilhado pela lista e
+// pela despensa. seccaoLista(grupo, nome) mapeia tudo para uma das 13 — fim da
+// fragmentação por folha de catálogo (it.cat_exib). Ordem = a de TIPOS_CAT.
 function organizarPorCategoria(itens) {
   const ordem = (id) => { const i = TIPOS_CAT.findIndex((x) => x.id === id); return i < 0 ? 99 : i; };
   const porSec = new Map();
   for (const it of itens) {
-    const tid = tipoConsumidor(it.grupo, it.nome, it.marca);
-    const g = TIPOS_CAT.find((x) => x.id === tid) || TIPOS_CAT[TIPOS_CAT.length - 1];
-    const label = TIPOS_SALIENTES.has(tid) ? g.label : (it.cat_exib || g.label);
-    const key = label.toLowerCase();
-    if (!porSec.has(key)) porSec.set(key, { g: { id: key, label, ic: g.ic }, ord: ordem(g.id), itens: [] });
-    porSec.get(key).itens.push(it);
+    const sid = seccaoLista(it.grupo, it.nome);
+    const g = TIPOS_CAT.find((x) => x.id === sid) || TIPOS_CAT[TIPOS_CAT.length - 1];
+    if (!porSec.has(g.id)) porSec.set(g.id, { g, ord: ordem(g.id), itens: [] });
+    porSec.get(g.id).itens.push(it);
   }
-  return [...porSec.values()].sort((a, b) => a.ord - b.ord || a.g.label.localeCompare(b.g.label, 'pt'));
+  return [...porSec.values()].sort((a, b) => a.ord - b.ord);
 }
 // Lista: ATIVOS por secção; "no carrinho" (riscados) à parte, descem ao fim.
 function organizarCarrinho(itens) {
