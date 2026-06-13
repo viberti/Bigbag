@@ -71,4 +71,28 @@ Visão do dono: vetorizar TODAS as fotos de catálogo com EAN, guardar os vetore
 
 **Gate de confiança ANTES de produção:** o teste **foto-real×catálogo** (cautela #1) decide se o match aguenta o scan do utilizador. Construir o pipeline e esse teste em paralelo.
 
+### Construção da v1 — em curso (2026-06-13)
+
+**Ambiente do servidor:** 8 cores, 31 GB RAM, **sem GPU**, MySQL 8 (sem tipo VECTOR), **Docker disponível** (729 GB livres). → self-host em containers, vetores fora da BD, busca brute-force/Qdrant.
+
+**Bake-off de modelos** (`exp_img_bakeoff.py`, recuperação 1:N nos 200):
+
+| modelo | p@1 | p@5 | dim | nota |
+|---|---|---|---|---|
+| CLIP ViT-L/14 laion2b | **0,995** | 1,000 | 768 | melhor, mas **0,2/s CPU = ~50h** (impraticável sem GPU) |
+| **Marqo-Ecommerce-B** ✅ | 0,985 | 1,000 | 768 | **ESCOLHIDO** — e-commerce-specific, 1,2/s (~8h), serving 0,8s/scan |
+| Marqo-Ecommerce-L | 0,985 | 1,000 | 1024 | mesmo p@1, vetor maior → descartado |
+| CLIP ViT-B/32 laion2b | 0,965 | 0,995 | 512 | baseline |
+| DINOv2 large / base | 0,965 / 0,955 | — | 1024/768 | |
+
+**Decisão de modelo:** **Marqo-Ecommerce-B**. O ViT-L é +1 ponto mas 50h CPU e 5s/scan; o Marqo é treinado para produtos (pode generalizar melhor à foto-real), serve a 0,8s e o bulk cabe numa noite. *(Se o teste foto-real favorecer o ViT-L claramente, reconsiderar com GPU cloud para o bulk.)*
+
+**Infra montada (Docker no servidor, todos a 127.0.0.1):**
+- `bigbag-infer` — serviço de inferência (`backend/infer/`, FastAPI+torch, modelo plugável por env, batching). `/embed` por ids (lê `/imagens/{id}.jpg`) ou base64 (scan).
+- `bigbag-qdrant` — vector DB (coleção `produtos_img`, Cosine, dim 768). Persistência em `/var/lib/bigbag/qdrant`.
+- Fotos em `/var/lib/bigbag/imagens/{id}.jpg`; tracking `catalogo_produto.foto_em/vetor_em` (migração 053).
+- `scripts/bulk_vetorizar.mjs` — baixa→/embed→Qdrant→marca. Reentrante. **Bulk em curso** (Marqo-B, ~8h, ~36k).
+
+**Falta:** endpoint de match no backend Node (produto novo → /embed → Qdrant top-k → gate cos≥~0,9⁇ a calibrar); integração na app (scan→match); teste foto-real×catálogo.
+
 **1.º passo (spike) — ✅ VALIDADO (2026-06-13):** `@huggingface/transformers` carrega CLIP-ONNX e vetoriza **em Node puro** (sem Python/torch/GPU). Consistência com o PyTorch openai: cosseno **0,93–0,99**/imagem (a perda vem da quantização int8 por defeito + preprocessing); a separação positivo/negativo mantém-se nos embeddings do Node. **Runtime de produção desbloqueado: inferência no backend Node.** Afinações antes de cravar: (a) `dtype:'fp32'` (não quantizado) p/ subir a fidelidade a ~0,99; (b) o pacote traz `openai` — medir se chega vs o `laion2b` do teste (p@1 0,965); portar laion2b p/ ONNX só se openai ficar aquém.
