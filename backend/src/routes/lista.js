@@ -157,7 +157,10 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
   mark('precoIrmao');
   // ainda sem peso? → ferramenta "peso pela imagem" EM FUNDO (VLM lê a foto do
   // catálogo/OFF, 1x por EAN, ~$0,001). Não bloqueia; o poll seguinte traz o peso.
-  for (const it of itens) {
+  // peso pela imagem: só no caminho da LISTA. Na despensa (leve) era um burst de
+  // queries+VLM a CADA carga/poll, a competir com a resposta — e o inventário não
+  // precisa de €/kg estimado. O peso enche-se quando o item entra na lista.
+  if (!leve) for (const it of itens) {
     if (!it.tamanho && it.ean) pesoPelaImagem(it.ean); // fire-and-forget (dedup interno)
   }
   if (!allSkuIds.size) return;
