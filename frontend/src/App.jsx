@@ -132,16 +132,30 @@ async function decodeEanDeImagem(file) {
 // Devolve { stop, getTrack } — o chamador usa o track p/ lanterna/foco e pára no
 // cleanup. onCode recebe só dígitos (≥8). onErro chamado se a câmara falhar.
 async function lerCodigoBarras(videoEl, onCode, onErro, { continuo = false } = {}) {
-  let parado = false, stream = null, zx = null, raf = 0, ultimo = '', ultimoT = 0;
+  let parado = false, stream = null, zx = null, raf = 0, ultimo = '', ultimoT = 0, cand = '', candN = 0;
   const stop = () => {
     parado = true; cancelAnimationFrame(raf);
     try { zx?.stop(); } catch { /* noop */ }
     if (stream) stream.getTracks().forEach((t) => t.stop());
   };
+  // Dígito verificador EAN-13/EAN-8/UPC-A (da direita: ×3,×1 alternado). As libs
+  // já validam, mas alguns WebViews/BarcodeDetector não → 2.ª linha de defesa
+  // contra "lido mas errado". Outros comprimentos passam (não são EAN de produto).
+  const checksumOk = (c) => {
+    if (![8, 12, 13].includes(c.length)) return true;
+    const d = c.split('').map(Number); const chk = d.pop();
+    let s = 0; for (let i = d.length - 1, k = 0; i >= 0; i--, k++) s += d[i] * (k % 2 === 0 ? 3 : 1);
+    return (10 - (s % 10)) % 10 === chk;
+  };
   const emit = (bruto) => {
     if (parado) return;
     const c = String(bruto).replace(/\D/g, '');
-    if (c.length < 8) return;
+    if (c.length < 8 || !checksumOk(c)) return; // rejeita leitura malformada
+    // CONSENSO: exige 2 leituras IGUAIS seguidas antes de aceitar — elimina a
+    // leitura ótica errada transitória (causa comum de "lido mas errado"). Um
+    // código diferente reinicia a contagem (~uma fração de segundo a mais).
+    if (c === cand) candN++; else { cand = c; candN = 1; }
+    if (candN < 2) return;
     if (continuo) { // multi-scan: NÃO pára; deduplica o mesmo código por 2,5s
       const agora = Date.now();
       if (c === ultimo && agora - ultimoT < 2500) return;
