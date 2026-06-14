@@ -54,12 +54,16 @@ export function extrairNutricaoContinente(frag) {
     const r = rows.find((c) => reNome.test(c[0]) && (!reUni || reUni.test(c[2] || '')) && numPt(c[1]) != null);
     return r ? numPt(r[1]) : null;
   };
-  // energia: kcal é SEMPRE o MENOR das linhas de energia (kJ ≈ 4,184×kcal). Não
-  // confiar no rótulo (E14/KJO) — o Continente às vezes TROCA os valores entre eles
-  // (ex.: Tagliatelle, "(E14) Quilocaloria" trazia 1151 e "(KJO) Quilojoule" 272).
-  const energias = rows.filter((c) => /energia/.test(c[0]) && numPt(c[1]) != null).map((c) => numPt(c[1]));
+  // energia: kcal é SEMPRE o MENOR valor POSITIVO das linhas de energia (kJ ≈
+  // 4,184×kcal). Não confiar no rótulo (E14/KJO) — o Continente às vezes TROCA os
+  // valores (ex.: Tagliatelle, "(E14) Quilocaloria" trazia 1151 e "(KJO) Quilojoule"
+  // 272). Filtramos os 0 (linhas-cabeçalho/vazias) e, se só sobrar o kJ (>900,
+  // impossível p/ alimento), convertemos para kcal.
+  const energias = rows.filter((c) => /energia/.test(c[0])).map((c) => numPt(c[1])).filter((v) => v != null && v > 0);
+  let energia_kcal = energias.length ? Math.min(...energias) : null;
+  if (energia_kcal != null && energia_kcal > 900) energia_kcal = Math.round(energia_kcal / 4.184);
   const nut = {
-    energia_kcal: energias.length ? Math.min(...energias) : null,
+    energia_kcal,
     gordura: find(/^l[ií]pidos$/),
     gordura_saturada: find(/saturad/),
     hidratos: find(/^hidratos de carbono$/),
