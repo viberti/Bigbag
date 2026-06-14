@@ -242,7 +242,7 @@ function Lista({ go, back }) {
 }
 
 /* ── HISTÓRICO (+ comparar) ──────────────────────────────────────────────── */
-function Historico({ go }) {
+function Historico({ go, back }) {
   const [dados, setDados] = useState(null);
   const [cmp, setCmp] = useState(false);
   const [sel, setSel] = useState(() => new Set());
@@ -258,7 +258,7 @@ function Historico({ go }) {
   );
   return (
     <>
-      <Ctop title="Histórico" sub={cmp ? `${sel.size} selecionado(s)` : 'produtos consultados'} action={action} />
+      <Ctop title="Histórico" sub={cmp ? `${sel.size} selecionado(s)` : 'produtos consultados'} back onBack={back} action={action} />
       <div className="scrollarea">
         {dados == null ? <p className="empty">…</p> : dados.erro ? <p className="empty">Não foi possível carregar.</p>
           : produtos.length === 0 ? <p className="empty">Você ainda não consultou nenhum produto.</p>
