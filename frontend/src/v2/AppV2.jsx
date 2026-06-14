@@ -24,6 +24,15 @@ const Ico = ({ name, size = 24, stroke, color }) =>
 const Mk = ({ size = 30, chip }) =>
   <span style={{ display: 'inline-grid' }} dangerouslySetInnerHTML={{ __html: BIGBAG_MARK({ size, chip }) }} />;
 const eur = (v) => (v == null || Number.isNaN(Number(v)) ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+function dataCurta(s) {
+  if (!s) return '';
+  const d = new Date(s); if (Number.isNaN(d.getTime())) return String(s).slice(0, 10);
+  const a = new Date(d); a.setHours(0, 0, 0, 0); const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const dias = Math.round((hoje - a) / 86400000);
+  if (dias === 0) return 'Hoje'; if (dias === 1) return 'Ontem';
+  return `${d.getDate()} ${MES[d.getMonth()]}`;
+}
 const inicial = (s) => (String(s || '?').trim()[0] || '?').toUpperCase();
 const lojaCor = (nome) => { const n = String(nome || '').toLowerCase();
   if (n.includes('continente')) return ['#e2231a', 'CO']; if (n.includes('pingo')) return ['#0a8a3f', 'PD'];
@@ -35,6 +44,15 @@ const SEC_LABEL = { frutas: 'Frutas e vegetais', carne: 'Talho e charcutaria', p
   lacticinios: 'Laticínios', padaria: 'Padaria', congelados: 'Congelados', bebidas: 'Bebidas',
   doces: 'Doces e snacks', mercearia: 'Mercearia', higiene: 'Higiene e limpeza', outros: 'Outros' };
 const secDe = (it) => SEC_LABEL[it.grupo] || 'Outros';
+const SEC_ORDER = ['Frutas e vegetais', 'Talho e charcutaria', 'Peixe e marisco', 'Padaria', 'Laticínios', 'Congelados', 'Mercearia', 'Bebidas', 'Doces e snacks', 'Higiene e limpeza', 'Outros'];
+const ordSec = (s) => { const i = SEC_ORDER.indexOf(s); return i < 0 ? 99 : i; };
+// agrupa itens por secção, ordenando por SEC_ORDER (cada cabeçalho aparece 1×)
+function agruparSec(itens) {
+  const ord = [...itens].sort((a, b) => ordSec(secDe(a)) - ordSec(secDe(b)));
+  const grupos = []; let last = null;
+  ord.forEach((it) => { const s = secDe(it); if (!last || last.s !== s) { last = { s, itens: [] }; grupos.push(last); } last.itens.push(it); });
+  return grupos;
+}
 
 const MOTIF = `<svg class="bg-motif" viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice"><defs>
   <g id="lf"><path d="M0 0C-10 6-13 18-8 27 1 18 10 9 9 -3 5 -2 1 -1 0 0Z" fill="#d6e6bf"/></g>
@@ -164,7 +182,7 @@ function Home({ go, nome }) {
           : notas.map((n) => { const [c, ini] = lojaCor(n.loja || n.mercado); return (
             <div className="frow" key={n.id} onClick={() => go('recibo', { id: n.id })}>
               <span className="fdot" style={{ background: c }}>{ini}</span>
-              <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{n.data || ''}{n.n_itens ? ` · ${n.n_itens} itens` : ''}</div></div>
+              <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{dataCurta(n.data)}{n.n_itens ? ` ·  itens` : ""}</div></div>
               <span className="fp">{eur(n.total)}</span>
             </div>); })}
       </div>
@@ -183,9 +201,7 @@ function Lista({ go, back }) {
     setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, quantidade: Math.max(1, (x.quantidade || 1) + d) } : x)));
     try { await atualizarListaItem(it.id, { inc: d }); } catch { carregar(); }
   }
-  // agrupa por secção preservando ordem de chegada
-  const grupos = []; let last = null;
-  ativos.forEach((it) => { const s = secDe(it); if (!last || last.s !== s) { last = { s, itens: [] }; grupos.push(last); } last.itens.push(it); });
+  const grupos = agruparSec(ativos);
   return (
     <>
       <Ctop title="A minha lista" sub="compartilhada<br>com a família" back onBack={back} />
@@ -435,8 +451,7 @@ function Texto({ go, back }) {
 function Despensa({ go, back }) {
   const [itens, setItens] = useState(null);
   useEffect(() => { listarDespensa().then((d) => setItens(d || [])).catch(() => setItens([])); }, []);
-  const grupos = []; let last = null;
-  (itens || []).forEach((it) => { const s = secDe(it); if (!last || last.s !== s) { last = { s, itens: [] }; grupos.push(last); } last.itens.push(it); });
+  const grupos = agruparSec(itens || []);
   return (
     <>
       <Ctop title="Tenho em casa" sub={itens ? `${itens.length} itens` : ''} back onBack={back} amber />
@@ -476,7 +491,7 @@ function Notas({ go, back }) {
           : notas.map((n) => { const [c, ini] = lojaCor(n.loja || n.mercado); return (
             <div className="frow" key={n.id} onClick={() => go('recibo', { id: n.id })}>
               <span className="fdot" style={{ background: c }}>{ini}</span>
-              <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{n.data || ''}{n.n_itens ? ` · ${n.n_itens} itens` : ''}</div></div>
+              <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{dataCurta(n.data)}{n.n_itens ? ` ·  itens` : ""}</div></div>
               <span className="fp">{eur(n.total)}</span>
             </div>); })}
       </div>
