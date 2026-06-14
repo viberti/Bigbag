@@ -36,38 +36,33 @@ async function fetchText(url, tentativas = 3) {
   }
 }
 
-// extrai o objeto Product de TODOS os blocos ld+json (tolerante a lixo no fim)
-function produtoLd(html) {
-  for (const b of [...html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1])) {
-    let d; try { d = JSON.parse(b.trim()); } catch {
-      const m = b.match(/\{[\s\S]*\}/); if (!m) continue; try { d = JSON.parse(m[0]); } catch { continue; }
-    }
-    for (const o of Array.isArray(d) ? d : [d]) {
-      const tp = o && o['@type'];
-      if (tp === 'Product' || (Array.isArray(tp) && tp.includes('Product'))) return o;
-    }
-  }
-  return null;
-}
-const brandStr = (b) => { const s = (typeof b === 'string' ? b : (b && b.name)) || ''; return /^null$/i.test(s) ? '' : s; };
 const segDoUrl = (u) => decodeURIComponent(u.split(/[?#]/)[0].split('/').filter(Boolean).pop() || '');
+// o bloco ld+json do Leclerc é JSON INVÁLIDO (usa aspas simples: availability:'InStock')
+// → JSON.parse falha. Extraímos os campos por REGEX no bloco (robusto). Só precisamos
+// de nome/marca/preço/moeda; o EAN vem do URL.
+function blocoProduto(html) {
+  return [...html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map((m) => m[1]).find((b) => /"@type"\s*:\s*"Product"/.test(b)) || null;
+}
+const campo = (re, s) => { const m = s.match(re); return m ? m[1] : null; };
 
 // produto → linha (ou null se não der). NÃO grava imagem (foto não-fiável).
 function rowDe(url, html) {
-  const p = produtoLd(html); if (!p) return null;
-  const nome = String(p.name || '').trim(); if (!nome) return null;
+  const blk = blocoProduto(html); if (!blk) return null;
+  const nome = (campo(/"name"\s*:\s*"([^"]*)"/, blk) || '').trim(); if (!nome) return null;
   const seg = segDoUrl(url); if (!seg) return null;
   const ean = seg.replace(/\D/g, '');
-  const off = Array.isArray(p.offers) ? p.offers[0] : p.offers;
-  const preco = off && off.price != null ? Number(off.price) : null;
+  let marca = campo(/"brand"\s*:\s*\{[^}]*?"name"\s*:\s*"([^"]*)"/, blk) || '';
+  if (/^null$/i.test(marca)) marca = '';
+  const precoStr = campo(/"price"\s*:\s*['"]?(\d+(?:\.\d+)?)/, blk); // preço com PONTO decimal
+  const preco = precoStr != null ? Number(precoStr) : null;
+  const moeda = campo(/"priceCurrency"\s*:\s*['"]?([A-Z]{3})/, blk) || 'EUR';
   const fmt = extrairFormato(nome);
   const ppb = preco != null && fmt ? precoPorBase({ preco_liquido: preco, quantidade: 1 }, fmt) : null;
   return [
-    'leclerc', seg.slice(0, 24), eanValido(ean) ? ean : null, nome.slice(0, 255),
-    brandStr(p.brand).slice(0, 140) || null,
+    'leclerc', seg.slice(0, 24), eanValido(ean) ? ean : null, nome.slice(0, 255), marca.slice(0, 140) || null,
     fmt ? `${fmt.formato_valor ?? ''}${fmt.unidade_base ?? ''}`.trim() || null : null,
-    fmt?.unidade_base || null, fmt?.formato_valor ?? null, preco, ppb,
-    (off && off.priceCurrency) || 'EUR', url.slice(0, 600),
+    fmt?.unidade_base || null, fmt?.formato_valor ?? null, preco, ppb, moeda, url.slice(0, 600),
   ];
 }
 
