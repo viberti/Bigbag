@@ -12,6 +12,7 @@ import {
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
   listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
+  adicionarListaItem, adicionarListaLote, vozParaLista,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
@@ -217,15 +218,54 @@ function Home({ go, user }) {
 }
 
 /* ── LISTA ───────────────────────────────────────────────────────────────── */
+// Os 3 botões da barra ADICIONAM à lista (não consultam): voz (ditado→lote),
+// escrever (nome direto, qualquer produto — não exige ficha nutricional), e
+// código (scan→adiciona). Antes voz/texto caíam na CONSULTA e falhavam p/ não-alimentos.
 function Lista({ go, back }) {
   const [itens, setItens] = useState(null);
+  const [gravando, setGravando] = useState(false);
+  const [proc, setProc] = useState(false);          // a processar a voz
+  const [aviso, setAviso] = useState('');           // feedback "Adicionei: …"
+  const [escrever, setEscrever] = useState(false);
+  const [txt, setTxt] = useState('');
+  const mrRef = useRef(null); const streamRef = useRef(null);
   const carregar = useCallback(() => { obterLista().then((d) => setItens(d.itens || [])).catch(() => setItens([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => () => { // limpeza: pára gravação/microfone ao sair
+    try { if (mrRef.current?.state === 'recording') mrRef.current.stop(); } catch { /* noop */ }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+  }, []);
   const ativos = (itens || []).filter((i) => i.estado !== 'carrinho');
   const total = ativos.reduce((a, b) => a + (b.preco_estimado || b.preco || 0), 0);
   async function delta(it, d) {
     setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, quantidade: Math.max(1, (x.quantidade || 1) + d) } : x)));
     try { await atualizarListaItem(it.id, { inc: d }); } catch { carregar(); }
+  }
+  // VOZ → LISTA: grava, transcreve para itens (vozParaLista) e adiciona em lote.
+  async function alternarVoz() {
+    if (gravando) { mrRef.current?.stop(); return; }
+    setAviso('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mr = new MediaRecorder(stream); const pedacos = [];
+      mr.ondataavailable = (e) => { if (e.data.size) pedacos.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop()); setGravando(false); setProc(true);
+        try {
+          const { produtos } = await vozParaLista(new Blob(pedacos, { type: mr.mimeType || 'audio/webm' }));
+          if (produtos?.length) { await adicionarListaLote(produtos); carregar(); setAviso(`Adicionei: ${produtos.map((p) => p.nome).join(', ')}`); }
+          else setAviso('Não percebi. Toque no micro e tente de novo.');
+        } catch { setAviso('Falha ao ouvir. Tente de novo.'); } finally { setProc(false); }
+      };
+      mrRef.current = mr; mr.start(); setGravando(true);
+    } catch { setAviso('Sem acesso ao microfone — verifique a permissão.'); }
+  }
+  // TEXTO → LISTA: adiciona o nome tal e qual (qualquer produto, food ou não).
+  async function enviarTexto(e) {
+    e?.preventDefault(); const nome = txt.trim(); if (!nome) return;
+    setTxt(''); setAviso('');
+    try { await adicionarListaItem({ nome }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
   const grupos = agruparSec(ativos);
   return (
@@ -254,11 +294,22 @@ function Lista({ go, back }) {
             </React.Fragment>
           ))}
       </div>
-      <div className="actfoot"><div className="addbar">
-        <button className="addfab scan" title="Ler código" onClick={() => go('scanner')}><Ico name="scan" size={23} stroke={2} color="#3f7a3f" /></button>
-        <button className="addfab mic" title="Voz" onClick={() => go('voz')}><Ico name="mic" size={24} stroke={2} color="#f4fff0" /></button>
-        <button className="addfab plus" title="Escrever" onClick={() => go('texto')}><Ico name="plus" size={24} stroke={2.4} color="#3f7a3f" /></button>
-      </div></div>
+      <div className="actfoot">
+        {escrever && (
+          <form className="addmore open" onSubmit={enviarTexto}>
+            <input className="addfield" autoFocus placeholder="Escrever produto…" value={txt} onChange={(e) => setTxt(e.target.value)} style={{ color: 'var(--ink)' }} />
+            <button className="addopt" type="submit" disabled={!txt.trim()}><Ico name="plus" size={17} stroke={2} /> Adicionar</button>
+          </form>
+        )}
+        {aviso && <div className="addlegend" style={{ justifyContent: 'center', color: 'var(--ink-2)' }}>{aviso}</div>}
+        <div className="addbar">
+          <button className="addfab scan" title="Ler código" onClick={() => go('scanner')}><Ico name="scan" size={23} stroke={2} color="#3f7a3f" /></button>
+          <button className={`addfab mic ${gravando ? 'rec' : ''}`} title="Ditar para a lista" onClick={alternarVoz} disabled={proc}>
+            <Ico name="mic" size={24} stroke={2} color="#f4fff0" />
+          </button>
+          <button className={`addfab plus ${escrever ? 'on' : ''}`} title="Escrever" onClick={() => setEscrever((v) => !v)}><Ico name="plus" size={24} stroke={2.4} color="#3f7a3f" /></button>
+        </div>
+      </div>
     </>
   );
 }
@@ -860,22 +911,36 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
   const [temLuz, setTemLuz] = useState(false);
   const [foto, setFoto] = useState(null); // null=pré-visualizar · {fase:'procurando'|'resultados'|'nada'|'erro'|'semcam', cands?}
   const [idLoad, setIdLoad] = useState(false); // a identificar (ligar EAN à linha)
+  const [chk, setChk] = useState(false);       // a verificar se o EAN existe
+  const [registo, setRegisto] = useState(null); // EAN desconhecido → cadastro: {ean, fotos:[], semcam?, erro?}
+  const [regBusy, setRegBusy] = useState(false);
   const videoRef = useRef(null);
   const trackRef = useRef(null);
   const fotoVideoRef = useRef(null);
   const code = modo === 'codigo';
-  const previewFoto = !code && foto == null && !idLoad; // câmara da foto ligada só na pré-visualização
-  // ao ler/captar: se for identificação (itemId), LIGA o EAN à linha do talão antes
-  // de abrir a ficha; a ficha SUBSTITUI o scanner (back volta ao talão, já identificado).
+  const previewFoto = !code && foto == null && !idLoad && !registo; // câmara da foto (consulta)
+  const camFoto = previewFoto || !!registo;                          // câmara de fotos: consulta OU cadastro
+  // ao ler/captar: se for identificação (itemId), LIGA o EAN à linha do talão. Em
+  // CONSULTA, verifica se o EAN existe; se NÃO, oferece CADASTRO por foto (VLM) em
+  // vez de abrir uma ficha vazia (caso: filtros de café sem cadastro).
   const aoCodigo = async (cod) => {
-    if (!itemId) { go('ficha', { ean: cod }); return; }
-    setIdLoad(true);
-    try { await identificarProduto({ ean: cod, itemId }); } catch { /* segue à ficha na mesma */ }
-    go('ficha', { ean: cod, nome: nomeItem }, { replace: true });
+    if (itemId) {
+      setIdLoad(true);
+      try { await identificarProduto({ ean: cod, itemId }); } catch { /* segue à ficha */ }
+      go('ficha', { ean: cod, nome: nomeItem }, { replace: true }); return;
+    }
+    setChk(true);
+    try {
+      const info = await infoProduto({ ean: cod });
+      if (info?.existe) { go('ficha', { ean: cod }); return; }
+      setRegisto({ ean: cod, fotos: [] }); // não cadastrado → registar por foto
+    } catch { go('ficha', { ean: cod }); } // rede falhou → tenta a ficha à mesma
+    finally { setChk(false); }
   };
-  // CÓDIGO: câmara + leitura REAL (mesma função provada da v1). Lê EAN → ficha/identifica.
+  // CÓDIGO: câmara + leitura REAL (mesma função provada da v1). Pára enquanto verifica
+  // (chk) ou em cadastro (registo) para não re-disparar.
   useEffect(() => {
-    if (!code) return undefined;
+    if (!code || chk || registo) return undefined;
     let leitor; setErro(false); setTemLuz(false); setLuz(false);
     (async () => {
       leitor = await lerCodigoBarras(videoRef.current, aoCodigo, () => setErro(true));
@@ -883,20 +948,34 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
       if (tr && (tr.getCapabilities?.() || {}).torch) { trackRef.current = tr; setTemLuz(true); }
     })();
     return () => { leitor?.stop?.(); trackRef.current = null; };
-  }, [code, go, itemId, nomeItem]);
+  }, [code, chk, registo, go, itemId, nomeItem]);
   // PRODUTO: câmara AO VIVO dentro do app (não abre a câmara nativa). O disparo
   // captura o frame atual e envia ao reconhecimento por imagem (matchFoto da v1).
   useEffect(() => {
-    if (!previewFoto) return undefined;
+    if (!camFoto) return undefined;
     let stream;
     (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
         if (fotoVideoRef.current) { fotoVideoRef.current.srcObject = stream; fotoVideoRef.current.play().catch(() => {}); }
-      } catch { setFoto({ fase: 'semcam' }); }
+      } catch { if (registo) setRegisto((r) => r && { ...r, semcam: true }); else setFoto({ fase: 'semcam' }); }
     })();
     return () => { stream?.getTracks().forEach((t) => t.stop()); };
-  }, [previewFoto]);
+  }, [camFoto]); // eslint-disable-line react-hooks/exhaustive-deps
+  // CADASTRO: acumula fotos do produto novo e envia ao VLM (identificarProduto c/ ean+fotos).
+  function capturarRegisto() {
+    const v = fotoVideoRef.current; if (!v || !v.videoWidth) return;
+    const cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight;
+    cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
+    try { navigator.vibrate?.(30); } catch { /* noop */ }
+    cv.toBlob((blob) => { if (blob) setRegisto((r) => (r ? { ...r, fotos: [...r.fotos, new File([blob], `reg${r.fotos.length}.jpg`, { type: 'image/jpeg' })], erro: false } : r)); }, 'image/jpeg', 0.85);
+  }
+  async function registar() {
+    if (!registo?.fotos.length || regBusy) return;
+    setRegBusy(true);
+    try { await identificarProduto({ ean: registo.ean, fotos: registo.fotos }); go('ficha', { ean: registo.ean }, { replace: true }); }
+    catch { setRegBusy(false); setRegisto((r) => r && { ...r, erro: true }); }
+  }
   async function lanterna() {
     const tr = trackRef.current; if (!tr) return; const n = !luz;
     try { await tr.applyConstraints({ advanced: [{ torch: n }] }); setLuz(n); } catch { /* noop */ }
@@ -924,9 +1003,37 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
   }
   return (
     <>
-      <Ctop title={itemId ? 'Identificar produto' : 'Consultar produto'} sub={itemId ? nomeItem : (code ? 'aponte para o código' : 'fotografe o produto')} back onBack={back} />
+      <Ctop
+        title={registo ? 'Cadastrar produto' : itemId ? 'Identificar produto' : 'Consultar produto'}
+        sub={registo ? `EAN ${registo.ean}` : itemId ? nomeItem : (code ? 'aponte para o código' : 'fotografe o produto')}
+        back onBack={registo ? () => { setRegisto(null); setChk(false); } : back}
+      />
       <div className="scrollarea" style={{ display: 'flex', flexDirection: 'column' }}>
-        {foto?.fase === 'resultados' ? (
+        {registo ? (
+          <>
+            <div className="sc-cam photo">
+              {!registo.semcam && <video ref={fotoVideoRef} playsInline muted />}
+              {regBusy && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.9)', padding: '8px 16px', borderRadius: 999 }}>Cadastrando…</span>}
+              <div className="sc-frame" />
+            </div>
+            {registo.fotos.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '0 0 10px' }}>
+                {registo.fotos.map((f, i) => <img key={i} src={URL.createObjectURL(f)} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 10, border: '2px solid #fff', flex: '0 0 auto' }} />)}
+              </div>
+            )}
+            <button className="cbtn cbtn-amber" style={{ width: '100%', marginBottom: 10 }} onClick={capturarRegisto} disabled={regBusy || registo.semcam}>
+              <Ico name="camera" size={18} color="#3a2606" /> Tirar foto {registo.fotos.length ? `(${registo.fotos.length})` : ''}
+            </button>
+            {registo.fotos.length > 0 && (
+              <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={registar} disabled={regBusy}>{regBusy ? 'Cadastrando…' : 'Cadastrar produto'}</button>
+            )}
+            <div className="sc-hint">{
+              registo.semcam ? 'Sem acesso à câmera — verifique a permissão.'
+                : registo.erro ? 'Falha ao cadastrar. Tente de novo.'
+                : 'Produto não cadastrado. Fotografe a frente, o rótulo e a tabela nutricional — quantas fotos precisar.'
+            }</div>
+          </>
+        ) : foto?.fase === 'resultados' ? (
           <>
             <p className="sc-hint" style={{ marginTop: 4 }}>Qual destes é? Toque para ver a ficha.</p>
             {foto.cands.map((c) => (
@@ -944,7 +1051,7 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
               {code && <video ref={videoRef} playsInline muted />}
               {previewFoto && <video ref={fotoVideoRef} playsInline muted />}
               {temLuz && code && <button className={`sc-torch ${luz ? 'on' : ''}`} onClick={lanterna} aria-label="Lanterna"><Ico name="torch" size={15} stroke={2} color={luz ? '#5a4410' : '#fff'} /></button>}
-              {(foto?.fase === 'procurando' || idLoad) && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.9)', padding: '8px 16px', borderRadius: 999 }}>{idLoad ? 'Identificando…' : 'Reconhecendo…'}</span>}
+              {(foto?.fase === 'procurando' || idLoad || chk) && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.9)', padding: '8px 16px', borderRadius: 999 }}>{chk ? 'Verificando…' : idLoad ? 'Identificando…' : 'Reconhecendo…'}</span>}
               <div className="sc-frame">{code && <><i className="tr" /><i className="bl" /></>}</div>
               <span style={{ position: 'absolute', bottom: 12 }}><Mk size={34} /></span>
             </div>
@@ -962,18 +1069,20 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
             }</div>
           </>
         )}
-        <div className="scanmode">
-          {[
-            ['codigo', 'scan', 'Código', () => { setModo('codigo'); setFoto(null); }],
-            ['produto', 'photoprod', 'Produto', () => { setModo('foto'); setFoto(null); }],
-            ['voz', 'mic', 'Voz', () => go('voz')],
-            ['texto', 'search', 'Texto', () => go('texto')],
-          ].filter(([id]) => !somente || somente.includes(id)).map(([id, ic, lb, on]) => (
-            <button key={id} className={`smode ${(id === 'codigo' && code) || (id === 'produto' && !code) ? 'on' : ''}`} onClick={on}>
-              <Ico name={ic} size={24} stroke={2} /><span>{lb}</span>
-            </button>
-          ))}
-        </div>
+        {!registo && (
+          <div className="scanmode">
+            {[
+              ['codigo', 'scan', 'Código', () => { setModo('codigo'); setFoto(null); }],
+              ['produto', 'photoprod', 'Produto', () => { setModo('foto'); setFoto(null); }],
+              ['voz', 'mic', 'Voz', () => go('voz')],
+              ['texto', 'search', 'Texto', () => go('texto')],
+            ].filter(([id]) => !somente || somente.includes(id)).map(([id, ic, lb, on]) => (
+              <button key={id} className={`smode ${(id === 'codigo' && code) || (id === 'produto' && !code) ? 'on' : ''}`} onClick={on}>
+                <Ico name={ic} size={24} stroke={2} /><span>{lb}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );
