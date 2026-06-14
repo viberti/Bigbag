@@ -44,6 +44,7 @@ fi
 # 3) servidor: pull (+build) + restart + health
 ssh pitacos-prod "set -e
   cd /home/dev/bigbag && sudo -u dev git pull -q
+  sudo -u dev npm --prefix backend install --no-audit --no-fund -s   # deps novas (ex.: jose); idempotente/rápido se nada mudou
   if [[ $FRONT -eq 1 ]]; then cd frontend && sudo -u dev npm run build -s >/dev/null && echo 'frontend BUILT' && cd ..; fi
   sudo systemctl restart bigbag-backend
   for i in 1 2 3 4 5 6; do sleep 2
