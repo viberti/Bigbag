@@ -10,6 +10,7 @@ import { gunzipSync } from 'node:zlib';
 import { getPool } from '../src/db.js';
 import { extrairFormato, precoPorBase } from '../src/normaliza/formato.js';
 import { tituloProduto } from '../src/normaliza/titulo.js';
+import { urlTabNutricional, extrairNutricaoContinente } from '../src/ingest/nutricaoContinente.js';
 
 // NB: sem acentos — o Continente devolve HTTP 400 se o User-Agent tiver chars não-ASCII.
 const UA = 'Mozilla/5.0 (compatible; BigbagBot/0.1; +catalogo pessoal)';
@@ -184,7 +185,7 @@ const FONTES = {
     sitemapMatch: /-product\.xml/i,
     filtros: [], // URLs são /produto/… (sem categoria no path) → apanha tudo
     skuDoUrl: (u) => u.match(/-(\d+)\.html?$/)?.[1] || null,
-    extrair(url, html) {
+    async extrair(url, html) {
       const p = jsonLdProduct(html); if (!p) return null;
       const nome = String(p.name || '').trim(); if (!nome) return null;
       const preco = num(Array.isArray(p.offers) ? p.offers[0]?.price : p.offers?.price);
@@ -199,12 +200,20 @@ const FONTES = {
           .map((m) => decode(m[1])).filter(Boolean)
           .filter((t) => !/^(p[aá]gina inicial|in[ií]cio|home)$/i.test(t));
       }
+      // nutrição + ingredientes: 2.º fetch ao separador AJAX (best-effort — uma
+      // falha aqui NÃO perde o produto). O `data-url` traz pid+ean+supplierid.
+      let nutri = { nutricao: null, nutricao_base: null, ingredientes: null };
+      try {
+        const ep = urlTabNutricional(html);
+        if (ep) { const frag = await fetchText(ep); if (frag) nutri = extrairNutricaoContinente(frag); }
+      } catch { /* separador indisponível — segue sem nutrição */ }
       return {
         ean, nome: nome.slice(0, 255), marca: ((typeof p.brand === 'object' ? p.brand?.name : p.brand) || null)?.toString().slice(0, 140) || null,
         ...niveisToCat(niveis.map((n) => n.slice(0, 90))),
         preco, moeda: (Array.isArray(p.offers) ? p.offers[0]?.priceCurrency : p.offers?.priceCurrency) || 'EUR',
         imagem_url: ((Array.isArray(p.image) ? p.image[0] : p.image) || null)?.toString().slice(0, 600) || null,
         ...comporFormatoPreco(p, nome, preco),
+        ...nutri,
       };
     },
   },
@@ -321,7 +330,7 @@ async function main() {
         const sku = cfg.skuDoUrl(url);
         if (!html || !sku) { semFicha++; }
         else {
-          const f = cfg.extrair(url, html);
+          const f = await cfg.extrair(url, html);
           if (!f) { semFicha++; }
           else { await upsert(pool, FONTE, sku, url, f); ok++; if (!f.ean) semEan++; }
         }
