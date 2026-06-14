@@ -144,7 +144,6 @@ function Shell({ nome, onSair }) {
     <div className="v2"><Motif />
       <Screen {...common} {...view.p} />
       {navCur && <Nav cur={navCur} go={go} />}
-      <a className="v2-back" href="/">v1</a>
     </div>
   );
 }
@@ -730,6 +729,7 @@ function Perfil({ nome }) {
           {msg && <div style={{ font: '600 12.5px var(--font)', color: 'var(--leaf-d)', margin: '0 0 8px' }}>{msg}</div>}
           <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 4 }} disabled={aGuardar || !texto.trim()} onClick={guardar}>{aGuardar ? '…' : 'Guardar perfil'}</button>
         </div>
+        <div className="v2-ver">BigBag · versão {APP_VERSION}</div>
       </div>
     </>
   );

@@ -251,8 +251,8 @@
 .v2 .fab-talao .c{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center}
 .v2 .fab-talao:active{transform:scale(.96)}
 
-/* link discreto p/ a v1 */
-.v2 .v2-back{position:fixed;right:10px;bottom:calc(82px + env(safe-area-inset-bottom,0px));z-index:7;background:var(--card);border:2px solid #fff;color:var(--ink-3);font:700 11px var(--font);padding:5px 10px;border-radius:999px;text-decoration:none;box-shadow:var(--sh-sm)}
+/* versão (rodapé do Perfil) */
+.v2 .v2-ver{text-align:center;color:var(--ink-3);font:600 11.5px var(--font);padding:20px 0 8px}
 
 /* login */
 .v2 .v2-login{margin:auto;width:min(360px,86vw);display:flex;flex-direction:column;gap:11px;padding:26px;text-align:center}
