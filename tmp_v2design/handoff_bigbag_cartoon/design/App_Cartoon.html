@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BigBag · App cartoon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="cartoon-ui.css" rel="stylesheet">
+<style>
+  body{margin:0;background:#243018;font-family:var(--font);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1280px;margin:0 auto;padding:46px 26px 100px}
+  .head{display:flex;align-items:center;gap:15px;margin-bottom:6px}
+  .head .mk{width:56px;height:56px;border-radius:18px;background:#3a5226;display:grid;place-items:center;flex:0 0 auto}
+  .head h1{margin:0;font:800 28px var(--disp);color:#eef3e2;letter-spacing:.3px}
+  .head .sub{color:#b6c7a2;font-size:14.5px;margin-top:2px}
+  .lede{color:#c3d2b0;font-size:15.5px;border-left:3px solid var(--leaf);padding:6px 0 6px 16px;margin:18px 0 36px;max-width:740px}
+  .screens{display:flex;gap:40px;flex-wrap:wrap;justify-content:center}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:13px;width:300px}
+  .cap{font:800 15px var(--disp);color:#eef3e2;letter-spacing:.3px}
+  .cap span{display:block;font:500 12.5px var(--font);color:#a9bb95;margin-top:2px;max-width:285px;text-align:center}
+
+  .phone{width:300px;height:632px;background:#0d160a;border-radius:40px;padding:9px;border:1px solid #3a4a30;box-shadow:0 30px 60px rgba(0,0,0,.45)}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    background:linear-gradient(180deg,#eef3e2,#e7efd9)}
+  .bg-motif{position:absolute;inset:0;z-index:0;opacity:.5;pointer-events:none}
+  .screen>*:not(.bg-motif){position:relative;z-index:1}
+  .stbar{height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;font:700 11px var(--font);color:var(--ink-2);flex:0 0 auto}
+  .scrollarea{flex:1;overflow:hidden;padding:4px 16px 12px}
+
+  /* topbar */
+  .ctop{display:flex;align-items:center;gap:11px;padding:2px 16px 10px}
+  .ctop .mk{width:38px;height:38px;border-radius:13px;background:var(--leaf-soft);display:grid;place-items:center;flex:0 0 auto}
+  .ctop .hi b{font:800 19px var(--disp);color:var(--ink);display:block;line-height:1}
+  .ctop .hi span{font:600 12.5px var(--font);color:var(--ink-2)}
+  .ctop .sp{flex:1}
+  .ctop .av{width:40px;height:40px;border-radius:50%;background:var(--leaf-soft);color:var(--leaf-d);display:grid;place-items:center;font:800 16px var(--disp);border:2px solid #fff}
+
+  /* hero list card */
+  .herolist{background:linear-gradient(160deg,#67b262,#3f7a3f);border-radius:var(--r);padding:18px 20px;color:#f4fff0;box-shadow:var(--sh);position:relative;overflow:hidden}
+  .herolist .mkbig{position:absolute;right:-12px;bottom:-16px;opacity:.22}
+  .herolist .k{font:700 13px var(--font);color:#dcefd2}
+  .herolist .v{font:800 28px var(--disp);margin-top:4px}
+  .herolist .s{font:500 13px var(--font);color:#e6f4dd;margin-top:3px}
+  .herolist .go{margin-top:13px;display:inline-flex;align-items:center;gap:7px;background:#fbfdf6;color:var(--leaf-d);font:800 14px var(--disp);border:0;border-radius:var(--r-pill);padding:10px 16px;cursor:pointer}
+
+  .quick{display:flex;justify-content:space-between;padding:16px 6px 4px}
+
+  .clabel-row{display:flex;align-items:center;justify-content:space-between;margin:18px 2px 11px}
+  .clabel-row a{font:700 13px var(--font);color:var(--leaf-d);text-decoration:none}
+
+  .frow{display:flex;align-items:center;gap:12px;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);padding:11px 13px;margin-bottom:10px;box-shadow:var(--sh-sm)}
+  .fdot{width:40px;height:40px;border-radius:13px;flex:0 0 auto;display:grid;place-items:center;font:800 14px var(--disp);color:#fff}
+  .fb{flex:1;min-width:0}.fn{font:700 15px var(--font);color:var(--ink)}.fs{font:500 12px var(--font);color:var(--ink-2);margin-top:1px}
+  .fp{font:800 15px var(--disp);color:var(--leaf-d)}
+
+  /* lista items */
+  .sec{font:800 13px var(--disp);color:var(--leaf-d);letter-spacing:.4px;padding:14px 4px 8px}
+  .sec.amber{color:var(--amber-d)}
+  .item{display:flex;align-items:center;gap:12px;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);padding:11px 13px;margin-bottom:9px;box-shadow:var(--sh-sm)}
+  .chk{width:26px;height:26px;border-radius:9px;border:2.5px solid var(--line);flex:0 0 auto;display:grid;place-items:center;color:#fff}
+  .item.done .chk{background:var(--leaf);border-color:var(--leaf)}
+  .item.done .iname{text-decoration:line-through;color:var(--ink-3)}
+  .ib{flex:1;min-width:0}.iname{font:700 15px var(--font);color:var(--ink)}.isub{font:500 12px var(--font);color:var(--ink-3);margin-top:1px}
+  .val{color:var(--amber-d);font-weight:700}
+
+  .actfoot{flex:0 0 auto;padding:10px 16px 14px}
+
+  /* ficha cartoon */
+  .scene{height:200px;border-radius:var(--r);overflow:hidden;margin:2px 0 12px;border:2px solid #fff;box-shadow:var(--sh-sm)}
+  .scene svg{width:100%;height:100%;display:block}
+  .f-name{font:800 22px var(--disp);color:var(--ink)}
+  .f-brand{font:600 13px var(--font);color:var(--ink-2);margin-top:1px}
+  .parecer{background:var(--leaf-soft);border:2px solid #fff;border-radius:var(--r-sm);padding:13px 15px;margin:13px 0;box-shadow:var(--sh-sm)}
+  .parecer .ph{display:flex;align-items:center;gap:8px;font:800 15px var(--disp);color:var(--leaf-d)}
+  .parecer .selo{font:800 11px var(--font);color:#fff;background:var(--leaf);border-radius:var(--r-pill);padding:3px 10px;margin-left:auto}
+  .parecer p{margin:8px 0 0;font:500 13px/1.5 var(--font);color:var(--ink)}
+  .nutri{display:flex;gap:6px;margin:6px 0}
+  .ns{flex:1;text-align:center;font:800 14px var(--disp);color:#fff;padding:8px 0;border-radius:12px;opacity:.34}
+  .ns.on{opacity:1;transform:scale(1.07)}
+  .ns.a{background:#54b35a}.ns.b{background:#9ec93f}.ns.c{background:#edc63f;color:#5a4a10}.ns.d{background:#ef9f43}.ns.e{background:#e0734f}
+
+  /* comparar */
+  .cmpgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:6px}
+  .cmpadd{display:flex;flex-direction:column;align-items:center;gap:9px;padding:18px 6px;border-radius:var(--r-sm);background:var(--leaf-soft);border:2px solid #fff;color:var(--leaf-d);cursor:pointer;font:800 13px var(--disp);box-shadow:var(--sh-sm)}
+  .selbox{border:2px dashed var(--line);border-radius:var(--r-sm);padding:14px;color:var(--ink-3);text-align:center;font:600 13px var(--font);margin-top:9px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><span class="mk" id="mk"></span>
+    <div><h1>BigBag em cartoon</h1><div class="sub">teste do tema lúdico aplicado à interface toda</div></div></div>
+  <div class="lede">O mesmo app — lista, despensa, comparar, ficha — vestido com o <b style="color:#eef3e2">mundo cartoon</b>: cores claras e quentes, formas redondas, ícones fofos e ilustração de fundo. Saúde primeiro, preço como referência.</div>
+  <div class="screens" id="screens"></div>
+</div>
+
+<script src="brand.js"></script>
+<script src="icons.js"></script>
+<script>
+const M=window.BIGBAG_MARK, I=window.ICON;
+const stbar=`<div class="stbar"><span>9:41</span><span>●●● ▼ ▮</span></div>`;
+const motif=`<svg class="bg-motif" viewBox="0 0 300 640" preserveAspectRatio="xMidYMid slice"><defs>
+  <g id="lf"><path d="M0 0C-9 5-12 16-7 24 1 16 9 8 8 -3 4 -2 1 -1 0 0Z" fill="#d6e6bf"/></g>
+  <g id="dr"><path d="M0 -7c4 6 6 9 6 12a6 6 0 1 1-12 0c0-3 2-6 6-12Z" fill="#cfe3e0"/></g></defs>
+  <use href="#lf" x="26" y="120"/><use href="#dr" x="272" y="150"/><use href="#lf" x="282" y="300" transform="rotate(40 282 300)"/>
+  <use href="#dr" x="20" y="330"/><use href="#lf" x="30" y="500" transform="rotate(-30 30 500)"/><use href="#dr" x="276" y="470"/>
+  <use href="#lf" x="270" y="600"/></svg>`;
+const nav=(on)=>`<div class="cnav">
+  ${[["heart","Início"],["list","Lista"],["talao","Despensa"],["user","Perfil"]].map(([ic,lb],i)=>
+    `<button class="nb ${i===on?'on':''}"><span class="ni">${I(ic,{size:23,stroke:2})}</span>${lb}</button>`).join("")}</div>`;
+
+const SCREENS=[];
+
+/* INÍCIO */
+SCREENS.push({cap:"Início",note:"Mascote anfitrião · lista em destaque · ações redondas fofas",html:`
+  ${stbar}${motif}
+  <div class="ctop"><span class="mk">${M({size:30})}</span>
+    <div class="hi"><b>Olá, Sue</b><span>vamos às compras?</span></div><span class="sp"></span>
+    <span class="av">S</span></div>
+  <div class="scrollarea">
+    <div class="herolist"><span class="mkbig">${M({size:110})}</span>
+      <div class="k">A minha lista</div><div class="v">16 produtos</div>
+      <div class="s">12 alinhados com o teu perfil 🌿</div>
+      <button class="go">Ver a lista ${I('swap',{size:0})}→</button></div>
+    <div class="quick">
+      <span class="round-act"><span class="circ">${I('scan',{size:26,stroke:2})}</span><b>Consultar</b></span>
+      <span class="round-act"><span class="circ">${I('compare',{size:26,stroke:2})}</span><b>Comparar</b></span>
+      <span class="round-act"><span class="circ" style="color:var(--amber-d)">${I('talao',{size:26,stroke:2})}</span><b>Despensa</b></span>
+    </div>
+    <div class="clabel-row"><span class="clabel">Comprado há pouco</span><a href="#">Ver tudo</a></div>
+    <div class="frow"><span class="fdot" style="background:#e2231a">CO</span><div class="fb"><div class="fn">Continente</div><div class="fs">Hoje · 21 itens</div></div><span class="fp">38,74 €</span></div>
+    <div class="frow"><span class="fdot" style="background:#0050aa">LI</span><div class="fb"><div class="fn">Lidl</div><div class="fs">Ontem · 9 itens</div></div><span class="fp">17,14 €</span></div>
+  </div>
+  ${nav(0)}`});
+
+/* LISTA */
+SCREENS.push({cap:"Lista",note:"Checklist redonda com lente de saúde · preço discreto",html:`
+  ${stbar}${motif}
+  <div class="ctop"><span class="mk">${M({size:30})}</span><div class="hi"><b>A minha lista</b><span>16 itens · ~26,44 €</span></div></div>
+  <div class="scrollarea">
+    <div class="sec">Frutas e vegetais</div>
+    <div class="item"><span class="chk"></span><div class="ib"><div class="iname">Banana</div><div class="isub">~0,88 €/kg</div></div><span class="hpill good">${I('leaf',{size:12,stroke:2.4})} no perfil</span></div>
+    <div class="item"><span class="chk"></span><div class="ib"><div class="iname">Tomate</div><div class="isub">~1,39 €/kg</div></div><span class="hpill good">${I('leaf',{size:12,stroke:2.4})} no perfil</span></div>
+    <div class="sec">Mercearia</div>
+    <div class="item"><span class="chk"></span><div class="ib"><div class="iname">Bolachas</div><div class="isub">Continente</div></div><span class="hpill swap">${I('swap',{size:12,stroke:2.4})} integrais</span></div>
+  </div>
+  <div class="actfoot"><button class="cbtn cbtn-leaf" style="width:100%">${I('plus',{size:20,stroke:2.6,color:'#f7fff2'})} Adicionar produto</button></div>
+  ${nav(1)}`});
+
+/* DESPENSA */
+SCREENS.push({cap:"Despensa",note:"Mesmo mundo, em âmbar · validade destacada",html:`
+  ${stbar}${motif}
+  <div class="ctop"><span class="mk" style="background:var(--amber-soft)">${M({size:30})}</span><div class="hi"><b>Tenho em casa</b><span>51 itens</span></div></div>
+  <div class="scrollarea">
+    <div class="sec amber">Frutas e vegetais</div>
+    <div class="item"><div class="ib"><div class="iname">Banana</div><div class="isub">cacho · <span class="val">Val. 16 jun</span></div></div></div>
+    <div class="item"><div class="ib"><div class="iname">Cenoura</div><div class="isub">1 kg · estimado</div></div></div>
+    <div class="sec amber">Conservas</div>
+    <div class="item"><div class="ib"><div class="iname">Atum em lata</div><div class="isub">3×80g · <span class="val">Val. 2027</span></div></div></div>
+  </div>
+  <div class="actfoot"><button class="cbtn cbtn-amber" style="width:100%">${I('scan',{size:20,stroke:2.2,color:'#3a2606'})} Escanear produto</button></div>
+  ${nav(2)}`});
+
+/* COMPARAR */
+SCREENS.push({cap:"Comparar",note:"Entrada visual (scan · voz · foto) · saúde primeiro",html:`
+  ${stbar}${motif}
+  <div class="ctop"><span class="mk">${M({size:30})}</span><div class="hi"><b>Comparar</b><span>escolha 2 a 6 produtos</span></div></div>
+  <div class="scrollarea">
+    <div class="item"><div class="ib"><div class="iname">Iogurte grego natural</div><div class="isub">Continente · 4×125g</div></div><span style="color:var(--ink-3)">${I('close',{size:16})}</span></div>
+    <div class="selbox">adicione mais 1 para comparar</div>
+    <div class="sec">Adicionar produto</div>
+    <div class="cmpgrid">
+      <span class="cmpadd">${I('scan',{size:28,stroke:2})}<span>Escanear</span></span>
+      <span class="cmpadd">${I('mic',{size:28,stroke:2})}<span>Voz</span></span>
+      <span class="cmpadd">${I('camera',{size:28,stroke:2})}<span>Foto</span></span>
+    </div>
+  </div>
+  <div class="actfoot"><button class="cbtn cbtn-leaf" style="width:100%;opacity:.55">Comparar · faltam 1</button></div>
+  ${nav(1)}`});
+
+/* FICHA cartoon */
+SCREENS.push({cap:"Ficha de produto",note:"Cena ilustrada por categoria + parecer + Nutri-Score",html:`
+  ${stbar}${motif}
+  <div class="ctop"><span class="mk">${M({size:30})}</span><div class="hi"><b>Leite meio-gordo</b><span>Continente · 1L</span></div></div>
+  <div class="scrollarea">
+    <div class="scene"><svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMid slice">
+      <rect width="300" height="200" fill="#cfe6e0"/><circle cx="245" cy="40" r="22" fill="#eef6ea" opacity=".7"/>
+      <path d="M0 120 Q80 90 160 115 T300 110 V200 H0Z" fill="#bcd9a6"/>
+      <path d="M0 150 Q100 120 200 145 T300 145 V200 H0Z" fill="#9ec97f"/>
+      <g transform="translate(40 108)"><rect y="12" width="40" height="26" rx="3" fill="#f2e8d4"/><path d="M-5 14 L20 -4 L45 14Z" fill="#d98b5a"/><rect x="7" y="20" width="10" height="10" rx="2" fill="#cfe0bd"/></g>
+      <g transform="translate(228 110)"><rect x="-3" y="14" width="6" height="16" rx="3" fill="#8a6b4a"/><circle cy="2" r="16" fill="#7fae63"/></g>
+      <g transform="translate(150 96)">
+        <path d="M-30 -44 L30 -44 L30 96 L-30 96Z" fill="#4d8a4f"/><path d="M-30 -44 L0 -58 L30 -44Z" fill="#3f7340"/>
+        <path d="M-30 70 Q0 60 30 70 L30 96 L-30 96Z" fill="#fbfdf8"/>
+        <text x="0" y="-14" text-anchor="middle" font-family="Baloo 2" font-weight="800" font-size="17" fill="#fbfdf8">meio</text>
+        <circle cx="-9" cy="44" r="2.4" fill="#2c4a2c"/><circle cx="9" cy="44" r="2.4" fill="#2c4a2c"/>
+        <path d="M-7 51 Q0 58 7 51" stroke="#2c4a2c" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      </g></svg></div>
+    <div class="f-name">Leite meio-gordo</div><div class="f-brand">Continente · 1L</div>
+    <div class="parecer"><div class="ph">${I('heart',{size:16,color:'var(--leaf-d)'})} Para a Sue <span class="selo">Adequado</span></div>
+      <p>Boa fonte de cálcio e proteína. Para o teu perfil, prefere o meio-gordo ao gordo.</p></div>
+    <div class="sec" style="padding-top:4px">Nutri-Score</div>
+    <div class="nutri"><div class="ns a">A</div><div class="ns b on">B</div><div class="ns c">C</div><div class="ns d">D</div><div class="ns e">E</div></div>
+  </div>
+  ${nav(0)}`});
+
+document.getElementById("mk").innerHTML = M({size:40});
+document.getElementById("screens").innerHTML = SCREENS.map(s=>
+  `<div class="stage"><div class="phone"><div class="screen">${s.html}</div></div>
+   <div class="cap">${s.cap}<span>${s.note}</span></div></div>`).join("");
+</script>
+</body>
+</html>

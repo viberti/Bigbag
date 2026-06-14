@@ -1,196 +1,656 @@
 // ──────────────────────────────────────────────────────────────────────────
-// BigBag v2 — superfície NOVA e independente (rota /v2 em main.jsx). MESMAS
-// funções da v1 (reusa ../api.js, ../i18n.js, ../marca.js), DESIGN diferente.
-// A v1 (App.jsx) fica intacta; a v2 evolui à parte até o design novo estar pronto.
-//
-// Este ficheiro é o ESQUELETO: auth + shell + navegação + 4 vistas. Lista, Buscar
-// e Histórico já chamam o backend real (prova de que o wiring funciona). Substitui
-// o markup/estilos pelo design final — a lógica de dados já está aqui.
+// BigBag v2 — app com o design "cartoon" do handoff, ligado aos dados reais.
+// MESMAS funções da v1 (reusa ../api.js), DESIGN novo (./cartoon.css, ./icons.js,
+// ./brand.js). Router próprio (tela + pilha de voltar). A v1 (App.jsx) fica intacta.
+// NOTA (fase protótipo): copy PT-BR embutido como no handoff; passar por i18n depois.
 // ──────────────────────────────────────────────────────────────────────────
-import React, { useState, useEffect } from 'react';
-import { verificarSessao, setAuth, clearAuth, obterLista, consultar, listarHistoricoProduto } from '../api.js';
-import { t } from '../i18n.js';
-import { ICON } from '../marca.js';
-import './v2.css';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  verificarSessao, setAuth, clearAuth,
+  obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, listarDespensa,
+  listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
+  avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
+  listarPerfis, ativarPerfil, carregarPerfil,
+} from '../api.js';
+import { ICON } from './icons.js';
+import { BIGBAG_MARK } from './brand.js';
+import './cartoon.css';
 
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
-const Ico = ({ name, size = 22 }) => <span className="v2-ico" dangerouslySetInnerHTML={{ __html: ICON(name, { size }) }} />;
 
-const NAV = [
-  { id: 'inicio', ic: 'spark', label: 'Início' },
-  { id: 'lista', ic: 'cart', label: 'Lista' },
-  { id: 'buscar', ic: 'search', label: 'Buscar' },
-  { id: 'historico', ic: 'historico', label: 'Histórico' },
-];
+/* ── helpers ─────────────────────────────────────────────────────────────── */
+const Ico = ({ name, size = 24, stroke, color }) =>
+  <span style={{ display: 'inline-grid' }} dangerouslySetInnerHTML={{ __html: ICON(name, { size, stroke, color }) }} />;
+const Mk = ({ size = 30, chip }) =>
+  <span style={{ display: 'inline-grid' }} dangerouslySetInnerHTML={{ __html: BIGBAG_MARK({ size, chip }) }} />;
+const eur = (v) => (v == null || Number.isNaN(Number(v)) ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
+const inicial = (s) => (String(s || '?').trim()[0] || '?').toUpperCase();
+const lojaCor = (nome) => { const n = String(nome || '').toLowerCase();
+  if (n.includes('continente')) return ['#e2231a', 'CO']; if (n.includes('pingo')) return ['#0a8a3f', 'PD'];
+  if (n.includes('lidl')) return ['#0050aa', 'LI']; if (n.includes('aldi')) return ['#1f3a93', 'AL'];
+  if (n.includes('minipre')) return ['#e94e1b', 'MP']; if (n.includes('auchan')) return ['#e2231a', 'AU'];
+  return ['#67b2c9', (nome || '?').slice(0, 2).toUpperCase()]; };
+// grupo (lente de loja) → rótulo de secção cartoon
+const SEC_LABEL = { frutas: 'Frutas e vegetais', carne: 'Talho e charcutaria', peixe: 'Peixe e marisco',
+  lacticinios: 'Laticínios', padaria: 'Padaria', congelados: 'Congelados', bebidas: 'Bebidas',
+  doces: 'Doces e snacks', mercearia: 'Mercearia', higiene: 'Higiene e limpeza', outros: 'Outros' };
+const secDe = (it) => SEC_LABEL[it.grupo] || 'Outros';
 
+const MOTIF = `<svg class="bg-motif" viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice"><defs>
+  <g id="lf"><path d="M0 0C-10 6-13 18-8 27 1 18 10 9 9 -3 5 -2 1 -1 0 0Z" fill="#d6e6bf"/></g>
+  <g id="dr"><path d="M0 -8c5 7 7 10 7 13a7 7 0 1 1-14 0c0-3 2-6 7-13Z" fill="#cfe3e0"/></g></defs>
+  <use href="#lf" x="34" y="150"/><use href="#dr" x="356" y="170"/><use href="#lf" x="366" y="360" transform="rotate(40 366 360)"/>
+  <use href="#dr" x="24" y="380"/><use href="#lf" x="30" y="600" transform="rotate(-30 30 600)"/><use href="#dr" x="360" y="560"/><use href="#lf" x="352" y="730"/></svg>`;
+const Motif = () => <span dangerouslySetInnerHTML={{ __html: MOTIF }} />;
+
+function Ctop({ title, sub, back, amber, av, action, onBack, onAv }) {
+  return (
+    <div className="ctop">
+      {back ? <button className="bk" onClick={onBack}><Ico name="back" size={19} stroke={2.6} />Voltar</button>
+        : <span className={`mk ${amber ? 'amber' : ''}`}><Mk size={30} /></span>}
+      <div className="hi"><b dangerouslySetInnerHTML={{ __html: title }} />{sub && <span dangerouslySetInnerHTML={{ __html: sub }} />}</div>
+      {action}
+      {av && <span className="av" onClick={onAv}>{av}</span>}
+    </div>
+  );
+}
+function Nav({ cur, go }) {
+  const tabs = [['home', 'Início', 'home'], ['list', 'Lista', 'lista'], ['history', 'Histórico', 'historico'], ['user', 'Perfil', 'perfil']];
+  return (
+    <div className="cnav">
+      {tabs.map(([ic, lb, id]) => (
+        <button key={id} className={`nb ${cur === id ? 'on' : ''}`} onClick={() => go(id)}>
+          <span className="ni"><Ico name={ic} size={23} stroke={2} /></span>{lb}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ── auth ────────────────────────────────────────────────────────────────── */
 export default function AppV2() {
-  const [sessao, setSessao] = useState(undefined); // undefined=a verificar · null=sem sessão
+  const [sessao, setSessao] = useState(undefined);
   useEffect(() => { verificarSessao().then(setSessao).catch(() => setSessao(null)); }, []);
   if (sessao === undefined) return <div className="v2"><div className="v2-load">…</div></div>;
   if (!sessao) return <LoginV2 onEntrar={setSessao} />;
   const nome = (sessao.user?.id || '').replace(/^./, (c) => c.toUpperCase());
-  return <ShellV2 nome={nome} onSair={() => { clearAuth(); setSessao(null); }} />;
+  return <Shell nome={nome} onSair={() => { clearAuth(); setSessao(null); }} />;
 }
 
 function LoginV2({ onEntrar }) {
-  const [user, setUser] = useState('');
-  const [pass, setPass] = useState('');
-  const [erro, setErro] = useState('');
-  const [aEntrar, setAEntrar] = useState(false);
+  const [user, setUser] = useState(''); const [pass, setPass] = useState('');
+  const [erro, setErro] = useState(''); const [aEntrar, setAEntrar] = useState(false);
   async function submeter(e) {
-    e.preventDefault(); setErro(''); setAEntrar(true);
-    setAuth(user.trim(), pass);
-    try { onEntrar(await verificarSessao()); }
-    catch { clearAuth(); setErro(t('login.invalid')); }
-    finally { setAEntrar(false); }
+    e.preventDefault(); setErro(''); setAEntrar(true); setAuth(user.trim(), pass);
+    try { onEntrar(await verificarSessao()); } catch { clearAuth(); setErro('Usuário ou senha inválidos.'); } finally { setAEntrar(false); }
   }
   return (
-    <div className="v2">
+    <div className="v2"><Motif />
       <form className="v2-login" onSubmit={submeter}>
-        <h1>BigBag <span className="v2-tag">v2</span></h1>
-        <div className="ver">v{APP_VERSION}</div>
-        <input placeholder={t('login.user')} value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
-        <input placeholder={t('login.pass')} type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
+        <Mk size={64} /><h1>BigBag</h1><div className="ver">v{APP_VERSION} · novo visual</div>
+        <input placeholder="Usuário" value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
+        <input placeholder="Senha" type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
         {erro && <div className="v2-err">{erro}</div>}
-        <button disabled={aEntrar || !user || !pass}>{aEntrar ? '…' : t('login.enter')}</button>
+        <button className="cbtn cbtn-leaf" disabled={aEntrar || !user || !pass}>{aEntrar ? '…' : 'Entrar'}</button>
       </form>
     </div>
   );
 }
 
-function ShellV2({ nome, onSair }) {
-  const [aba, setAba] = useState('inicio');
+/* ── shell + router ──────────────────────────────────────────────────────── */
+const TABS = new Set(['home', 'lista', 'historico', 'perfil']);
+function Shell({ nome, onSair }) {
+  const [view, setView] = useState({ id: 'home', p: {} });
+  const stack = useRef([]);
+  const go = useCallback((id, p = {}) => {
+    setView((cur) => {
+      if (TABS.has(id)) stack.current = [];
+      else if (cur.id !== id) stack.current.push(cur);
+      return { id, p };
+    });
+  }, []);
+  const back = useCallback(() => {
+    setView(() => stack.current.pop() || { id: 'home', p: {} });
+  }, []);
+  const navCur = TABS.has(view.id) ? view.id : null;
+  const common = { go, back, nome, onSair };
+  const Screen = {
+    home: Home, lista: Lista, historico: Historico, perfil: Perfil,
+    notas: Notas, gastos: Gastos, ficha: Ficha, comparar: Comparar,
+    texto: Texto, despensa: Despensa, recibo: Recibo, receitas: Receitas,
+    scanner: Scanner, voz: Voz,
+  }[view.id] || Home;
   return (
-    <div className="v2">
-      <header className="v2-top">
-        <div className="v2-brand">BigBag<span className="v2-tag">v2</span></div>
-        <span className="v2-sp" />
-        <button className="v2-av" onClick={onSair} title={t('conta.sair')}>{(nome || '?')[0]}</button>
-      </header>
-      <main className="v2-main">
-        {aba === 'inicio' && <Inicio nome={nome} onIr={setAba} />}
-        {aba === 'lista' && <Lista />}
-        {aba === 'buscar' && <Buscar />}
-        {aba === 'historico' && <Historico />}
-      </main>
-      <nav className="v2-nav">
-        {NAV.map((n) => (
-          <button key={n.id} className={`v2-tab ${aba === n.id ? 'on' : ''}`} onClick={() => setAba(n.id)}>
-            <Ico name={n.ic} size={22} /><span>{n.label}</span>
-          </button>
-        ))}
-      </nav>
-      <a className="v2-back" href="/">← v1</a>
+    <div className="v2"><Motif />
+      <Screen {...common} {...view.p} />
+      {navCur && <Nav cur={navCur} go={go} />}
+      <a className="v2-back" href="/">v1</a>
     </div>
   );
 }
 
-// INÍCIO — saudação + atalhos. Carrega a lista só para um número (prova de ligação).
-function Inicio({ nome, onIr }) {
+/* ── INÍCIO ──────────────────────────────────────────────────────────────── */
+function Home({ go, nome }) {
   const [nLista, setNLista] = useState(null);
-  useEffect(() => { obterLista().then((d) => setNLista((d.itens || []).filter((i) => i.estado !== 'carrinho').length)).catch(() => setNLista(null)); }, []);
+  const [notas, setNotas] = useState(null);
+  useEffect(() => {
+    obterLista().then((d) => setNLista((d.itens || []).filter((i) => i.estado !== 'carrinho').length)).catch(() => setNLista(null));
+    listarNotas().then((n) => setNotas(n.slice(0, 2))).catch(() => setNotas([]));
+  }, []);
   return (
     <>
-      <h1 className="v2-h1">Olá, {nome}.</h1>
-      <p className="v2-sub">Mesmo motor da v1, visual novo. (Esqueleto — ligar o resto das telas.)</p>
-      <div className="v2-grid">
-        <button className="v2-stat go" onClick={() => onIr('lista')}>
-          <div className="n">{nLista == null ? '—' : nLista}</div>
-          <div className="l">na lista de compras</div>
-        </button>
-        <button className="v2-stat go" onClick={() => onIr('buscar')}>
-          <div className="n">＋</div>
-          <div className="l">perguntar ao assistente</div>
-        </button>
-      </div>
-      <div className="v2-card">
-        <strong>Estrutura v2 pronta.</strong>
-        <p className="v2-sub" style={{ margin: '8px 0 0' }}>
-          Cada vista (Início · Lista · Buscar · Histórico) é um componente isolado neste ficheiro,
-          reutilizando os mesmos endpoints da v1. Vai trocando o design vista a vista.
-        </p>
+      <Ctop title={`Olá, ${nome}`} sub="vamos às compras?" av={inicial(nome)} onAv={() => go('perfil')} />
+      <div className="scrollarea">
+        <div className="herolist" onClick={() => go('lista')}>
+          <span className="mkbig"><Mk size={110} /></span>
+          <div className="k">A minha lista</div>
+          <div className="v">{nLista == null ? '…' : `${nLista} ${nLista === 1 ? 'produto' : 'produtos'}`}</div>
+          <div className="s">na sua lista de compras</div>
+          <button className="go">Ver a lista →</button>
+        </div>
+        <div className="quick">
+          {[['scan', 'Consultar', () => go('scanner'), undefined],
+            ['recipe', 'Receitas', () => go('receitas'), 'var(--coral)'],
+            ['compare', 'Comparar', () => go('comparar'), undefined],
+            ['talao', 'Despensa', () => go('despensa'), 'var(--amber-d)'],
+            ['chart', 'Gastos', () => go('notas'), 'var(--sky)']].map(([ic, lb, on, col]) => (
+            <button key={lb} className="round-act" onClick={on}>
+              <span className="circ" style={col ? { color: col } : undefined}><Ico name={ic} size={24} stroke={2} /></span><b>{lb}</b>
+            </button>
+          ))}
+        </div>
+        <div className="clabel-row"><span className="clabel">Comprado há pouco</span><button className="seeall" onClick={() => go('notas')}>Ver tudo →</button></div>
+        {notas == null ? <p className="empty">…</p> : notas.length === 0 ? <p className="empty">Sem compras ainda.</p>
+          : notas.map((n) => { const [c, ini] = lojaCor(n.loja || n.mercado); return (
+            <div className="frow" key={n.id} onClick={() => go('recibo', { id: n.id })}>
+              <span className="fdot" style={{ background: c }}>{ini}</span>
+              <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{n.data || ''}{n.n_itens ? ` · ${n.n_itens} itens` : ''}</div></div>
+              <span className="fp">{eur(n.total)}</span>
+            </div>); })}
       </div>
     </>
   );
 }
 
-// LISTA — lê /api/lista (mesmo endpoint da v1) e mostra os itens ativos.
-function Lista() {
-  const [estado, setEstado] = useState({ carregando: true, itens: [], erro: false });
-  useEffect(() => {
-    obterLista()
-      .then((d) => setEstado({ carregando: false, itens: (d.itens || []).filter((i) => i.estado !== 'carrinho'), erro: false }))
-      .catch(() => setEstado({ carregando: false, itens: [], erro: true }));
-  }, []);
+/* ── LISTA ───────────────────────────────────────────────────────────────── */
+function Lista({ go, back }) {
+  const [itens, setItens] = useState(null);
+  const carregar = useCallback(() => { obterLista().then((d) => setItens(d.itens || [])).catch(() => setItens([])); }, []);
+  useEffect(() => { carregar(); }, [carregar]);
+  const ativos = (itens || []).filter((i) => i.estado !== 'carrinho');
+  const total = ativos.reduce((a, b) => a + (b.preco_estimado || b.preco || 0), 0);
+  async function delta(it, d) {
+    setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, quantidade: Math.max(1, (x.quantidade || 1) + d) } : x)));
+    try { await atualizarListaItem(it.id, { inc: d }); } catch { carregar(); }
+  }
+  // agrupa por secção preservando ordem de chegada
+  const grupos = []; let last = null;
+  ativos.forEach((it) => { const s = secDe(it); if (!last || last.s !== s) { last = { s, itens: [] }; grupos.push(last); } last.itens.push(it); });
   return (
     <>
-      <h1 className="v2-h1">Lista</h1>
-      {estado.carregando ? <p className="v2-empty">…</p>
-        : estado.erro ? <p className="v2-empty">Não foi possível carregar a lista.</p>
-        : estado.itens.length === 0 ? <p className="v2-empty">Lista vazia.</p>
-        : (
-          <div className="v2-list">
-            {estado.itens.map((it) => (
-              <div className="v2-row" key={it.id}>
-                <span className="nm">{it.nome}{it.marca ? <span className="mk"> {it.marca}</span> : null}</span>
-                {it.quantidade > 1 && <span className="meta">×{it.quantidade}</span>}
+      <Ctop title="A minha lista" sub="compartilhada<br>com a família" back onBack={back} />
+      {total > 0 && <div className="pricetag"><span className="pt-hole" /><div className="pt-v"><b>{eur(total)}</b><small>estimado</small></div></div>}
+      <div className="scrollarea">
+        {itens == null ? <p className="empty">…</p> : ativos.length === 0 ? <p className="empty">Lista vazia. Toque em + para adicionar.</p>
+          : grupos.map((g) => (
+            <React.Fragment key={g.s}>
+              <div className="sec">{g.s}</div>
+              {g.itens.map((it) => {
+                const un = it.unidade === 'kg' ? 'kg' : 'un';
+                const ql = un === 'kg' ? `${Number(it.quantidade || 1).toFixed(1).replace('.', ',')} kg` : `${it.quantidade || 1} un`;
+                return (
+                  <div className="item" key={it.id}>
+                    <div className="ib" onClick={() => go('ficha', { ean: it.ean, sku_id: it.sku_id, nome: it.nome })}>
+                      <div className="iname">{it.nome}</div>
+                      <div className="isub">{it.marca ? `${it.marca} · ` : ''}{it.preco_estimado != null || it.preco != null ? `~${eur(it.preco_estimado ?? it.preco)}` : 'sem preço'}</div>
+                    </div>
+                    <span className="qval">{ql}</span>
+                    <div className="qty"><button onClick={() => delta(it, -1)}>−</button><button onClick={() => delta(it, 1)}>+</button></div>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+      </div>
+      <div className="actfoot"><div className="addbar">
+        <button className="addfab scan" title="Ler código" onClick={() => go('scanner')}><Ico name="scan" size={23} stroke={2} color="#3f7a3f" /></button>
+        <button className="addfab mic" title="Voz" onClick={() => go('voz')}><Ico name="mic" size={24} stroke={2} color="#f4fff0" /></button>
+        <button className="addfab plus" title="Escrever" onClick={() => go('texto')}><Ico name="plus" size={24} stroke={2.4} color="#3f7a3f" /></button>
+      </div></div>
+    </>
+  );
+}
+
+/* ── HISTÓRICO (+ comparar) ──────────────────────────────────────────────── */
+function Historico({ go }) {
+  const [dados, setDados] = useState(null);
+  const [cmp, setCmp] = useState(false);
+  const [sel, setSel] = useState(() => new Set());
+  useEffect(() => { listarHistoricoProduto(30).then(setDados).catch(() => setDados({ erro: true })); }, []);
+  const produtos = dados && !dados.erro ? dados.produtos : [];
+  const toggle = (ean) => setSel((s) => { const n = new Set(s); n.has(ean) ? n.delete(ean) : (n.size < 6 && n.add(ean)); return n; });
+  const escolhidos = produtos.filter((p) => p.ean && sel.has(p.ean));
+  const temEan = produtos.some((p) => p.ean);
+  const action = temEan && (
+    <button className={`hist-cmp ${cmp ? 'on' : ''}`} title="Comparar" onClick={() => { setCmp((v) => !v); setSel(new Set()); }}>
+      <Ico name="compare" size={20} stroke={2} />
+    </button>
+  );
+  return (
+    <>
+      <Ctop title="Histórico" sub={cmp ? `${sel.size} selecionado(s)` : 'produtos consultados'} action={action} />
+      <div className="scrollarea">
+        {dados == null ? <p className="empty">…</p> : dados.erro ? <p className="empty">Não foi possível carregar.</p>
+          : produtos.length === 0 ? <p className="empty">Você ainda não consultou nenhum produto.</p>
+          : produtos.map((p, i) => {
+            const marcado = p.ean && sel.has(p.ean);
+            const onTap = cmp ? (p.ean ? () => toggle(p.ean) : undefined) : () => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: p.nome });
+            return (
+              <div className={`item hist ${marcado ? 'sel' : ''}`} key={`${p.ean || p.nome}-${i}`} onClick={onTap} style={cmp && !p.ean ? { opacity: .45 } : undefined}>
+                {cmp && p.ean && <span className={`histcheck ${marcado ? 'on' : ''}`}>{marcado && <Ico name="check" size={14} stroke={3} color="#fff" />}</span>}
+                <div className="ib"><div className="iname">{p.nome}</div><div className="isub">{p.marca || (cmp && !p.ean ? 'sem código' : 'produto')}{p.n_consultas > 1 ? ` · ${p.n_consultas}×` : ''}</div></div>
+              </div>
+            );
+          })}
+      </div>
+      {cmp && sel.size >= 2 && (
+        <div className="actfoot">
+          <button className="cbtn cbtn-leaf" style={{ width: '100%' }} onClick={() => go('comparar', { iniciais: escolhidos.map((p) => ({ ean: p.ean, nome: p.nome })) })}>
+            Comparar {sel.size} produtos
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── COMPARAR ────────────────────────────────────────────────────────────── */
+function Comparar({ back, iniciais }) {
+  const [res, setRes] = useState(iniciais?.length >= 2 ? 'load' : null);
+  useEffect(() => {
+    if (!(iniciais?.length >= 2)) return;
+    compararProdutos(iniciais.map((x) => x.ean)).then(setRes).catch(() => setRes({ erro: true }));
+  }, [iniciais]);
+  const nomeDe = (ean) => res?.produtos?.find((p) => String(p.ean) === String(ean))?.nome || iniciais?.find((x) => String(x.ean) === String(ean))?.nome || ean;
+  const medal = (p) => (p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : `${p}º`);
+  return (
+    <>
+      <Ctop title="Comparar" sub={iniciais?.length ? `${iniciais.length} produtos` : 'escolha 2 a 6 produtos'} back onBack={back} />
+      <div className="scrollarea">
+        {!iniciais?.length ? (
+          <p className="empty">Abra o Histórico, toque no ícone de comparar e marque os produtos.</p>
+        ) : res === 'load' ? <p className="empty">A comparar…</p> : res?.erro ? <p className="empty">Falha ao comparar.</p> : res ? (
+          <>
+            <div style={{ font: '800 18px var(--disp)', color: 'var(--ink)', margin: '2px 0' }}>{res.perfil ? `Melhor para ${res.perfil}` : 'Resultado'}</div>
+            <div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)', marginBottom: 12 }}>por adequação ao perfil · preço de referência</div>
+            {(res.ranking || []).map((r) => (
+              <div className="item" key={r.ean}>
+                <div className="ib"><div className="iname">{medal(r.posicao)} {nomeDe(String(r.ean))}</div><div className="isub">{r.motivo || r.veredicto}</div></div>
+                <span className={`hpill ${r.veredicto === 'evitar' || r.veredicto === 'atencao' ? 'swap' : 'good'}`}>{r.veredicto}</span>
+              </div>
+            ))}
+            {res.resumo && <div className="parecer"><p style={{ margin: 0 }}>{res.resumo}</p></div>}
+          </>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/* ── FICHA (consulta de produto) ─────────────────────────────────────────── */
+const NS_COR = { A: '#54b35a', B: '#86c43b', C: '#edc63f', D: '#ef9f43', E: '#e0734f' };
+// classifica nível 0..3 por limiares FSA (por 100g) → [lvl, palavra]
+function nivel(tipo, v) {
+  if (v == null) return null;
+  const T = {
+    acucares: [[0.5, 'sem', 0], [5, 'baixo', 1], [22.5, 'moderado', 2], [Infinity, 'alto', 3]],
+    gordura: [[0.5, 'sem', 0], [3, 'baixo', 1], [17.5, 'moderado', 2], [Infinity, 'alto', 3]],
+    saturados: [[0.1, 'sem', 0], [1.5, 'baixo', 1], [5, 'moderado', 2], [Infinity, 'alto', 3]],
+    sal: [[0.1, 'muito baixo', 0], [0.3, 'baixo', 1], [1.5, 'moderado', 2], [Infinity, 'alto', 3]],
+    fibra: [[3, 'baixo', 1], [6, 'fonte', 2], [Infinity, 'alto', 2]],
+    proteina: [[12, 'baixo', 1], [20, 'fonte', 2], [Infinity, 'alto', 2]],
+  }[tipo];
+  for (const [lim, w, lvl] of T) if (v <= lim) return [lvl, w];
+  return [3, 'alto'];
+}
+function Regua({ label, val, tipo }) {
+  const cols = ['#7ec46a', '#cdb83e', '#e6a23c', '#e0734f'];
+  const n = nivel(tipo, val);
+  const lvl = n ? n[0] : -1;
+  return (
+    <div className="rgrow">
+      <span className="rg-l">{label}</span>
+      <span className="rg-v">{val == null ? '—' : `${String(val).replace('.', ',')} g`}</span>
+      <span className="rg-bar">{[0, 1, 2, 3].map((i) => <span key={i} className="rg-seg" style={{ background: i === lvl ? cols[lvl] : 'var(--cream-2)' }} />)}</span>
+      <span className="rg-w" style={{ color: n ? cols[lvl] : 'var(--ink-3)' }}>{n ? n[1] : ''}</span>
+    </div>
+  );
+}
+function Ficha({ go, back, ean, sku_id, nome }) {
+  const [info, setInfo] = useState(null);
+  const [analise, setAnalise] = useState(null);
+  const [aval, setAval] = useState(null);
+  const [alt, setAlt] = useState(null);
+  const [open, setOpen] = useState({});
+  useEffect(() => {
+    const q = { itemId: undefined, ean, skuId: sku_id };
+    registarHistoricoProduto({ ean, skuId: sku_id, nome });
+    infoProduto(q).then(setInfo).catch(() => setInfo({ erro: true }));
+    analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => setAnalise(null));
+    avaliacaoPersonalizada(q).then((r) => setAval(r?.perfil ? r : null)).catch(() => setAval(null));
+    alternativasProduto(q).then((r) => setAlt(r?.alternativas?.length ? r : null)).catch(() => setAlt(null));
+  }, [ean, sku_id, nome]);
+  const nut = (() => { const s = info && !info.erro ? info : {}; return s.vlm?.nutricao_100g || s.off?.nutricao_100g || s.generico?.nutricao_100g || {}; })();
+  const num = (...ks) => { for (const k of ks) { const v = nut[k]; if (v != null && !Number.isNaN(Number(v))) return Number(v); } return null; };
+  const nomeProd = info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto';
+  const grau = analise?.nutriscore?.grau ? String(analise.nutriscore.grau).toUpperCase() : null;
+  const attn = aval?.avaliacao && /aten[çc]/i.test(aval.avaliacao.veredicto || aval.avaliacao.selo || '');
+  const action = <button className="hist-cmp" title="Adicionar à lista" onClick={() => go('lista')}><span style={{ color: 'var(--leaf-d)' }}><Ico name="plus" size={20} stroke={2.4} /></span></button>;
+  return (
+    <>
+      <Ctop title="Informação do produto" back onBack={back} action={action} />
+      <div className="scrollarea">
+        <div className="f-hero">
+          <div className="f-thumb">{info?.imagem_catalogo ? <img src={info.imagem_catalogo} alt="" /> : <span style={{ display: 'grid', placeItems: 'center', height: '100%' }}><Ico name="photoprod" size={28} color="#7a93b0" /></span>}</div>
+          <div className="f-name">{nomeProd}</div>
+          {grau && <span className="ns-pill" style={{ background: NS_COR[grau] || '#9ec93f' }}>{grau}</span>}
+        </div>
+
+        {(aval?.avaliacao || analise?.parecer) && (
+          <div className={`parecer ${attn ? 'attn' : ''}`}>
+            <div className="ph">{aval?.perfil ? `Para ${aval.perfil}` : 'Parecer'}{aval?.avaliacao?.selo && <span className={`selo ${attn ? 'attn' : ''}`}>{aval.avaliacao.selo}</span>}</div>
+            <p>{aval?.avaliacao?.texto || aval?.avaliacao?.parecer || analise?.parecer}</p>
+          </div>
+        )}
+
+        <div className="reguas">
+          <Regua label="Açúcares" tipo="acucares" val={num('acucares', 'acucar')} />
+          <Regua label="Gordura" tipo="gordura" val={num('gordura', 'lipidos')} />
+          <Regua label="Saturados" tipo="saturados" val={num('gordura_saturada', 'saturados')} />
+          <Regua label="Sal" tipo="sal" val={num('sal')} />
+          <Regua label="Fibra" tipo="fibra" val={num('fibra')} />
+          <Regua label="Proteína" tipo="proteina" val={num('proteina')} />
+        </div>
+
+        {alt?.alternativas?.length > 0 && (
+          <div className="alt-sec">
+            <div className="alt-h">Alternativas similares</div>
+            <div className="alt-sub">Produtos parecidos · nutrição por 100 g</div>
+            {alt.alternativas.slice(0, 6).map((a, i) => (
+              <div className="altx" key={i} onClick={() => go('ficha', { ean: a.ean, nome: a.nome })}>
+                <div className="alt-top"><span className="alt-n">{a.nome}</span>{a.preco_por_base != null && <span className="alt-p">{eur(a.preco_por_base)}/{a.unidade_base || 'kg'}</span>}</div>
               </div>
             ))}
           </div>
         )}
+
+        <div className="accbox">
+          {(() => { const ing = info?.vlm?.ingredientes || info?.off?.ingredientes; return ing ? (
+            <>
+              <button className={`acc ${open.ing ? 'open' : ''}`} onClick={() => setOpen((o) => ({ ...o, ing: !o.ing }))}><span>Ingredientes</span><Ico name="chevron" size={16} stroke={2.6} /></button>
+              {open.ing && <div className="acc-body"><p>{ing}</p>{(info?.vlm?.alergenios || info?.off?.alergenios) && <div className="alerg">⚠ Alergénios: <b>{info?.vlm?.alergenios || info?.off?.alergenios}</b></div>}</div>}
+            </>
+          ) : null; })()}
+          <button className={`acc ${open.aval ? 'open' : ''}`} onClick={() => setOpen((o) => ({ ...o, aval: !o.aval }))}><span>Como avaliamos</span><Ico name="chevron" size={16} stroke={2.6} /></button>
+          {open.aval && <div className="acc-body"><div className="fontes">Dados nutricionais e Nutri-Score do <b>Open Food Facts</b>; ingredientes lidos do rótulo por IA; limiares do semáforo segundo a FSA (Reino Unido), por 100 g.<br /><i>Informação factual. Não é aconselhamento de saúde.</i></div></div>}
+        </div>
+        {info?.erro && <p className="empty">Não foi possível carregar a ficha.</p>}
+      </div>
     </>
   );
 }
 
-// BUSCAR — pergunta ao assistente (mesmo /api/consulta, tool use no servidor).
-function Buscar() {
-  const [q, setQ] = useState('');
-  const [resp, setResp] = useState('');
-  const [ocupado, setOcupado] = useState(false);
-  async function perguntar(e) {
-    e.preventDefault();
-    const p = q.trim(); if (!p || ocupado) return;
-    setOcupado(true); setResp('');
-    try { const out = await consultar(p); setResp(out.resposta || ''); }
-    catch { setResp('Falha ao consultar.'); }
-    finally { setOcupado(false); }
+/* ── CONSULTAR POR NOME (texto) ──────────────────────────────────────────── */
+function Texto({ go, back }) {
+  const [q, setQ] = useState(''); const [res, setRes] = useState(null); const [busy, setBusy] = useState(false);
+  async function buscar(e) {
+    e?.preventDefault(); const p = q.trim(); if (!p) return; setBusy(true);
+    try { const r = await consultarProdutoNome(p); setRes(r); } catch { setRes({ erro: true }); } finally { setBusy(false); }
   }
   return (
     <>
-      <h1 className="v2-h1">Buscar</h1>
-      <form className="v2-ask" onSubmit={perguntar}>
-        <input placeholder="Pergunte sobre os seus produtos…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className="v2-btn" disabled={ocupado || !q.trim()}>{ocupado ? '…' : 'Ir'}</button>
-      </form>
-      {resp && <div className="v2-card"><div className="v2-answer">{resp}</div></div>}
+      <Ctop title="Consultar por nome" sub="escreva o produto" back onBack={back} />
+      <div className="scrollarea">
+        <form className="txtsearch" onSubmit={buscar}>
+          <span className="ts-ic"><Ico name="search" size={20} stroke={2} /></span>
+          <input className="ts-field" placeholder="Ex.: iogurte grego…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+        </form>
+        {busy && <p className="empty">…</p>}
+        {res && !busy && (res.erro ? <p className="empty">Nada encontrado.</p> : res.encontrado ? (
+          <>
+            <div className="sec">Resultado</div>
+            <div className="frow" onClick={() => go('ficha', { sku_id: res.sku_id, nome: res.nome })}>
+              <span className="fdot" style={{ background: '#67b2c9' }}><Ico name="photoprod" size={20} stroke={2} color="#fff" /></span>
+              <div className="fb"><div className="fn">{res.nome}</div><div className="fs">{res.tipo || 'produto'}</div></div>
+              <span style={{ color: 'var(--ink-3)' }}>›</span>
+            </div>
+          </>
+        ) : <p className="empty">Nada encontrado para “{q}”.</p>)}
+      </div>
     </>
   );
 }
 
-// HISTÓRICO — produtos consultados (mesmo /api/produto/consultados da v1).
-function Historico() {
-  const [estado, setEstado] = useState({ carregando: true, produtos: [], total: 0, erro: false });
-  useEffect(() => {
-    listarHistoricoProduto(20)
-      .then((d) => setEstado({ carregando: false, produtos: d.produtos || [], total: d.total || 0, erro: false }))
-      .catch(() => setEstado({ carregando: false, produtos: [], total: 0, erro: true }));
-  }, []);
+/* ── DESPENSA ────────────────────────────────────────────────────────────── */
+function Despensa({ go, back }) {
+  const [itens, setItens] = useState(null);
+  useEffect(() => { listarDespensa().then((d) => setItens(d || [])).catch(() => setItens([])); }, []);
+  const grupos = []; let last = null;
+  (itens || []).forEach((it) => { const s = secDe(it); if (!last || last.s !== s) { last = { s, itens: [] }; grupos.push(last); } last.itens.push(it); });
   return (
     <>
-      <h1 className="v2-h1">Histórico{estado.total ? ` · ${estado.total}` : ''}</h1>
-      {estado.carregando ? <p className="v2-empty">…</p>
-        : estado.erro ? <p className="v2-empty">Não foi possível carregar.</p>
-        : estado.produtos.length === 0 ? <p className="v2-empty">Você ainda não consultou nenhum produto.</p>
-        : (
-          <div className="v2-list">
-            {estado.produtos.map((p, i) => (
-              <div className="v2-row" key={`${p.ean || p.nome}-${i}`}>
-                <span className="nm">{p.nome}{p.marca ? <span className="mk"> {p.marca}</span> : null}</span>
-                {p.n_consultas > 1 && <span className="meta">{p.n_consultas}×</span>}
+      <Ctop title="Tenho em casa" sub={itens ? `${itens.length} itens` : ''} back onBack={back} amber />
+      <div className="scrollarea">
+        {itens == null ? <p className="empty">…</p> : itens.length === 0 ? <p className="empty">Despensa vazia. Escaneie um produto.</p>
+          : grupos.map((g) => (
+            <React.Fragment key={g.s}>
+              <div className="sec amber">{g.s}</div>
+              {g.itens.map((it) => (
+                <div className="item" key={it.ean} onClick={() => go('ficha', { ean: it.ean, nome: it.nome })}>
+                  <div className="ib"><div className="iname">{it.nome}</div><div className="isub">{it.tamanho || it.marca || ''}</div></div>
+                </div>
+              ))}
+            </React.Fragment>
+          ))}
+      </div>
+      <div className="actfoot"><div className="addbar">
+        <button className="addfab scan amber" title="Escanear produto" onClick={() => go('scanner')}><Ico name="scan" size={24} stroke={2} color="#9a6a16" /></button>
+      </div></div>
+    </>
+  );
+}
+
+/* ── MINHAS COMPRAS (notas) ──────────────────────────────────────────────── */
+function Notas({ go, back }) {
+  const [notas, setNotas] = useState(null);
+  useEffect(() => { listarNotas().then(setNotas).catch(() => setNotas([])); }, []);
+  return (
+    <>
+      <Ctop title="Minhas compras" sub="todos os mercados" back onBack={back} />
+      <div className="scrollarea">
+        <div className="herolist" onClick={() => go('gastos')}>
+          <div className="k">Gastos</div><div className="v">{notas ? `${notas.length} talões` : '…'}</div>
+          <span className="hero-link">ver análise <Ico name="chart" size={13} color="#f4fff0" /> →</span>
+        </div>
+        {notas == null ? <p className="empty">…</p> : notas.length === 0 ? <p className="empty">Sem talões ainda.</p>
+          : notas.map((n) => { const [c, ini] = lojaCor(n.loja || n.mercado); return (
+            <div className="frow" key={n.id} onClick={() => go('recibo', { id: n.id })}>
+              <span className="fdot" style={{ background: c }}>{ini}</span>
+              <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{n.data || ''}{n.n_itens ? ` · ${n.n_itens} itens` : ''}</div></div>
+              <span className="fp">{eur(n.total)}</span>
+            </div>); })}
+      </div>
+    </>
+  );
+}
+
+/* ── ANÁLISE DE GASTOS ───────────────────────────────────────────────────── */
+function Gastos({ back }) {
+  const [g, setG] = useState(null);
+  useEffect(() => { resumoGastos().then(setG).catch(() => setG({ erro: true })); }, []);
+  const serie = g?.serie || [];
+  const max = Math.max(1, ...serie.map((s) => s.total || 0));
+  const lojas = g?.por_loja || [];
+  const lmax = Math.max(1, ...lojas.map((s) => s.total || 0));
+  return (
+    <>
+      <Ctop title="Análise de gastos" sub={g?.atual?.mes || ''} back onBack={back} />
+      <div className="scrollarea">
+        {g == null ? <p className="empty">…</p> : g.erro ? <p className="empty">Não foi possível carregar.</p> : (
+          <>
+            <div className="ghero"><div className="gh-l"><div className="k">Gasto no mês</div><div className="v">{eur(g.atual?.total)}</div></div>
+              <div className="gh-r">{g.variacao != null && <span className="gchip">{g.variacao <= 0 ? '▼' : '▲'} {Math.abs(Math.round(g.variacao))}% vs anterior</span>}<span className="gmed">média<br /><b>{eur(g.media)}</b>/mês</span></div></div>
+            {serie.length > 0 && <>
+              <div className="sec">Últimos meses</div>
+              <div className="gbars">{serie.slice(-4).map((s, i, a) => (
+                <div className="gcol" key={i}><span className="gv">{Math.round(s.total || 0)}</span>
+                  <div className={`gbar ${i === a.length - 1 ? 'on' : ''}`} style={{ height: `${Math.max(8, Math.round((s.total || 0) / max * 92))}%` }} /><b>{s.mes || ''}</b></div>
+              ))}</div>
+            </>}
+            {lojas.length > 0 && <>
+              <div className="sec">Onde gastou</div>
+              {lojas.map((s, i) => (
+                <div className="gstore" key={i}><span className="gname">{s.loja || s.mercado}</span><span className="gamt">{eur(s.total)}</span>
+                  <div className="gtrack"><div className="gfill" style={{ width: `${Math.round((s.total || 0) / lmax * 100)}%`, background: lojaCor(s.loja || s.mercado)[0] }} /></div></div>
+              ))}
+            </>}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ── TALÃO (detalhe) ─────────────────────────────────────────────────────── */
+function Recibo({ go, back, id }) {
+  const [d, setD] = useState(null);
+  useEffect(() => { detalhesNota(id).then(setD).catch(() => setD({ erro: true })); }, [id]);
+  const nota = d?.nota; const itens = d?.itens || [];
+  const [c, ini] = lojaCor(nota?.loja || nota?.mercado);
+  return (
+    <>
+      <Ctop title="Talão" back onBack={back} />
+      <div className="scrollarea">
+        {d == null ? <p className="empty">…</p> : d.erro ? <p className="empty">Não foi possível carregar.</p> : (
+          <>
+            <div className="rec-band"><span className="fdot" style={{ background: c, width: 46, height: 46, borderRadius: 13, font: '800 16px var(--disp)' }}>{ini}</span>
+              <div><div style={{ font: '800 16px var(--disp)', color: 'var(--ink)' }}>{nota?.loja || nota?.mercado || 'Compra'}</div><div style={{ font: '600 12.5px var(--font)', color: 'var(--ink-2)' }}>{nota?.data || ''} · {itens.length} itens</div></div>
+              <span className="rec-tot">{eur(nota?.total)}</span></div>
+            {itens.map((p, i) => (
+              <div className="rec-item" key={i} onClick={() => go('ficha', { ean: p.ean, nome: p.nome || p.descricao })}>
+                <span className="ri-nm">{p.nome || p.descricao}</span><span className="ri-q">{p.quantidade || ''}</span><span className="ri-p">{eur(p.preco || p.preco_liquido)}</span>
               </div>
             ))}
-          </div>
+          </>
         )}
+      </div>
+    </>
+  );
+}
+
+/* ── PERFIL ──────────────────────────────────────────────────────────────── */
+function Perfil({ nome }) {
+  const [perfis, setPerfis] = useState(null);
+  const [texto, setTexto] = useState(''); const [aGuardar, setAGuardar] = useState(false); const [msg, setMsg] = useState('');
+  const carregar = useCallback(() => { listarPerfis().then(setPerfis).catch(() => setPerfis([])); }, []);
+  useEffect(() => { carregar(); }, [carregar]);
+  const ativo = (perfis || []).find((p) => p.ativo) || (perfis || [])[0];
+  async function guardar() {
+    if (!texto.trim() || aGuardar) return; setAGuardar(true); setMsg('');
+    try { await carregarPerfil({ nome: ativo?.nome || nome, texto: texto.trim() }); setTexto(''); setMsg('Perfil guardado.'); carregar(); }
+    catch { setMsg('Falha ao guardar.'); } finally { setAGuardar(false); }
+  }
+  return (
+    <>
+      <Ctop title="Perfil nutricional" sub="membro ativo" />
+      <div className="scrollarea">
+        <div className="parecer" style={{ background: 'var(--card)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="m-av" style={{ background: 'var(--leaf-soft)', color: 'var(--leaf-d)', border: 0 }}>{inicial(ativo?.nome || nome)}</span>
+            <div><div style={{ font: '800 17px var(--disp)', color: 'var(--ink)' }}>{ativo?.nome || nome}</div><div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)' }}>perfil ativo · usado nos pareceres</div></div>
+          </div>
+          {ativo?.resumo && <p style={{ margin: '12px 0 0', font: '500 13px/1.5 var(--font)', color: 'var(--ink)' }}>{ativo.resumo}</p>}
+        </div>
+
+        {(perfis || []).length > 0 && <>
+          <div className="menu-cap">Quem está comprando</div>
+          <div className="members">
+            {perfis.map((p) => (
+              <div className={`member ${p.ativo ? 'on' : ''}`} key={p.id} onClick={() => { ativarPerfil(p.id).then(carregar).catch(() => {}); }}>
+                <div className="m-av">{inicial(p.nome)}</div><div className="m-name">{p.nome}</div><div className="m-on">{p.ativo ? 'ativo' : 'trocar'}</div>
+              </div>
+            ))}
+            <div className="member add"><div className="m-av">+</div><div className="m-name" style={{ color: 'var(--ink-3)' }}>Membro</div></div>
+          </div>
+        </>}
+
+        <div className="pf-load">
+          <div className="pf-load-h"><Ico name="spark" size={16} color="var(--leaf-d)" /> Carregar perfil de saúde</div>
+          <p className="pf-load-s">Cole o texto do perfil gerado pelo seu assistente. Fica ativo nas avaliações dos produtos.</p>
+          <div className="pf-or"><span>cole o texto</span></div>
+          <textarea className="pf-text" placeholder="Cole aqui o conteúdo do perfil…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+          {msg && <div style={{ font: '600 12.5px var(--font)', color: 'var(--leaf-d)', margin: '0 0 8px' }}>{msg}</div>}
+          <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 4 }} disabled={aGuardar || !texto.trim()} onClick={guardar}>{aGuardar ? '…' : 'Guardar perfil'}</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ── RECEITAS (estático por enquanto) ────────────────────────────────────── */
+function Receitas({ back }) {
+  const cards = [['Salada de frango grelhado', 'rica em proteína · 20 min', 'linear-gradient(135deg,#cfe6b0,#a6cd8c)', '#3f7a3f'],
+    ['Omelete de legumes', 'baixo açúcar · 12 min', 'linear-gradient(135deg,#f4d9b0,#e6b34a)', '#9a6a16'],
+    ['Sopa de tomate caseira', 'usa o que tens na despensa', 'linear-gradient(135deg,#f3c2b0,#e0734f)', '#fff']];
+  return (
+    <>
+      <Ctop title="Receitas" sub="para o seu perfil" back onBack={back} />
+      <div className="scrollarea">
+        {cards.map(([n, s, bg, col]) => (
+          <div className="item" key={n} style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ height: 88, flex: '0 0 96px', background: bg, display: 'grid', placeItems: 'center', color: col }}><Ico name="recipe" size={34} stroke={2} /></div>
+            <div className="ib" style={{ padding: '11px 13px' }}><div className="iname">{n}</div><div className="isub">{s}</div></div>
+          </div>
+        ))}
+        <p className="empty">Em breve: receitas geradas a partir do seu perfil e da sua despensa.</p>
+      </div>
+    </>
+  );
+}
+
+/* ── SCANNER / VOZ (visual cartoon — leitura real numa próxima fase) ─────── */
+function Scanner({ go, back }) {
+  const [modo, setModo] = useState('codigo');
+  const code = modo === 'codigo';
+  return (
+    <>
+      <Ctop title="Consultar produto" sub={code ? 'aponte para o código' : 'fotografe o produto'} back onBack={back} />
+      <div className="scrollarea" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="sc-cam" onClick={() => go('texto')}>
+          <div className="sc-frame">{code && <><i className="tr" /><i className="bl" /></>}</div>
+          <span style={{ position: 'absolute', bottom: 12 }}><Mk size={34} /></span>
+        </div>
+        <div className="sc-hint">{code ? 'Leitura por câmara chega na próxima fase.\nUse “Texto” para consultar por nome.' : 'Reconhecimento por foto chega em breve.'}</div>
+        <div className="scanmode">
+          <button className={`smode ${code ? 'on' : ''}`} onClick={() => setModo('codigo')}><Ico name="scan" size={24} stroke={2} /><span>Código</span></button>
+          <button className={`smode ${!code ? 'on' : ''}`} onClick={() => setModo('foto')}><Ico name="photoprod" size={24} stroke={2} /><span>Produto</span></button>
+          <button className="smode" onClick={() => go('voz')}><Ico name="mic" size={24} stroke={2} /><span>Voz</span></button>
+          <button className="smode" onClick={() => go('texto')}><Ico name="search" size={24} stroke={2} /><span>Texto</span></button>
+        </div>
+      </div>
+    </>
+  );
+}
+function Voz({ go, back }) {
+  return (
+    <>
+      <Ctop title="Voz" sub="" back onBack={back} />
+      <div className="voz-wrap">
+        <div className="voz-orb"><Ico name="mic" size={46} stroke={2} color="#f4fff0" /></div>
+        <div><Mk size={60} /></div>
+        <div className="voz-bubble">Reconhecimento de voz chega em breve</div>
+        <button className="cbtn cbtn-leaf" onClick={() => go('texto')}>Consultar por texto</button>
+      </div>
     </>
   );
 }
