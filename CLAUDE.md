@@ -50,6 +50,7 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 - **`Taxonomia_Produto.md`** — modelo-alvo facetado (Produto Mestre); o norte da migração.
 - **`Analise_Fontes_Normalizacao.md`** — fontes (números reais) + plano v2 (fases A/B/C/**D=classificação por catálogo**).
 - **`Visao_Multi_Pais.md`** — direção multi-país (Europa) + **arquitetura de 2 camadas**: IDENTIDADE universal (EAN, partilhada, enriquece com cada país) vs PREÇO+LOCALE (por país, parametrizável). Princípio **locale-ready, não locale-completo**.
+- **`Auth_Zitadel.md`** — serviço de autenticação partilhado (Zitadel IdP OIDC self-host): infra, IDs/endpoints, integração do BigBag (PKCE + JWT + allowlist), modelo multi-app, e o que falta (Google login).
 - **`Visao_Conselheiro_Saude_Alimentar.md`** · **`Vertical_Espanha_Mercadona.md`** · **`Paper_Resolucao_Produtos_Talao.md`** · **`Aula_Classificacao_Produtos.md`** (didático) · Runbook de bootstrap.
 
 ## Internacionalização (i18n)
@@ -68,7 +69,7 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 
 ---
 
-## Estado atual (2026-06-14 · app v0.0.147.0 — fase BETA)
+## Estado atual (2026-06-14 · app v0.0.170.0 — fase BETA)
 
 **Superfícies** (routing por path em `frontend/src/main.jsx`):
 - **App de chat (`/v1`)** — PWA antiga, **CONGELADA** (era o default em `/` até v0.0.156.0; o default passou a ser a v2). Notas (📷 câmara inteligente: barras→produto, senão→talão), perguntas, **lista/carrinho partilhada**, scanner, **despensa** (049), gastos, "por identificar", perfil nutricional. Produto → ficha factual + avaliação personalizada. Base LOCAL no telefone (IndexedDB) p/ scan instantâneo/offline. **Despensa INDEPENDENTE da lista (v0.0.149.0, decisão do dono):** ícone próprio no topo (armário, cor âmbar) com pílula de contagem — saiu do kebab; entrada SÓ pela tela de despensa (scan), já NÃO pelo scan→lista (que enchia a lista do que já se tem); mesmo formato rico da lista (`GET /despensa` reusa `resolverItensLista` no modo **`leve`**: secção, marca, tamanho, preço-facto + validade — salta a estimativa de preço pelo irmão e o disparo do peso-VLM, que só servem p/ DECIDIR a compra). **Perf:** índice `catalogo_produto.marca` (054), tokens dos SKUs pré-computados em `carregarSkus`, `marcaDeterministica` memoizada → GET de ~6,5s p/ ~2,5s; **scan→despensa OTIMISTA** (insere o item + realce/scroll na hora, secção por `grupoDeNome` no cliente, reconcilia em fundo); open com cache pré-aquecido no mount.
@@ -78,7 +79,11 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 
 **Pipeline:** `POST /api/faturas` (câmara/galeria · ficheiro · Share Target Android) → VLM-imagem ou texto-PDF+LLM → extração com loop de auto-correção (reconcilia com o total) → dedup → normalização (formato→`preco_por_base`) → canonicalização + matching → verificação de nomes. **Consulta:** tool use (`POST /api/consulta` texto, `/api/voz`).
 
-**Infra FECHADA:** Apache+Let's Encrypt, systemd porta 4200. BD `app_bigbag`, **migrações até 055** (lista no `Schema_e_Funcoes_ToolUse.md §1d`). Migrações novas: `mysql … < ficheiro` no servidor (aditivas por regra).
+**Infra FECHADA:** Apache+Let's Encrypt, systemd porta 4200. BD `app_bigbag`, **migrações até 058** (058 = `catalogo_produto.product_type`; lista no `Schema_e_Funcoes_ToolUse.md §1d`). Migrações novas: `mysql … < ficheiro` (ou via node) no servidor (aditivas por regra).
+- **Coluna JSON (mysql2 devolve OBJETO, não string):** usar SEMPRE `parseJsonCol` de `db.js` — nunca `JSON.parse` cru sobre valor da BD (rebenta). Fonte única.
+
+### Autenticação (NOVO — detalhe em `docs/Auth_Zitadel.md`)
+Serviço de auth **próprio e partilhável entre apps** (não SaaS por-MAU, não auth à mão): **Zitadel** (IdP OIDC) self-host em Docker no host, atrás do Apache em **`https://auth.hal9klabs.com`** (Let's Encrypt). BigBag = **client OIDC** (PKCE). Backend (`auth.js`) valida o **access token JWT** (JWKS+issuer, `jose`) e exige email na **allowlist** (`AUTH_ALLOWLIST`); HTTP Basic/`ENABLE_TEST_AUTH` fica de fallback. Frontend (`auth/oidc.js`, `oidc-client-ts`): botão "Entrar" → Zitadel, rota `/callback`, Bearer nas chamadas. **Auto-registo desligado** (só pré-cadastrados). **Falta:** método de login dos utilizadores → **Google login** (próximo: criar OAuth client no Google Cloud + IdP no Zitadel). Multi-app: cada app = um client; autorização por-app na BD de cada app.
 
 ### Sistema de classificação (o eixo desta fase — detalhe nos docs-fonte)
 - **Duas lentes** (dono, 2026-06-12): **de loja** (`it.grupo`, o corredor — segue como as lojas organizam; massa/arroz/cereais em *mercearia*) serve comparar/comprar; **da lista** (seção de exibição) é o cabeçalho da lista de compras. São eixos distintos de propósito.
@@ -86,6 +91,7 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 - **Resolvedor ÚNICO da ficha por EAN** (052, `normaliza/fichaEan.js`): a ficha é a FUSÃO campo-a-campo de TODAS as fontes locais, com **tabela de prioridades num só sítio**. Proveniência por campo + divergências em `produto_ean.fusao`; 'manual' sagrado; nutrição catálogo-oficial>OFF>VLM; ingredientes = o mais completo (anti-OCR, anti-estrangeiro); idempotente (testado). Backfill `refundir_fichas.mjs` aplica+regista diff.
 - **Classificação por catálogo** (`normaliza/classificarCatalogo.js`, Fase D): as linhas de catálogo votam (EAN direto, ou ~80 vizinhos por nome), peso = profundidade do caminho, vencedor por **FAMÍLIA** (2.º nível). Seção da lista = tipo curado saliente > família (`cat_exib`) > grupo (3 iterações: corredor grosso, folha fina, família certa). Guardas anti-colisão de EAN, raso-não-vota, ES-não-exibe. Avaliador: `scripts/avaliar_classificacao_catalogo.mjs`.
 - **Nome:** "à talão" (genérico da secção cortado; marca à parte noutra cor); quantidade embutida sai (`cortarQuantidadeNome`: "20 Saq", "… Saquetas"); verificação de nomes (037, voto a 3).
+- **ALIMENTO vs NÃO-ALIMENTO** (`normaliza/tipoProduto.js`, puro+testado): determinístico (nutrição/food_groups → padrões de não-alimento no NOME, fiáveis mesmo c/ categoria errada → categoria loja/OFF PT+ES → alimento-sem-nutrição água/vinho/especiarias). Guardado em `catalogo_produto.product_type` (058, backfill `scripts/backfill_product_type.mjs`: ~65% determinístico) + LLM p/ os ambíguos (`scripts/classificar_ambiguos_llm.mjs`, lotes de 100, ~$1). O `/info` devolve `tipo`; a ficha v2 esconde Para-Sue/nutrição em não-alimentos (layout simples marca/categoria/tamanho).
 - **Auditoria mensal do scan:** `node scripts/auditar_grupos.mjs --scan` (juíz calibrado por canários) 1×/mês ou após sessão grande; adotar termos claros, regenerar golden no mesmo commit.
 
 ### Lista de compras (detalhe no Schema §lista_item)
@@ -99,7 +105,7 @@ Servidor é fonte de verdade, sync por polling, cores por membro, reconciliaçã
 - **Normalização v2 fases A/B** (035-036, 041-042): conteúdo→ppb, busca interna no catálogo, abreviaturas minadas, marca determinística, IVA por voto, categoria fechada, consulta por tokens. Estados no `Analise_Fontes`.
 
 ### Avisos e backlog vivos
-- **Auth:** Google OAuth a aguardar redirect URI; entretanto portão `ENABLE_TEST_AUTH` (HTTP Basic, `TEST_USERS` no `.env`).
+- **Auth:** Zitadel (IdP OIDC) montado e o BigBag integrado (ver `docs/Auth_Zitadel.md`); **falta o método de login** (Google login: criar OAuth client no Google Cloud + IdP no Zitadel). `ENABLE_TEST_AUTH` (Basic) continua de fallback. Allowlist: gviberti3@gmail.com, suerocha@gmail.com.
 - **Sudo temporário** `90-bigbag-nopasswd` ainda ativo (instalação não terminou).
 - **Continente scrape** bloqueado por anti-bot → cron noturno gota-a-gota (19,1k temos).
 - **EANs do talão (Makro) válidos-mas-errados** (VLM troca dígito → outro EAN real); cruzar com a descrição (backlog).
