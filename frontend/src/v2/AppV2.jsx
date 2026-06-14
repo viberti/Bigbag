@@ -371,7 +371,13 @@ function Ficha({ go, back, ean, sku_id, nome }) {
     registado.current = true;
     registarHistoricoProduto({ ean, skuId: sku_id, nome: nm, marca: info.vlm?.marca || info.off?.marca || info.base?.marca });
   }, [info, ean, sku_id, nome]);
-  const nut = (() => { const s = info && !info.erro ? info : {}; return s.base?.nutricao_100g || s.vlm?.nutricao_100g || s.off?.nutricao_100g || s.generico?.nutricao_100g || {}; })();
+  // 1.ª fonte com ao menos UM valor real (o vlm às vezes vem com todos os campos
+  // null — objeto truthy mas vazio — e não pode ganhar do off/catálogo que têm dados)
+  const nut = (() => {
+    const s = info && !info.erro ? info : {};
+    const temValor = (o) => o && Object.values(o).some((v) => v != null && v !== '');
+    return [s.base?.nutricao_100g, s.off?.nutricao_100g, s.generico?.nutricao_100g, s.vlm?.nutricao_100g].find(temValor) || {};
+  })();
   const num = (...ks) => { for (const k of ks) { const v = nut[k]; if (v != null && !Number.isNaN(Number(v))) return Number(v); } return null; };
   const nomeProd = info?.nome || info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto';
   const grau = analise?.nutriscore?.grau ? String(analise.nutriscore.grau).toUpperCase() : null;

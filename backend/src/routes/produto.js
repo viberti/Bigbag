@@ -194,9 +194,11 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   if (ean) {
     const temNut = (o) => o?.nutricao_100g && Object.values(o.nutricao_100g).some((v) => v != null);
     const [[c]] = await getPool().query(
-      "SELECT nutricao FROM catalogo_produto WHERE ean = ? AND nutricao IS NOT NULL AND nutricao <> '' AND nutricao <> '{}' ORDER BY (fonte = 'continente') DESC, (fonte = 'auchan') DESC, id LIMIT 1", [ean]);
+      "SELECT nutricao FROM catalogo_produto WHERE ean = ? AND nutricao IS NOT NULL AND JSON_LENGTH(nutricao) > 0 ORDER BY (fonte = 'continente') DESC, (fonte = 'auchan') DESC, id LIMIT 1", [ean]);
     let nutCat = null;
-    if (c?.nutricao) { try { nutCat = JSON.parse(c.nutricao); } catch { /* ignora */ } }
+    // nutricao é coluna JSON → o driver pode devolver objeto OU string conforme a versão
+    if (c?.nutricao) { try { nutCat = typeof c.nutricao === 'string' ? JSON.parse(c.nutricao) : c.nutricao; } catch { /* ignora */ } }
+    if (nutCat && !Object.values(nutCat).some((v) => v != null)) nutCat = null; // objeto todo-null não conta
     if (!nutCat && !temNut(off) && !temNut(vlm)) {
       try { const cont = await nutricaoContinenteLive(getPool(), ean); if (cont?.nutricao) nutCat = cont.nutricao; } catch { /* live falhou */ }
     }
