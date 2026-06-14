@@ -349,6 +349,19 @@ function Regua({ label, val, tipo }) {
     </div>
   );
 }
+// pílulas de nutrição das alternativas: prot (↑ melhor), gord. sat e açúc (↓ melhor).
+// Cor pelos MESMOS limiares FSA do nivel() — comparar saúde de relance, sem inventar.
+function Pills({ prot, sat, acu }) {
+  const fmt = (x) => String(Number(x).toFixed(1)).replace(/\.0$/, '').replace('.', ',');
+  const baixoMelhor = (tipo, v) => { const n = nivel(tipo, v); return n ? (n[0] <= 1 ? 'good' : n[0] === 2 ? 'warn' : 'bad') : 'mid'; };
+  const protCls = (v) => { const n = nivel('proteina', v); return n && n[0] >= 2 ? 'good' : 'mid'; };
+  const pills = [];
+  if (prot != null) pills.push([`prot ${fmt(prot)}`, protCls(prot)]);
+  if (sat != null) pills.push([`gord. sat ${fmt(sat)}`, baixoMelhor('saturados', sat)]);
+  if (acu != null) pills.push([`açúc ${fmt(acu)}`, baixoMelhor('acucares', acu)]);
+  if (!pills.length) return null;
+  return <div className="alt-pills">{pills.map(([t, c], i) => <span key={i} className={`ap ${c}`}>{t}</span>)}</div>;
+}
 function Ficha({ go, back, ean, sku_id, nome }) {
   const [info, setInfo] = useState(null);
   const [analise, setAnalise] = useState(null);
@@ -415,11 +428,17 @@ function Ficha({ go, back, ean, sku_id, nome }) {
           <div className="alt-sec">
             <div className="alt-h">Alternativas similares</div>
             <div className="alt-sub">Produtos parecidos · nutrição por 100 g</div>
-            {alt.alternativas.slice(0, 6).map((a, i) => (
-              <div className="altx" key={i} onClick={() => go('ficha', { ean: a.ean, nome: a.nome })}>
-                <div className="alt-top"><span className="alt-n">{a.nome}</span>{a.preco_por_base != null && <span className="alt-p">{eur(a.preco_por_base)}/{a.unidade_base || 'kg'}</span>}</div>
-              </div>
-            ))}
+            {alt.alternativas.slice(0, 6).map((a, i) => {
+              const an = a.nutricao || {};
+              const v = (...ks) => { for (const k of ks) { const x = an[k]; if (x != null && !Number.isNaN(Number(x))) return Number(x); } return null; };
+              const preco = a.eur_base ?? a.preco_por_base;
+              return (
+                <div className="altx" key={a.sku_id ?? a.ean ?? i} onClick={() => go('ficha', { ean: a.ean, sku_id: a.sku_id, nome: a.nome })}>
+                  <div className="alt-top"><span className="alt-n">{a.nome}</span>{preco != null && <span className="alt-p">{eur(preco)}/{a.unidade_base || 'kg'}</span>}</div>
+                  <Pills prot={v('proteina')} sat={v('gordura_saturada', 'saturados')} acu={v('acucares', 'acucar')} />
+                </div>
+              );
+            })}
           </div>
         )}
 
