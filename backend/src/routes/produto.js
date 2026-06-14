@@ -683,7 +683,7 @@ produtoRouter.get('/buscar', requireAuth, async (req, res) => {
     const cond = toks.map(() => '(LOWER(CONCAT_WS(" ", c.nome, c.nome_pt, c.marca)) LIKE ?)').join(' AND ');
     const [rows] = await getPool().query(
       `SELECT c.ean, COALESCE(c.nome_pt, c.nome) AS nome, c.marca, c.formato AS tamanho,
-              c.imagem_url AS imagem, c.grupo, (${NUT_OK('c')}) AS nut_cat
+              c.imagem_url AS imagem, (${NUT_OK('c')}) AS nut_cat
          FROM catalogo_produto c
         WHERE c.ean IS NOT NULL AND c.ean <> ''
           AND c.marca IS NOT NULL AND c.marca <> ''
@@ -697,7 +697,7 @@ produtoRouter.get('/buscar', requireAuth, async (req, res) => {
     const vistos = new Set(); const produtos = [];
     for (const r of rows) {
       if (vistos.has(r.ean)) continue; vistos.add(r.ean);
-      produtos.push({ ean: r.ean, nome: r.nome, marca: r.marca, tamanho: r.tamanho, imagem: r.imagem, grupo: r.grupo });
+      produtos.push({ ean: r.ean, nome: r.nome, marca: r.marca, tamanho: r.tamanho, imagem: r.imagem });
       if (produtos.length >= 40) break;
     }
     res.json({ produtos, total: produtos.length });
