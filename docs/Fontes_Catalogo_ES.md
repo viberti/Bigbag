@@ -42,3 +42,11 @@ Como tem foto, o Consum serve a **ambos** os caminhos: EAN-join direto (overlap)
 - **Dia / Eroski**: sem EAN / HTML → ligar por **imagem+marca+peso** (a maquinaria do PD).
 - **Carrefour / Hipercor**: maiores; vale o esforço anti-bot mais tarde.
 - **Volume de EANs europeus continua a ser o OFF** (milhões) — o Consum é complementar (ES + preço + corroboração de EAN), não substituto.
+
+## E.Leclerc — ES viável (a raspar), PT sem catálogo online (2026-06-14)
+
+**E.Leclerc ES — FONTE VIÁVEL, `importar_leclerc.mjs`** (fonte=`leclerc`). Não tem API/sitemap de produtos: a loja vive nos **subdomínios regionais** (`pamplona.e-leclerc.es`, `soria.e-leclerc.es`…), plataforma **comerzzia/Liferay**, paginação por AJAX jQuery (difícil). Solução: **crawl BFS** — cada ficha liga a ~15-20 relacionados, por isso a partir das **13 categorias-semente** (`/categorias/<nome>/NN`) descobre-se o catálogo todo seguindo os links `/detalle/-/Producto/<slug>/<EAN>`.
+- **Dá:** EAN (último segmento do URL) + nome + marca + preço + €/base. Piloto: **83/83 com EAN válido**, marca 90%, ~86% EANs NOVOS.
+- **Gotchas:** (1) o **JSON-LD é INVÁLIDO** (`availability:'InStock'` com aspas simples) → `JSON.parse` falha; extrair campos por **regex** no bloco ld+json. (2) **IMAGEM não-fiável** — é EAN-keyed mas o ficheiro está errado (caso Penne↔Pipe Rigate, verificado); **NÃO guardar imagem**. (3) **Sem nutrição** (o site só põe um disclaimer "contacte o apoio"). (4) Preço é da loja regional → referência, não facto.
+
+**E.Leclerc PT — SEM FONTE ONLINE.** O `e-leclerc.pt` é WordPress **puramente institucional** (sitemap só `post-`/`page-`; links úteis só `/lojas/` e `/retirada-de-produtos/`). Sem loja online, sem comerzzia, sem subdomínios regionais — opera só em loja física. **Não retentar.** A identidade que interessaria (marcas internacionais com EAN partilhado) já entra pelo Leclerc **ES** via EAN cross-fronteira.
