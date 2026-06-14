@@ -7,7 +7,7 @@ import { getPool } from '../src/db.js';
 import { chatCompletion } from '../src/openrouter.js';
 import { config } from '../src/config.js';
 
-const LOTE = 100;
+const LOTE = Number(process.env.LOTE || 100);   // produtos por chamada (menor = + fiável, menos truncagem)
 const LIMITE = Number(process.env.LIMITE || 0); // nº de lotes (0 = todos)
 const pool = getPool();
 
