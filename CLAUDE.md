@@ -70,10 +70,11 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 
 ## Estado atual (2026-06-14 · app v0.0.147.0 — fase BETA)
 
-**Três superfícies** (routing por path em `frontend/src/main.jsx`):
+**Superfícies** (routing por path em `frontend/src/main.jsx`):
 - **App de chat (`/`)** — PWA do utilizador: notas (📷 câmara inteligente: barras→produto, senão→talão), perguntas, **lista/carrinho partilhada**, scanner, **despensa** (049), gastos, "por identificar", perfil nutricional. Produto → ficha factual + avaliação personalizada. Base LOCAL no telefone (IndexedDB) p/ scan instantâneo/offline. **Despensa INDEPENDENTE da lista (v0.0.149.0, decisão do dono):** ícone próprio no topo (armário, cor âmbar) com pílula de contagem — saiu do kebab; entrada SÓ pela tela de despensa (scan), já NÃO pelo scan→lista (que enchia a lista do que já se tem); mesmo formato rico da lista (`GET /despensa` reusa `resolverItensLista` no modo **`leve`**: secção, marca, tamanho, preço-facto + validade — salta a estimativa de preço pelo irmão e o disparo do peso-VLM, que só servem p/ DECIDIR a compra). **Perf:** índice `catalogo_produto.marca` (054), tokens dos SKUs pré-computados em `carregarSkus`, `marcaDeterministica` memoizada → GET de ~6,5s p/ ~2,5s; **scan→despensa OTIMISTA** (insere o item + realce/scroll na hora, secção por `grupoDeNome` no cliente, reconcilia em fundo); open com cache pré-aquecido no mount.
 - **Operador (`/admin`)** — desktop. Abas: Painel · SKUs · Mestres · Ligar nomes · Nomes · EANs · Mercadona · Itens · Fichas · Revisão · Qualidade · Preços · Saúde · Uso · Custos.
 - **Comprador (`/explorar`)** — desktop, tema "talão": explorar produtos, preço pago vs €/base, por mercado.
+- **App v2 (`/v2`)** — design NOVO, independente da v1 (mesmas funções, reusa `api.js`/`i18n.js`/`marca.js`). Vive em `frontend/src/v2/` (`AppV2.jsx` + `v2.css`), **CSS escopado em `.v2`** (a v1 está em `.bb` → zero colisão). Esqueleto: auth reutilizada + nav inferior + vistas Início/Lista/Buscar/Histórico já ligadas ao backend. Migrar o design tela a tela; a v1 (`App.jsx`) fica intacta até a v2 estar pronta.
 
 **Pipeline:** `POST /api/faturas` (câmara/galeria · ficheiro · Share Target Android) → VLM-imagem ou texto-PDF+LLM → extração com loop de auto-correção (reconcilia com o total) → dedup → normalização (formato→`preco_por_base`) → canonicalização + matching → verificação de nomes. **Consulta:** tool use (`POST /api/consulta` texto, `/api/voz`).
 
