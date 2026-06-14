@@ -19,30 +19,34 @@ perfilRouter.get('/', async (req, res) => {
   }
 });
 
-// Carregar/atualizar um perfil: { nome, texto }. Extrai o resumo e fica ativo.
+// Criar/atualizar um membro: { nome, texto? }. O TEXTO é opcional — dá para criar
+// um membro só com nome (p/ a lista partilhada / cor por membro) e juntar o perfil
+// de saúde depois. Quando vem texto, extrai o resumo. Fica ativo.
 perfilRouter.post('/', async (req, res) => {
   try {
     const texto = String(req.body?.texto || '').trim();
-    if (!texto) return res.status(400).json({ erro: 'Falta o texto do perfil' });
-    const { resumo, custo } = await extrairPerfil(texto);
-    const nome = String(req.body?.nome || resumo.nome || 'Membro').trim().slice(0, 80);
+    let resumo = null, custo = 0;
+    if (texto) { const r = await extrairPerfil(texto); resumo = r.resumo; custo = r.custo; }
+    const nome = String(req.body?.nome || resumo?.nome || '').trim().slice(0, 80);
+    if (!nome) return res.status(400).json({ erro: 'Falta o nome do membro' });
 
     const pool = getPool();
-    // upsert por nome (um perfil por membro) + ativar só este
+    // upsert por nome (um membro por nome). Membro só-nome NÃO apaga o perfil
+    // existente: só sobrescreve texto/resumo quando vem texto novo.
     const [[ja]] = await pool.query('SELECT id FROM perfil_membro WHERE nome = ? LIMIT 1', [nome]);
     let id;
     if (ja) {
-      await pool.query('UPDATE perfil_membro SET texto = ?, resumo = ? WHERE id = ?', [texto, JSON.stringify(resumo), ja.id]);
+      if (texto) await pool.query('UPDATE perfil_membro SET texto = ?, resumo = ? WHERE id = ?', [texto, JSON.stringify(resumo), ja.id]);
       id = ja.id;
     } else {
-      const [r] = await pool.query('INSERT INTO perfil_membro (nome, texto, resumo) VALUES (?,?,?)', [nome, texto, JSON.stringify(resumo)]);
+      const [r] = await pool.query('INSERT INTO perfil_membro (nome, texto, resumo) VALUES (?,?,?)', [nome, texto || null, resumo ? JSON.stringify(resumo) : null]);
       id = r.insertId;
     }
     await pool.query('UPDATE perfil_membro SET ativo = IF(id = ?, 1, 0)', [id]);
     res.json({ id, nome, resumo, custo });
   } catch (e) {
     console.error('[perfil POST] erro:', e.message);
-    res.status(500).json({ erro: 'Falha a carregar o perfil' });
+    res.status(500).json({ erro: 'Falha a guardar o membro' });
   }
 });
 

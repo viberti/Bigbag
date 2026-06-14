@@ -868,15 +868,22 @@ function Recibo({ go, back, id }) {
 /* ── PERFIL ──────────────────────────────────────────────────────────────── */
 function Perfil({ user }) {
   const [perfis, setPerfis] = useState(null);
+  const [nome, setNome] = useState('');     // nome do membro a criar/editar
   const [texto, setTexto] = useState(''); const [aGuardar, setAGuardar] = useState(false); const [msg, setMsg] = useState('');
+  const inic = useRef(false);
   const carregar = useCallback(() => { listarPerfis().then(setPerfis).catch(() => setPerfis([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
   const ativo = (perfis || []).find((p) => p.ativo) || (perfis || [])[0];
+  // 1.ª carga: pré-preenche o nome com o membro ativo (ou o login); depois o dono controla.
+  useEffect(() => { if (perfis && !inic.current) { inic.current = true; setNome(ativo?.nome || user); } }, [perfis, ativo, user]);
+  // guarda o MEMBRO. Texto é OPCIONAL: só-nome cria o membro (cor na lista); com texto,
+  // extrai o perfil de saúde p/ as avaliações personalizadas.
   async function guardar() {
-    if (!texto.trim() || aGuardar) return; setAGuardar(true); setMsg('');
-    try { await carregarPerfil({ nome: ativo?.nome || user, texto: texto.trim() }); setTexto(''); setMsg('Perfil guardado.'); carregar(); }
+    const nm = nome.trim(); if (!nm || aGuardar) return; setAGuardar(true); setMsg('');
+    try { await carregarPerfil({ nome: nm, texto: texto.trim() }); setTexto(''); setMsg(texto.trim() ? 'Perfil guardado.' : `Membro "${nm}" criado.`); carregar(); }
     catch { setMsg('Falha ao guardar.'); } finally { setAGuardar(false); }
   }
+  const novoMembro = () => { setNome(''); setTexto(''); setMsg(''); };
   return (
     <>
       <Ctop title="Perfil nutricional" sub="membro ativo" />
@@ -893,21 +900,21 @@ function Perfil({ user }) {
           <div className="menu-cap">Quem está comprando</div>
           <div className="members">
             {perfis.map((p) => (
-              <div className={`member ${p.ativo ? 'on' : ''}`} key={p.id} onClick={() => { ativarPerfil(p.id).then(carregar).catch(() => {}); }}>
+              <div className={`member ${p.ativo ? 'on' : ''}`} key={p.id} onClick={() => { ativarPerfil(p.id).then(carregar).catch(() => {}); setNome(p.nome); setTexto(''); setMsg(''); }}>
                 <div className="m-av">{inicial(p.nome)}</div><div className="m-name">{p.nome}</div><div className="m-on">{p.ativo ? 'ativo' : 'trocar'}</div>
               </div>
             ))}
-            <div className="member add"><div className="m-av">+</div><div className="m-name" style={{ color: 'var(--ink-3)' }}>Membro</div></div>
+            <div className="member add" onClick={novoMembro}><div className="m-av">+</div><div className="m-name" style={{ color: 'var(--ink-3)' }}>Membro</div></div>
           </div>
         </>}
 
         <div className="pf-load">
-          <div className="pf-load-h"><Ico name="spark" size={16} color="var(--leaf-d)" /> Carregar perfil de saúde</div>
-          <p className="pf-load-s">Cole o texto do perfil gerado pelo seu assistente. Fica ativo nas avaliações dos produtos.</p>
-          <div className="pf-or"><span>cole o texto</span></div>
-          <textarea className="pf-text" placeholder="Cole aqui o conteúdo do perfil…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+          <div className="pf-load-h"><Ico name="spark" size={16} color="var(--leaf-d)" /> {nome.trim() && (perfis || []).some((p) => p.nome.toLowerCase() === nome.trim().toLowerCase()) ? `Editar ${nome.trim()}` : 'Novo membro'}</div>
+          <p className="pf-load-s">Dê um nome ao membro (a cor dele na lista). O perfil de saúde é <b>opcional</b> — cole o texto gerado pelo seu assistente para avaliações personalizadas, ou junte-o depois.</p>
+          <input className="addfield" style={{ width: '100%', boxSizing: 'border-box', marginBottom: 10 }} placeholder="Nome do membro (ex.: Sue)" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={80} />
+          <textarea className="pf-text" placeholder="Perfil de saúde — opcional (cole aqui)…" value={texto} onChange={(e) => setTexto(e.target.value)} />
           {msg && <div style={{ font: '600 12.5px var(--font)', color: 'var(--leaf-d)', margin: '0 0 8px' }}>{msg}</div>}
-          <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 4 }} disabled={aGuardar || !texto.trim()} onClick={guardar}>{aGuardar ? '…' : 'Guardar perfil'}</button>
+          <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 4 }} disabled={aGuardar || !nome.trim()} onClick={guardar}>{aGuardar ? '…' : 'Guardar membro'}</button>
         </div>
         <div className="v2-ver">BigBag · versão {APP_VERSION}</div>
       </div>
