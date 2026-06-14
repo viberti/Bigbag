@@ -388,6 +388,7 @@ function Chat({ onSair, nome }) {
   // recarregar no mount pré-aquece o cache; o pós-scan deixa-o fresco e enriquecido).
   const recarregarDespensa = () => listarDespensa().then((d) => { setDespensaLista(d || []); cacheListas.current.despensa = d || []; }).catch(() => {});
   const [compararAberto, setCompararAberto] = useState(false);
+  const [compararIniciais, setCompararIniciais] = useState(null); // produtos vindos do histórico p/ comparar direto
   const [perfilAberto, setPerfilAberto] = useState(false);
   const [toast, setToast] = useState('');
   const mostrarToast = (m) => { setToast(m); setTimeout(() => setToast(''), 4500); };
@@ -907,7 +908,7 @@ function Chat({ onSair, nome }) {
             <span className="act-ic"><Ico name="barras" size={25} stroke={2.2} /></span>
             <span className="act-lb">{t('act.scanner')}</span>
           </button>
-          <button type="button" className="act" onClick={() => { setCompararAberto(true); track('comparar_abrir'); }} disabled={ocupado}>
+          <button type="button" className="act" onClick={() => { setCompararIniciais(null); setCompararAberto(true); track('comparar_abrir'); }} disabled={ocupado}>
             <span className="act-ic"><Ico name="comparar" size={25} stroke={2.2} /></span>
             <span className="act-lb">{t('act.comparar')}</span>
           </button>
@@ -1111,7 +1112,8 @@ function Chat({ onSair, nome }) {
         onScan={() => { scanDespensaRef.current = true; setDespensaAberto(false); setScannerAberto(true); track('scanner_abrir', { via: 'despensa' }); }} />
       <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
       <HistoricoSheet aberto={historicoAberto} dados={historicoDados} onFechar={() => setHistoricoAberto(false)}
-        onInfo={(it) => { setHistoricoAberto(false); setInfoItem(it); }} />
+        onInfo={(it) => { setHistoricoAberto(false); setInfoItem(it); }}
+        onComparar={(items) => { setHistoricoAberto(false); setCompararIniciais(items); setCompararAberto(true); track('comparar_historico', { n: items.length }); }} />
       <PorIdentificarSheet
         aberto={porIdentAberto}
         itens={porIdentLista}
@@ -1177,7 +1179,7 @@ function Chat({ onSair, nome }) {
           setInfoItem({ ean: p.ean || undefined, sku_id: p.sku_id || undefined, produto: p.nome || p.ean, local: p.local });
         }}
       />
-      <CompararSheet aberto={compararAberto} onFechar={() => setCompararAberto(false)} />
+      <CompararSheet aberto={compararAberto} itensIniciais={compararIniciais} onFechar={() => { setCompararAberto(false); setCompararIniciais(null); }} />
       <PerfilSheet aberto={perfilAberto} onFechar={() => setPerfilAberto(false)} />
       {toast && <div className="toast" onClick={() => setToast('')}>{toast}</div>}
       {undoLimpar && (
@@ -2278,7 +2280,10 @@ function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
 // Histórico de produtos CONSULTADOS: a tela mostra os mais recentes (servidor
 // guarda TODOS). Cada linha reabre a ficha. Mesma estética da lista/despensa
 // (nome + marca noutra cor); subtítulo = quando + nº de consultas se >1.
-function HistoricoSheet({ aberto, dados, onFechar, onInfo }) {
+function HistoricoSheet({ aberto, dados, onFechar, onInfo, onComparar }) {
+  const [selMode, setSelMode] = useState(false);
+  const [sel, setSel] = useState(() => new Set()); // EANs marcados p/ comparar
+  useEffect(() => { if (!aberto) { setSelMode(false); setSel(new Set()); } }, [aberto]);
   const quando = (s) => {
     const t0 = tsData(s); if (!t0) return '';
     const dias = Math.floor((Date.now() - t0) / 86400000);
@@ -2288,13 +2293,24 @@ function HistoricoSheet({ aberto, dados, onFechar, onInfo }) {
     return new Date(t0).toLocaleDateString('pt-BR');
   };
   const produtos = dados && !dados.erro ? dados.produtos : null;
+  const podeComparar = produtos && produtos.filter((p) => p.ean).length >= 2; // comparação é por EAN
+  const toggle = (ean) => setSel((s) => { // cap em MAX_COMPARAR (a comparação aceita até 6)
+    const n = new Set(s);
+    if (n.has(ean)) n.delete(ean); else if (n.size < MAX_COMPARAR) { n.add(ean); navigator.vibrate?.(8); }
+    return n;
+  });
+  const escolhidos = produtos ? produtos.filter((p) => p.ean && sel.has(p.ean)) : [];
   return (
     <>
       <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
       <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('hist.title')}>
         <div className="sheet-h">
           <Mark size={30} chip />
-          <span className="t">{t('hist.title')}{dados?.total ? ` · ${dados.total}` : ''}</span>
+          <span className="t">{selMode ? t('hist.escolha') : t('hist.title') + (dados?.total ? ` · ${dados.total}` : '')}</span>
+          {podeComparar && (
+            <button className={`sheet-act ${selMode ? 'on' : ''}`} onClick={() => { setSelMode((v) => !v); setSel(new Set()); }}
+              aria-label={t('hist.comparar')} title={t('hist.comparar')}><Ico name="comparar" size={19} /></button>
+          )}
           <button className="sheet-x" onClick={onFechar} aria-label="fechar"><Ico name="close" size={18} /></button>
         </div>
         <div className="cart-list">
@@ -2307,12 +2323,20 @@ function HistoricoSheet({ aberto, dados, onFechar, onInfo }) {
           ) : (
             produtos.map((p, i) => {
               const f = formatarNomeLista(p.nome, p.marca, tipoConsumidor(null, p.nome, p.marca));
+              const temEan = !!p.ean;
+              const marcado = temEan && sel.has(p.ean);
+              const semCodigo = selMode && !temEan; // fresco sem EAN não compara
+              const aoTocar = selMode ? (temEan ? () => toggle(p.ean) : undefined)
+                : () => onInfo({ ean: p.ean, sku_id: p.sku_id, produto: p.nome, marca: p.marca });
               return (
                 <div className="crow-li" key={`${p.ean || p.sku_id || p.nome}-${i}`}>
-                  <div className="crow" onClick={() => onInfo({ ean: p.ean, sku_id: p.sku_id, produto: p.nome, marca: p.marca })}>
+                  <div className={`crow${marcado ? ' sel' : ''}${semCodigo ? ' off' : ''}`} onClick={aoTocar}>
+                    {selMode && temEan && (
+                      <span className={`hist-check${marcado ? ' on' : ''}`}>{marcado ? <Ico name="check" size={13} /> : null}</span>
+                    )}
                     <span className="cnwrap">
                       <span className="cn">{f.core}{f.marca ? <span className="cn-marca"> {f.marca}</span> : null}</span>
-                      <span className="csub">{quando(p.ultima_em)}{p.n_consultas > 1 ? ` · ${p.n_consultas}×` : ''}</span>
+                      <span className="csub">{semCodigo ? t('hist.semCodigo') : `${quando(p.ultima_em)}${p.n_consultas > 1 ? ` · ${p.n_consultas}×` : ''}`}</span>
                     </span>
                   </div>
                 </div>
@@ -2320,6 +2344,14 @@ function HistoricoSheet({ aberto, dados, onFechar, onInfo }) {
             })
           )}
         </div>
+        {selMode && (
+          <div className="pid-enviar">
+            <button type="button" className="pid-enviar-btn" disabled={escolhidos.length < 2}
+              onClick={() => onComparar(escolhidos.map((p) => ({ ean: p.ean, nome: p.nome })))}>
+              <Ico name="comparar" size={18} /> {escolhidos.length < 2 ? t('hist.escolha2') : t('hist.compararN', { n: escolhidos.length })}
+            </button>
+          </div>
+        )}
       </section>
     </>
   );
@@ -2464,7 +2496,7 @@ function GastosSheet({ aberto, dados, onFechar }) {
 // acumulam conhecimento no servidor) → "Comparar" → ranking personalizado pelo
 // perfil ativo (ou factual, sem perfil). Alergénio do perfil = "evitar" (regra dura).
 const MAX_COMPARAR = 6;
-function CompararSheet({ aberto, onFechar }) {
+function CompararSheet({ aberto, onFechar, itensIniciais }) {
   const videoRef = useRef(null);
   const trackRef = useRef(null);
   const [fase, setFase] = useState('scan'); // scan | comparando | resultado
@@ -2495,14 +2527,28 @@ function CompararSheet({ aberto, onFechar }) {
     })();
   }
 
+  const [modoSemente, setModoSemente] = useState(false); // aberto a partir do histórico → sem câmara
+
   // reset ao fechar
   useEffect(() => {
-    if (!aberto) { setFase('scan'); setItens([]); setRes(null); setManual(''); setAviso(''); setLuz(false); setTemLuz(false); }
+    if (!aberto) { setFase('scan'); setItens([]); setRes(null); setManual(''); setAviso(''); setLuz(false); setTemLuz(false); setModoSemente(false); }
   }, [aberto]);
+
+  // SEMENTES (do histórico): já vêm produtos escolhidos → salta a câmara e compara
+  // direto. Corre uma vez por abertura; "Nova comparação" desliga o modoSemente.
+  useEffect(() => {
+    if (!aberto || !itensIniciais?.length) return;
+    setModoSemente(true);
+    setItens(itensIniciais);
+    setFase('comparando');
+    compararProdutos(itensIniciais.map((x) => x.ean))
+      .then((r) => { setRes(r); setFase('resultado'); })
+      .catch(() => { setRes({ erro: true }); setFase('resultado'); });
+  }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // scanner CONTÍNUO enquanto na fase 'scan' (não para no 1.º código)
   useEffect(() => {
-    if (!aberto || fase !== 'scan') return undefined;
+    if (!aberto || fase !== 'scan' || modoSemente) return undefined;
     let leitor;
     (async () => {
       leitor = await lerCodigoBarras(videoRef.current, (cod) => adicionar(cod), () => setAviso(t('scanner.semCamera')), { continuo: true });
@@ -2514,7 +2560,7 @@ function CompararSheet({ aberto, onFechar }) {
       }
     })();
     return () => { leitor?.stop(); trackRef.current = null; };
-  }, [aberto, fase]);
+  }, [aberto, fase, modoSemente]);
 
   async function alternarLuz() {
     const tr = trackRef.current;
@@ -2565,7 +2611,12 @@ function CompararSheet({ aberto, onFechar }) {
           <button className="sheet-x" onClick={onFechar} aria-label="fechar"><Ico name="close" size={18} /></button>
         </div>
         <div className="scan-body">
-          {fase === 'resultado' && res ? (
+          {fase === 'resultado' && res?.erro ? (
+            <div className="comp-res">
+              <p className="comp-semperfil">{t('comp.falha')}</p>
+              <button type="button" className="ident-go" onClick={() => { setRes(null); setItens([]); setFase('scan'); setModoSemente(false); }}>{t('comp.nova')}</button>
+            </div>
+          ) : fase === 'resultado' && res ? (
             <div className="comp-res">
               {res.perfil
                 ? <div className="comp-perfil">✨ {t('comp.paraPerfil', { nome: res.perfil })}</div>
@@ -2591,7 +2642,7 @@ function CompararSheet({ aberto, onFechar }) {
               <button type="button" className="comp-share" onClick={() => { partilharWhatsApp(textoPartilha()); track('partilhar', { tipo: 'comparacao' }); }}>
                 <Ico name="partilhar" size={18} /> {t('share.whatsapp')}
               </button>
-              <button type="button" className="ident-go" onClick={() => { setRes(null); setItens([]); setFase('scan'); }}>{t('comp.nova')}</button>
+              <button type="button" className="ident-go" onClick={() => { setRes(null); setItens([]); setFase('scan'); setModoSemente(false); }}>{t('comp.nova')}</button>
             </div>
           ) : (
             <>
