@@ -300,7 +300,7 @@ function Comparar({ back, iniciais }) {
       <div className="scrollarea">
         {!iniciais?.length ? (
           <p className="empty">Abra o Histórico, toque no ícone de comparar e marque os produtos.</p>
-        ) : res === 'load' ? <p className="empty">A comparar…</p> : res?.erro ? <p className="empty">Falha ao comparar.</p> : res ? (
+        ) : res === 'load' ? <p className="empty">Comparando…</p> : res?.erro ? <p className="empty">Falha ao comparar.</p> : res ? (
           <>
             <div style={{ font: '800 18px var(--disp)', color: 'var(--ink)', margin: '2px 0' }}>{res.perfil ? `Melhor para ${res.perfil}` : 'Resultado'}</div>
             <div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)', marginBottom: 12 }}>por adequação ao perfil · preço de referência</div>
@@ -455,7 +455,7 @@ function Texto({ go, back }) {
           <input className="ts-field" placeholder="Ex.: milho, iogurte grego…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
         </div>
         {q.trim().length < 2 ? <p className="empty">Escreva ao menos 2 letras.</p>
-          : busy && !produtos.length ? <p className="empty">A procurar…</p>
+          : busy && !produtos.length ? <p className="empty">Procurando…</p>
           : res?.erro ? <p className="empty">Falha na busca.</p>
           : produtos.length === 0 ? <p className="empty">Nada encontrado para “{q}”.</p>
           : (
@@ -889,7 +889,7 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
               {code && <video ref={videoRef} playsInline muted />}
               {previewFoto && <video ref={fotoVideoRef} playsInline muted />}
               {temLuz && code && <button className={`sc-torch ${luz ? 'on' : ''}`} onClick={lanterna} aria-label="Lanterna"><Ico name="torch" size={15} stroke={2} color={luz ? '#5a4410' : '#fff'} /></button>}
-              {(foto?.fase === 'procurando' || idLoad) && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.9)', padding: '8px 16px', borderRadius: 999 }}>{idLoad ? 'A identificar…' : 'A reconhecer…'}</span>}
+              {(foto?.fase === 'procurando' || idLoad) && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.9)', padding: '8px 16px', borderRadius: 999 }}>{idLoad ? 'Identificando…' : 'Reconhecendo…'}</span>}
               <div className="sc-frame">{code && <><i className="tr" /><i className="bl" /></>}</div>
               <span style={{ position: 'absolute', bottom: 12 }}><Mk size={34} /></span>
             </div>
@@ -897,11 +897,11 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
             {!code && (foto?.fase === 'nada' || foto?.fase === 'erro' || foto?.fase === 'semcam') &&
               <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={() => setFoto(null)}><Ico name="camera" size={18} color="#f7fff2" /> Tentar de novo</button>}
             <div className="sc-hint">{
-              foto?.fase === 'procurando' ? 'A reconhecer o produto…'
+              foto?.fase === 'procurando' ? 'Reconhecendo o produto…'
                 : foto?.fase === 'nada' ? 'Não reconheci. Tente outra foto, mais perto e com boa luz.'
                 : foto?.fase === 'erro' ? 'Falha ao reconhecer. Tente de novo.'
-                : foto?.fase === 'semcam' ? 'Sem acesso à câmara — verifique a permissão.'
-                : erro ? 'Não consegui aceder à câmara — verifique a permissão.'
+                : foto?.fase === 'semcam' ? 'Sem acesso à câmera — verifique a permissão.'
+                : erro ? 'Não consegui acessar a câmera — verifique a permissão.'
                 : code ? 'É só apontar para o código de barras — eu encontro o produto.'
                 : 'Enquadre o produto e toque em Tirar foto.'
             }</div>
@@ -959,7 +959,7 @@ function Voz({ go, back }) {
     } catch { setEstado('erro'); setOuvido('microfone'); }
   }
   const txt = {
-    pronto: 'Toque e diga o produto', gravando: 'A ouvir… toque para parar', ouvindo: 'A reconhecer…',
+    pronto: 'Toque e diga o produto', gravando: 'Ouvindo… toque para parar', ouvindo: 'Reconhecendo…',
     nada: 'Não percebi. Toque e tente de novo.', embalado: `Entendi “${ouvido}” — para a ficha, leia o código de barras.`,
     erro: ouvido === 'microfone' ? 'Sem acesso ao microfone — verifique a permissão.' : 'Falha. Toque e tente de novo.',
   }[estado];
