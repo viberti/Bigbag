@@ -617,9 +617,12 @@ function tipoDe(nome) {
 function agruparTipo(prods) {
   const m = {};
   prods.forEach((p) => { const k = tipoDe(p.nome);
-    if (!m[k]) m[k] = { tipo: k, total: 0, prods: [] }; m[k].total += Number(p.total) || 0; m[k].prods.push(p); });
-  return Object.values(m).map((t) => ({ ...t, label: t.tipo.charAt(0).toUpperCase() + t.tipo.slice(1) + (t.prods.length > 1 ? 's' : '') }))
-    .sort((a, b) => b.total - a.total);
+    if (!m[k]) m[k] = { tipo: k, total: 0, prods: [], orig: String(p.nome || k).trim().split(/\s+/)[0] || k };
+    m[k].total += Number(p.total) || 0; m[k].prods.push(p); });
+  return Object.values(m).map((t) => { // rótulo da PALAVRA ORIGINAL (mantém acentos), plural simples
+    const base = t.orig.charAt(0).toUpperCase() + t.orig.slice(1);
+    return { ...t, label: t.prods.length > 1 && !/s$/i.test(base) ? base + 's' : base };
+  }).sort((a, b) => b.total - a.total);
 }
 function GastosCat({ go, back, label, grupos, total, cor }) {
   const [prods, setProds] = useState(null);
