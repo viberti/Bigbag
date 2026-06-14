@@ -5,7 +5,7 @@
 // NOTA (fase protótipo): copy PT-BR embutido como no handoff; passar por i18n depois.
 // ──────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { norm as normCat, singularizar } from '../../../backend/src/normaliza/categoria.js';
+import { norm as normCat, singularizar, grupoDeNome } from '../../../backend/src/normaliza/categoria.js';
 import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
@@ -336,7 +336,7 @@ function Lista({ go, back }) {
         )}
         {aviso && <div className="addlegend" style={{ justifyContent: 'center', color: 'var(--ink-2)' }}>{aviso}</div>}
         <div className="addbar">
-          <button className="addfab scan" title="Ler código" onClick={() => go('scanner')}><Ico name="scan" size={23} stroke={2} color="#3f7a3f" /></button>
+          <button className="addfab scan" title="Ler código p/ a lista" onClick={() => go('scanner', { paraLista: true })}><Ico name="scan" size={23} stroke={2} color="#3f7a3f" /></button>
           <button className={`addfab mic ${gravando ? 'rec' : ''}`} title="Ditar para a lista" onClick={alternarVoz} disabled={proc}>
             <Ico name="mic" size={24} stroke={2} color="#f4fff0" />
           </button>
@@ -503,6 +503,14 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const nomeProd = info?.nome || info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto';
   const grau = analise?.nutriscore?.grau ? String(analise.nutriscore.grau).toUpperCase() : null;
   const attn = aval?.avaliacao && /aten[çc]/i.test(aval.avaliacao.veredicto || aval.avaliacao.selo || '');
+  // ALIMENTO vs NÃO-ALIMENTO: tem nutrição/Nutri-Score → ficha de alimento (Para Sue,
+  // réguas, alternativas). Senão (filtros de café, detergente… ou alimento sem ficha
+  // relevante: água/vinho/especiarias) → ficha simples (marca/categoria/tamanho).
+  const temNut = Object.values(nut).some((v) => v != null && v !== '');
+  const ehAlimento = temNut || !!grau;
+  const marcaP = info?.off?.marca || info?.vlm?.marca || info?.base?.marca || null;
+  const tamanhoP = info?.off?.quantidade || info?.vlm?.quantidade || info?.base?.quantidade || null;
+  const catP = (() => { try { return SEC_LABEL[grupoDeNome(nomeProd)] || null; } catch { return null; } })();
   const action = <button className="hist-cmp" title="Adicionar à lista" onClick={() => go('lista')}><span style={{ color: 'var(--leaf-d)' }}><Ico name="plus" size={20} stroke={2.4} /></span></button>;
   return (
     <>
@@ -514,37 +522,47 @@ function Ficha({ go, back, ean, sku_id, nome }) {
           {grau && <span className="ns-pill" style={{ background: NS_COR[grau] || '#9ec93f' }}>{grau}</span>}
         </div>
 
-        {(aval?.avaliacao || analise?.parecer) && (
-          <div className={`parecer ${attn ? 'attn' : ''}`}>
-            <div className="ph">{aval?.perfil ? `Para ${aval.perfil}` : 'Parecer'}{aval?.avaliacao?.selo && <span className={`selo ${attn ? 'attn' : ''}`}>{aval.avaliacao.selo}</span>}</div>
-            <p>{aval?.avaliacao?.texto || aval?.avaliacao?.parecer || analise?.parecer}</p>
+        {ehAlimento ? (<>
+          {(aval?.avaliacao || analise?.parecer) && (
+            <div className={`parecer ${attn ? 'attn' : ''}`}>
+              <div className="ph">{aval?.perfil ? `Para ${aval.perfil}` : 'Parecer'}{aval?.avaliacao?.selo && <span className={`selo ${attn ? 'attn' : ''}`}>{aval.avaliacao.selo}</span>}</div>
+              <p>{aval?.avaliacao?.texto || aval?.avaliacao?.parecer || analise?.parecer}</p>
+            </div>
+          )}
+          <div className="reguas">
+            <Regua label="Açúcares" tipo="acucares" val={num('acucares', 'acucar')} />
+            <Regua label="Gordura" tipo="gordura" val={num('gordura', 'lipidos')} />
+            <Regua label="Saturados" tipo="saturados" val={num('gordura_saturada', 'saturados')} />
+            <Regua label="Sal" tipo="sal" val={num('sal')} />
+            <Regua label="Fibra" tipo="fibra" val={num('fibra')} />
+            <Regua label="Proteína" tipo="proteina" val={num('proteina')} />
           </div>
-        )}
-
-        <div className="reguas">
-          <Regua label="Açúcares" tipo="acucares" val={num('acucares', 'acucar')} />
-          <Regua label="Gordura" tipo="gordura" val={num('gordura', 'lipidos')} />
-          <Regua label="Saturados" tipo="saturados" val={num('gordura_saturada', 'saturados')} />
-          <Regua label="Sal" tipo="sal" val={num('sal')} />
-          <Regua label="Fibra" tipo="fibra" val={num('fibra')} />
-          <Regua label="Proteína" tipo="proteina" val={num('proteina')} />
-        </div>
-
-        {alt?.alternativas?.length > 0 && (
-          <div className="alt-sec">
-            <div className="alt-h">Alternativas similares</div>
-            <div className="alt-sub">Produtos parecidos · nutrição por 100 g</div>
-            {alt.alternativas.slice(0, 6).map((a, i) => {
-              const an = a.nutricao || {};
-              const v = (...ks) => { for (const k of ks) { const x = an[k]; if (x != null && !Number.isNaN(Number(x))) return Number(x); } return null; };
-              const preco = a.eur_base ?? a.preco_por_base;
-              return (
-                <div className="altx" key={a.sku_id ?? a.ean ?? i} onClick={() => go('ficha', { ean: a.ean, sku_id: a.sku_id, nome: a.nome })}>
-                  <div className="alt-top"><span className="alt-n">{a.nome}</span>{preco != null && <span className="alt-p">{eur(preco)}/{a.unidade_base || 'kg'}</span>}</div>
-                  <Pills prot={v('proteina')} sat={v('gordura_saturada', 'saturados')} acu={v('acucares', 'acucar')} />
-                </div>
-              );
-            })}
+          {alt?.alternativas?.length > 0 && (
+            <div className="alt-sec">
+              <div className="alt-h">Alternativas similares</div>
+              <div className="alt-sub">Produtos parecidos · nutrição por 100 g</div>
+              {alt.alternativas.slice(0, 6).map((a, i) => {
+                const an = a.nutricao || {};
+                const v = (...ks) => { for (const k of ks) { const x = an[k]; if (x != null && !Number.isNaN(Number(x))) return Number(x); } return null; };
+                const preco = a.eur_base ?? a.preco_por_base;
+                return (
+                  <div className="altx" key={a.sku_id ?? a.ean ?? i} onClick={() => go('ficha', { ean: a.ean, sku_id: a.sku_id, nome: a.nome })}>
+                    <div className="alt-top"><span className="alt-n">{a.nome}</span>{preco != null && <span className="alt-p">{eur(preco)}/{a.unidade_base || 'kg'}</span>}</div>
+                    <Pills prot={v('proteina')} sat={v('gordura_saturada', 'saturados')} acu={v('acucares', 'acucar')} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>) : (
+          // NÃO-ALIMENTO (ou alimento sem ficha nutricional): só os factos que temos.
+          <div className="reguas">
+            {[['Marca', marcaP], ['Categoria', catP], ['Tamanho', tamanhoP]].filter(([, v]) => v).map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, padding: '6px 0' }}>
+                <span className="rg-l">{k}</span><span style={{ font: '700 13.5px var(--font)', color: 'var(--ink)', textAlign: 'right' }}>{v}</span>
+              </div>
+            ))}
+            <div style={{ font: '500 11.5px/1.4 var(--font)', color: 'var(--ink-3)', borderTop: '1px solid var(--line)', paddingTop: 9, marginTop: 5 }}>Produto não alimentício — sem ficha nutricional.</div>
           </div>
         )}
 
@@ -555,8 +573,10 @@ function Ficha({ go, back, ean, sku_id, nome }) {
               {open.ing && <div className="acc-body"><p>{ing}</p>{(info?.vlm?.alergenios || info?.off?.alergenios) && <div className="alerg">⚠ Alergénios: <b>{info?.vlm?.alergenios || info?.off?.alergenios}</b></div>}</div>}
             </>
           ) : null; })()}
-          <button className={`acc ${open.aval ? 'open' : ''}`} onClick={() => setOpen((o) => ({ ...o, aval: !o.aval }))}><span>Como avaliamos</span><Ico name="chevron" size={16} stroke={2.6} /></button>
-          {open.aval && <div className="acc-body"><div className="fontes">Dados nutricionais e Nutri-Score do <b>Open Food Facts</b>; ingredientes lidos do rótulo por IA; limiares do semáforo segundo a FSA (Reino Unido), por 100 g.<br /><i>Informação factual. Não é aconselhamento de saúde.</i></div></div>}
+          {ehAlimento && <>
+            <button className={`acc ${open.aval ? 'open' : ''}`} onClick={() => setOpen((o) => ({ ...o, aval: !o.aval }))}><span>Como avaliamos</span><Ico name="chevron" size={16} stroke={2.6} /></button>
+            {open.aval && <div className="acc-body"><div className="fontes">Dados nutricionais e Nutri-Score do <b>Open Food Facts</b>; ingredientes lidos do rótulo por IA; limiares do semáforo segundo a FSA (Reino Unido), por 100 g.<br /><i>Informação factual. Não é aconselhamento de saúde.</i></div></div>}
+          </>}
         </div>
         {info?.erro && <p className="empty">Não foi possível carregar a ficha.</p>}
       </div>
@@ -957,7 +977,7 @@ function Receitas({ back }) {
 }
 
 /* ── CONSULTAR PRODUTO: Código (barras) · Produto (foto ao vivo) ─────────── */
-function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita modos; itemId: liga o EAN à linha do talão (identificar)
+function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId: identificar linha do talão; paraLista: ADICIONAR à lista (não consultar)
   const [modo, setModo] = useState('codigo');
   const [erro, setErro] = useState(false);
   const [luz, setLuz] = useState(false);
@@ -965,8 +985,9 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
   const [foto, setFoto] = useState(null); // null=pré-visualizar · {fase:'procurando'|'resultados'|'nada'|'erro'|'semcam', cands?}
   const [idLoad, setIdLoad] = useState(false); // a identificar (ligar EAN à linha)
   const [chk, setChk] = useState(false);       // a verificar se o EAN existe
-  const [registo, setRegisto] = useState(null); // EAN desconhecido → cadastro: {ean, fotos:[], semcam?, erro?}
+  const [registo, setRegisto] = useState(null); // EAN desconhecido → cadastro: {ean, fotos:[], semcam?, erro?, naoLido?}
   const [regBusy, setRegBusy] = useState(false);
+  const [addOk, setAddOk] = useState(null);    // {nome, ean} — adicionado à lista (modo paraLista)
   const videoRef = useRef(null);
   const trackRef = useRef(null);
   const fotoVideoRef = useRef(null);
@@ -985,18 +1006,24 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
     setChk(true);
     try {
       const info = await infoProduto({ ean: cod });
-      // conhecido = temos dados (produto_ean/genérico) OU o OFF/VLM resolveu um nome.
-      // Só vai a CADASTRO o que não tem mesmo nada (ex.: filtros de café fora do OFF).
-      const conhecido = info?.existe || info?.nome || info?.off?.nome || info?.vlm?.nome || info?.base?.nome;
-      if (conhecido) { go('ficha', { ean: cod }); return; }
-      setRegisto({ ean: cod, fotos: [] }); // não cadastrado → registar por foto
-    } catch { go('ficha', { ean: cod }); } // rede falhou → tenta a ficha à mesma
+      const nm = info?.nome || info?.off?.nome || info?.vlm?.nome || info?.base?.nome;
+      // MODO LISTA: o objetivo é ADICIONAR. Com nome → adiciona já; sem nome →
+      // identifica por foto e depois adiciona (a ficha é sempre secundária).
+      if (paraLista) {
+        if (nm) { try { await adicionarListaItem({ nome: nm, ean: cod }); } catch { /* segue à confirmação */ } setAddOk({ nome: nm, ean: cod }); }
+        else setRegisto({ ean: cod, fotos: [], naoLido: true });
+        return;
+      }
+      // CONSULTA: só vai a CADASTRO o que não tem mesmo nada (ex.: filtros fora do OFF).
+      if (info?.existe || nm) { go('ficha', { ean: cod }); return; }
+      setRegisto({ ean: cod, fotos: [], naoLido: true });
+    } catch { if (paraLista) setRegisto({ ean: cod, fotos: [], naoLido: true }); else go('ficha', { ean: cod }); }
     finally { setChk(false); }
   };
   // CÓDIGO: câmara + leitura REAL (mesma função provada da v1). Pára enquanto verifica
   // (chk) ou em cadastro (registo) para não re-disparar.
   useEffect(() => {
-    if (!code || chk || registo) return undefined;
+    if (!code || chk || registo || addOk) return undefined;
     let leitor; setErro(false); setTemLuz(false); setLuz(false);
     (async () => {
       leitor = await lerCodigoBarras(videoRef.current, aoCodigo, () => setErro(true));
@@ -1004,7 +1031,7 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
       if (tr && (tr.getCapabilities?.() || {}).torch) { trackRef.current = tr; setTemLuz(true); }
     })();
     return () => { leitor?.stop?.(); trackRef.current = null; };
-  }, [code, chk, registo, go, itemId, nomeItem]);
+  }, [code, chk, registo, addOk, go, itemId, nomeItem]);
   // PRODUTO: câmara AO VIVO dentro do app (não abre a câmara nativa). O disparo
   // captura o frame atual e envia ao reconhecimento por imagem (matchFoto da v1).
   useEffect(() => {
@@ -1029,8 +1056,12 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
   async function registar() {
     if (!registo?.fotos.length || regBusy) return;
     setRegBusy(true);
-    try { await identificarProduto({ ean: registo.ean, fotos: registo.fotos }); go('ficha', { ean: registo.ean }, { replace: true }); }
-    catch { setRegBusy(false); setRegisto((r) => r && { ...r, erro: true }); }
+    try {
+      const r = await identificarProduto({ ean: registo.ean, fotos: registo.fotos });
+      const nm = r?.vlm?.nome || r?.off?.nome || 'Produto';
+      if (paraLista) { try { await adicionarListaItem({ nome: nm, ean: registo.ean }); } catch { /* segue à confirmação */ } setRegisto(null); setAddOk({ nome: nm, ean: registo.ean }); }
+      else go('ficha', { ean: registo.ean }, { replace: true });
+    } catch { setRegBusy(false); setRegisto((r) => r && { ...r, erro: true }); }
   }
   async function lanterna() {
     const tr = trackRef.current; if (!tr) return; const n = !luz;
@@ -1060,16 +1091,24 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
   return (
     <>
       <Ctop
-        title={registo ? 'Cadastrar produto' : itemId ? 'Identificar produto' : 'Consultar produto'}
-        sub={registo ? `EAN ${registo.ean}` : itemId ? nomeItem : (code ? 'aponte para o código' : 'fotografe o produto')}
-        back onBack={registo ? () => { setRegisto(null); setChk(false); } : back}
+        title={addOk ? 'Adicionado à lista' : registo ? (paraLista ? 'Identificar por foto' : 'Cadastrar produto') : paraLista ? 'Adicionar à lista' : itemId ? 'Identificar produto' : 'Consultar produto'}
+        sub={addOk || registo ? (registo ? `EAN ${registo.ean}` : '') : itemId ? nomeItem : (code ? 'aponte para o código' : 'fotografe o produto')}
+        back onBack={addOk ? back : registo ? () => { setRegisto(null); setChk(false); } : back}
       />
       <div className="scrollarea" style={{ display: 'flex', flexDirection: 'column' }}>
-        {registo ? (
+        {addOk ? (
+          <div style={{ padding: '22px 6px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 11 }}>
+            <span style={{ width: 66, height: 66, borderRadius: '50%', background: 'var(--leaf-soft)', display: 'grid', placeItems: 'center', color: 'var(--leaf-d)' }}><Ico name="check" size={36} stroke={2.6} /></span>
+            <div style={{ font: '800 19px var(--disp)', color: 'var(--ink)' }}>{addOk.nome}</div>
+            <div className="sc-hint" style={{ margin: 0 }}>adicionado à lista ✓</div>
+            <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 6 }} onClick={() => { setAddOk(null); setModo('codigo'); }}><Ico name="scan" size={18} color="#f7fff2" /> Escanear outro</button>
+            <button className="acc-link" onClick={() => go('ficha', { ean: addOk.ean })}>Ver ficha do produto</button>
+          </div>
+        ) : registo ? (
           <>
             <div className="sc-cam photo">
               {!registo.semcam && <video ref={fotoVideoRef} playsInline muted />}
-              {regBusy && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.9)', padding: '8px 16px', borderRadius: 999 }}>Cadastrando…</span>}
+              {regBusy && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.9)', padding: '8px 16px', borderRadius: 999 }}>{paraLista ? 'Adicionando…' : 'Cadastrando…'}</span>}
               <div className="sc-frame" />
             </div>
             {registo.fotos.length > 0 && (
@@ -1081,12 +1120,12 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
               <Ico name="camera" size={18} color="#3a2606" /> Tirar foto {registo.fotos.length ? `(${registo.fotos.length})` : ''}
             </button>
             {registo.fotos.length > 0 && (
-              <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={registar} disabled={regBusy}>{regBusy ? 'Cadastrando…' : 'Cadastrar produto'}</button>
+              <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={registar} disabled={regBusy}>{regBusy ? '…' : paraLista ? 'Identificar e adicionar' : 'Cadastrar produto'}</button>
             )}
             <div className="sc-hint">{
               registo.semcam ? 'Sem acesso à câmera — verifique a permissão.'
-                : registo.erro ? 'Falha ao cadastrar. Tente de novo.'
-                : 'Produto não cadastrado. Fotografe a frente, o rótulo e a tabela nutricional — quantas fotos precisar.'
+                : registo.erro ? (paraLista ? 'Falha ao adicionar. Tente de novo.' : 'Falha ao cadastrar. Tente de novo.')
+                : `${registo.naoLido ? 'Não encontrei pelo código de barras — vamos identificar por foto. ' : ''}Fotografe a frente e o rótulo${paraLista ? '' : ' (e a tabela nutricional)'} — quantas fotos precisar.`
             }</div>
           </>
         ) : foto?.fase === 'resultados' ? (
