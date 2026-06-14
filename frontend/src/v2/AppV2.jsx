@@ -183,7 +183,7 @@ function Home({ go, user }) {
           : notas.map((n) => { const [c, ini] = lojaCor(n.loja || n.mercado); return (
             <div className="frow" key={n.id} onClick={() => go('recibo', { id: n.id })}>
               <span className="fdot" style={{ background: c }}>{ini}</span>
-              <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{dataCurta(n.data)}{n.n_itens ? ` ·  itens` : ""}</div></div>
+              <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{dataCurta(n.data)}{n.n_itens ? ` · ${n.n_itens} itens` : ''}</div></div>
               <span className="fp">{eur(n.total)}</span>
             </div>); })}
       </div>
@@ -243,7 +243,7 @@ function Historico({ go }) {
   const [dados, setDados] = useState(null);
   const [cmp, setCmp] = useState(false);
   const [sel, setSel] = useState(() => new Set());
-  useEffect(() => { listarHistoricoProduto(30).then(setDados).catch(() => setDados({ erro: true })); }, []);
+  useEffect(() => { listarHistoricoProduto(10).then(setDados).catch(() => setDados({ erro: true })); }, []);
   const produtos = dados && !dados.erro ? dados.produtos : [];
   const toggle = (ean) => setSel((s) => { const n = new Set(s); n.has(ean) ? n.delete(ean) : (n.size < 6 && n.add(ean)); return n; });
   const escolhidos = produtos.filter((p) => p.ean && sel.has(p.ean));
@@ -699,8 +699,8 @@ function Recibo({ go, back, id }) {
               <div><div style={{ font: '800 16px var(--disp)', color: 'var(--ink)' }}>{nota?.loja || nota?.mercado || 'Compra'}</div><div style={{ font: '600 12.5px var(--font)', color: 'var(--ink-2)' }}>{nota?.data || ''} · {itens.length} itens</div></div>
               <span className="rec-tot">{eur(nota?.total)}</span></div>
             {itens.map((p, i) => (
-              <div className="rec-item" key={i} onClick={() => go('ficha', { ean: p.ean, nome: p.nome || p.descricao })}>
-                <span className="ri-nm">{p.nome || p.descricao}</span><span className="ri-q">{p.quantidade || ''}</span><span className="ri-p">{eur(p.preco || p.preco_liquido)}</span>
+              <div className="rec-item" key={i} onClick={() => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: p.produto })}>
+                <span className="ri-nm">{p.produto}</span><span className="ri-q">{p.quantidade || ''}</span><span className="ri-p">{eur(p.preco)}</span>
               </div>
             ))}
           </>
