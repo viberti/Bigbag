@@ -112,16 +112,10 @@ app.get('/api/produto/historico', requireAuth, async (req, res) => {
   }
 });
 
-// Perfil do usuário (memória de longo prazo) — o que o assistente sabe.
-app.get('/api/perfil', requireAuth, async (req, res) => {
-  try {
-    const { carregarPerfil } = await import('./perfil.js');
-    res.json({ fatos: await carregarPerfil(req.user.id) });
-  } catch (e) {
-    console.error('[perfil] erro:', e.message);
-    res.status(500).json({ erro: 'Falha a carregar perfil' });
-  }
-});
+// NOTA: havia aqui um GET '/api/perfil' (memória de factos do utilizador) que
+// ENSOMBRAVA o perfilRouter mais abaixo (Express casa a 1.ª rota) → o GET dos
+// MEMBROS nunca era alcançado e a lista de membros vinha sempre vazia. Removido:
+// a memória de factos não tinha consumidor no frontend. /api/perfil é dos membros.
 
 // Rotas de aplicação (protegidas por requireAuth lá dentro).
 app.use('/api/faturas', faturasRouter);
