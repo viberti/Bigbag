@@ -255,14 +255,14 @@ export async function alternativasProduto({ itemId, ean, skuId }) {
 export async function registarHistoricoProduto({ ean, skuId, nome, marca }) {
   if (!nome) return;
   try {
-    await call('/api/produto/historico', {
+    await call('/api/produto/consultados', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ean: ean || null, sku_id: skuId || null, nome, marca: marca || null }),
     });
   } catch { /* offline / 401 — o histórico não é crítico */ }
 }
 export async function listarHistoricoProduto(limite = 10) {
-  const r = await call(`/api/produto/historico?limite=${limite}`);
+  const r = await call(`/api/produto/consultados?limite=${limite}`);
   if (!r.ok) throw new Error(`historico ${r.status}`);
   return r.json(); // { produtos:[{ean,sku_id,nome,marca,n_consultas,ultima_em}], total }
 }

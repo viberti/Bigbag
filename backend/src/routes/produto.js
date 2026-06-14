@@ -419,7 +419,7 @@ function chaveHistorico({ ean, sku_id, nome }) {
   const n = normN(nome || '');
   return n ? `n:${n}` : null;
 }
-produtoRouter.post('/historico', requireAuth, async (req, res) => {
+produtoRouter.post('/consultados', requireAuth, async (req, res) => {
   try {
     const { ean = null, sku_id = null, nome = '', marca = null } = req.body || {};
     if (!nome) return res.status(400).json({ erro: 'nome em falta' });
@@ -440,7 +440,7 @@ produtoRouter.post('/historico', requireAuth, async (req, res) => {
     res.status(500).json({ erro: 'Falha a registar histórico' });
   }
 });
-produtoRouter.get('/historico', requireAuth, async (req, res) => {
+produtoRouter.get('/consultados', requireAuth, async (req, res) => {
   try {
     const limite = Math.min(Math.max(Number(req.query.limite) || 10, 1), 100);
     const [produtos] = await getPool().query(
