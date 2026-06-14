@@ -70,3 +70,37 @@ export function extrairNutricaoContinente(frag) {
   }
   return out;
 }
+
+// ── LIVE (faz I/O: fetch ao Continente + guarda na BD) ──────────────────────
+// Para um EAN: se for vendido no Continente e ainda não tivermos a tabela
+// nutricional, busca-a AO VIVO (página → separador AJAX → parser acima) e guarda
+// em catalogo_produto. Devolve { nutricao, nutricao_base, ingredientes } ou null
+// (não é Continente, ou sem tabela). Usado on-demand quando um scan não tem nutrição.
+const UA_LIVE = 'Mozilla/5.0 (compatible; BigbagBot/0.1; +catalogo pessoal)';
+async function fetchTextLive(url, ms = 12000) {
+  try {
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), ms);
+    const r = await fetch(url, { headers: { 'User-Agent': UA_LIVE }, signal: ctrl.signal });
+    clearTimeout(t);
+    return r.ok ? await r.text() : null;
+  } catch { return null; }
+}
+export async function nutricaoContinenteLive(pool, ean) {
+  const e = String(ean || '').replace(/\D/g, '');
+  if (!e) return null;
+  const [[row]] = await pool.query(
+    `SELECT id, url, nutricao FROM catalogo_produto
+      WHERE ean = ? AND fonte = 'continente' AND url IS NOT NULL AND url <> '' ORDER BY id LIMIT 1`, [e]);
+  if (!row) return null; // não é vendido no Continente
+  if (row.nutricao && row.nutricao !== '{}') { try { return { nutricao: JSON.parse(row.nutricao) }; } catch { /* segue p/ buscar */ } }
+  const page = await fetchTextLive(row.url); if (!page) return null;
+  const ep = urlTabNutricional(page); if (!ep) return null;
+  const frag = await fetchTextLive(ep); if (!frag) return null;
+  const r = extrairNutricaoContinente(frag);
+  if (r.nutricao || r.ingredientes) {
+    await pool.query(
+      `UPDATE catalogo_produto SET nutricao = COALESCE(?, nutricao), nutricao_base = COALESCE(?, nutricao_base), ingredientes = COALESCE(?, ingredientes) WHERE id = ?`,
+      [r.nutricao ? JSON.stringify(r.nutricao) : null, r.nutricao_base || null, r.ingredientes || null, row.id]);
+  }
+  return r.nutricao ? r : null;
+}

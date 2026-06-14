@@ -23,6 +23,7 @@ import { resolverItensLista } from './lista.js';
 import { matchImagemB64 } from '../normaliza/matchImagem.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
+import { nutricaoContinenteLive } from '../ingest/nutricaoContinente.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -160,7 +161,7 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   }
   // dados diretos da linha (ex.: vindos do catálogo Auchan/Continente, sem JSON) —
   // nome/marca/categoria/tamanho para mostrar mesmo sem OFF/VLM (cervejas, etc.).
-  const base = rows.find((r) => r.nome || r.marca)
+  let base = rows.find((r) => r.nome || r.marca)
     ? (() => { const r = rows.find((x) => x.nome || x.marca); return { nome: r.nome, marca: r.marca, quantidade: r.quantidade, categoria: r.categoria, fonte: r.fonte }; })()
     : null;
   // nome PT-first (scan/busca, sem item da nota). Ordem:
@@ -186,6 +187,20 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
         ORDER BY (fonte IN ('continente','auchan','pingodoce','lidl','mercadona-off')) DESC, (nome_pt IS NOT NULL) DESC, id ASC
         LIMIT 1`, [ean]);
     nome = cat?.nome || null;
+  }
+  // NUTRIÇÃO oficial de loja (prioritária sobre OFF). Se o scan não tem nutrição
+  // em lado nenhum (nem OFF nem VLM) e o EAN é vendido no CONTINENTE, busca a tabela
+  // AO VIVO (separador AJAX) e guarda — senão fica o OFF/VLM/genérico. Lazy + cacheado.
+  if (ean) {
+    const temNut = (o) => o?.nutricao_100g && Object.values(o.nutricao_100g).some((v) => v != null);
+    const [[c]] = await getPool().query(
+      "SELECT nutricao FROM catalogo_produto WHERE ean = ? AND nutricao IS NOT NULL AND nutricao <> '' AND nutricao <> '{}' ORDER BY (fonte = 'continente') DESC, (fonte = 'auchan') DESC, id LIMIT 1", [ean]);
+    let nutCat = null;
+    if (c?.nutricao) { try { nutCat = JSON.parse(c.nutricao); } catch { /* ignora */ } }
+    if (!nutCat && !temNut(off) && !temNut(vlm)) {
+      try { const cont = await nutricaoContinenteLive(getPool(), ean); if (cont?.nutricao) nutCat = cont.nutricao; } catch { /* live falhou */ }
+    }
+    if (nutCat) { if (base) base.nutricao_100g = nutCat; else base = { nutricao_100g: nutCat }; }
   }
   const [fotos] = ean
     ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? OR item_id = ? ORDER BY ordem, id', [ean, itemId])

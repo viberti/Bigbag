@@ -371,7 +371,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
     registado.current = true;
     registarHistoricoProduto({ ean, skuId: sku_id, nome: nm, marca: info.vlm?.marca || info.off?.marca || info.base?.marca });
   }, [info, ean, sku_id, nome]);
-  const nut = (() => { const s = info && !info.erro ? info : {}; return s.vlm?.nutricao_100g || s.off?.nutricao_100g || s.generico?.nutricao_100g || {}; })();
+  const nut = (() => { const s = info && !info.erro ? info : {}; return s.base?.nutricao_100g || s.vlm?.nutricao_100g || s.off?.nutricao_100g || s.generico?.nutricao_100g || {}; })();
   const num = (...ks) => { for (const k of ks) { const v = nut[k]; if (v != null && !Number.isNaN(Number(v))) return Number(v); } return null; };
   const nomeProd = info?.nome || info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto';
   const grau = analise?.nutriscore?.grau ? String(analise.nutriscore.grau).toUpperCase() : null;
