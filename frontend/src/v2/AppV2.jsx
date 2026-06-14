@@ -559,7 +559,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
         </>) : (
           // NÃO-ALIMENTO (ou alimento sem ficha nutricional): só os factos que temos.
           <div className="reguas">
-            {[['Marca', marcaP], ['Tamanho', tamanhoP]].filter(([, v]) => v).map(([k, v]) => (
+            {[['Marca', marcaP], ['Categoria', info?.catalogo_categoria], ['Tamanho', tamanhoP]].filter(([, v]) => v).map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, padding: '6px 0' }}>
                 <span className="rg-l">{k}</span><span style={{ font: '700 13.5px var(--font)', color: 'var(--ink)', textAlign: 'right' }}>{v}</span>
               </div>

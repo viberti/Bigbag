@@ -232,24 +232,26 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   const nutricaoProvisoria = !off?.nutricao_100g && rows.some((r) => r.nutricao && r.nutricao_confirmada === 0);
   // foto de CATÁLOGO do produto (hotlink; ~52k disponíveis): dá cara à ficha
   // mesmo sem fotos do utilizador. Por EAN direto, ou pelo ean_inferido (PD).
-  let imagemCatalogo = null, catalogoCategoria = null;
+  let imagemCatalogo = null, catalogoCategoria = null, catalogoTipo = null;
   if (ean) {
     const [[img]] = await getPool().query(
-      `SELECT imagem_url, categoria FROM catalogo_produto
-        WHERE (ean = ? OR ean_inferido = ?) AND ((imagem_url IS NOT NULL AND imagem_url <> '') OR (categoria IS NOT NULL AND categoria <> ''))
-        ORDER BY (imagem_url IS NOT NULL AND imagem_url <> '') DESC LIMIT 1`, [ean, ean]);
+      `SELECT imagem_url, categoria, product_type FROM catalogo_produto
+        WHERE (ean = ? OR ean_inferido = ?) AND ((imagem_url IS NOT NULL AND imagem_url <> '') OR (categoria IS NOT NULL AND categoria <> '') OR product_type IS NOT NULL)
+        ORDER BY (product_type IS NOT NULL) DESC, (imagem_url IS NOT NULL AND imagem_url <> '') DESC LIMIT 1`, [ean, ean]);
     imagemCatalogo = img?.imagem_url || null;
     catalogoCategoria = img?.categoria || null;
+    catalogoTipo = img?.product_type || null;
   }
-  // ALIMENTO vs NÃO-ALIMENTO (determinístico) — controla o layout da ficha no cliente.
+  // ALIMENTO vs NÃO-ALIMENTO: usa o product_type GUARDADO (backfill 058); se não houver
+  // (produto fora do catálogo), classifica ao vivo (mesma lógica). Controla o layout da ficha.
   const temNutP = (o) => o?.nutricao_100g && Object.values(o.nutricao_100g).some((v) => v != null);
-  const tipo = tipoProduto({
+  const tipo = catalogoTipo || tipoProduto({
     nome,
     temNutricao: temNutP(off) || temNutP(vlm) || temNutP(base) || temNutP(generico),
     foodGroups: off?.grupos_alimento,
     categoria: [catalogoCategoria, off?.categoria, off?.categorias_tags, base?.categoria, vlm?.categoria].filter(Boolean).join(' '),
   });
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, existe: rows.length > 0 || temGenericoNut };
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, catalogo_categoria: catalogoCategoria, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;
