@@ -11,7 +11,7 @@ import {
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
-  listarPerfis, ativarPerfil, carregarPerfil, matchFoto,
+  listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { ICON } from './icons.js';
@@ -836,15 +836,57 @@ function Scanner({ go, back }) {
     </>
   );
 }
+// VOZ: grava → vozParaProduto (nome) → consultarProdutoNome → ficha (mesma
+// mecânica e endpoints da v1; aqui só a UI cartoon). Toca no orbe para falar/parar.
 function Voz({ go, back }) {
+  const [estado, setEstado] = useState('pronto'); // pronto|gravando|ouvindo|nada|embalado|erro
+  const [ouvido, setOuvido] = useState('');
+  const mrRef = useRef(null);
+  const streamRef = useRef(null);
+  useEffect(() => () => { // limpeza ao sair: pára gravação/microfone
+    try { if (mrRef.current?.state === 'recording') mrRef.current.stop(); } catch { /* noop */ }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+  }, []);
+  async function alternar() {
+    if (estado === 'gravando') { mrRef.current?.stop(); return; }
+    if (estado === 'ouvindo') return;
+    setOuvido('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mr = new MediaRecorder(stream); const pedacos = [];
+      mr.ondataavailable = (e) => { if (e.data.size) pedacos.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setEstado('ouvindo');
+        try {
+          const { produto } = await vozParaProduto(new Blob(pedacos, { type: mr.mimeType || 'audio/webm' }));
+          if (!produto) { setEstado('nada'); return; }
+          setOuvido(produto);
+          const r = await consultarProdutoNome(produto);
+          if (r.encontrado && (r.sku_id || r.ean)) go('ficha', { sku_id: r.sku_id, ean: r.ean, nome: r.nome || produto });
+          else setEstado('embalado');
+        } catch { setEstado('erro'); }
+      };
+      mrRef.current = mr; mr.start(); setEstado('gravando');
+    } catch { setEstado('erro'); setOuvido('microfone'); }
+  }
+  const txt = {
+    pronto: 'Toque e diga o produto', gravando: 'A ouvir… toque para parar', ouvindo: 'A reconhecer…',
+    nada: 'Não percebi. Toque e tente de novo.', embalado: `Entendi “${ouvido}” — para a ficha, leia o código de barras.`,
+    erro: ouvido === 'microfone' ? 'Sem acesso ao microfone — verifique a permissão.' : 'Falha. Toque e tente de novo.',
+  }[estado];
+  const rec = estado === 'gravando';
   return (
     <>
-      <Ctop title="Voz" sub="" back onBack={back} />
+      <Ctop title="Consultar por voz" sub="" back onBack={back} />
       <div className="voz-wrap">
-        <div className="voz-orb"><Ico name="mic" size={46} stroke={2} color="#f4fff0" /></div>
+        <button className={`voz-orb ${rec ? 'rec' : ''}`} onClick={alternar} disabled={estado === 'ouvindo'} aria-label="falar">
+          <Ico name="mic" size={46} stroke={2} color="#f4fff0" />
+        </button>
         <div><Mk size={60} /></div>
-        <div className="voz-bubble">Reconhecimento de voz chega em breve</div>
-        <button className="cbtn cbtn-leaf" onClick={() => go('texto')}>Consultar por texto</button>
+        <div className="voz-bubble">{txt}</div>
+        {estado === 'embalado' && <button className="cbtn cbtn-leaf" onClick={() => go('scanner')}><Ico name="scan" size={18} color="#f7fff2" /> Ler código</button>}
       </div>
     </>
   );

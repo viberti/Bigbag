@@ -208,7 +208,11 @@
 .v2 .sc-torch.on{background:#f4d06a;color:#5a4410}
 .v2 .sc-torch:active{transform:scale(.92)}
 .v2 .voz-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px}
-.v2 .voz-orb{width:130px;height:130px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#67b262,#3f7a3f);display:grid;place-items:center;color:#f4fff0;box-shadow:0 0 0 12px rgba(90,159,87,.16),0 0 0 26px rgba(90,159,87,.08)}
+.v2 .voz-orb{width:130px;height:130px;border-radius:50%;border:0;cursor:pointer;background:radial-gradient(circle at 50% 38%,#67b262,#3f7a3f);display:grid;place-items:center;color:#f4fff0;box-shadow:0 0 0 12px rgba(90,159,87,.16),0 0 0 26px rgba(90,159,87,.08);transition:.2s}
+.v2 .voz-orb:active{transform:scale(.96)}
+.v2 .voz-orb:disabled{opacity:.7}
+.v2 .voz-orb.rec{background:radial-gradient(circle at 50% 38%,#ef8f6a,#d4502c);animation:vozpulse 1.3s ease-in-out infinite}
+@keyframes vozpulse{0%,100%{box-shadow:0 0 0 10px rgba(224,115,79,.20),0 0 0 22px rgba(224,115,79,.10)}50%{box-shadow:0 0 0 16px rgba(224,115,79,.28),0 0 0 32px rgba(224,115,79,.12)}}
 .v2 .voz-bubble{position:relative;background:var(--card);border:2px solid #fff;border-radius:18px;padding:13px 18px;font:700 16px var(--disp);color:var(--ink);box-shadow:var(--sh);max-width:230px;text-align:center}
 
 /* perfil */
