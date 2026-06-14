@@ -37,17 +37,17 @@ const gravarCursor = (id) => { try { writeFileSync(CURSOR_FILE, String(id)); } c
 
 const pool = getPool();
 let cursor = lerCursor();
-console.log(`[nutri-continente] a retomar do id > ${cursor}${LIMITE ? ` (LIMITE ${LIMITE})` : ''}`);
-
-const [linhas] = await pool.query(
-  `SELECT id, url FROM catalogo_produto
-   WHERE fonte='continente' AND url IS NOT NULL AND id > ?
-   ORDER BY id ${LIMITE ? 'LIMIT ' + LIMITE : ''}`, [cursor]);
-console.log(`[nutri-continente] ${linhas.length} produtos a processar.\n`);
 
 let feitos = 0, comNut = 0, comIng = 0, semTab = 0, erro = 0, errosSeguidos = 0, t0 = Date.now();
-for (const it of linhas) {
-  if (errosSeguidos >= 25) { console.error(`[nutri-continente] ${errosSeguidos} erros seguidos — bloqueio anti-bot provável, a abortar (retoma depois).`); break; }
+const jaFeitos = new Set(); // ids tocados nesta corrida (não repetir entre as fases)
+let abortado = false;
+
+// Processa UMA linha do catálogo (fetch página → fragmento → parser → UPDATE COALESCE).
+// Devolve false se o circuit-breaker disparou (manda parar a fase).
+async function processar(it) {
+  if (errosSeguidos >= 25) { console.error(`[nutri-continente] ${errosSeguidos} erros seguidos — bloqueio anti-bot provável, a abortar (retoma depois).`); abortado = true; return false; }
+  if (jaFeitos.has(it.id)) return true;
+  jaFeitos.add(it.id);
   try {
     const page = await fetchText(it.url);
     let nut = { nutricao: null, nutricao_base: null, ingredientes: null };
@@ -65,13 +65,46 @@ for (const it of linhas) {
     } else { semTab++; }
     errosSeguidos = 0;
   } catch (e) { erro++; errosSeguidos++; if (erro <= 5) console.error('  erro id', it.id, e.message); }
-  cursor = it.id; feitos++;
+  feitos++;
+  await sleep(DELAY);
+  return true;
+}
+
+// ── FASE 1: PRIORIDADE — EANs que o usuário JÁ consultou, vendidos no Continente e
+// ainda sem nutrição (mais-consultados primeiro). Roda a CADA corrida, fora do cursor:
+// é um conjunto pequeno e vivo (cresce com o uso). Garante que a 2.ª consulta do
+// produto já tem a tabela, mesmo que a busca ao vivo (6s) tenha estourado na 1.ª.
+const [prio] = await pool.query(
+  `SELECT cp.id, cp.url
+     FROM historico_produto h
+     JOIN catalogo_produto cp ON cp.ean = h.ean COLLATE utf8mb4_0900_ai_ci AND cp.fonte='continente'
+    WHERE h.ean IS NOT NULL AND cp.url IS NOT NULL AND cp.url <> ''
+      AND (cp.nutricao IS NULL OR cp.nutricao='' OR cp.nutricao='{}')
+    GROUP BY cp.id, cp.url
+    ORDER BY MAX(h.n_consultas) DESC, MAX(h.ultima_em) DESC`);
+if (prio.length) {
+  console.log(`[nutri-continente] PRIORIDADE: ${prio.length} EANs consultados sem nutrição — a buscar primeiro.`);
+  for (const it of prio) { if (!(await processar(it))) break; }
+  console.log(`[nutri-continente] prioridade feita: ${comNut} c/ nutrição · ${comIng} c/ ingredientes · ${semTab} sem tabela · ${erro} erros.\n`);
+}
+
+// ── FASE 2: varredura geral por CURSOR (retomável; toca cada linha 1×) ──────────
+if (abortado) { gravarCursor(cursor); console.log('[nutri-continente] abortado na prioridade; varredura geral fica p/ a próxima.'); await pool.end(); process.exit(0); }
+console.log(`[nutri-continente] varredura geral: a retomar do id > ${cursor}${LIMITE ? ` (LIMITE ${LIMITE})` : ''}`);
+const [linhas] = await pool.query(
+  `SELECT id, url FROM catalogo_produto
+   WHERE fonte='continente' AND url IS NOT NULL AND id > ?
+   ORDER BY id ${LIMITE ? 'LIMIT ' + LIMITE : ''}`, [cursor]);
+console.log(`[nutri-continente] ${linhas.length} produtos a processar.\n`);
+
+for (const it of linhas) {
+  if (!(await processar(it))) break;
+  cursor = it.id;
   if (feitos % 50 === 0) {
     gravarCursor(cursor);
     const rps = (feitos / ((Date.now() - t0) / 1000)).toFixed(2);
-    console.log(`  …${feitos}/${linhas.length} · nut ${comNut} · ing ${comIng} · sem-tab ${semTab} · erro ${erro} · ${rps}/s · cursor ${cursor}`);
+    console.log(`  …${feitos} · nut ${comNut} · ing ${comIng} · sem-tab ${semTab} · erro ${erro} · ${rps}/s · cursor ${cursor}`);
   }
-  await sleep(DELAY);
 }
 gravarCursor(cursor);
 console.log(`\n✅ [nutri-continente] fim do lote: ${feitos} processados · ${comNut} c/ nutrição · ${comIng} c/ ingredientes · ${semTab} sem tabela · ${erro} erros. cursor=${cursor}`);
