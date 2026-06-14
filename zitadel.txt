@@ -1,0 +1,11 @@
+PS C:\Users\gvibe> ssh pitacos-prod "sudo cat /home/dev/auth/.env"
+ZITADEL_MASTERKEY=9Ed9aWipPcyN2N6BgByemak0Zpy2qakR
+ZITADEL_DB_PASSWORD=qBZSw7hgy2q7EbwhZItOFxTjVmCc
+PS C:\Users\gvibe>
+
+ssh pitacos@85.25.46.6 "sudo cat /home/dev/auth/.env"
+
+
+clientId: 377443508467859459   (app "BigBag PWA")
+appId:    377443508467793923
+projeto:  BigBag (377443447096737795)

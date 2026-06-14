@@ -37,9 +37,13 @@ export const config = {
     googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || '',
     superuserEmail: process.env.SUPERUSER_EMAIL || '',
     sessionSecret: process.env.SESSION_SECRET || '',
-    // Portão temporário (até o Google OAuth estar ativo). Ver auth.js.
+    // Portão temporário (até o login OIDC estar 100%). Ver auth.js.
     enableTestAuth: String(process.env.ENABLE_TEST_AUTH || '').toLowerCase() === 'true',
     testUsers: parseTestUsers(process.env.TEST_USERS),
+    // OIDC (Zitadel self-host) — valida o access token JWT via JWKS do issuer.
+    oidcIssuer: process.env.OIDC_ISSUER || 'https://auth.hal9klabs.com',
+    // Allowlist de emails autorizados a entrar no BigBag (camada 2; só pré-cadastrados).
+    allowlist: String(process.env.AUTH_ALLOWLIST || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   },
   uploads: {
     faturas: process.env.UPLOAD_DIR_FATURAS || './uploads/comprovantes',
