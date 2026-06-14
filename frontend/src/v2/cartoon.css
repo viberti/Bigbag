@@ -252,7 +252,8 @@
 .v2 .rec-item{display:flex;align-items:center;gap:10px;background:var(--card);border:2px solid #fff;border-radius:14px;padding:11px 13px;margin-bottom:8px;box-shadow:var(--sh-sm);cursor:pointer}
 .v2 .rec-item{align-items:flex-start}
 .v2 .ri-nm{flex:1;min-width:0;font:700 14.5px var(--font);color:var(--ink)}
-.v2 .ri-marca{font-style:normal;color:var(--leaf-d);font-weight:700}
+/* marca como CHIP (solução da v1): fonte menor + verde intenso sobre verde-claro → destaca-se do nome escuro */
+.v2 .ri-marca{font-style:normal;font:800 11px var(--font);color:#2f6b2c;background:var(--leaf-soft);border-radius:6px;padding:1px 7px;margin-left:7px;vertical-align:middle;white-space:nowrap}
 .v2 .ri-sub{display:block;font:600 11.5px var(--font);color:var(--ink-3);margin-top:3px}
 .v2 .ri-q{font:600 12px var(--font);color:var(--ink-3)}
 .v2 .ri-p{font:800 14px var(--disp);color:var(--ink);min-width:52px;text-align:right}

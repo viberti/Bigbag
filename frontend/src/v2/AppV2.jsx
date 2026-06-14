@@ -706,7 +706,7 @@ function Recibo({ go, back, id }) {
               return (
                 <div className="rec-item" key={i} onClick={() => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: nomeTalao(p.produto) })}>
                   <span className="ri-nm">
-                    {nomeTalao(p.produto)}{marca && <em className="ri-marca"> {marca}</em>}
+                    {nomeTalao(p.produto)}{marca && <em className="ri-marca">{marca}</em>}
                     {sub && <small className="ri-sub">{sub}</small>}
                   </span>
                   <span className="ri-p">{eur(linha)}</span>
