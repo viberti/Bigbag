@@ -163,6 +163,18 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   const base = rows.find((r) => r.nome || r.marca)
     ? (() => { const r = rows.find((x) => x.nome || x.marca); return { nome: r.nome, marca: r.marca, quantidade: r.quantidade, categoria: r.categoria, fonte: r.fonte }; })()
     : null;
+  // nome PT-first por EAN (scan/busca, sem item): prefere uma fonte PT do catálogo
+  // — cross-loja por EAN, o iogurte grego scaneado no Mercadona-ES ganha o nome PT
+  // se o mesmo EAN existir no Continente/Auchan/Pingo Doce. Sem fonte PT → fica null
+  // e a ficha usa o que houver (pode ser ES).
+  if (!nome && ean) {
+    const [[cat]] = await getPool().query(
+      `SELECT COALESCE(nome_pt, nome) AS nome FROM catalogo_produto
+        WHERE ean = ? AND COALESCE(nome_pt, nome) IS NOT NULL
+        ORDER BY (fonte IN ('continente','auchan','pingodoce','lidl','mercadona-off')) DESC, (nome_pt IS NOT NULL) DESC, id ASC
+        LIMIT 1`, [ean]);
+    nome = cat?.nome || null;
+  }
   const [fotos] = ean
     ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? OR item_id = ? ORDER BY ordem, id', [ean, itemId])
     : itemId

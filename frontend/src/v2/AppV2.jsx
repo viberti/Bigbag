@@ -266,7 +266,10 @@ function Historico({ go }) {
             return (
               <div className={`item hist ${marcado ? 'sel' : ''}`} key={`${p.ean || p.nome}-${i}`} onClick={onTap} style={cmp && !p.ean ? { opacity: .45 } : undefined}>
                 {cmp && p.ean && <span className={`histcheck ${marcado ? 'on' : ''}`}>{marcado && <Ico name="check" size={14} stroke={3} color="#fff" />}</span>}
-                <div className="ib"><div className="iname">{p.nome}</div><div className="isub">{p.marca || (cmp && !p.ean ? 'sem código' : 'produto')}{p.n_consultas > 1 ? ` · ${p.n_consultas}×` : ''}</div></div>
+                <div className="ib">
+                  <div className="iname">{nomeTalao(p.nome)}{p.marca && <em className="ri-marca">{limparMarca(p.marca)}</em>}</div>
+                  <div className="isub">{cmp && !p.ean ? 'sem código de barras' : (p.n_consultas > 1 ? `consultado ${p.n_consultas}×` : 'consultado')}</div>
+                </div>
               </div>
             );
           })}
@@ -363,14 +366,14 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   // do prop (que pode ser o do utilizador herdado, ou vazio no scan só-EAN).
   useEffect(() => {
     if (registado.current || !info || info.erro) return;
-    const nm = info.vlm?.nome || info.off?.nome || info.base?.nome || nome;
+    const nm = info.nome || info.vlm?.nome || info.off?.nome || info.base?.nome || nome;
     if (!nm) return;
     registado.current = true;
     registarHistoricoProduto({ ean, skuId: sku_id, nome: nm, marca: info.vlm?.marca || info.off?.marca || info.base?.marca });
   }, [info, ean, sku_id, nome]);
   const nut = (() => { const s = info && !info.erro ? info : {}; return s.vlm?.nutricao_100g || s.off?.nutricao_100g || s.generico?.nutricao_100g || {}; })();
   const num = (...ks) => { for (const k of ks) { const v = nut[k]; if (v != null && !Number.isNaN(Number(v))) return Number(v); } return null; };
-  const nomeProd = info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto';
+  const nomeProd = info?.nome || info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto';
   const grau = analise?.nutriscore?.grau ? String(analise.nutriscore.grau).toUpperCase() : null;
   const attn = aval?.avaliacao && /aten[çc]/i.test(aval.avaliacao.veredicto || aval.avaliacao.selo || '');
   const action = <button className="hist-cmp" title="Adicionar à lista" onClick={() => go('lista')}><span style={{ color: 'var(--leaf-d)' }}><Ico name="plus" size={20} stroke={2.4} /></span></button>;
