@@ -1724,7 +1724,7 @@ const TIPOS_CAT = [
   { id: 'peixe', label: 'Peixe e Marisco', ic: '🐟' },
   { id: 'charcutaria', label: 'Charcutaria e Queijos', ic: '🧀' },
   { id: 'padaria', label: 'Padaria e Pastelaria', ic: '🥖' },
-  { id: 'lacticinios', label: 'Laticínios', ic: '🥛' },
+  { id: 'laticinios', label: 'Laticínios', ic: '🥛' }, // id PT-BR (sem c) — casa com seccaoLista()
   { id: 'congelados', label: 'Congelados', ic: '❄️' },
   { id: 'mercearia', label: 'Mercearia', ic: '🛒' },
   { id: 'condimentos', label: 'Molhos, Azeites e Condimentos', ic: '🫒' },

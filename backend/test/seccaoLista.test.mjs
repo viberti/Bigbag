@@ -40,3 +40,18 @@ test('outros e cobertura das 13', () => {
   for (const [g, n] of [['frutas', 'Maçã'], ['carne', 'Fiambre'], ['mercearia', 'Café'], ['mercearia', 'Azeite'], ['mercearia', 'Arroz']])
     assert.ok(SECCOES_LISTA.includes(seccaoLista(g, n)));
 });
+
+// Contrato com o TIPOS_CAT do frontend (App.jsx): a grafia do id da secção É a
+// fonte de verdade e tem de casar lá. PT-BR (decisão do dono): 'laticinios' SEM c
+// (o grupo interno é 'lacticinios' com c, mas a SECÇÃO é PT-BR). Trava o drift que
+// já mandou TODOS os lacticínios para 'Outros'.
+test('ids canónicos das secções (contrato c/ o frontend) — PT-BR', () => {
+  assert.deepEqual([...SECCOES_LISTA].sort(), [
+    'bebidas', 'cafe_cha', 'carne', 'charcutaria', 'condimentos', 'congelados',
+    'doces', 'frutas', 'higiene', 'laticinios', 'mercearia', 'outros', 'padaria', 'peixe',
+  ]);
+  assert.ok(SECCOES_LISTA.includes('laticinios'), "PT-BR: 'laticinios' (sem c)");
+  assert.ok(!SECCOES_LISTA.includes('lacticinios'), "não usar a grafia PT-PT 'lacticinios' na secção");
+  // o grupo (lente de loja, id interno 'lacticinios' com c) mapeia para a secção PT-BR
+  assert.equal(seccaoLista('lacticinios', 'Iogurte'), 'laticinios');
+});
