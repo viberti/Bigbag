@@ -77,13 +77,16 @@ function Ctop({ title, sub, back, amber, av, action, onBack, onAv }) {
 }
 function Nav({ cur, go }) {
   const tabs = [['home', 'Início', 'home'], ['list', 'Lista', 'lista'], ['history', 'Histórico', 'historico'], ['user', 'Perfil', 'perfil']];
+  const Tab = ([ic, lb, id]) => (
+    <button key={id} className={`nb ${cur === id ? 'on' : ''}`} onClick={() => go(id)}>
+      <span className="ni"><Ico name={ic} size={23} stroke={2} /></span>{lb}
+    </button>
+  );
   return (
     <div className="cnav">
-      {tabs.map(([ic, lb, id]) => (
-        <button key={id} className={`nb ${cur === id ? 'on' : ''}`} onClick={() => go(id)}>
-          <span className="ni"><Ico name={ic} size={23} stroke={2} /></span>{lb}
-        </button>
-      ))}
+      {tabs.slice(0, 2).map(Tab)}
+      <button className="nb-scan" title="Consultar produto" onClick={() => go('scanner')}><Ico name="scan" size={28} stroke={2.4} color="#5a4410" /></button>
+      {tabs.slice(2).map(Tab)}
     </div>
   );
 }
@@ -169,11 +172,10 @@ function Home({ go, user }) {
           <button className="go">Ver a lista →</button>
         </div>
         <div className="quick">
-          {[['scan', 'Consultar', () => go('scanner'), undefined],
-            ['recipe', 'Receitas', () => go('receitas'), 'var(--coral)'],
+          {[['recipe', 'Receitas', () => go('receitas'), 'var(--coral)'],
             ['compare', 'Comparar', () => go('comparar'), undefined],
             ['talao', 'Despensa', () => go('despensa'), 'var(--amber-d)'],
-            ['chart', 'Gastos', () => go('gastos'), 'var(--sky)']].map(([ic, lb, on, col]) => (
+            ['chart', 'Gastos', () => go('gastos'), '#3b86c4']].map(([ic, lb, on, col]) => (
             <button key={lb} className="round-act" onClick={on}>
               <span className="circ" style={col ? { color: col } : undefined}><Ico name={ic} size={24} stroke={2} /></span><b>{lb}</b>
             </button>

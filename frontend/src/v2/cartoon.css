@@ -79,10 +79,13 @@
 .v2 .quick .round-act{flex:1;min-width:0;gap:6px}
 .v2 .quick .round-act b{font-size:10.5px;letter-spacing:-.02em}
 .v2 .quick .circ{width:48px;height:48px}
-.v2 .cnav{display:flex;justify-content:space-around;align-items:center;background:var(--card);border-top:2px solid var(--line);padding:8px 6px max(12px,env(safe-area-inset-bottom));flex:0 0 auto}
+.v2 .cnav{display:flex;justify-content:space-around;align-items:center;background:var(--card);border-top:2px solid var(--line);padding:8px 6px max(12px,env(safe-area-inset-bottom));flex:0 0 auto;position:relative;overflow:visible}
 .v2 .cnav .nb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:0;border:0;cursor:pointer;color:var(--ink-3);font:700 10.5px var(--font)}
 .v2 .cnav .nb .ni{width:50px;height:34px;display:grid;place-items:center;border-radius:var(--r-pill);transition:.15s}
 .v2 .cnav .nb.on{color:var(--leaf-d)} .v2 .cnav .nb.on .ni{background:var(--leaf-soft)}
+/* botão de scan CENTRAL elevado (Consultar produto) — o herói da navegação */
+.v2 .cnav .nb-scan{flex:0 0 auto;width:62px;height:62px;border-radius:50%;margin:-28px 6px 0;background:#e6c46a;border:4px solid var(--card);box-shadow:0 0 0 2px #cfa948,0 5px 12px rgba(120,90,40,.25);color:#5a4410;display:grid;place-items:center;cursor:pointer}
+.v2 .cnav .nb-scan:active{transform:scale(.93)}
 .v2 .clabel{font:800 17px var(--disp);color:var(--ink);letter-spacing:.3px}
 .v2 .clabel-row{display:flex;align-items:center;justify-content:space-between;margin:18px 2px 11px}
 .v2 .seeall{background:var(--leaf-soft);border:1.5px solid var(--leaf);font:800 12.5px var(--disp);color:var(--leaf-d);cursor:pointer;padding:6px 13px;border-radius:999px}
