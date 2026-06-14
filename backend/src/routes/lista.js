@@ -720,7 +720,12 @@ const nomeValido = (n) => n && n.length >= 2 && !/\[object|^undefined$|^null$/i.
 // singular): "ovos" e "Ovo", "Bananas" e "banana" são o MESMO item → SOMA a
 // quantidade em vez de duplicar (decisão do dono). Um item já riscado volta a
 // ativo (nova necessidade). Partilhado pelo POST unitário e pelo /lote.
-async function adicionarConsolidado(pool, { nome, quantidade, categoria, ean, user }) {
+// Nome do MEMBRO ativo (perfil_membro ativo) — é "quem adicionou/riscou" na lista
+// partilhada (cor por membro). Sem perfil ativo → null (cai no user de auth).
+async function nomeMembroAtivo(pool) {
+  try { const [[m]] = await pool.query('SELECT nome FROM perfil_membro WHERE ativo = 1 LIMIT 1'); return m?.nome || null; } catch { return null; }
+}
+async function adicionarConsolidado(pool, { nome, quantidade, categoria, ean, user, membro }) {
   const qtd = Math.max(1, Math.min(99, Number(quantidade) || 1));
   const cod = String(ean || '').replace(/\D/g, '') || null;
   const chave = chaveItemLista(nome);
@@ -736,7 +741,7 @@ async function adicionarConsolidado(pool, { nome, quantidade, categoria, ean, us
   }
   const [r] = await pool.query(
     'INSERT INTO lista_item (nome, ean, quantidade, categoria, adicionado_por) VALUES (?,?,?,?,?)',
-    [nome, cod, qtd, categoria || null, user]);
+    [nome, cod, qtd, categoria || null, membro || user]); // membro ativo (cor na UI), senão o user
   return { id: r.insertId, consolidado: false };
 }
 
@@ -745,7 +750,8 @@ listaRouter.post('/', async (req, res) => {
     const nome = String(req.body?.nome || '').trim().slice(0, 160);
     if (!nomeValido(nome)) return res.status(400).json({ erro: 'nome inválido' });
     const categoria = String(req.body?.categoria || '').trim().slice(0, 80) || null;
-    const r = await adicionarConsolidado(getPool(), { nome, quantidade: req.body?.quantidade, categoria, ean: req.body?.ean, user: req.user.id });
+    const membro = await nomeMembroAtivo(getPool());
+    const r = await adicionarConsolidado(getPool(), { nome, quantidade: req.body?.quantidade, categoria, ean: req.body?.ean, user: req.user.id, membro });
     res.json({ ok: true, id: r.id, existia: r.consolidado, consolidado: r.consolidado });
   } catch (e) {
     console.error('[lista POST] erro:', e.message);
@@ -760,11 +766,12 @@ listaRouter.post('/lote', async (req, res) => {
   try {
     const pool = getPool();
     const pedidos = Array.isArray(req.body?.produtos) ? req.body.produtos.slice(0, 20) : [];
+    const membro = await nomeMembroAtivo(pool);
     const adicionados = [];
     for (const p of pedidos) {
       const nome = String(p?.nome || '').trim().slice(0, 160);
       if (!nomeValido(nome)) continue;
-      const r = await adicionarConsolidado(pool, { nome, quantidade: p?.quantidade, categoria: null, ean: p?.ean, user: req.user.id });
+      const r = await adicionarConsolidado(pool, { nome, quantidade: p?.quantidade, categoria: null, ean: p?.ean, user: req.user.id, membro });
       adicionados.push({ id: r.id, nome, quantidade: Math.max(1, Math.min(99, Number(p?.quantidade) || 1)), consolidado: r.consolidado });
     }
     const mercado = String(req.body?.mercado || '').trim() || null;
@@ -800,8 +807,9 @@ listaRouter.patch('/:id', async (req, res) => {
     }
     if ('marcado' in (req.body || {})) {
       if (req.body.marcado) {
+        const membro = await nomeMembroAtivo(getPool());
         sets.push("estado = 'carrinho'", 'marcado_por = ?');
-        vals.push(req.user.id);
+        vals.push(membro || req.user.id);
       } else {
         sets.push("estado = 'ativo'", 'marcado_por = NULL');
       }

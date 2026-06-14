@@ -218,6 +218,9 @@ function Home({ go, user }) {
 }
 
 /* ── LISTA ───────────────────────────────────────────────────────────────── */
+// Cor por MEMBRO (perfil): cada membro recebe uma cor estável da paleta (por ordem
+// de id, suporta N membros). Sue→verde, Gustavo→azul nos 2 primeiros, como o spec.
+const MEMBRO_CORES = ['#3f7a3f', '#5a6fb0', '#e0734f', '#c8851f', '#8a5fb0', '#3f9a8f'];
 // Os 3 botões da barra ADICIONAM à lista (não consultam): voz (ditado→lote),
 // escrever (nome direto, qualquer produto — não exige ficha nutricional), e
 // código (scan→adiciona). Antes voz/texto caíam na CONSULTA e falhavam p/ não-alimentos.
@@ -267,32 +270,62 @@ function Lista({ go, back }) {
     setTxt(''); setAviso('');
     try { await adicionarListaItem({ nome }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
+  // MEMBROS (perfis) → cor estável por membro; o ativo é "quem apanha".
+  const [perfis, setPerfis] = useState([]);
+  useEffect(() => { listarPerfis().then((ps) => setPerfis(ps || [])).catch(() => setPerfis([])); }, []);
+  const corMembro = useMemo(() => {
+    const m = new Map();
+    [...perfis].sort((a, b) => a.id - b.id).forEach((pf, i) => m.set(String(pf.nome).toLowerCase(), MEMBRO_CORES[i % MEMBRO_CORES.length]));
+    return m;
+  }, [perfis]);
+  const corDe = (nome) => corMembro.get(String(nome || '').toLowerCase()) || '#c8d3bd'; // neutro p/ desconhecido
+  const ativoNome = (perfis.find((pf) => pf.ativo) || perfis[0])?.nome || null;
+  // APANHAR no mercado: risca com a cor do membro ativo e move p/ "No carrinho".
+  async function apanhar(it, marcado) {
+    setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, estado: marcado ? 'carrinho' : 'ativo', marcado_por: marcado ? ativoNome : null } : x)));
+    try { await atualizarListaItem(it.id, { marcado }); } catch { carregar(); }
+  }
+  const carrinho = (itens || []).filter((i) => i.estado === 'carrinho');
+  const qtdTxt = (it) => (it.unidade === 'kg' ? `${Number(it.quantidade || 1).toFixed(1).replace('.', ',')} kg` : `${it.quantidade || 1} un`);
   const grupos = agruparSec(ativos);
   return (
     <>
       <Ctop title="A minha lista" sub="compartilhada<br>com a família" back onBack={back} />
       {total > 0 && <div className="pricetag"><span className="pt-hole" /><div className="pt-v"><b>{eur(total)}</b><small>estimado</small></div></div>}
       <div className="scrollarea">
-        {itens == null ? <p className="empty">…</p> : ativos.length === 0 ? <p className="empty">Lista vazia. Toque em + para adicionar.</p>
-          : grupos.map((g) => (
-            <React.Fragment key={g.s}>
-              <div className="sec">{g.s}</div>
-              {g.itens.map((it) => {
-                const un = it.unidade === 'kg' ? 'kg' : 'un';
-                const ql = un === 'kg' ? `${Number(it.quantidade || 1).toFixed(1).replace('.', ',')} kg` : `${it.quantidade || 1} un`;
-                return (
-                  <div className="item" key={it.id}>
-                    <div className="ib" onClick={() => go('ficha', { ean: it.ean, sku_id: it.sku_id, nome: it.nome })}>
+        {itens == null ? <p className="empty">…</p> : ativos.length === 0 && carrinho.length === 0 ? <p className="empty">Lista vazia. Toque em + para adicionar.</p>
+          : (<>
+            {grupos.map((g) => (
+              <React.Fragment key={g.s}>
+                <div className="sec">{g.s}</div>
+                {g.itens.map((it) => (
+                  // borda direita = cor de QUEM ADICIONOU (it.adicionado_por). Tocar no
+                  // nome APANHA (risca + vai p/ "No carrinho"); o "›" abre a ficha.
+                  <div className="item" key={it.id} style={{ borderRight: `6px solid ${corDe(it.adicionado_por)}` }} title={it.adicionado_por ? `adicionado por ${it.adicionado_por}` : undefined}>
+                    <div className="ib" onClick={() => apanhar(it, true)}>
                       <div className="iname">{it.nome}</div>
                       <div className="isub">{it.marca ? `${it.marca} · ` : ''}{it.preco_estimado != null || it.preco != null ? `~${eur(it.preco_estimado ?? it.preco)}` : 'sem preço'}</div>
                     </div>
-                    <span className="qval">{ql}</span>
+                    <span className="qval">{qtdTxt(it)}</span>
                     <div className="qty"><button onClick={() => delta(it, -1)}>−</button><button onClick={() => delta(it, 1)}>+</button></div>
+                    <button className="li-info" title="Ver ficha" onClick={() => go('ficha', { ean: it.ean, sku_id: it.sku_id, nome: it.nome })}>›</button>
                   </div>
-                );
-              })}
-            </React.Fragment>
-          ))}
+                ))}
+              </React.Fragment>
+            ))}
+            {carrinho.length > 0 && (<>
+              <div className="sec boughtsec"><Ico name="check" size={13} stroke={2.6} /> No carrinho · {carrinho.length}</div>
+              {carrinho.map((it) => (
+                <div className="item done" key={it.id} style={{ borderRight: `6px solid ${corDe(it.adicionado_por)}` }} onClick={() => apanhar(it, false)}>
+                  <div className="ib">
+                    <div className="iname" style={{ textDecorationColor: corDe(it.marcado_por) }}>{it.nome}</div>
+                    <span className="pickcart">{qtdTxt(it)} · no carrinho de {it.marcado_por || '—'}</span>
+                  </div>
+                  <span className="pickav" style={{ background: corDe(it.marcado_por) }}>{inicial(it.marcado_por)}</span>
+                </div>
+              ))}
+            </>)}
+          </>)}
       </div>
       <div className="actfoot">
         {escrever && (
