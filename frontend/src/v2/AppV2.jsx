@@ -706,7 +706,9 @@ function Recibo({ go, back, id }) {
               const qtd = Number(p.quantidade) || 1; const linha = Number(p.preco) || 0; const unit = qtd ? linha / qtd : linha;
               const marca = limparMarca(p.marca); const fmt = formatoProduto(p);
               const sub = [fmt, qtd !== 1 ? `${qtd} × ${eur(unit)}` : null].filter(Boolean).join(' · ');
-              const temFicha = !!p.tem_dados || p.tipo_alimento === 'fresco'; // senão, precisa de identificação
+              // identificado = tem EAN (mesmo sem nutrição) OU é fresco OU já tem ficha;
+              // só pede câmara quem NÃO tem EAN e não é fresco (ex.: "PEITO FAMILIAR").
+              const temFicha = !!p.ean || !!p.tem_dados || p.tipo_alimento === 'fresco';
               const identificar = () => go('scanner', { somente: ['codigo', 'produto'], itemId: p.id, nomeItem: nomeTalao(p.produto) }); // identifica a linha do talão (liga o EAN)
               return (
                 <div className="rec-item" key={i} onClick={() => (temFicha ? go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: nomeTalao(p.produto) }) : identificar())}>
