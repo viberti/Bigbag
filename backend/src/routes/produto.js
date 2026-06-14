@@ -24,6 +24,7 @@ import { matchImagemB64 } from '../normaliza/matchImagem.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
 import { nutricaoContinenteLive } from '../ingest/nutricaoContinente.js';
+import { tipoProduto } from '../normaliza/tipoProduto.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -231,14 +232,24 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   const nutricaoProvisoria = !off?.nutricao_100g && rows.some((r) => r.nutricao && r.nutricao_confirmada === 0);
   // foto de CATÁLOGO do produto (hotlink; ~52k disponíveis): dá cara à ficha
   // mesmo sem fotos do utilizador. Por EAN direto, ou pelo ean_inferido (PD).
-  let imagemCatalogo = null;
+  let imagemCatalogo = null, catalogoCategoria = null;
   if (ean) {
     const [[img]] = await getPool().query(
-      `SELECT imagem_url FROM catalogo_produto
-        WHERE (ean = ? OR ean_inferido = ?) AND imagem_url IS NOT NULL AND imagem_url <> '' LIMIT 1`, [ean, ean]);
+      `SELECT imagem_url, categoria FROM catalogo_produto
+        WHERE (ean = ? OR ean_inferido = ?) AND ((imagem_url IS NOT NULL AND imagem_url <> '') OR (categoria IS NOT NULL AND categoria <> ''))
+        ORDER BY (imagem_url IS NOT NULL AND imagem_url <> '') DESC LIMIT 1`, [ean, ean]);
     imagemCatalogo = img?.imagem_url || null;
+    catalogoCategoria = img?.categoria || null;
   }
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, existe: rows.length > 0 || temGenericoNut };
+  // ALIMENTO vs NÃO-ALIMENTO (determinístico) — controla o layout da ficha no cliente.
+  const temNutP = (o) => o?.nutricao_100g && Object.values(o.nutricao_100g).some((v) => v != null);
+  const tipo = tipoProduto({
+    nome,
+    temNutricao: temNutP(off) || temNutP(vlm) || temNutP(base) || temNutP(generico),
+    foodGroups: off?.grupos_alimento,
+    categoria: [catalogoCategoria, off?.categoria, off?.categorias_tags, base?.categoria, vlm?.categoria].filter(Boolean).join(' '),
+  });
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;

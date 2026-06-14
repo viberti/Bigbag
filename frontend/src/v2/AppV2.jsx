@@ -564,7 +564,11 @@ function Ficha({ go, back, ean, sku_id, nome }) {
                 <span className="rg-l">{k}</span><span style={{ font: '700 13.5px var(--font)', color: 'var(--ink)', textAlign: 'right' }}>{v}</span>
               </div>
             ))}
-            <div style={{ font: '500 11.5px/1.4 var(--font)', color: 'var(--ink-3)', borderTop: '1px solid var(--line)', paddingTop: 9, marginTop: 5 }}>Produto não alimentício — sem ficha nutricional.</div>
+            <div style={{ font: '500 11.5px/1.4 var(--font)', color: 'var(--ink-3)', borderTop: '1px solid var(--line)', paddingTop: 9, marginTop: 5 }}>{
+              info?.tipo === 'food' ? 'Alimento sem ficha nutricional detalhada.'
+                : info?.tipo === 'non_food' ? 'Produto não alimentício — sem ficha nutricional.'
+                : 'Sem ficha nutricional.'
+            }</div>
           </div>
         )}
 
