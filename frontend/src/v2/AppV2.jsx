@@ -6,7 +6,7 @@
 // ──────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  verificarSessao, setAuth, clearAuth,
+  verificarSessao, setAuth, clearAuth, enviarFatura,
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, listarDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
@@ -475,26 +475,72 @@ function Despensa({ go, back }) {
   );
 }
 
-/* ── MINHAS COMPRAS (notas) ──────────────────────────────────────────────── */
+/* ── MINHAS COMPRAS (notas) — hero do mês + filtro de loja + meses + FAB ──── */
+const MESF = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 function Notas({ go, back }) {
   const [notas, setNotas] = useState(null);
-  useEffect(() => { listarNotas().then(setNotas).catch(() => setNotas([])); }, []);
+  const [filtro, setFiltro] = useState('todas');
+  const [enviando, setEnviando] = useState(false);
+  const fileRef = useRef(null);
+  const carregar = useCallback(() => { listarNotas().then(setNotas).catch(() => setNotas([])); }, []);
+  useEffect(() => { carregar(); }, [carregar]);
+  async function lerTalao(e) {
+    const f = e.target.files?.[0]; if (!f) return; setEnviando(true);
+    try { await enviarFatura(f, 'v2'); carregar(); } catch { /* falha silenciosa */ } finally { setEnviando(false); e.target.value = ''; }
+  }
+  const lista = notas || [];
+  const nomeLoja = (n) => n.loja || n.mercado || 'Outro';
+  const mesDe = (n) => { const d = new Date(n.data); return Number.isNaN(d.getTime()) ? { k: -1, l: '—' } : { k: d.getFullYear() * 12 + d.getMonth(), l: MESF[d.getMonth()] }; };
+  // chips por loja, ordenados por nº de compras
+  const cont = {}; lista.forEach((n) => { const k = nomeLoja(n); cont[k] = (cont[k] || 0) + 1; });
+  const chips = [['todas', 'Todas', null, lista.length], ...Object.entries(cont).sort((a, b) => b[1] - a[1]).map(([nm, c]) => [nm, nm, lojaCor(nm)[0], c])];
+  const filt = filtro === 'todas' ? lista : lista.filter((n) => nomeLoja(n) === filtro);
+  // agrupa por mês (desc), com total por mês
+  const grupos = [];
+  [...filt].sort((a, b) => mesDe(b).k - mesDe(a).k).forEach((n) => {
+    const m = mesDe(n); let g = grupos.find((x) => x.k === m.k);
+    if (!g) { g = { k: m.k, l: m.l, total: 0, itens: [] }; grupos.push(g); }
+    g.total += Number(n.total) || 0; g.itens.push(n);
+  });
+  const heroTot = grupos[0]?.total || 0, prevTot = grupos[1]?.total || 0;
+  const pct = prevTot ? Math.round((1 - heroTot / prevTot) * 100) : 0;
+  const heroLine = grupos.length > 1 ? (pct >= 0 ? `${pct}% menos que em ${grupos[1].l}` : `${-pct}% mais que em ${grupos[1].l}`) : '';
   return (
     <>
-      <Ctop title="Minhas compras" sub="todos os mercados" back onBack={back} />
+      <Ctop title="Minhas compras" sub={filtro === 'todas' ? 'todos os mercados' : filtro} back onBack={back} />
       <div className="scrollarea">
         <div className="herolist" onClick={() => go('gastos')}>
-          <div className="k">Gastos</div><div className="v">{notas ? `${notas.length} talões` : '…'}</div>
+          <div className="k">Gasto em {grupos[0]?.l || 'este mês'}</div>
+          <div className="v">{eur(heroTot)}</div>
+          {heroLine && <div className="s">{heroLine}</div>}
           <span className="hero-link">ver análise <Ico name="chart" size={13} color="#f4fff0" /> →</span>
         </div>
-        {notas == null ? <p className="empty">…</p> : notas.length === 0 ? <p className="empty">Sem talões ainda.</p>
-          : notas.map((n) => { const [c, ini] = lojaCor(n.loja || n.mercado); return (
-            <div className="frow" key={n.id} onClick={() => go('recibo', { id: n.id })}>
-              <span className="fdot" style={{ background: c }}>{ini}</span>
-              <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{dataCurta(n.data)}{n.n_itens ? ` ·  itens` : ""}</div></div>
-              <span className="fp">{eur(n.total)}</span>
-            </div>); })}
+        {chips.length > 1 && (
+          <div className="storefilter">
+            {chips.map(([id, nm, cor, ct]) => (
+              <span key={id} className={`sf ${filtro === id ? 'on' : ''}`} onClick={() => setFiltro(id)}>
+                {cor && <i style={{ background: cor }} />}{nm}{ct != null && <span className="ct"> {ct}</span>}
+              </span>
+            ))}
+          </div>
+        )}
+        {notas == null ? <p className="empty">…</p> : filt.length === 0 ? <p className="empty">Sem talões ainda.</p>
+          : grupos.map((g) => (
+            <React.Fragment key={g.k}>
+              <div className="monthsep-retro"><span className="ms-month">{g.l}</span><span className="ms-rule" /><span className="ms-badge"><b>{eur(g.total)}</b></span></div>
+              {g.itens.map((n) => { const [c, ini] = lojaCor(nomeLoja(n)); return (
+                <div className="frow" key={n.id} onClick={() => go('recibo', { id: n.id })}>
+                  <span className="fdot" style={{ background: c }}>{ini}</span>
+                  <div className="fb"><div className="fn">{nomeLoja(n)}</div><div className="fs">{dataCurta(n.data)}{n.n_itens ? ` · ${n.n_itens} itens` : ''}</div></div>
+                  <span className="fp">{eur(n.total)}</span>
+                </div>); })}
+            </React.Fragment>
+          ))}
       </div>
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={lerTalao} />
+      <button className="fab-talao" onClick={() => fileRef.current?.click()}>
+        <span className="c"><Ico name="camera" size={20} stroke={2.2} color="#f4fff0" /></span>{enviando ? 'A ler…' : 'Ler talão'}
+      </button>
     </>
   );
 }
