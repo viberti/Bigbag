@@ -11,7 +11,7 @@ import {
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
-  listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto,
+  listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
@@ -123,10 +123,10 @@ const TABS = new Set(['home', 'lista', 'historico', 'perfil']);
 function Shell({ nome, onSair }) {
   const [view, setView] = useState({ id: 'home', p: {} });
   const stack = useRef([]);
-  const go = useCallback((id, p = {}) => {
+  const go = useCallback((id, p = {}, opts = {}) => {
     setView((cur) => {
       if (TABS.has(id)) stack.current = [];
-      else if (cur.id !== id) stack.current.push(cur);
+      else if (!opts.replace && cur.id !== id) stack.current.push(cur); // replace: não empilha (substitui a tela atual)
       return { id, p };
     });
   }, []);
@@ -707,7 +707,7 @@ function Recibo({ go, back, id }) {
               const marca = limparMarca(p.marca); const fmt = formatoProduto(p);
               const sub = [fmt, qtd !== 1 ? `${qtd} × ${eur(unit)}` : null].filter(Boolean).join(' · ');
               const temFicha = !!p.tem_dados || p.tipo_alimento === 'fresco'; // senão, precisa de identificação
-              const identificar = () => go('scanner', { somente: ['codigo', 'produto'] }); // = consultar produto, só scan/foto
+              const identificar = () => go('scanner', { somente: ['codigo', 'produto'], itemId: p.id, nomeItem: nomeTalao(p.produto) }); // identifica a linha do talão (liga o EAN)
               return (
                 <div className="rec-item" key={i} onClick={() => (temFicha ? go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: nomeTalao(p.produto) }) : identificar())}>
                   <span className="ri-nm">
@@ -798,28 +798,37 @@ function Receitas({ back }) {
 }
 
 /* ── CONSULTAR PRODUTO: Código (barras) · Produto (foto ao vivo) ─────────── */
-function Scanner({ go, back, somente }) { // somente: ['codigo','produto'] limita os modos (ex.: vindo do talão)
+function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita modos; itemId: liga o EAN à linha do talão (identificar)
   const [modo, setModo] = useState('codigo');
   const [erro, setErro] = useState(false);
   const [luz, setLuz] = useState(false);
   const [temLuz, setTemLuz] = useState(false);
   const [foto, setFoto] = useState(null); // null=pré-visualizar · {fase:'procurando'|'resultados'|'nada'|'erro'|'semcam', cands?}
+  const [idLoad, setIdLoad] = useState(false); // a identificar (ligar EAN à linha)
   const videoRef = useRef(null);
   const trackRef = useRef(null);
   const fotoVideoRef = useRef(null);
   const code = modo === 'codigo';
-  const previewFoto = !code && foto == null; // câmara da foto ligada só na pré-visualização
-  // CÓDIGO: câmara + leitura REAL (mesma função provada da v1). Lê EAN → ficha.
+  const previewFoto = !code && foto == null && !idLoad; // câmara da foto ligada só na pré-visualização
+  // ao ler/captar: se for identificação (itemId), LIGA o EAN à linha do talão antes
+  // de abrir a ficha; a ficha SUBSTITUI o scanner (back volta ao talão, já identificado).
+  const aoCodigo = async (cod) => {
+    if (!itemId) { go('ficha', { ean: cod }); return; }
+    setIdLoad(true);
+    try { await identificarProduto({ ean: cod, itemId }); } catch { /* segue à ficha na mesma */ }
+    go('ficha', { ean: cod, nome: nomeItem }, { replace: true });
+  };
+  // CÓDIGO: câmara + leitura REAL (mesma função provada da v1). Lê EAN → ficha/identifica.
   useEffect(() => {
     if (!code) return undefined;
     let leitor; setErro(false); setTemLuz(false); setLuz(false);
     (async () => {
-      leitor = await lerCodigoBarras(videoRef.current, (cod) => go('ficha', { ean: cod }), () => setErro(true));
+      leitor = await lerCodigoBarras(videoRef.current, aoCodigo, () => setErro(true));
       const tr = leitor?.getTrack?.();
       if (tr && (tr.getCapabilities?.() || {}).torch) { trackRef.current = tr; setTemLuz(true); }
     })();
     return () => { leitor?.stop?.(); trackRef.current = null; };
-  }, [code, go]);
+  }, [code, go, itemId, nomeItem]);
   // PRODUTO: câmara AO VIVO dentro do app (não abre a câmara nativa). O disparo
   // captura o frame atual e envia ao reconhecimento por imagem (matchFoto da v1).
   useEffect(() => {
@@ -845,16 +854,22 @@ function Scanner({ go, back, somente }) { // somente: ['codigo','produto'] limit
     setFoto({ fase: 'procurando' });
     cv.toBlob(async (blob) => {
       if (!blob) { setFoto({ fase: 'erro' }); return; }
+      const file = new File([blob], 'produto.jpg', { type: 'image/jpeg' });
       try {
-        const r = await matchFoto(new File([blob], 'produto.jpg', { type: 'image/jpeg' }));
-        const cands = r.candidatos || [];
-        setFoto(cands.length ? { fase: 'resultados', cands } : { fase: 'nada' });
+        if (itemId) { // identificação por FOTO: liga a linha do talão (VLM lê EAN/rótulo) → ficha
+          const r = await identificarProduto({ itemId, fotos: [file] });
+          go('ficha', { ean: r?.ean || undefined, sku_id: r?.sku_id || undefined, nome: nomeItem }, { replace: true });
+        } else { // consulta: reconhecimento por imagem → candidatos
+          const r = await matchFoto(file);
+          const cands = r.candidatos || [];
+          setFoto(cands.length ? { fase: 'resultados', cands } : { fase: 'nada' });
+        }
       } catch { setFoto({ fase: 'erro' }); }
     }, 'image/jpeg', 0.85);
   }
   return (
     <>
-      <Ctop title="Consultar produto" sub={code ? 'aponte para o código' : 'fotografe o produto'} back onBack={back} />
+      <Ctop title={itemId ? 'Identificar produto' : 'Consultar produto'} sub={itemId ? nomeItem : (code ? 'aponte para o código' : 'fotografe o produto')} back onBack={back} />
       <div className="scrollarea" style={{ display: 'flex', flexDirection: 'column' }}>
         {foto?.fase === 'resultados' ? (
           <>
@@ -874,7 +889,7 @@ function Scanner({ go, back, somente }) { // somente: ['codigo','produto'] limit
               {code && <video ref={videoRef} playsInline muted />}
               {previewFoto && <video ref={fotoVideoRef} playsInline muted />}
               {temLuz && code && <button className={`sc-torch ${luz ? 'on' : ''}`} onClick={lanterna} aria-label="Lanterna"><Ico name="torch" size={15} stroke={2} color={luz ? '#5a4410' : '#fff'} /></button>}
-              {foto?.fase === 'procurando' && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.85)', padding: '8px 16px', borderRadius: 999 }}>A reconhecer…</span>}
+              {(foto?.fase === 'procurando' || idLoad) && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.9)', padding: '8px 16px', borderRadius: 999 }}>{idLoad ? 'A identificar…' : 'A reconhecer…'}</span>}
               <div className="sc-frame">{code && <><i className="tr" /><i className="bl" /></>}</div>
               <span style={{ position: 'absolute', bottom: 12 }}><Mk size={34} /></span>
             </div>
