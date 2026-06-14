@@ -326,6 +326,33 @@ faturasRouter.get('/gastos', requireAuth, async (req, res) => {
   }
 });
 
+// Produtos de uma categoria (1+ grupos) no mês atual, AGREGANDO iguais: mesmo SKU
+// soma numa linha (nome + marca + total gasto + nº de compras + quantidade); itens
+// sem SKU agregam pela descrição do talão. Para o drill-down do "Em que gastou".
+faturasRouter.get('/gastos/categoria', requireAuth, async (req, res) => {
+  try {
+    const grupos = String(req.query.grupos || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (!grupos.length) return res.status(400).json({ erro: 'grupos em falta' });
+    const [[hoje]] = await getPool().query('SELECT YEAR(CURDATE()) y, MONTH(CURDATE()) m');
+    const [produtos] = await getPool().query(`
+      SELECT MAX(COALESCE(s.nome_simplificado, s.nome_canonico, i.descricao_original)) AS nome,
+             MAX(s.marca) AS marca, MAX(i.ean) AS ean, MAX(i.sku_id) AS sku_id,
+             ROUND(SUM(i.preco_liquido), 2) AS total, COUNT(*) AS n, ROUND(SUM(i.quantidade), 2) AS qtd
+        FROM item i
+        JOIN fatura f ON f.id = i.fatura_id
+        LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+       WHERE YEAR(f.data_compra) = ? AND MONTH(f.data_compra) = ?
+         AND COALESCE(s.grupo, 'outros') IN (?)
+         AND i.is_non_product = FALSE AND f.needs_review = FALSE AND i.preco_liquido IS NOT NULL
+       GROUP BY COALESCE(CAST(s.id AS CHAR), i.descricao_original)
+       ORDER BY total DESC`, [hoje.y, hoje.m, grupos]);
+    res.json({ grupos, produtos });
+  } catch (e) {
+    console.error('[faturas/gastos/categoria] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar produtos da categoria' });
+  }
+});
+
 // Itens de UMA nota (ao tocar numa entrada da lista).
 faturasRouter.get('/:id', requireAuth, async (req, res) => {
   try {

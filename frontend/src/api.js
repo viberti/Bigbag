@@ -126,7 +126,12 @@ export async function identificarProduto({ ean, skuId, itemId, fotos }) {
 export async function resumoGastos() {
   const r = await call('/api/faturas/gastos');
   if (!r.ok) throw new Error(`gastos ${r.status}`);
-  return r.json(); // { atual, anterior, media, total_geral, variacao, serie, por_loja }
+  return r.json(); // { atual, anterior, media, total_geral, variacao, serie, por_loja, por_categoria }
+}
+export async function gastosCategoria(grupos) {
+  const r = await call(`/api/faturas/gastos/categoria?grupos=${encodeURIComponent((grupos || []).join(','))}`);
+  if (!r.ok) throw new Error(`gastos-cat ${r.status}`);
+  return r.json(); // { grupos, produtos:[{nome,marca,ean,sku_id,total,n,qtd}] }
 }
 
 export async function listarPorIdentificar() {

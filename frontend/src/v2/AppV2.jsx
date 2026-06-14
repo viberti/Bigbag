@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
-  obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, listarDespensa,
+  obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
   listarPerfis, ativarPerfil, carregarPerfil,
@@ -134,7 +134,7 @@ function Shell({ nome, onSair }) {
   const common = { go, back, nome, onSair };
   const Screen = {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
-    notas: Notas, gastos: Gastos, ficha: Ficha, comparar: Comparar,
+    notas: Notas, gastos: Gastos, gastoscat: GastosCat, ficha: Ficha, comparar: Comparar,
     texto: Texto, despensa: Despensa, recibo: Recibo, receitas: Receitas,
     scanner: Scanner, voz: Voz,
   }[view.id] || Home;
@@ -554,18 +554,19 @@ const CAT_INFO = {
   congelados: ['Congelados', '#7fb0c9'], bebidas: ['Bebidas', '#8ab0e0'], doces: ['Doces e snacks', '#cf8db0'],
   higiene: ['Higiene e limpeza', '#9b8cc4'], outros: ['Outros', '#9b8cc4'],
 };
-function Gastos({ back }) {
+function Gastos({ go, back }) {
   const [g, setG] = useState(null);
   useEffect(() => { resumoGastos().then(setG).catch(() => setG({ erro: true })); }, []);
   const serie = g?.serie || [];
   const max = Math.max(1, ...serie.map((s) => s.total || 0));
   const lojas = g?.por_loja || [];
   const lmax = Math.max(1, ...lojas.map((s) => s.total || 0));
-  // "Em que gastou": remapeia grupos → categorias de exibição (funde, soma, ordena)
+  // "Em que gastou": remapeia grupos → categorias de exibição (funde, soma, ordena);
+  // guarda os grupos-fonte de cada categoria para o drill-down dos produtos.
   const cats = (() => {
     const m = {};
     (g?.por_categoria || []).forEach((c) => { const [lbl, cor] = CAT_INFO[c.grupo] || ['Outros', '#9b8cc4'];
-      if (!m[lbl]) m[lbl] = { label: lbl, cor, total: 0 }; m[lbl].total += Number(c.total) || 0; });
+      if (!m[lbl]) m[lbl] = { label: lbl, cor, total: 0, grupos: [] }; m[lbl].total += Number(c.total) || 0; m[lbl].grupos.push(c.grupo); });
     return Object.values(m).filter((c) => c.total > 0).sort((a, b) => b.total - a.total);
   })();
   const cmax = Math.max(1, ...cats.map((c) => c.total));
@@ -587,7 +588,8 @@ function Gastos({ back }) {
             {cats.length > 0 && <>
               <div className="sec">Em que gastou</div>
               {cats.map((c) => (
-                <div className="gstore" key={c.label}><span className="gname">{c.label}</span><span className="gamt">{eur(c.total)}</span>
+                <div className="gstore gcat" key={c.label} onClick={() => go('gastoscat', { label: c.label, grupos: c.grupos, total: c.total, cor: c.cor })}>
+                  <span className="gname">{c.label} <span style={{ color: 'var(--ink-3)' }}>›</span></span><span className="gamt">{eur(c.total)}</span>
                   <div className="gtrack"><div className="gfill" style={{ width: `${Math.round(c.total / cmax * 100)}%`, background: c.cor }} /></div></div>
               ))}
             </>}
@@ -600,6 +602,30 @@ function Gastos({ back }) {
             </>}
           </>
         )}
+      </div>
+    </>
+  );
+}
+
+/* ── GASTOS · PRODUTOS DA CATEGORIA (drill-down, iguais agregados) ───────── */
+function GastosCat({ go, back, label, grupos, total, cor }) {
+  const [prods, setProds] = useState(null);
+  useEffect(() => { gastosCategoria(grupos || []).then((d) => setProds(d.produtos || [])).catch(() => setProds([])); }, [grupos]);
+  return (
+    <>
+      <Ctop title={label || 'Categoria'} sub={total != null ? `${eur(total)} no mês` : ''} back onBack={back} />
+      <div className="scrollarea">
+        {prods == null ? <p className="empty">…</p> : prods.length === 0 ? <p className="empty">Sem produtos neste mês.</p>
+          : prods.map((p, i) => (
+            <div className="frow" key={p.sku_id || p.nome || i} onClick={() => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: p.nome })}>
+              <span className="fdot" style={{ background: cor || '#9b8cc4' }}>{inicial(p.nome)}</span>
+              <div className="fb">
+                <div className="fn">{p.nome}</div>
+                <div className="fs">{p.n > 1 ? `${p.n}× compras` : '1 compra'}{p.marca ? ` · ${p.marca}` : ''}</div>
+              </div>
+              <span className="fp">{eur(p.total)}</span>
+            </div>
+          ))}
       </div>
     </>
   );
