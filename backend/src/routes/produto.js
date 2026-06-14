@@ -163,10 +163,22 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   const base = rows.find((r) => r.nome || r.marca)
     ? (() => { const r = rows.find((x) => x.nome || x.marca); return { nome: r.nome, marca: r.marca, quantidade: r.quantidade, categoria: r.categoria, fonte: r.fonte }; })()
     : null;
-  // nome PT-first por EAN (scan/busca, sem item): prefere uma fonte PT do catálogo
-  // — cross-loja por EAN, o iogurte grego scaneado no Mercadona-ES ganha o nome PT
-  // se o mesmo EAN existir no Continente/Auchan/Pingo Doce. Sem fonte PT → fica null
-  // e a ficha usa o que houver (pode ser ES).
+  // nome PT-first (scan/busca, sem item da nota). Ordem:
+  //  1) nome_canonico do SKU — a NOSSA canonicalização PT (ex.: o iogurte grego
+  //     Hacendado do Mercadona vira "Iogurte Grego Natural", como no talão);
+  //  2) catálogo, preferindo uma fonte PT por EAN (cross-loja: mesmo EAN no
+  //     Continente/Auchan dá o nome PT).
+  // Sem nada disto → fica null e a ficha usa o que houver (pode ser ES).
+  if (!nome && skuId) {
+    const [[s]] = await getPool().query('SELECT nome_canonico FROM sku_normalizado WHERE id = ?', [skuId]);
+    nome = s?.nome_canonico || null;
+  }
+  if (!nome && ean) {
+    const [[sk]] = await getPool().query(
+      `SELECT s.nome_canonico FROM item i JOIN sku_normalizado s ON s.id = i.sku_id
+        WHERE i.ean = ? AND s.nome_canonico IS NOT NULL AND s.nome_canonico <> '' ORDER BY i.id DESC LIMIT 1`, [ean]);
+    nome = sk?.nome_canonico || null;
+  }
   if (!nome && ean) {
     const [[cat]] = await getPool().query(
       `SELECT COALESCE(nome_pt, nome) AS nome FROM catalogo_produto
