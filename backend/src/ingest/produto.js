@@ -4,7 +4,7 @@
 // comparar (ambiente de teste). Ver docs/Visao_Conselheiro_Saude_Alimentar.md.
 import { config } from '../config.js';
 import { parseJsonLoose } from './extract.js';
-import { getPool } from '../db.js';
+import { getPool, parseJsonCol } from '../db.js';
 import { registrarCusto } from '../custo.js';
 
 const PROMPT = `És um extrator de RÓTULOS de produtos de supermercado. Vês uma ou mais fotos do MESMO produto, possivelmente de FACES DIFERENTES (frente, verso, lista de ingredientes, tabela nutricional, código de barras, fundo/aba com a validade). COMBINA a informação de todas as fotos. Descobre o MÁXIMO possível e devolve SÓ um objeto JSON, sem texto à volta:
@@ -373,7 +373,7 @@ export async function consultarOFF(ean) {
   try {
     const [[l]] = await getPool().query('SELECT * FROM off_produto WHERE ean = ?', [cod]);
     if (l) {
-      const j = (v) => (v == null ? null : typeof v === 'string' ? JSON.parse(v) : v);
+      const j = parseJsonCol; // fonte única (db.js) — antes faltava try/catch
       local = {
         nome: l.nome_pt || l.nome, marca: l.marca, quantidade: l.quantidade,
         categoria: l.categoria, ingredientes: l.ingredientes, alergenios: l.alergenios,
@@ -418,6 +418,6 @@ export async function consultarCatalogo(ean) {
     [ean],
   );
   if (!c) return null;
-  if (typeof c.nutricao === 'string') { try { c.nutricao = JSON.parse(c.nutricao); } catch { c.nutricao = null; } }
+  c.nutricao = parseJsonCol(c.nutricao); // coluna JSON (objeto) ou string
   return c;
 }

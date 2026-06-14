@@ -24,6 +24,17 @@ export function getPool() {
   return pool;
 }
 
+// Valor de uma coluna que guarda JSON. O mysql2 devolve OBJETO para colunas tipo
+// JSON (catalogo_produto.nutricao, produto_ean.fusao, fatura.extracao_json) e
+// STRING para colunas TEXT que guardam JSON. Aceita ambos (+ null/corrompido → null).
+// USAR ISTO, nunca JSON.parse cru sobre valor da BD — JSON.parse(objeto) rebenta.
+// Fonte ÚNICA da verdade para parse de colunas JSON.
+export function parseJsonCol(v) {
+  if (v == null) return null;
+  if (typeof v !== 'string') return v; // já vem objeto/array (coluna tipo JSON)
+  try { return JSON.parse(v); } catch { return null; }
+}
+
 export async function closePool() {
   if (pool) {
     await pool.end();

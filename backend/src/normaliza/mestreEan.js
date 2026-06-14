@@ -4,9 +4,10 @@
 // match (mais variantes de nome) e mais cheia a ficha (nutrição/categoria/imagem).
 // (NOTA: distinto de mestre.js, que é a CHAVE facetada da taxonomia.)
 import { consultarOFF } from '../ingest/produto.js';
+import { parseJsonCol } from '../db.js';
 
 const limpaEan = (e) => String(e || '').replace(/\D/g, '');
-const parseNutri = (v) => { if (!v) return null; try { return typeof v === 'string' ? JSON.parse(v) : v; } catch { return null; } };
+const parseNutri = parseJsonCol; // fonte única (db.js): coluna JSON (objeto) ou string
 
 // Nomes (todas as variantes) por EAN, em lote. Devolve Map<ean, Set<nome>>.
 export async function nomesPorEan(pool, eans) {

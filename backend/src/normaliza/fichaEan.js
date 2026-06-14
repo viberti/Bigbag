@@ -30,6 +30,7 @@ import { createHash } from 'crypto';
 import { norm, normAlfa, cortarQuantidadeNome } from './categoria.js';
 import { nutricaoPlausivel } from './validadores.js';
 import { tituloProduto } from './titulo.js';
+import { parseJsonCol } from '../db.js';
 
 const FONTES_PT = ['continente', 'auchan', 'mercadona-off', 'lidl', 'pingodoce'];
 
@@ -152,7 +153,7 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     `SELECT fonte, nome, nome_pt, marca, formato, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria,
             nutricao, ingredientes FROM catalogo_produto WHERE ean = ? AND nome IS NOT NULL AND nome <> ''`, [ean]);
   const [[offDump]] = await pool.query('SELECT * FROM off_produto WHERE ean = ?', [ean]);
-  const parse = (v) => { try { return v == null ? null : typeof v === 'string' ? JSON.parse(v) : v; } catch { return null; } };
+  const parse = parseJsonCol; // fonte única (db.js): trata coluna JSON (objeto) ou string
   // OFF: o resultado LIVE (extra.off ou off_json gravado — já curado, PT quando
   // havia) vence o dump CAMPO A CAMPO; o dump (ES/EN cru) só preenche buracos.
   // (1.º backfill: o dump escondia o off_json e ES/lixo-OCR substituía PT.)

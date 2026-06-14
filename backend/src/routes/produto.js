@@ -7,7 +7,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { requireAuth } from '../auth.js';
-import { getPool } from '../db.js';
+import { getPool, parseJsonCol } from '../db.js';
 import { config } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
@@ -34,7 +34,7 @@ const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
 // perdendo a ficha toda. Truncar é sempre melhor que perder a identificação.
 const lim = (s, n) => (s == null ? null : String(s).slice(0, n));
 
-const parseJson = (j) => { try { return j ? (typeof j === 'string' ? JSON.parse(j) : j) : null; } catch { return null; } };
+const parseJson = parseJsonCol; // alias da fonte única (db.js) — string OU objeto de coluna JSON
 
 // (consultarCatalogo vive em ingest/produto.js — partilhado com o enriquecimento;
 // desde a 047 devolve também NUTRIÇÃO oficial de loja + ingredientes do Auchan.)
@@ -73,7 +73,7 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
   }
 
   // gravar SÓ se as fontes mudaram (fontes_hash) ou a ficha ainda não tem nome
-  const hashAtual = (() => { try { return JSON.parse(atual?.fusao || 'null')?.fontes_hash; } catch { return null; } })();
+  const hashAtual = parseJson(atual?.fusao)?.fontes_hash; // fusao é coluna JSON (objeto) — parseJson trata
   if (!(atual?.nome && hashAtual === r.fusao.fontes_hash)) {
     const f = r.ficha;
     try {
@@ -195,9 +195,7 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
     const temNut = (o) => o?.nutricao_100g && Object.values(o.nutricao_100g).some((v) => v != null);
     const [[c]] = await getPool().query(
       "SELECT nutricao FROM catalogo_produto WHERE ean = ? AND nutricao IS NOT NULL AND JSON_LENGTH(nutricao) > 0 ORDER BY (fonte = 'continente') DESC, (fonte = 'auchan') DESC, id LIMIT 1", [ean]);
-    let nutCat = null;
-    // nutricao é coluna JSON → o driver pode devolver objeto OU string conforme a versão
-    if (c?.nutricao) { try { nutCat = typeof c.nutricao === 'string' ? JSON.parse(c.nutricao) : c.nutricao; } catch { /* ignora */ } }
+    let nutCat = parseJson(c?.nutricao); // coluna JSON (objeto) ou string — fonte única trata
     if (nutCat && !Object.values(nutCat).some((v) => v != null)) nutCat = null; // objeto todo-null não conta
     if (!nutCat && !temNut(off) && !temNut(vlm)) {
       try { const cont = await nutricaoContinenteLive(getPool(), ean); if (cont?.nutricao) nutCat = cont.nutricao; } catch { /* live falhou */ }
