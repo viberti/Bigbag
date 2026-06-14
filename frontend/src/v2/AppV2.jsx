@@ -14,6 +14,7 @@ import {
   listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
+import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
 import { ICON } from './icons.js';
 import { BIGBAG_MARK } from './brand.js';
 import './cartoon.css';
@@ -687,7 +688,7 @@ function GastosCat({ go, back, label, grupos, total, cor }) {
 function Recibo({ go, back, id }) {
   const [d, setD] = useState(null);
   useEffect(() => { detalhesNota(id).then(setD).catch(() => setD({ erro: true })); }, [id]);
-  const nota = d?.nota; const itens = d?.itens || [];
+  const nota = d?.nota; const itens = agregarItensTalao(d?.itens || []);
   const [c, ini] = lojaCor(nota?.loja || nota?.mercado);
   return (
     <>
@@ -696,13 +697,22 @@ function Recibo({ go, back, id }) {
         {d == null ? <p className="empty">…</p> : d.erro ? <p className="empty">Não foi possível carregar.</p> : (
           <>
             <div className="rec-band"><span className="fdot" style={{ background: c, width: 46, height: 46, borderRadius: 13, font: '800 16px var(--disp)' }}>{ini}</span>
-              <div><div style={{ font: '800 16px var(--disp)', color: 'var(--ink)' }}>{nota?.loja || nota?.mercado || 'Compra'}</div><div style={{ font: '600 12.5px var(--font)', color: 'var(--ink-2)' }}>{nota?.data || ''} · {itens.length} itens</div></div>
+              <div><div style={{ font: '800 16px var(--disp)', color: 'var(--ink)' }}>{nota?.loja || nota?.mercado || 'Compra'}</div><div style={{ font: '600 12.5px var(--font)', color: 'var(--ink-2)' }}>{dataCurta(nota?.data)} · {itens.length} {itens.length === 1 ? 'item' : 'itens'}</div></div>
               <span className="rec-tot">{eur(nota?.total)}</span></div>
-            {itens.map((p, i) => (
-              <div className="rec-item" key={i} onClick={() => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: p.produto })}>
-                <span className="ri-nm">{p.produto}</span><span className="ri-q">{p.quantidade || ''}</span><span className="ri-p">{eur(p.preco)}</span>
-              </div>
-            ))}
+            {itens.map((p, i) => {
+              const qtd = Number(p.quantidade) || 1; const linha = Number(p.preco) || 0; const unit = qtd ? linha / qtd : linha;
+              const marca = limparMarca(p.marca); const fmt = formatoProduto(p);
+              const sub = [fmt, qtd !== 1 ? `${qtd} × ${eur(unit)}` : null].filter(Boolean).join(' · ');
+              return (
+                <div className="rec-item" key={i} onClick={() => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: nomeTalao(p.produto) })}>
+                  <span className="ri-nm">
+                    {nomeTalao(p.produto)}{marca && <em className="ri-marca"> {marca}</em>}
+                    {sub && <small className="ri-sub">{sub}</small>}
+                  </span>
+                  <span className="ri-p">{eur(linha)}</span>
+                </div>
+              );
+            })}
           </>
         )}
       </div>
