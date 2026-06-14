@@ -893,7 +893,20 @@ function Perfil({ user }) {
             <span className="m-av" style={{ background: 'var(--leaf-soft)', color: 'var(--leaf-d)', border: 0 }}>{inicial(ativo?.nome || user)}</span>
             <div><div style={{ font: '800 17px var(--disp)', color: 'var(--ink)' }}>{ativo?.nome || user}</div><div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)' }}>perfil ativo · usado nos pareceres</div></div>
           </div>
-          {ativo?.resumo && <p style={{ margin: '12px 0 0', font: '500 13px/1.5 var(--font)', color: 'var(--ink)' }}>{ativo.resumo}</p>}
+          {/* resumo pode ser STRING (legado) ou OBJETO estruturado ({notas, restricoes…}).
+              Renderizar o objeto direto crashava a tela — extrai texto + chips com segurança. */}
+          {(() => {
+            const r = ativo?.resumo; if (!r) return null;
+            if (typeof r === 'string') return r.trim() ? <p style={{ margin: '12px 0 0', font: '500 13px/1.5 var(--font)', color: 'var(--ink)' }}>{r}</p> : null;
+            const arr = (x) => (Array.isArray(x) ? x : []).filter((v) => typeof v === 'string' && v.trim());
+            const chips = [...arr(r.preferir), ...arr(r.evitar), ...arr(r.restricoes), ...arr(r.alergias), ...arr(r.intolerancias)].slice(0, 8);
+            const notas = typeof r.notas === 'string' ? r.notas : '';
+            if (!notas && !chips.length) return null;
+            return (<>
+              {notas && <p style={{ margin: '12px 0 0', font: '500 13px/1.5 var(--font)', color: 'var(--ink)' }}>{notas}</p>}
+              {chips.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>{chips.map((c, i) => <span key={i} className="hpill good">{c}</span>)}</div>}
+            </>);
+          })()}
         </div>
 
         {(perfis || []).length > 0 && <>
