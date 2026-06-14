@@ -4,7 +4,8 @@
 // ./brand.js). Router próprio (tela + pilha de voltar). A v1 (App.jsx) fica intacta.
 // NOTA (fase protótipo): copy PT-BR embutido como no handoff; passar por i18n depois.
 // ──────────────────────────────────────────────────────────────────────────
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { norm as normCat, singularizar } from '../../../backend/src/normaliza/categoria.js';
 import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
@@ -607,24 +608,47 @@ function Gastos({ go, back }) {
   );
 }
 
-/* ── GASTOS · PRODUTOS DA CATEGORIA (drill-down, iguais agregados) ───────── */
+/* ── GASTOS · CATEGORIA → TIPOS → PRODUTOS (2 níveis, iguais agregados) ───── */
+// tipo = palavra-cabeça do nome, singularizada ("Queijo Minas"→queijo, "Ovos"→ovo)
+function tipoDe(nome) {
+  const w = normCat(nome).replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/)[0] || '';
+  return singularizar(w) || w || 'outros';
+}
+function agruparTipo(prods) {
+  const m = {};
+  prods.forEach((p) => { const k = tipoDe(p.nome);
+    if (!m[k]) m[k] = { tipo: k, total: 0, prods: [] }; m[k].total += Number(p.total) || 0; m[k].prods.push(p); });
+  return Object.values(m).map((t) => ({ ...t, label: t.tipo.charAt(0).toUpperCase() + t.tipo.slice(1) + (t.prods.length > 1 ? 's' : '') }))
+    .sort((a, b) => b.total - a.total);
+}
 function GastosCat({ go, back, label, grupos, total, cor }) {
   const [prods, setProds] = useState(null);
+  const [tipo, setTipo] = useState(null); // null = ver TIPOS · string = ver produtos do tipo
   useEffect(() => { gastosCategoria(grupos || []).then((d) => setProds(d.produtos || [])).catch(() => setProds([])); }, [grupos]);
+  const tipos = useMemo(() => agruparTipo(prods || []), [prods]);
+  const atual = tipos.find((t) => t.tipo === tipo);
+  const lista = atual ? atual.prods : null;
+  const Linha = (p, i) => (
+    <div className="frow" key={p.sku_id || p.nome || i} onClick={() => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: p.nome })}>
+      <span className="fdot" style={{ background: cor || '#9b8cc4' }}>{inicial(p.nome)}</span>
+      <div className="fb"><div className="fn">{p.nome}</div><div className="fs">{p.n > 1 ? `${p.n}× compras` : '1 compra'}{p.marca ? ` · ${p.marca}` : ''}</div></div>
+      <span className="fp">{eur(p.total)}</span>
+    </div>
+  );
   return (
     <>
-      <Ctop title={label || 'Categoria'} sub={total != null ? `${eur(total)} no mês` : ''} back onBack={back} />
+      <Ctop title={atual ? atual.label : (label || 'Categoria')} sub={`${eur(atual ? atual.total : total)} no mês`} back onBack={() => (tipo ? setTipo(null) : back())} />
       <div className="scrollarea">
-        {prods == null ? <p className="empty">…</p> : prods.length === 0 ? <p className="empty">Sem produtos neste mês.</p>
-          : prods.map((p, i) => (
-            <div className="frow" key={p.sku_id || p.nome || i} onClick={() => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: p.nome })}>
-              <span className="fdot" style={{ background: cor || '#9b8cc4' }}>{inicial(p.nome)}</span>
-              <div className="fb">
-                <div className="fn">{p.nome}</div>
-                <div className="fs">{p.n > 1 ? `${p.n}× compras` : '1 compra'}{p.marca ? ` · ${p.marca}` : ''}</div>
-              </div>
-              <span className="fp">{eur(p.total)}</span>
-            </div>
+        {prods == null ? <p className="empty">…</p>
+          : lista ? lista.map(Linha)
+          : tipos.length === 0 ? <p className="empty">Sem produtos neste mês.</p>
+          : tipos.map((t) => (
+            t.prods.length === 1 ? Linha(t.prods[0], t.tipo)
+              : <div className="frow" key={t.tipo} onClick={() => setTipo(t.tipo)}>
+                  <span className="fdot" style={{ background: cor || '#9b8cc4' }}>{inicial(t.label)}</span>
+                  <div className="fb"><div className="fn">{t.label}</div><div className="fs">{t.prods.length} produtos</div></div>
+                  <span className="fp">{eur(t.total)} ›</span>
+                </div>
           ))}
       </div>
     </>
