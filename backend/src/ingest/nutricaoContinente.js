@@ -85,15 +85,16 @@ export function extrairNutricaoContinente(frag) {
 // em catalogo_produto. Devolve { nutricao, nutricao_base, ingredientes } ou null
 // (não é Continente, ou sem tabela). Usado on-demand quando um scan não tem nutrição.
 const UA_LIVE = 'Mozilla/5.0 (compatible; BigbagBot/0.1; +catalogo pessoal)';
-async function fetchTextLive(url, ms = 12000) {
+async function fetchTextLive(url, signal) {
   try {
-    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), ms);
-    const r = await fetch(url, { headers: { 'User-Agent': UA_LIVE }, signal: ctrl.signal });
-    clearTimeout(t);
+    const r = await fetch(url, { headers: { 'User-Agent': UA_LIVE }, signal });
     return r.ok ? await r.text() : null;
-  } catch { return null; }
+  } catch { return null; } // inclui o abort por estouro do orçamento
 }
-export async function nutricaoContinenteLive(pool, ean) {
+// orcamentoMs = teto ÚNICO partilhado pelos 2 fetches (página + fragmento). Mesmo
+// que o Continente esteja lento, o scan nunca fica preso além deste tempo — passado
+// o orçamento, devolve null (o produto mostra-se sem esta tabela; fica para a próxima).
+export async function nutricaoContinenteLive(pool, ean, { orcamentoMs = 6000 } = {}) {
   const e = String(ean || '').replace(/\D/g, '');
   if (!e) return null;
   const [[row]] = await pool.query(
@@ -101,9 +102,10 @@ export async function nutricaoContinenteLive(pool, ean) {
       WHERE ean = ? AND fonte = 'continente' AND url IS NOT NULL AND url <> '' ORDER BY id LIMIT 1`, [e]);
   if (!row) return null; // não é vendido no Continente
   if (row.nutricao && row.nutricao !== '{}') { try { return { nutricao: JSON.parse(row.nutricao) }; } catch { /* segue p/ buscar */ } }
-  const page = await fetchTextLive(row.url); if (!page) return null;
+  const signal = AbortSignal.timeout(orcamentoMs); // deadline partilhado pelos dois fetches abaixo
+  const page = await fetchTextLive(row.url, signal); if (!page) return null;
   const ep = urlTabNutricional(page); if (!ep) return null;
-  const frag = await fetchTextLive(ep); if (!frag) return null;
+  const frag = await fetchTextLive(ep, signal); if (!frag) return null;
   const r = extrairNutricaoContinente(frag);
   if (r.nutricao || r.ingredientes) {
     await pool.query(
