@@ -171,7 +171,7 @@ function Home({ go, nome }) {
             ['recipe', 'Receitas', () => go('receitas'), 'var(--coral)'],
             ['compare', 'Comparar', () => go('comparar'), undefined],
             ['talao', 'Despensa', () => go('despensa'), 'var(--amber-d)'],
-            ['chart', 'Gastos', () => go('notas'), 'var(--sky)']].map(([ic, lb, on, col]) => (
+            ['chart', 'Gastos', () => go('gastos'), 'var(--sky)']].map(([ic, lb, on, col]) => (
             <button key={lb} className="round-act" onClick={on}>
               <span className="circ" style={col ? { color: col } : undefined}><Ico name={ic} size={24} stroke={2} /></span><b>{lb}</b>
             </button>
@@ -545,7 +545,15 @@ function Notas({ go, back }) {
   );
 }
 
-/* ── ANÁLISE DE GASTOS ───────────────────────────────────────────────────── */
+/* ── ANÁLISE DE GASTOS (+ "Em que gastou" por tipo de item) ──────────────── */
+const mesCurto = (m) => { const s = MES[(Number(m) || 1) - 1] || ''; return s.charAt(0).toUpperCase() + s.slice(1); };
+// grupo (lente de loja) → categoria de exibição + cor (carne+peixe fundem em "Talho e peixe")
+const CAT_INFO = {
+  frutas: ['Frutas e vegetais', '#5a9f57'], lacticinios: ['Laticínios', '#67b2c9'], mercearia: ['Mercearia', '#e6a23c'],
+  carne: ['Talho e peixe', '#e0734f'], peixe: ['Talho e peixe', '#e0734f'], padaria: ['Padaria', '#d8a657'],
+  congelados: ['Congelados', '#7fb0c9'], bebidas: ['Bebidas', '#8ab0e0'], doces: ['Doces e snacks', '#cf8db0'],
+  higiene: ['Higiene e limpeza', '#9b8cc4'], outros: ['Outros', '#9b8cc4'],
+};
 function Gastos({ back }) {
   const [g, setG] = useState(null);
   useEffect(() => { resumoGastos().then(setG).catch(() => setG({ erro: true })); }, []);
@@ -553,20 +561,35 @@ function Gastos({ back }) {
   const max = Math.max(1, ...serie.map((s) => s.total || 0));
   const lojas = g?.por_loja || [];
   const lmax = Math.max(1, ...lojas.map((s) => s.total || 0));
+  // "Em que gastou": remapeia grupos → categorias de exibição (funde, soma, ordena)
+  const cats = (() => {
+    const m = {};
+    (g?.por_categoria || []).forEach((c) => { const [lbl, cor] = CAT_INFO[c.grupo] || ['Outros', '#9b8cc4'];
+      if (!m[lbl]) m[lbl] = { label: lbl, cor, total: 0 }; m[lbl].total += Number(c.total) || 0; });
+    return Object.values(m).filter((c) => c.total > 0).sort((a, b) => b.total - a.total);
+  })();
+  const cmax = Math.max(1, ...cats.map((c) => c.total));
   return (
     <>
-      <Ctop title="Análise de gastos" sub={g?.atual?.mes || ''} back onBack={back} />
+      <Ctop title="Análise de gastos" sub={g?.atual?.mes ? mesCurto(g.atual.mes) : ''} back onBack={back} />
       <div className="scrollarea">
         {g == null ? <p className="empty">…</p> : g.erro ? <p className="empty">Não foi possível carregar.</p> : (
           <>
-            <div className="ghero"><div className="gh-l"><div className="k">Gasto no mês</div><div className="v">{eur(g.atual?.total)}</div></div>
+            <div className="ghero"><div className="gh-l"><div className="k">Gasto em {g.atual?.mes ? mesCurto(g.atual.mes) : 'este mês'}</div><div className="v">{eur(g.atual?.total)}</div></div>
               <div className="gh-r">{g.variacao != null && <span className="gchip">{g.variacao <= 0 ? '▼' : '▲'} {Math.abs(Math.round(g.variacao))}% vs anterior</span>}<span className="gmed">média<br /><b>{eur(g.media)}</b>/mês</span></div></div>
             {serie.length > 0 && <>
               <div className="sec">Últimos meses</div>
               <div className="gbars">{serie.slice(-4).map((s, i, a) => (
                 <div className="gcol" key={i}><span className="gv">{Math.round(s.total || 0)}</span>
-                  <div className={`gbar ${i === a.length - 1 ? 'on' : ''}`} style={{ height: `${Math.max(8, Math.round((s.total || 0) / max * 92))}%` }} /><b>{s.mes || ''}</b></div>
+                  <div className={`gbar ${i === a.length - 1 ? 'on' : ''}`} style={{ height: `${Math.max(8, Math.round((s.total || 0) / max * 92))}%` }} /><b>{mesCurto(s.mes)}</b></div>
               ))}</div>
+            </>}
+            {cats.length > 0 && <>
+              <div className="sec">Em que gastou</div>
+              {cats.map((c) => (
+                <div className="gstore" key={c.label}><span className="gname">{c.label}</span><span className="gamt">{eur(c.total)}</span>
+                  <div className="gtrack"><div className="gfill" style={{ width: `${Math.round(c.total / cmax * 100)}%`, background: c.cor }} /></div></div>
+              ))}
             </>}
             {lojas.length > 0 && <>
               <div className="sec">Onde gastou</div>

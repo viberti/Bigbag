@@ -308,7 +308,18 @@ faturasRouter.get('/gastos', requireAuth, async (req, res) => {
         FROM fatura f JOIN loja l ON l.id = f.loja_id
        WHERE YEAR(f.data_compra) = ? AND MONTH(f.data_compra) = ?
        GROUP BY loja ORDER BY total DESC`, [hoje.y, hoje.m]);
-    res.json({ atual, anterior, media, total_geral, variacao, serie, por_loja });
+    // "Em que gastou" — gasto por GRUPO do item (lente de loja, estável por SKU).
+    // Inclui clearance (é dinheiro gasto), exclui não-produto (saco/taxa) e faturas
+    // por rever. Itens sem SKU/grupo caem em 'outros'. Soma ≈ total do mês (aprox.).
+    const [por_categoria] = await getPool().query(`
+      SELECT COALESCE(s.grupo, 'outros') AS grupo, ROUND(SUM(i.preco_liquido), 2) AS total
+        FROM item i
+        JOIN fatura f ON f.id = i.fatura_id
+        LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+       WHERE YEAR(f.data_compra) = ? AND MONTH(f.data_compra) = ?
+         AND i.is_non_product = FALSE AND f.needs_review = FALSE AND i.preco_liquido IS NOT NULL
+       GROUP BY grupo ORDER BY total DESC`, [hoje.y, hoje.m]);
+    res.json({ atual, anterior, media, total_geral, variacao, serie, por_loja, por_categoria });
   } catch (e) {
     console.error('[faturas/gastos] erro:', e.message);
     res.status(500).json({ erro: 'Falha a calcular gastos' });
