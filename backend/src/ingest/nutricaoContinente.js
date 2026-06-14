@@ -54,8 +54,12 @@ export function extrairNutricaoContinente(frag) {
     const r = rows.find((c) => reNome.test(c[0]) && (!reUni || reUni.test(c[2] || '')) && numPt(c[1]) != null);
     return r ? numPt(r[1]) : null;
   };
+  // energia: kcal é SEMPRE o MENOR das linhas de energia (kJ ≈ 4,184×kcal). Não
+  // confiar no rótulo (E14/KJO) — o Continente às vezes TROCA os valores entre eles
+  // (ex.: Tagliatelle, "(E14) Quilocaloria" trazia 1151 e "(KJO) Quilojoule" 272).
+  const energias = rows.filter((c) => /energia/.test(c[0]) && numPt(c[1]) != null).map((c) => numPt(c[1]));
   const nut = {
-    energia_kcal: find(/energia/, /caloria|kcal|e14/),  // energia em kcal (não kJ)
+    energia_kcal: energias.length ? Math.min(...energias) : null,
     gordura: find(/^l[ií]pidos$/),
     gordura_saturada: find(/saturad/),
     hidratos: find(/^hidratos de carbono$/),
