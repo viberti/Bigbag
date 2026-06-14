@@ -408,6 +408,53 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
   }
 });
 
+// ── HISTÓRICO de produtos CONSULTADOS ────────────────────────────────────────
+// Cada ficha aberta regista o produto (sinal de interesse). Guardamos TODOS — uma
+// linha por produto (chave deduplica: EAN > SKU > nome normalizado), com nº de
+// consultas e recência. A tela mostra os mais recentes; o resto fica registado.
+function chaveHistorico({ ean, sku_id, nome }) {
+  const e = String(ean || '').replace(/\D/g, '');
+  if (eanValido(e)) return `e:${e}`;
+  if (sku_id) return `s:${sku_id}`;
+  const n = normN(nome || '');
+  return n ? `n:${n}` : null;
+}
+produtoRouter.post('/historico', requireAuth, async (req, res) => {
+  try {
+    const { ean = null, sku_id = null, nome = '', marca = null } = req.body || {};
+    if (!nome) return res.status(400).json({ erro: 'nome em falta' });
+    const chave = chaveHistorico({ ean, sku_id, nome });
+    if (!chave) return res.status(400).json({ erro: 'sem chave' });
+    const eanLimpo = String(ean || '').replace(/\D/g, '');
+    await getPool().query(
+      `INSERT INTO historico_produto (utilizador, chave, ean, sku_id, nome, marca)
+       VALUES (?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE n_consultas = n_consultas + 1, ultima_em = CURRENT_TIMESTAMP,
+         nome = VALUES(nome), marca = COALESCE(VALUES(marca), marca),
+         ean = COALESCE(VALUES(ean), ean), sku_id = COALESCE(VALUES(sku_id), sku_id)`,
+      [req.user.id, chave, eanValido(eanLimpo) ? eanLimpo : null, Number(sku_id) || null,
+        String(nome).slice(0, 255), marca ? String(marca).slice(0, 140) : null]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[produto/historico POST] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a registar histórico' });
+  }
+});
+produtoRouter.get('/historico', requireAuth, async (req, res) => {
+  try {
+    const limite = Math.min(Math.max(Number(req.query.limite) || 10, 1), 100);
+    const [produtos] = await getPool().query(
+      `SELECT ean, sku_id, nome, marca, n_consultas, ultima_em, primeira_em
+       FROM historico_produto WHERE utilizador = ? ORDER BY ultima_em DESC LIMIT ${limite}`,
+      [req.user.id]);
+    const [[c]] = await getPool().query('SELECT COUNT(*) total FROM historico_produto WHERE utilizador = ?', [req.user.id]);
+    res.json({ produtos, total: c.total });
+  } catch (e) {
+    console.error('[produto/historico GET] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar histórico' });
+  }
+});
+
 // Toda a info que TEMOS de um produto, consolidada (por item da nota OU por EAN).
 // Junta as várias linhas de produto_ean do item (ex.: uma com EAN+nutrição, outra
 // só com ingredientes) num único vlm/off, e lista as fotos guardadas.

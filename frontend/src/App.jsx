@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, adicionarDespensa, removerDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, matchFoto, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto } from './api.js';
+import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, adicionarDespensa, removerDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, matchFoto, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto, registarHistoricoProduto, listarHistoricoProduto } from './api.js';
 import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 // CLASSIFICACAO/NORMALIZACAO PARTILHADA com o backend (unificação 2026-06-13 —
 // a revisão achou vocabulários paralelos front/back a divergir). Módulo PURO.
@@ -346,6 +346,9 @@ function Chat({ onSair, nome }) {
   const [gastosAberto, setGastosAberto] = useState(false);
   const [gastosDados, setGastosDados] = useState(null); // null=a carregar · {erro} em falha
   const abrirGastos = () => abrirComCache('gastos', setGastosAberto, setGastosDados, resumoGastos, { erro: true });
+  const [historicoAberto, setHistoricoAberto] = useState(false);
+  const [historicoDados, setHistoricoDados] = useState(null); // null=a carregar · {erro} em falha
+  const abrirHistorico = () => abrirComCache('historico', setHistoricoAberto, setHistoricoDados, () => listarHistoricoProduto(10), { erro: true });
   const [porIdentAberto, setPorIdentAberto] = useState(false);
   const [porIdentLista, setPorIdentLista] = useState(null); // null=a carregar · []=vazio
   // Capturas pendentes (item_id → {item_id, ean, nome, fotos[]}), persistidas em
@@ -1032,6 +1035,7 @@ function Chat({ onSair, nome }) {
             <button onClick={() => { setMenuAberto(false); fotoMatchRef.current?.click(); track('match_foto_abrir', { via: 'menu' }); }}><Ico name="camera" size={18} /> {t('menu.buscarFoto')}</button>
             <button onClick={() => { setMenuAberto(false); abrirGastos(); }}><Ico name="gastos" size={18} /> {t('menu.gastos')}</button>
             <button onClick={() => { setMenuAberto(false); abrirPorIdentificar(); }}><Ico name="camera" size={18} /> {t('menu.porident')}</button>
+            <button onClick={() => { setMenuAberto(false); abrirHistorico(); track('historico_abrir'); }}><Ico name="historico" size={18} /> {t('menu.historico')}</button>
             <div className="cap-menu-sep" />
             <button onClick={() => { window.location.href = '/diag'; }}><Ico name="scan" size={18} /> {t('menu.diag')}</button>
           </div>
@@ -1106,6 +1110,8 @@ function Chat({ onSair, nome }) {
       <DespensaSheet aberto={despensaAberto} produtos={despensaLista} novoEan={despensaNovoEan} onFechar={() => setDespensaAberto(false)} onInfo={setInfoItem} onRemover={removerDaDespensa}
         onScan={() => { scanDespensaRef.current = true; setDespensaAberto(false); setScannerAberto(true); track('scanner_abrir', { via: 'despensa' }); }} />
       <GastosSheet aberto={gastosAberto} dados={gastosDados} onFechar={() => setGastosAberto(false)} />
+      <HistoricoSheet aberto={historicoAberto} dados={historicoDados} onFechar={() => setHistoricoAberto(false)}
+        onInfo={(it) => { setHistoricoAberto(false); setInfoItem(it); }} />
       <PorIdentificarSheet
         aberto={porIdentAberto}
         itens={porIdentLista}
@@ -2269,6 +2275,56 @@ function CapturaIdentSheet({ item, capturaExistente, onGuardado, onFechar }) {
   );
 }
 
+// Histórico de produtos CONSULTADOS: a tela mostra os mais recentes (servidor
+// guarda TODOS). Cada linha reabre a ficha. Mesma estética da lista/despensa
+// (nome + marca noutra cor); subtítulo = quando + nº de consultas se >1.
+function HistoricoSheet({ aberto, dados, onFechar, onInfo }) {
+  const quando = (s) => {
+    const t0 = tsData(s); if (!t0) return '';
+    const dias = Math.floor((Date.now() - t0) / 86400000);
+    if (dias <= 0) return t('hist.hoje');
+    if (dias === 1) return t('hist.ontem');
+    if (dias < 30) return t('hist.haDias', { n: dias });
+    return new Date(t0).toLocaleDateString('pt-BR');
+  };
+  const produtos = dados && !dados.erro ? dados.produtos : null;
+  return (
+    <>
+      <div className={`scrim ${aberto ? 'open' : ''}`} onClick={onFechar} />
+      <section className={`sheet ${aberto ? 'open' : ''}`} aria-label={t('hist.title')}>
+        <div className="sheet-h">
+          <Mark size={30} chip />
+          <span className="t">{t('hist.title')}{dados?.total ? ` · ${dados.total}` : ''}</span>
+          <button className="sheet-x" onClick={onFechar} aria-label="fechar"><Ico name="close" size={18} /></button>
+        </div>
+        <div className="cart-list">
+          {dados === null ? (
+            <p className="sheet-vazio">{t('chat.thinking')}</p>
+          ) : dados.erro ? (
+            <p className="sheet-vazio">{t('hist.falha')}</p>
+          ) : produtos.length === 0 ? (
+            <p className="sheet-vazio">{t('hist.vazio')}</p>
+          ) : (
+            produtos.map((p, i) => {
+              const f = formatarNomeLista(p.nome, p.marca, tipoConsumidor(null, p.nome, p.marca));
+              return (
+                <div className="crow-li" key={`${p.ean || p.sku_id || p.nome}-${i}`}>
+                  <div className="crow" onClick={() => onInfo({ ean: p.ean, sku_id: p.sku_id, produto: p.nome, marca: p.marca })}>
+                    <span className="cnwrap">
+                      <span className="cn">{f.core}{f.marca ? <span className="cn-marca"> {f.marca}</span> : null}</span>
+                      <span className="csub">{quando(p.ultima_em)}{p.n_consultas > 1 ? ` · ${p.n_consultas}×` : ''}</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
 // Gastos: análise dos gastos de mercado (mês atual, anterior, média, por mês e
 // por loja) em cards, para acompanhar as despesas domésticas.
 function GastosSheet({ aberto, dados, onFechar }) {
@@ -3147,6 +3203,10 @@ function ProdutoInfoSheet({ item, onFechar, onFotografar }) {
   const [alt, setAlt] = useState(null); // alternativas similares (mesmo grupo)
   useEffect(() => {
     if (!item) return;
+    // histórico: cada ficha aberta regista o produto (fire-and-forget; apanha todas
+    // as origens — scan, foto, lista, despensa, busca — por estar no único sítio que
+    // todas atravessam). A marca chega depois (via `info`); aqui vai o que há à mão.
+    registarHistoricoProduto({ ean: item.ean, skuId: item.sku_id, nome: item.produto, marca: item.marca });
     setAlt(null);
     if (item.id || item.ean || item.sku_id) {
       alternativasProduto({ itemId: item.id, ean: item.ean, skuId: item.sku_id })
