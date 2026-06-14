@@ -1,17 +1,8 @@
-<svg width="1024" height="1024" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <radialGradient id="g" cx="50%" cy="38%" r="75%">
-      <stop offset="0" stop-color="#1b8f63"></stop><stop offset="55%" stop-color="#0c3b32"></stop><stop offset="100%" stop-color="#06201d"></stop>
-    </radialGradient>
-    <radialGradient id="s" cx="50%" cy="40%" r="42%">
-      <stop offset="0" stop-color="rgba(70,222,150,.85)"></stop><stop offset="100%" stop-color="rgba(70,222,150,0)"></stop>
-    </radialGradient>
-  </defs>
-  <rect x="0" y="0" width="100" height="100" rx="23" fill="url(#g)"></rect>
-  <rect x="0" y="0" width="100" height="100" rx="23" fill="url(#s)"></rect>
-    <path d="M37 35 C37 19, 63 19, 63 35" stroke="#bdf3d4" stroke-width="5.4" stroke-linecap="round" fill="none"></path>
-    <path d="M24.5 33 H75.5 a5 5 0 0 1 4.98 5.44 l-3.3 39.6 A8 8 0 0 1 73.2 85 H26.8 a8 8 0 0 1-7.97-7.36 l-3.3-39.6 A5 5 0 0 1 24.5 33 Z" fill="#eafff3"></path>
-    <path d="M24.5 33 H75.5 a5 5 0 0 1 4.98 5.44 l-.62 7.4 A3 3 0 0 1 76.9 48.8 H23.1 A3 3 0 0 1 20.14 45.84 l-.62-7.4 A5 5 0 0 1 24.5 33 Z" fill="#bdf3d4"></path>
-    <circle cx="41" cy="63" r="3.4" fill="#0a3b2c"></circle><circle cx="59" cy="63" r="3.4" fill="#0a3b2c"></circle>
-    <path d="M39.6 71.5 C44 78, 56 78, 60.4 71.5" stroke="#0a3b2c" stroke-width="4" stroke-linecap="round" fill="none"></path>
-    <path d="M73 20 L75 25.4 L80.4 27.4 L75 29.4 L73 34.8 L71 29.4 L65.6 27.4 L71 25.4 Z" fill="#ffffff"></path></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="23" fill="#86c43b"></rect><circle cx="50" cy="50" r="46" fill="#7ab534" opacity=".5"></circle>
+  <path d="M34 33 C34 19, 66 19, 66 33" stroke="#e7e0cb" stroke-width="6" stroke-linecap="round" fill="none"></path>
+  <path d="M22 31 H78 a5 5 0 0 1 4.97 5.5 l-3.4 40 A8 8 0 0 1 71.6 84 H28.4 a8 8 0 0 1-7.97-7.5 l-3.4-40 A5 5 0 0 1 22 31 Z" fill="#fbfdf6"></path>
+  <path d="M22 31 H78 a5 5 0 0 1 4.97 5.5 l-.62 7.3 A3 3 0 0 1 79.36 46 H20.64 A3 3 0 0 1 17.65 43.8 l-.62-7.3 A5 5 0 0 1 22 31 Z" fill="#e7e0cb"></path>
+  <ellipse cx="38" cy="64" rx="5" ry="4.6" fill="#f0cdb0"></ellipse><ellipse cx="62" cy="64" rx="5" ry="4.6" fill="#f0cdb0"></ellipse>
+  <circle cx="41" cy="60" r="3.4" fill="#3f7340"></circle><circle cx="59" cy="60" r="3.4" fill="#3f7340"></circle>
+  <path d="M40 69 C44 74, 56 74, 60 69" stroke="#3f7340" stroke-width="3.4" stroke-linecap="round" fill="none"></path></svg>
