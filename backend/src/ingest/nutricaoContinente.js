@@ -101,7 +101,14 @@ export async function nutricaoContinenteLive(pool, ean, { orcamentoMs = 6000 } =
     `SELECT id, url, nutricao FROM catalogo_produto
       WHERE ean = ? AND fonte = 'continente' AND url IS NOT NULL AND url <> '' ORDER BY id LIMIT 1`, [e]);
   if (!row) return null; // não é vendido no Continente
-  if (row.nutricao && row.nutricao !== '{}') { try { return { nutricao: JSON.parse(row.nutricao) }; } catch { /* segue p/ buscar */ } }
+  // CACHE: nutricao é coluna JSON → o driver pode devolver OBJETO ou string. Trata
+  // ambos (JSON.parse(objeto) rebentava → re-scrape em cada consulta). Só serve o
+  // cache se tiver ao menos um valor real (objeto all-null não conta → vai buscar).
+  if (row.nutricao != null) {
+    let cache = null;
+    try { cache = typeof row.nutricao === 'string' ? JSON.parse(row.nutricao) : row.nutricao; } catch { /* corrompido → busca */ }
+    if (cache && typeof cache === 'object' && Object.values(cache).some((v) => v != null)) return { nutricao: cache };
+  }
   const signal = AbortSignal.timeout(orcamentoMs); // deadline partilhado pelos dois fetches abaixo
   const page = await fetchTextLive(row.url, signal); if (!page) return null;
   const ep = urlTabNutricional(page); if (!ep) return null;

@@ -122,6 +122,21 @@ function LoginV2({ onEntrar }) {
 }
 
 /* ── shell + router ──────────────────────────────────────────────────────── */
+// Talão partilhado (Share Target/Android): o SW guardou o ficheiro nesta cache
+// antes de reencaminhar para /?compartilhado=1. Lê-o uma vez e apaga-o. (Mesma
+// mecânica da v1 — replicada aqui porque a v1 está congelada e a v2 é o default.)
+async function lerTalaoPartilhado() {
+  try {
+    if (!('caches' in window)) return null;
+    const cache = await caches.open('bigbag-partilha');
+    const res = await cache.match('/__talao_partilhado');
+    if (!res) return null;
+    const blob = await res.blob();
+    const nome = decodeURIComponent(res.headers.get('X-Nome') || 'talao');
+    await cache.delete('/__talao_partilhado');
+    return new File([blob], nome, { type: blob.type || 'image/jpeg' });
+  } catch { return null; }
+}
 const TABS = new Set(['home', 'lista', 'historico', 'perfil']);
 function Shell({ nome, onSair }) {
   const [view, setView] = useState({ id: 'home', p: {} });
@@ -136,6 +151,13 @@ function Shell({ nome, onSair }) {
   const back = useCallback(() => {
     setView(() => stack.current.pop() || { id: 'home', p: {} });
   }, []);
+  // Share Target: se viemos de /?compartilhado=1, lê o ficheiro guardado pelo SW
+  // e abre as Compras a enviá-lo (a v1 fazia isto; sem isto a partilha some).
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('compartilhado')) return;
+    window.history.replaceState(null, '', '/');
+    (async () => { const file = await lerTalaoPartilhado(); if (file) go('notas', { partilhado: file }); })();
+  }, [go]);
   const navCur = TABS.has(view.id) ? view.id : null;
   const common = { go, back, user: nome, onSair }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
   const Screen = {
@@ -534,17 +556,21 @@ function Despensa({ go, back }) {
 
 /* ── MINHAS COMPRAS (notas) — hero do mês + filtro de loja + meses + FAB ──── */
 const MESF = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-function Notas({ go, back }) {
+function Notas({ go, back, partilhado }) {
   const [notas, setNotas] = useState(null);
   const [filtro, setFiltro] = useState('todas');
   const [enviando, setEnviando] = useState(false);
   const fileRef = useRef(null);
+  const partilhadoEnviado = useRef(false);
   const carregar = useCallback(() => { listarNotas().then(setNotas).catch(() => setNotas([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
-  async function lerTalao(e) {
-    const f = e.target.files?.[0]; if (!f) return; setEnviando(true);
-    try { await enviarFatura(f, 'v2'); carregar(); } catch { /* falha silenciosa */ } finally { setEnviando(false); e.target.value = ''; }
-  }
+  const enviar = useCallback(async (f) => {
+    if (!f) return; setEnviando(true);
+    try { await enviarFatura(f, 'v2'); carregar(); } catch { /* falha silenciosa */ } finally { setEnviando(false); }
+  }, [carregar]);
+  async function lerTalao(e) { const f = e.target.files?.[0]; await enviar(f); e.target.value = ''; }
+  // talão chegado por partilha (Share Target): envia 1× ao montar
+  useEffect(() => { if (partilhado && !partilhadoEnviado.current) { partilhadoEnviado.current = true; enviar(partilhado); } }, [partilhado, enviar]);
   const lista = notas || [];
   const nomeLoja = (n) => n.loja || n.mercado || 'Outro';
   const mesDe = (n) => { const d = new Date(n.data); return Number.isNaN(d.getTime()) ? { k: -1, l: '—' } : { k: d.getFullYear() * 12 + d.getMonth(), l: MESF[d.getMonth()] }; };

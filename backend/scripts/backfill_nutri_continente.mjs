@@ -79,7 +79,7 @@ const [prio] = await pool.query(
      FROM historico_produto h
      JOIN catalogo_produto cp ON cp.ean = h.ean COLLATE utf8mb4_0900_ai_ci AND cp.fonte='continente'
     WHERE h.ean IS NOT NULL AND cp.url IS NOT NULL AND cp.url <> ''
-      AND (cp.nutricao IS NULL OR cp.nutricao='' OR cp.nutricao='{}')
+      AND (cp.nutricao IS NULL OR JSON_LENGTH(cp.nutricao) = 0)
     GROUP BY cp.id, cp.url
     ORDER BY MAX(h.n_consultas) DESC, MAX(h.ultima_em) DESC`);
 if (prio.length) {
