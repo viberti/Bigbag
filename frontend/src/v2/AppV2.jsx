@@ -569,7 +569,7 @@ function Notas({ go, back }) {
       </div>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={lerTalao} />
       <button className="fab-talao" onClick={() => fileRef.current?.click()}>
-        <span className="c"><Ico name="camera" size={20} stroke={2.2} color="#f4fff0" /></span>{enviando ? 'A ler…' : 'Ler talão'}
+        <span className="c"><Ico name="camera" size={20} stroke={2.2} color="#f4fff0" /></span>{enviando ? 'Lendo a nota…' : 'Ler talão'}
       </button>
     </>
   );
@@ -706,12 +706,15 @@ function Recibo({ go, back, id }) {
               const qtd = Number(p.quantidade) || 1; const linha = Number(p.preco) || 0; const unit = qtd ? linha / qtd : linha;
               const marca = limparMarca(p.marca); const fmt = formatoProduto(p);
               const sub = [fmt, qtd !== 1 ? `${qtd} × ${eur(unit)}` : null].filter(Boolean).join(' · ');
+              const temFicha = !!p.tem_dados || p.tipo_alimento === 'fresco'; // senão, precisa de identificação
+              const identificar = () => go('scanner', { somente: ['codigo', 'produto'] }); // = consultar produto, só scan/foto
               return (
-                <div className="rec-item" key={i} onClick={() => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: nomeTalao(p.produto) })}>
+                <div className="rec-item" key={i} onClick={() => (temFicha ? go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: nomeTalao(p.produto) }) : identificar())}>
                   <span className="ri-nm">
                     {nomeTalao(p.produto)}{marca && <em className="ri-marca">{marca}</em>}
                     {sub && <small className="ri-sub">{sub}</small>}
                   </span>
+                  {!temFicha && <button className="ri-cam" title="Identificar produto" onClick={(e) => { e.stopPropagation(); identificar(); }}><Ico name="camera" size={17} stroke={2} color="#3f7a3f" /></button>}
                   <span className="ri-p">{eur(linha)}</span>
                 </div>
               );
@@ -795,7 +798,7 @@ function Receitas({ back }) {
 }
 
 /* ── CONSULTAR PRODUTO: Código (barras) · Produto (foto ao vivo) ─────────── */
-function Scanner({ go, back }) {
+function Scanner({ go, back, somente }) { // somente: ['codigo','produto'] limita os modos (ex.: vindo do talão)
   const [modo, setModo] = useState('codigo');
   const [erro, setErro] = useState(false);
   const [luz, setLuz] = useState(false);
@@ -890,10 +893,16 @@ function Scanner({ go, back }) {
           </>
         )}
         <div className="scanmode">
-          <button className={`smode ${code ? 'on' : ''}`} onClick={() => { setModo('codigo'); setFoto(null); }}><Ico name="scan" size={24} stroke={2} /><span>Código</span></button>
-          <button className={`smode ${!code ? 'on' : ''}`} onClick={() => { setModo('foto'); setFoto(null); }}><Ico name="photoprod" size={24} stroke={2} /><span>Produto</span></button>
-          <button className="smode" onClick={() => go('voz')}><Ico name="mic" size={24} stroke={2} /><span>Voz</span></button>
-          <button className="smode" onClick={() => go('texto')}><Ico name="search" size={24} stroke={2} /><span>Texto</span></button>
+          {[
+            ['codigo', 'scan', 'Código', () => { setModo('codigo'); setFoto(null); }],
+            ['produto', 'photoprod', 'Produto', () => { setModo('foto'); setFoto(null); }],
+            ['voz', 'mic', 'Voz', () => go('voz')],
+            ['texto', 'search', 'Texto', () => go('texto')],
+          ].filter(([id]) => !somente || somente.includes(id)).map(([id, ic, lb, on]) => (
+            <button key={id} className={`smode ${(id === 'codigo' && code) || (id === 'produto' && !code) ? 'on' : ''}`} onClick={on}>
+              <Ico name={ic} size={24} stroke={2} /><span>{lb}</span>
+            </button>
+          ))}
         </div>
       </div>
     </>
