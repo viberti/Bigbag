@@ -932,7 +932,10 @@ function Scanner({ go, back, somente, itemId, nomeItem }) { // somente: limita m
     setChk(true);
     try {
       const info = await infoProduto({ ean: cod });
-      if (info?.existe) { go('ficha', { ean: cod }); return; }
+      // conhecido = temos dados (produto_ean/genérico) OU o OFF/VLM resolveu um nome.
+      // Só vai a CADASTRO o que não tem mesmo nada (ex.: filtros de café fora do OFF).
+      const conhecido = info?.existe || info?.nome || info?.off?.nome || info?.vlm?.nome || info?.base?.nome;
+      if (conhecido) { go('ficha', { ean: cod }); return; }
       setRegisto({ ean: cod, fotos: [] }); // não cadastrado → registar por foto
     } catch { go('ficha', { ean: cod }); } // rede falhou → tenta a ficha à mesma
     finally { setChk(false); }
