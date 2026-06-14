@@ -133,7 +133,7 @@ function Shell({ nome, onSair }) {
     setView(() => stack.current.pop() || { id: 'home', p: {} });
   }, []);
   const navCur = TABS.has(view.id) ? view.id : null;
-  const common = { go, back, nome, onSair };
+  const common = { go, back, user: nome, onSair }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
   const Screen = {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
     notas: Notas, gastos: Gastos, gastoscat: GastosCat, ficha: Ficha, comparar: Comparar,
@@ -149,7 +149,7 @@ function Shell({ nome, onSair }) {
 }
 
 /* ── INÍCIO ──────────────────────────────────────────────────────────────── */
-function Home({ go, nome }) {
+function Home({ go, user }) {
   const [nLista, setNLista] = useState(null);
   const [notas, setNotas] = useState(null);
   useEffect(() => {
@@ -158,7 +158,7 @@ function Home({ go, nome }) {
   }, []);
   return (
     <>
-      <Ctop title={`Olá, ${nome}`} sub="vamos às compras?" av={inicial(nome)} onAv={() => go('perfil')} />
+      <Ctop title={`Olá, ${user}`} sub="vamos às compras?" av={inicial(user)} onAv={() => go('perfil')} />
       <div className="scrollarea">
         <div className="herolist" onClick={() => go('lista')}>
           <span className="mkbig"><Mk size={110} /></span>
@@ -349,14 +349,24 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const [aval, setAval] = useState(null);
   const [alt, setAlt] = useState(null);
   const [open, setOpen] = useState({});
+  const registado = useRef(false);
   useEffect(() => {
+    registado.current = false; // novo produto → permite registar 1×
     const q = { itemId: undefined, ean, skuId: sku_id };
-    registarHistoricoProduto({ ean, skuId: sku_id, nome });
     infoProduto(q).then(setInfo).catch(() => setInfo({ erro: true }));
     analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => setAnalise(null));
     avaliacaoPersonalizada(q).then((r) => setAval(r?.perfil ? r : null)).catch(() => setAval(null));
     alternativasProduto(q).then((r) => setAlt(r?.alternativas?.length ? r : null)).catch(() => setAlt(null));
-  }, [ean, sku_id, nome]);
+  }, [ean, sku_id]);
+  // histórico: regista com o NOME REAL do produto (depois de resolver), nunca o
+  // do prop (que pode ser o do utilizador herdado, ou vazio no scan só-EAN).
+  useEffect(() => {
+    if (registado.current || !info || info.erro) return;
+    const nm = info.vlm?.nome || info.off?.nome || info.base?.nome || nome;
+    if (!nm) return;
+    registado.current = true;
+    registarHistoricoProduto({ ean, skuId: sku_id, nome: nm, marca: info.vlm?.marca || info.off?.marca || info.base?.marca });
+  }, [info, ean, sku_id, nome]);
   const nut = (() => { const s = info && !info.erro ? info : {}; return s.vlm?.nutricao_100g || s.off?.nutricao_100g || s.generico?.nutricao_100g || {}; })();
   const num = (...ks) => { for (const k of ks) { const v = nut[k]; if (v != null && !Number.isNaN(Number(v))) return Number(v); } return null; };
   const nomeProd = info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto';
@@ -701,7 +711,7 @@ function Recibo({ go, back, id }) {
 }
 
 /* ── PERFIL ──────────────────────────────────────────────────────────────── */
-function Perfil({ nome }) {
+function Perfil({ user }) {
   const [perfis, setPerfis] = useState(null);
   const [texto, setTexto] = useState(''); const [aGuardar, setAGuardar] = useState(false); const [msg, setMsg] = useState('');
   const carregar = useCallback(() => { listarPerfis().then(setPerfis).catch(() => setPerfis([])); }, []);
@@ -709,7 +719,7 @@ function Perfil({ nome }) {
   const ativo = (perfis || []).find((p) => p.ativo) || (perfis || [])[0];
   async function guardar() {
     if (!texto.trim() || aGuardar) return; setAGuardar(true); setMsg('');
-    try { await carregarPerfil({ nome: ativo?.nome || nome, texto: texto.trim() }); setTexto(''); setMsg('Perfil guardado.'); carregar(); }
+    try { await carregarPerfil({ nome: ativo?.nome || user, texto: texto.trim() }); setTexto(''); setMsg('Perfil guardado.'); carregar(); }
     catch { setMsg('Falha ao guardar.'); } finally { setAGuardar(false); }
   }
   return (
@@ -718,8 +728,8 @@ function Perfil({ nome }) {
       <div className="scrollarea">
         <div className="parecer" style={{ background: 'var(--card)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span className="m-av" style={{ background: 'var(--leaf-soft)', color: 'var(--leaf-d)', border: 0 }}>{inicial(ativo?.nome || nome)}</span>
-            <div><div style={{ font: '800 17px var(--disp)', color: 'var(--ink)' }}>{ativo?.nome || nome}</div><div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)' }}>perfil ativo · usado nos pareceres</div></div>
+            <span className="m-av" style={{ background: 'var(--leaf-soft)', color: 'var(--leaf-d)', border: 0 }}>{inicial(ativo?.nome || user)}</span>
+            <div><div style={{ font: '800 17px var(--disp)', color: 'var(--ink)' }}>{ativo?.nome || user}</div><div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)' }}>perfil ativo · usado nos pareceres</div></div>
           </div>
           {ativo?.resumo && <p style={{ margin: '12px 0 0', font: '500 13px/1.5 var(--font)', color: 'var(--ink)' }}>{ativo.resumo}</p>}
         </div>
