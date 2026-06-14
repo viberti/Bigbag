@@ -11,7 +11,7 @@ import {
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
-  listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto,
+  listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { ICON } from './icons.js';
@@ -417,32 +417,47 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   );
 }
 
-/* ── CONSULTAR POR NOME (texto) ──────────────────────────────────────────── */
+/* ── CONSULTAR POR NOME — busca AO VIVO no catálogo (produtos completos) ───── */
 function Texto({ go, back }) {
-  const [q, setQ] = useState(''); const [res, setRes] = useState(null); const [busy, setBusy] = useState(false);
-  async function buscar(e) {
-    e?.preventDefault(); const p = q.trim(); if (!p) return; setBusy(true);
-    try { const r = await consultarProdutoNome(p); setRes(r); } catch { setRes({ erro: true }); } finally { setBusy(false); }
-  }
+  const [q, setQ] = useState('');
+  const [res, setRes] = useState(null); // null | {produtos} | {erro}
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const t = q.trim();
+    if (t.length < 2) { setRes(null); setBusy(false); return undefined; }
+    setBusy(true);
+    const id = setTimeout(() => {
+      buscarProduto(t).then(setRes).catch(() => setRes({ erro: true })).finally(() => setBusy(false));
+    }, 300); // debounce — busca enquanto escreve
+    return () => clearTimeout(id);
+  }, [q]);
+  const produtos = res?.produtos || [];
   return (
     <>
       <Ctop title="Consultar por nome" sub="escreva o produto" back onBack={back} />
       <div className="scrollarea">
-        <form className="txtsearch" onSubmit={buscar}>
+        <div className="txtsearch">
           <span className="ts-ic"><Ico name="search" size={20} stroke={2} /></span>
-          <input className="ts-field" placeholder="Ex.: iogurte grego…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
-        </form>
-        {busy && <p className="empty">…</p>}
-        {res && !busy && (res.erro ? <p className="empty">Nada encontrado.</p> : res.encontrado ? (
-          <>
-            <div className="sec">Resultado</div>
-            <div className="frow" onClick={() => go('ficha', { sku_id: res.sku_id, nome: res.nome })}>
-              <span className="fdot" style={{ background: '#67b2c9' }}><Ico name="photoprod" size={20} stroke={2} color="#fff" /></span>
-              <div className="fb"><div className="fn">{res.nome}</div><div className="fs">{res.tipo || 'produto'}</div></div>
-              <span style={{ color: 'var(--ink-3)' }}>›</span>
-            </div>
-          </>
-        ) : <p className="empty">Nada encontrado para “{q}”.</p>)}
+          <input className="ts-field" placeholder="Ex.: milho, iogurte grego…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+        </div>
+        {q.trim().length < 2 ? <p className="empty">Escreva ao menos 2 letras.</p>
+          : busy && !produtos.length ? <p className="empty">A procurar…</p>
+          : res?.erro ? <p className="empty">Falha na busca.</p>
+          : produtos.length === 0 ? <p className="empty">Nada encontrado para “{q}”.</p>
+          : (
+            <>
+              <div className="sec">{produtos.length}{produtos.length >= 40 ? '+' : ''} resultado{produtos.length === 1 ? '' : 's'}</div>
+              {produtos.map((p, i) => (
+                <div className="frow" key={`${p.ean}-${i}`} onClick={() => go('ficha', { ean: p.ean, nome: p.nome })}>
+                  <span className="fdot" style={{ background: '#e8eef3', overflow: 'hidden', padding: 0 }}>
+                    {p.imagem ? <img src={p.imagem} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : inicial(p.nome)}
+                  </span>
+                  <div className="fb"><div className="fn">{p.nome}</div><div className="fs">{[p.marca, p.tamanho].filter(Boolean).join(' · ')}</div></div>
+                  <span style={{ color: 'var(--ink-3)' }}>›</span>
+                </div>
+              ))}
+            </>
+          )}
       </div>
     </>
   );

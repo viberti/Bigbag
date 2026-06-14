@@ -219,6 +219,11 @@ export async function consultarProdutoNome(nome) {
   if (!r.ok) throw new Error(`por-nome ${r.status}`);
   return r.json(); // { encontrado, sku_id, nome, tipo }
 }
+export async function buscarProduto(q) {
+  const r = await call(`/api/produto/buscar?q=${encodeURIComponent(q)}`);
+  if (!r.ok) throw new Error(`buscar ${r.status}`);
+  return r.json(); // { produtos:[{ean?,sku_id?,nome,marca,grupo,fresco?}], total }
+}
 
 export async function listarDespensa() {
   const r = await call('/api/produto/despensa');

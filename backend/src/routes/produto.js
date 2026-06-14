@@ -669,6 +669,44 @@ produtoRouter.get('/por-nome', requireAuth, async (req, res) => {
   }
 });
 
+// BUSCA por nome no CATÁLOGO (~76k) — devolve VÁRIOS produtos COMPLETOS (ao
+// contrário do /por-nome, que resolve um só). CRITÉRIO (dono, provisório): só
+// produtos com nome + marca + tamanho(formato) + foto + EAN + NUTRIÇÃO (no próprio
+// catálogo OU no OFF por EAN). Cada token aparece em nome/nome_pt/marca; dedup por
+// EAN (prefere com nutrição no catálogo e nome curto). Cada item abre a ficha por EAN.
+const NUT_OK = "nutricao IS NOT NULL AND nutricao <> '' AND nutricao <> '{}'";
+produtoRouter.get('/buscar', requireAuth, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    const toks = normN(q).split(/\s+/).filter((t) => t.length >= 2);
+    if (!toks.length) return res.json({ produtos: [], total: 0 });
+    const cond = toks.map(() => '(LOWER(CONCAT_WS(" ", c.nome, c.nome_pt, c.marca)) LIKE ?)').join(' AND ');
+    const [rows] = await getPool().query(
+      `SELECT c.ean, COALESCE(c.nome_pt, c.nome) AS nome, c.marca, c.formato AS tamanho,
+              c.imagem_url AS imagem, c.grupo, (c.${NUT_OK}) AS nut_cat
+         FROM catalogo_produto c
+        WHERE c.ean IS NOT NULL AND c.ean <> ''
+          AND c.marca IS NOT NULL AND c.marca <> ''
+          AND c.formato IS NOT NULL AND c.formato <> ''
+          AND c.imagem_url IS NOT NULL AND c.imagem_url <> ''
+          AND ${cond}
+          AND ( (c.${NUT_OK})
+                OR EXISTS (SELECT 1 FROM off_produto o WHERE o.ean = c.ean AND (o.${NUT_OK})) )
+        ORDER BY (c.${NUT_OK}) DESC, CHAR_LENGTH(c.nome) ASC
+        LIMIT 300`, toks.map((t) => `%${t}%`));
+    const vistos = new Set(); const produtos = [];
+    for (const r of rows) {
+      if (vistos.has(r.ean)) continue; vistos.add(r.ean);
+      produtos.push({ ean: r.ean, nome: r.nome, marca: r.marca, tamanho: r.tamanho, imagem: r.imagem, grupo: r.grupo });
+      if (produtos.length >= 40) break;
+    }
+    res.json({ produtos, total: produtos.length });
+  } catch (e) {
+    console.error('[produto/buscar] erro:', e.message);
+    res.status(500).json({ erro: 'Falha na busca por nome' });
+  }
+});
+
 // Câmara "inteligente": classifica a foto (talão/produto/outro). Se produto,
 // tenta o EAN (do rótulo ou via OFF por nome) e devolve o resultado da consulta.
 produtoRouter.post('/foto', requireAuth, upload.single('foto'), async (req, res) => {
