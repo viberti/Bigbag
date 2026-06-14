@@ -13,6 +13,7 @@ import {
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
   listarPerfis, ativarPerfil, carregarPerfil,
 } from '../api.js';
+import { lerCodigoBarras } from '../leitorCodigo.js';
 import { ICON } from './icons.js';
 import { BIGBAG_MARK } from './brand.js';
 import './cartoon.css';
@@ -758,16 +759,38 @@ function Receitas({ back }) {
 /* ── SCANNER / VOZ (visual cartoon — leitura real numa próxima fase) ─────── */
 function Scanner({ go, back }) {
   const [modo, setModo] = useState('codigo');
+  const [erro, setErro] = useState(false);
+  const [luz, setLuz] = useState(false);
+  const [temLuz, setTemLuz] = useState(false);
+  const videoRef = useRef(null);
+  const trackRef = useRef(null);
   const code = modo === 'codigo';
+  // câmara + leitura REAL (mesma função provada da v1). Lê EAN → abre a ficha.
+  useEffect(() => {
+    if (!code) return undefined;
+    let leitor; setErro(false); setTemLuz(false); setLuz(false);
+    (async () => {
+      leitor = await lerCodigoBarras(videoRef.current, (cod) => go('ficha', { ean: cod }), () => setErro(true));
+      const tr = leitor?.getTrack?.();
+      if (tr && (tr.getCapabilities?.() || {}).torch) { trackRef.current = tr; setTemLuz(true); }
+    })();
+    return () => { leitor?.stop?.(); trackRef.current = null; };
+  }, [code, go]);
+  async function lanterna() {
+    const tr = trackRef.current; if (!tr) return; const n = !luz;
+    try { await tr.applyConstraints({ advanced: [{ torch: n }] }); setLuz(n); } catch { /* noop */ }
+  }
   return (
     <>
       <Ctop title="Consultar produto" sub={code ? 'aponte para o código' : 'fotografe o produto'} back onBack={back} />
       <div className="scrollarea" style={{ display: 'flex', flexDirection: 'column' }}>
-        <div className="sc-cam" onClick={() => go('texto')}>
+        <div className={`sc-cam ${code ? '' : 'photo'}`} onClick={code ? undefined : () => go('texto')}>
+          {code && <video ref={videoRef} playsInline muted />}
+          {temLuz && code && <button className={`sc-torch ${luz ? 'on' : ''}`} onClick={lanterna} aria-label="Lanterna"><Ico name="torch" size={15} stroke={2} color={luz ? '#5a4410' : '#fff'} /></button>}
           <div className="sc-frame">{code && <><i className="tr" /><i className="bl" /></>}</div>
           <span style={{ position: 'absolute', bottom: 12 }}><Mk size={34} /></span>
         </div>
-        <div className="sc-hint">{code ? 'Leitura por câmara chega na próxima fase.\nUse “Texto” para consultar por nome.' : 'Reconhecimento por foto chega em breve.'}</div>
+        <div className="sc-hint">{erro ? 'Não consegui aceder à câmara — verifique a permissão.' : code ? 'É só apontar para o código de barras — eu encontro o produto.' : 'Reconhecimento por foto chega em breve. Use “Texto”.'}</div>
         <div className="scanmode">
           <button className={`smode ${code ? 'on' : ''}`} onClick={() => setModo('codigo')}><Ico name="scan" size={24} stroke={2} /><span>Código</span></button>
           <button className={`smode ${!code ? 'on' : ''}`} onClick={() => setModo('foto')}><Ico name="photoprod" size={24} stroke={2} /><span>Produto</span></button>
