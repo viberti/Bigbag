@@ -674,7 +674,7 @@ produtoRouter.get('/por-nome', requireAuth, async (req, res) => {
 // produtos com nome + marca + tamanho(formato) + foto + EAN + NUTRIÇÃO (no próprio
 // catálogo OU no OFF por EAN). Cada token aparece em nome/nome_pt/marca; dedup por
 // EAN (prefere com nutrição no catálogo e nome curto). Cada item abre a ficha por EAN.
-const NUT_OK = "nutricao IS NOT NULL AND nutricao <> '' AND nutricao <> '{}'";
+const NUT_OK = (a) => `${a}.nutricao IS NOT NULL AND ${a}.nutricao <> '' AND ${a}.nutricao <> '{}'`;
 produtoRouter.get('/buscar', requireAuth, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim().slice(0, 80);
@@ -683,16 +683,16 @@ produtoRouter.get('/buscar', requireAuth, async (req, res) => {
     const cond = toks.map(() => '(LOWER(CONCAT_WS(" ", c.nome, c.nome_pt, c.marca)) LIKE ?)').join(' AND ');
     const [rows] = await getPool().query(
       `SELECT c.ean, COALESCE(c.nome_pt, c.nome) AS nome, c.marca, c.formato AS tamanho,
-              c.imagem_url AS imagem, c.grupo, (c.${NUT_OK}) AS nut_cat
+              c.imagem_url AS imagem, c.grupo, (${NUT_OK('c')}) AS nut_cat
          FROM catalogo_produto c
         WHERE c.ean IS NOT NULL AND c.ean <> ''
           AND c.marca IS NOT NULL AND c.marca <> ''
           AND c.formato IS NOT NULL AND c.formato <> ''
           AND c.imagem_url IS NOT NULL AND c.imagem_url <> ''
           AND ${cond}
-          AND ( (c.${NUT_OK})
-                OR EXISTS (SELECT 1 FROM off_produto o WHERE o.ean = c.ean AND (o.${NUT_OK})) )
-        ORDER BY (c.${NUT_OK}) DESC, CHAR_LENGTH(c.nome) ASC
+          AND ( (${NUT_OK('c')})
+                OR EXISTS (SELECT 1 FROM off_produto o WHERE o.ean = c.ean AND (${NUT_OK('o')})) )
+        ORDER BY (${NUT_OK('c')}) DESC, CHAR_LENGTH(c.nome) ASC
         LIMIT 300`, toks.map((t) => `%${t}%`));
     const vistos = new Set(); const produtos = [];
     for (const r of rows) {
