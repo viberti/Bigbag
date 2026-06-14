@@ -11,7 +11,7 @@ import {
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
-  listarPerfis, ativarPerfil, carregarPerfil,
+  listarPerfis, ativarPerfil, carregarPerfil, matchFoto,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { ICON } from './icons.js';
@@ -762,10 +762,12 @@ function Scanner({ go, back }) {
   const [erro, setErro] = useState(false);
   const [luz, setLuz] = useState(false);
   const [temLuz, setTemLuz] = useState(false);
+  const [foto, setFoto] = useState(null); // null | {fase:'procurando'|'resultados'|'nada'|'erro', cands?}
   const videoRef = useRef(null);
   const trackRef = useRef(null);
+  const fotoRef = useRef(null);
   const code = modo === 'codigo';
-  // câmara + leitura REAL (mesma função provada da v1). Lê EAN → abre a ficha.
+  // CÓDIGO: câmara + leitura REAL (mesma função provada da v1). Lê EAN → ficha.
   useEffect(() => {
     if (!code) return undefined;
     let leitor; setErro(false); setTemLuz(false); setLuz(false);
@@ -780,20 +782,53 @@ function Scanner({ go, back }) {
     const tr = trackRef.current; if (!tr) return; const n = !luz;
     try { await tr.applyConstraints({ advanced: [{ torch: n }] }); setLuz(n); } catch { /* noop */ }
   }
+  // PRODUTO: foto → reconhecimento por imagem (matchFoto da v1) → candidatos → ficha.
+  async function aoFotografar(e) {
+    const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
+    setFoto({ fase: 'procurando' });
+    try { const r = await matchFoto(f); const cands = r.candidatos || []; setFoto(cands.length ? { fase: 'resultados', cands } : { fase: 'nada' }); }
+    catch { setFoto({ fase: 'erro' }); }
+  }
+  const irFoto = () => { setModo('foto'); setFoto(null); };
   return (
     <>
       <Ctop title="Consultar produto" sub={code ? 'aponte para o código' : 'fotografe o produto'} back onBack={back} />
+      <input ref={fotoRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={aoFotografar} />
       <div className="scrollarea" style={{ display: 'flex', flexDirection: 'column' }}>
-        <div className={`sc-cam ${code ? '' : 'photo'}`} onClick={code ? undefined : () => go('texto')}>
-          {code && <video ref={videoRef} playsInline muted />}
-          {temLuz && code && <button className={`sc-torch ${luz ? 'on' : ''}`} onClick={lanterna} aria-label="Lanterna"><Ico name="torch" size={15} stroke={2} color={luz ? '#5a4410' : '#fff'} /></button>}
-          <div className="sc-frame">{code && <><i className="tr" /><i className="bl" /></>}</div>
-          <span style={{ position: 'absolute', bottom: 12 }}><Mk size={34} /></span>
-        </div>
-        <div className="sc-hint">{erro ? 'Não consegui aceder à câmara — verifique a permissão.' : code ? 'É só apontar para o código de barras — eu encontro o produto.' : 'Reconhecimento por foto chega em breve. Use “Texto”.'}</div>
+        {foto?.fase === 'resultados' ? (
+          <>
+            <p className="sc-hint" style={{ marginTop: 4 }}>Qual destes é? Toque para ver a ficha.</p>
+            {foto.cands.map((c) => (
+              <div className="frow" key={c.ean} onClick={() => go('ficha', { ean: c.ean, nome: c.nome })}>
+                <span className="fdot" style={{ background: '#cfe0ee', overflow: 'hidden', padding: 0 }}>{c.imagem ? <img src={c.imagem} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : inicial(c.nome)}</span>
+                <div className="fb"><div className="fn">{c.nome || c.ean}</div><div className="fs">{c.marca || ''}{c.score != null ? ` · ${Math.round(c.score * 100)}% parecido` : ''}</div></div>
+                <span style={{ color: 'var(--ink-3)' }}>›</span>
+              </div>
+            ))}
+            <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 6 }} onClick={() => fotoRef.current?.click()}><Ico name="camera" size={18} color="#f7fff2" /> Tirar outra</button>
+          </>
+        ) : (
+          <>
+            <div className={`sc-cam ${code ? '' : 'photo'}`} onClick={code ? undefined : () => fotoRef.current?.click()}>
+              {code && <video ref={videoRef} playsInline muted />}
+              {temLuz && code && <button className={`sc-torch ${luz ? 'on' : ''}`} onClick={lanterna} aria-label="Lanterna"><Ico name="torch" size={15} stroke={2} color={luz ? '#5a4410' : '#fff'} /></button>}
+              <div className="sc-frame">{code && <><i className="tr" /><i className="bl" /></>}</div>
+              <span style={{ position: 'absolute', bottom: 12 }}><Mk size={34} /></span>
+            </div>
+            {!code && foto == null && <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={() => fotoRef.current?.click()}><Ico name="camera" size={18} color="#f7fff2" /> Tirar foto do produto</button>}
+            <div className="sc-hint">{
+              foto?.fase === 'procurando' ? 'A reconhecer o produto…'
+                : foto?.fase === 'nada' ? 'Não reconheci. Tente outra foto, mais perto e com boa luz.'
+                : foto?.fase === 'erro' ? 'Falha ao reconhecer. Tente de novo.'
+                : erro ? 'Não consegui aceder à câmara — verifique a permissão.'
+                : code ? 'É só apontar para o código de barras — eu encontro o produto.'
+                : 'Tire uma foto do produto — eu reconheço o que é.'
+            }</div>
+          </>
+        )}
         <div className="scanmode">
-          <button className={`smode ${code ? 'on' : ''}`} onClick={() => setModo('codigo')}><Ico name="scan" size={24} stroke={2} /><span>Código</span></button>
-          <button className={`smode ${!code ? 'on' : ''}`} onClick={() => setModo('foto')}><Ico name="photoprod" size={24} stroke={2} /><span>Produto</span></button>
+          <button className={`smode ${code ? 'on' : ''}`} onClick={() => { setModo('codigo'); setFoto(null); }}><Ico name="scan" size={24} stroke={2} /><span>Código</span></button>
+          <button className={`smode ${!code ? 'on' : ''}`} onClick={irFoto}><Ico name="photoprod" size={24} stroke={2} /><span>Produto</span></button>
           <button className="smode" onClick={() => go('voz')}><Ico name="mic" size={24} stroke={2} /><span>Voz</span></button>
           <button className="smode" onClick={() => go('texto')}><Ico name="search" size={24} stroke={2} /><span>Texto</span></button>
         </div>
