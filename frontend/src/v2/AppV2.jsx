@@ -18,6 +18,7 @@ import { lerCodigoBarras } from '../leitorCodigo.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
 import { ICON } from './icons.js';
 import { BIGBAG_MARK } from './brand.js';
+import { oidcLogin, oidcLogout, oidcUser } from '../auth/oidc.js';
 import './cartoon.css';
 
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -95,29 +96,56 @@ function Nav({ cur, go }) {
 /* ── auth ────────────────────────────────────────────────────────────────── */
 export default function AppV2() {
   const [sessao, setSessao] = useState(undefined);
-  useEffect(() => { verificarSessao().then(setSessao).catch(() => setSessao(null)); }, []);
+  useEffect(() => {
+    verificarSessao().then(setSessao).catch((e) => setSessao(String(e?.message) === '403' ? { semAcesso: true } : null));
+  }, []);
+  // sair: limpa o test-auth e, se houver sessão OIDC, encerra-a no Zitadel (SSO).
+  const sair = async () => { clearAuth(); if (await oidcUser()) oidcLogout(); else { setSessao(null); window.location.replace('/'); } };
   if (sessao === undefined) return <div className="v2"><div className="v2-load">…</div></div>;
+  if (sessao?.semAcesso) return <SemAcesso onSair={sair} />;
   if (!sessao) return <LoginV2 onEntrar={setSessao} />;
   const nome = (sessao.user?.id || '').replace(/^./, (c) => c.toUpperCase());
-  return <Shell nome={nome} onSair={() => { clearAuth(); setSessao(null); }} />;
+  return <Shell nome={nome} onSair={sair} />;
+}
+
+// Autenticado no IdP mas o email não está na allowlist do BigBag (camada 2).
+function SemAcesso({ onSair }) {
+  return (
+    <div className="v2"><Motif />
+      <div className="v2-login">
+        <Mk size={64} /><h1>BigBag</h1>
+        <p style={{ color: 'var(--ink-2)', font: '500 14px/1.5 var(--font)', textAlign: 'center', margin: '4px 10px 14px' }}>
+          A tua conta entrou, mas <b>ainda não tem acesso ao BigBag</b>. Fala com o administrador para te adicionarem.
+        </p>
+        <button className="cbtn cbtn-leaf" style={{ width: '100%' }} onClick={onSair}>Sair / trocar de conta</button>
+      </div>
+    </div>
+  );
 }
 
 function LoginV2({ onEntrar }) {
   const [user, setUser] = useState(''); const [pass, setPass] = useState('');
   const [erro, setErro] = useState(''); const [aEntrar, setAEntrar] = useState(false);
+  const [teste, setTeste] = useState(false);
   async function submeter(e) {
     e.preventDefault(); setErro(''); setAEntrar(true); setAuth(user.trim(), pass);
     try { onEntrar(await verificarSessao()); } catch { clearAuth(); setErro('Usuário ou senha inválidos.'); } finally { setAEntrar(false); }
   }
   return (
     <div className="v2"><Motif />
-      <form className="v2-login" onSubmit={submeter}>
-        <Mk size={64} /><h1>BigBag</h1><div className="ver">v{APP_VERSION} · novo visual</div>
-        <input placeholder="Usuário" value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
-        <input placeholder="Senha" type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
-        {erro && <div className="v2-err">{erro}</div>}
-        <button className="cbtn cbtn-leaf" disabled={aEntrar || !user || !pass}>{aEntrar ? '…' : 'Entrar'}</button>
-      </form>
+      <div className="v2-login">
+        <Mk size={64} /><h1>BigBag</h1><div className="ver">v{APP_VERSION}</div>
+        <button className="cbtn cbtn-leaf" style={{ width: '100%' }} onClick={() => oidcLogin()}>Entrar</button>
+        <button onClick={() => setTeste((v) => !v)} style={{ background: 0, border: 0, color: 'var(--ink-3)', font: '600 12px var(--font)', marginTop: 12, cursor: 'pointer' }}>acesso de teste</button>
+        {teste && (
+          <form onSubmit={submeter} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 4 }}>
+            <input placeholder="Usuário" value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
+            <input placeholder="Senha" type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
+            {erro && <div className="v2-err">{erro}</div>}
+            <button className="cbtn cbtn-leaf" disabled={aEntrar || !user || !pass}>{aEntrar ? '…' : 'Entrar (teste)'}</button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,7 @@
-// Cliente da API. Auth temporária: HTTP Basic (portão gustavo/sue) guardado em
-// localStorage. Quando o OAuth entrar, troca-se por sessão/cookie.
+// Cliente da API. Auth: login OIDC (Zitadel) → Bearer JWT; HTTP Basic (test-auth)
+// fica como fallback durante a migração. O backend valida o JWT + allowlist.
+import { oidcAccessToken } from './auth/oidc.js';
+
 const AUTH_KEY = 'bigbag_auth';
 
 export const getAuth = () => localStorage.getItem(AUTH_KEY);
@@ -8,13 +10,12 @@ export const clearAuth = () => localStorage.removeItem(AUTH_KEY);
 
 async function call(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
-  const auth = getAuth();
-  if (auth) headers.Authorization = `Basic ${auth}`;
+  const bearer = await oidcAccessToken();           // login OIDC tem prioridade
+  if (bearer) headers.Authorization = `Bearer ${bearer}`;
+  else { const auth = getAuth(); if (auth) headers.Authorization = `Basic ${auth}`; }
   const res = await fetch(path, { ...opts, headers });
-  if (res.status === 401) {
-    clearAuth();
-    throw new Error('401');
-  }
+  if (res.status === 401) { clearAuth(); throw new Error('401'); } // token/credenciais inválidos
+  if (res.status === 403) throw new Error('403');                  // autenticado mas SEM acesso (fora da allowlist)
   return res;
 }
 

@@ -7,18 +7,28 @@ import Explorar from './Explorar.jsx';
 import DiagScanner from './DiagScanner.jsx';
 import './styles.css';
 
-// Rota simples por caminho: /admin → operador; /explorar → comprador; /diag →
-// diagnóstico do scanner (temporário); /v1 → app ANTIGO congelado (chat/escuro);
-// /v2 = alias do default. RAIZ → app v2 (design cartoon, agora o DEFAULT).
+// Rota simples por caminho: /callback → retorno do login OIDC (troca código→tokens);
+// /admin → operador; /explorar → comprador; /diag → diagnóstico; /v1 → app ANTIGO
+// congelado; /v2 = alias do default. RAIZ → app v2 (design cartoon, DEFAULT).
 const caminho = window.location.pathname.replace(/\/+$/, '');
-const Pagina = caminho === '/admin' ? Admin
-  : caminho === '/explorar' ? Explorar
-  : caminho === '/diag' ? DiagScanner
-  : caminho === '/v1' ? App
-  : AppV2;
+const root = createRoot(document.getElementById('root'));
 
-createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <Pagina />
-  </React.StrictMode>,
-);
+if (caminho === '/callback') {
+  // Volta do Zitadel: finaliza o login e regressa à raiz. Sem React app aqui.
+  root.render(<div style={{ font: '600 16px system-ui', padding: 40, textAlign: 'center', color: '#3b4a30' }}>A entrar…</div>);
+  import('./auth/oidc.js')
+    .then(({ oidcCallback }) => oidcCallback())
+    .catch(() => {})
+    .finally(() => window.location.replace('/'));
+} else {
+  const Pagina = caminho === '/admin' ? Admin
+    : caminho === '/explorar' ? Explorar
+    : caminho === '/diag' ? DiagScanner
+    : caminho === '/v1' ? App
+    : AppV2;
+  root.render(
+    <React.StrictMode>
+      <Pagina />
+    </React.StrictMode>,
+  );
+}
