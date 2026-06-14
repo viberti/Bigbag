@@ -5,7 +5,7 @@
 // NOTA (fase protótipo): copy PT-BR embutido como no handoff; passar por i18n depois.
 // ──────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { norm as normCat, singularizar, grupoDeNome } from '../../../backend/src/normaliza/categoria.js';
+import { norm as normCat, singularizar } from '../../../backend/src/normaliza/categoria.js';
 import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
@@ -510,7 +510,9 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const ehAlimento = temNut || !!grau;
   const marcaP = info?.off?.marca || info?.vlm?.marca || info?.base?.marca || null;
   const tamanhoP = info?.off?.quantidade || info?.vlm?.quantidade || info?.base?.quantidade || null;
-  const catP = (() => { try { return SEC_LABEL[grupoDeNome(nomeProd)] || null; } catch { return null; } })();
+  // NOTA: não mostramos "categoria" no layout não-alimento — o classificador (grupoDeNome)
+  // é orientado a alimentos e erra em não-alimentos ("Leite de Proteção Solar"→Laticínios).
+  // Uma categoria fiável p/ não-alimentos precisa do campo product_type (ver backlog).
   const action = <button className="hist-cmp" title="Adicionar à lista" onClick={() => go('lista')}><span style={{ color: 'var(--leaf-d)' }}><Ico name="plus" size={20} stroke={2.4} /></span></button>;
   return (
     <>
@@ -557,7 +559,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
         </>) : (
           // NÃO-ALIMENTO (ou alimento sem ficha nutricional): só os factos que temos.
           <div className="reguas">
-            {[['Marca', marcaP], ['Categoria', catP], ['Tamanho', tamanhoP]].filter(([, v]) => v).map(([k, v]) => (
+            {[['Marca', marcaP], ['Tamanho', tamanhoP]].filter(([, v]) => v).map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, padding: '6px 0' }}>
                 <span className="rg-l">{k}</span><span style={{ font: '700 13.5px var(--font)', color: 'var(--ink)', textAlign: 'right' }}>{v}</span>
               </div>
