@@ -96,10 +96,12 @@ for (const [nome, cfg] of Object.entries(lojas)) {
   }
   const novos = arr.filter((e) => !inCat.has(e));
   await pool.query('DELETE FROM catalogo_produto WHERE fonte = ? AND url LIKE ?', [FONTE, cfg.base + '%']); // idempotente, por loja
-  // nome NUNCA null (coluna NOT NULL): title do <a> → senão o slug do URL → senão o EAN.
+  // colunas NOT NULL sem default: sku_fonte, nome, url. nome: title do <a> → slug → EAN.
+  // sku_fonte: o id PrestaShop do URL (/(\d+)-…-EAN.html) → fallback EAN.
   const slugNome = (url) => { const m = url && url.match(/\/\d+-(.+?)-\d{13}\.html/); return m ? m[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null; };
-  const vals = arr.map((e) => { const p = prods.get(e); const nome = (p.nome || slugNome(p.url) || e).slice(0, 255); return [FONTE, e, nome, p.url ? p.url.slice(0, 500) : cfg.base]; });
-  for (let i = 0; i < vals.length; i += 500) await pool.query('INSERT INTO catalogo_produto (fonte, ean, nome, url) VALUES ?', [vals.slice(i, i + 500)]);
+  const skuFonte = (url) => { const m = url && url.match(/\/(\d+)-[^/]*-\d{13}\.html/); return m ? m[1].slice(0, 24) : null; };
+  const vals = arr.map((e) => { const p = prods.get(e); const nome = (p.nome || slugNome(p.url) || e).slice(0, 255); const url = (p.url || cfg.base).slice(0, 600); return [FONTE, skuFonte(p.url) || e, e, nome, url]; });
+  for (let i = 0; i < vals.length; i += 500) await pool.query('INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, url) VALUES ?', [vals.slice(i, i + 500)]);
   console.log(`  inseridos: ${arr.length} (fonte=${FONTE}) · NOVOS p/ o catálogo: ${novos.length} (${Math.round(novos.length / arr.length * 100)}%)`);
   totNovos += novos.length;
 }
