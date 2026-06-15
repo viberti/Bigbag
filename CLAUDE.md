@@ -48,6 +48,7 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 - **`Schema_e_Funcoes_ToolUse.md`** — schema da BD + contrato das funções/módulos.
 - **`Normalizacao.md`** — normalização atual (problema, dificuldades, solução, lacunas).
 - **`Taxonomia_Produto.md`** — modelo-alvo facetado (Produto Mestre); o norte da migração.
+- **`Classificacao_Fusor.md`** — desenho do **fusor de categoria** ("fichaEan da categoria"): árvore NOSSA (não OFF) + sinais (EAN país/empresa/vizinhos, marca-IDF-por-nível, VLM-pacote, CLIP, OFF-por-EAN, nome) pesados pela fiabilidade MEDIDA; LLM offline (ponte categoria→nó + árbitro). 3 casos reais (Pérolas/Nesquik/anchovas). Inclui o **prompt do VLM a melhorar** (ler+julgar).
 - **`Analise_Fontes_Normalizacao.md`** — fontes (números reais) + plano v2 (fases A/B/C/**D=classificação por catálogo**).
 - **`Visao_Multi_Pais.md`** — direção multi-país (Europa) + **arquitetura de 2 camadas**: IDENTIDADE universal (EAN, partilhada, enriquece com cada país) vs PREÇO+LOCALE (por país, parametrizável). Princípio **locale-ready, não locale-completo**.
 - **`Auth_Zitadel.md`** — serviço de autenticação partilhado (Zitadel IdP OIDC self-host): infra, IDs/endpoints, integração do BigBag (PKCE + JWT + allowlist), modelo multi-app, e o que falta (Google login).
