@@ -211,9 +211,21 @@ leguminosas · farinhas/açúcar) — onde nutrição e alternativas mais pesam.
   - **`marca_perfil`** (migração 060 + `scripts/construir_marca_perfil.mjs`): share food/
     não-food por marca, minado do product_type (058). 6069 marcas (Hacendado 0.99, Deliplus
     0.03). O voto da marca-especialista-de-departamento, **depois** do VLM-tipo.
-- ◻ a construir: a árvore `categoria_no`, a ponte `categoria_ancora` (LLM offline), o
-  `marca_perfil` **por NÍVEL** (família, não só departamento), o `ean_empresa` + coerência,
-  o **fusor de FAMÍLIA** (generalizar `decidirTipo` à árvore), o golden de classificação.
+- ✅ **construído 2026-06-15 (2.º nível — a FAMÍLIA, ramo mercearia-alimentar):**
+  - **`normaliza/familia.js`** — árvore de 11 famílias (massa, arroz, cereais, leguminosas,
+    conservas_peixe [natureza=peixe], conservas_vegetais, molhos_condimentos, azeite_oleo,
+    especiarias, farinha_acucar, cafe_cha) c/ roll-ups; `familiaPorNome` (88% da mercearia-
+    food por nome) + `familiasQueCasam` (deteta compostas) + **`familiaDe`** (fusor:
+    VLM-tipo > categoria > nome+marca, resolve homónimos). 15 testes puros.
+  - **`categoria_ancora`** (migração 061 + builder): ponte categoria-loja→família
+    (bootstrap determinístico; resíduo LLM por fazer — baixa prioridade, redundante c/ o nome).
+  - **alternativas por FAMÍLIA** (`routes/produto.js`): o gate passou de `tipoConsumidor`
+    (nome) para `familiaDe` (fusor). **Bug original resolvido e provado:** Pérolas (nome→null)
+    → família=massa → alternativas só massa (era 52/58 não-massa). e2e verificado.
+- ◻ a construir: a ponte **LLM** (compostas, resíduo), o `marca_perfil`/perfil **por NÍVEL**
+  (família), o `ean_empresa` + coerência, o **fusor de família para o SCAN** (hoje só nas
+  alternativas; estender a `consolidarProduto` para gravar a família por produto), expandir a
+  árvore a outros ramos (lacticínios, bebidas…), o golden de classificação.
 
 ---
 

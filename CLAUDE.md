@@ -80,7 +80,7 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 
 **Pipeline:** `POST /api/faturas` (câmara/galeria · ficheiro · Share Target Android) → VLM-imagem ou texto-PDF+LLM → extração com loop de auto-correção (reconcilia com o total) → dedup → normalização (formato→`preco_por_base`) → canonicalização + matching → verificação de nomes. **Consulta:** tool use (`POST /api/consulta` texto, `/api/voz`).
 
-**Infra FECHADA:** Apache+Let's Encrypt, systemd porta 4200. BD `app_bigbag`, **migrações até 060** (060 = `marca_perfil`, share food/não-food por marca p/ o fusor; 059 = `produto_busca`, índice FULLTEXT de busca; 058 = `catalogo_produto.product_type`; lista no `Schema_e_Funcoes_ToolUse.md §1d`). Migrações novas: `mysql … < ficheiro` (ou via node) no servidor (aditivas por regra). *(Nota: `off_full` foi criada por script, não por migração numerada.)*
+**Infra FECHADA:** Apache+Let's Encrypt, systemd porta 4200. BD `app_bigbag`, **migrações até 061** (061 = `categoria_ancora` ponte categoria→família; 060 = `marca_perfil`, share food/não-food por marca; 059 = `produto_busca`, índice FULLTEXT de busca; 058 = `catalogo_produto.product_type`; lista no `Schema_e_Funcoes_ToolUse.md §1d`). Migrações novas: `mysql … < ficheiro` (ou via node) no servidor (aditivas por regra). *(Nota: `off_full` foi criada por script, não por migração numerada.)*
 - **Coluna JSON (mysql2 devolve OBJETO, não string):** usar SEMPRE `parseJsonCol` de `db.js` — nunca `JSON.parse` cru sobre valor da BD (rebenta). Fonte única.
 
 ### Autenticação (detalhe em `docs/Auth_Zitadel.md`) — Google login FECHADO (2026-06-15)
