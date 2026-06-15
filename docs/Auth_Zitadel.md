@@ -1,6 +1,6 @@
 # Autenticação — Zitadel (IdP OIDC self-host, partilhado entre apps)
 
-> **Estado (2026-06-14, app v0.0.170.0):** serviço de auth **no ar e funcional**; BigBag integrado (login OIDC + allowlist). **Falta** o método de login dos utilizadores → **Google login** (próximo passo). O `ENABLE_TEST_AUTH` (HTTP Basic) continua como fallback durante a migração.
+> **Estado (2026-06-15, app v0.0.182.0):** serviço de auth **no ar e funcional**; BigBag integrado (login OIDC + allowlist). **Login GOOGLE a FUNCIONAR** — o utilizador entra e regista-se pelo Google (allowlist por email dá o acesso). O `ENABLE_TEST_AUTH` (HTTP Basic) continua como fallback. **Falta:** rotacionar o PAT (exposto) + SMTP no Zitadel.
 
 ## Decisão e princípio
 Objetivo do dono (2026-06-14): um serviço de autenticação **próprio, reutilizável entre vários apps**, para dezenas de milhares de utilizadores, **sem custo por-MAU** e **sem auth feito à mão** (a superfície de segurança — reset, rotação de tokens, MFA, anti-enumeração — é onde os apps reais são hackeados). Escolha: **rodar um IdP OIDC open-source que é nosso**, não SaaS por-MAU nem código próprio. Motor: **Zitadel** (multi-project nativo = vários apps com acesso isolado; OIDC/social/MFA prontos; Go leve; self-host grátis).
@@ -23,8 +23,8 @@ Objetivo do dono (2026-06-14): um serviço de autenticação **próprio, reutili
 - **Admin:** `zitadel-admin@zitadel.auth.hal9klabs.com`.
 - **Service user `bigbag-iac`** (Org Owner) + PAT → API de gestão `/management/v1/...` (criar projetos/apps/users reproduzível).
 - **BigBag** = projeto `377443447096737795`; app **BigBag PWA** clientId **`377443508467859459`** — tipo **USER_AGENT + PKCE** (público, sem segredo), access token **JWT**, redirect `https://bigbag.hal9klabs.com/callback`, post-logout `https://bigbag.hal9klabs.com/`.
-- **Utilizadores** (allowlist do BigBag): `gviberti3@gmail.com` (377444212456554499), `suerocha@gmail.com` (377444212540440579) — email verificado, **sem password** (entram por Google quando estiver ligado).
-- **Auto-registo DESLIGADO** (org login policy `allowRegister=false`): só pré-cadastrados.
+- **Utilizadores: NÃO pré-criar** (lição 2026-06-15). Os 2 pré-criados (gviberti3/suerocha) ficaram `USER_STATE_INITIAL` (sem password, por ativar) e o Google não os ligava sem ativação por email — e **não há SMTP** → beco sem saída. **Apagados.** Agora cada utilizador **regista-se sozinho** pelo Google (External User Not Found → **Register** → Zitadel cria-o do email **verificado pelo Google**, ativo na hora, sem password nem SMTP). Quem controla o acesso ao BigBag é a **allowlist por email** (`AUTH_ALLOWLIST`), não o Zitadel.
+- **Quem pode entrar pelo Google:** (a) o email tem de ser **Test user** no OAuth consent screen do Google Cloud (modo Testing) — senão o Google bloqueia; (b) o email tem de estar na **allowlist** do BigBag. Allowlist atual: gviberti3@gmail.com, suerocha@gmail.com.
 
 ## Integração no BigBag (código)
 - **Backend** `backend/src/auth.js` — `requireAuth` aceita, por ordem:
@@ -39,7 +39,13 @@ Objetivo do dono (2026-06-14): um serviço de autenticação **próprio, reutili
 - **Adicionar um app novo:** criar um client OIDC no projeto certo (API `/management/v1/projects/{id}/apps/oidc` com o PAT) + o app valida o JWT e tem a sua própria allowlist.
 - **Rotacionar o PAT:** console → `bigbag-iac` → Personal Access Tokens → apagar+novo → atualizar `/home/dev/auth/.env`.
 
+## Google login — FEITO (2026-06-15)
+- **Google Cloud:** OAuth client (Web), redirect URI = **Login V1** `https://auth.hal9klabs.com/ui/login/login/externalidp/callback` (NÃO o V2 `…/idps/callback` — usamos a login legacy). Consent screen em Testing → emails como **Test users**. Client ID `467921416677-…apps.googleusercontent.com`.
+- **Zitadel:** IdP Google na **org BigBag** (id `377532243414876163`), **Activate** liga-o à política de login (botão "Sign in with Google"). Segredo só no Console (nunca no chat/git). PAT do `bigbag-iac` gere a ORG via Management API (`/management/v1/...`) mas **não a instância** (`/admin/v1` dá "No matching permissions").
+- **Bug destravado:** `auth.js` deixou de mandar `WWW-Authenticate: Basic` no 401 — o browser abria o diálogo nativo de Basic e tapava o ecrã de login OIDC.
+
 ## Falta / próximos
-1. **Google login** (ambos os users são @gmail): criar **OAuth client no Google Cloud** (redirect `https://auth.hal9klabs.com/ui/login/login/externalidp/callback`) → configurar **Google como IdP** no Zitadel (API) + na login policy → aparece "Sign in with Google".
-2. Mapear `sub`/email do Zitadel à **identidade/dados existentes** (hoje single-user "gustavo"); multi-tenant a sério quando houver muitos utilizadores.
-3. Hardening opcional: **BFF** (cookie httpOnly) em vez de tokens no browser; subir a **Login V2**.
+1. **Rotacionar o PAT** (exposto no chat + no `zitadel.txt` do repo público).
+2. **SMTP no Zitadel** (envio de emails: verify/reset). Sem isto, ativações por email não funcionam (daí o "não pré-criar users").
+3. Mapear `sub`/email do Zitadel à **identidade/dados existentes** (hoje single-user "gustavo"); multi-tenant a sério com muitos utilizadores.
+4. Hardening opcional: **BFF** (cookie httpOnly) em vez de tokens no browser; subir a **Login V2**.
