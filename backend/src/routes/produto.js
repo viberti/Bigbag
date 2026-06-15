@@ -183,6 +183,10 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
         WHERE i.ean = ? AND s.nome_canonico IS NOT NULL AND s.nome_canonico <> '' ORDER BY i.id DESC LIMIT 1`, [ean]);
     nome = sk?.nome_canonico || null;
   }
+  // ficha persistida (fusão + tradução PT) ANTES do nome cru do catálogo: um
+  // lidl-fr/mercadona-ES já traduzido ("Ketchup de Tomate") vence o "Ketchup Allégé"
+  // que o catálogo ainda tem. base = produto_ean (resolvido por fundirFichaEan).
+  if (!nome && base?.nome) nome = base.nome;
   if (!nome && ean) {
     const [[cat]] = await getPool().query(
       `SELECT COALESCE(nome_pt, nome) AS nome FROM catalogo_produto

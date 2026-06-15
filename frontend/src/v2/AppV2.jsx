@@ -1080,16 +1080,15 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
     setChk(true);
     try {
       const info = await infoProduto({ ean: cod });
-      const nm = info?.nome || info?.off?.nome || info?.vlm?.nome || info?.base?.nome;
+      let nm = info?.nome || info?.off?.nome || info?.vlm?.nome || info?.base?.nome;
+      // NOME TRADUZIDO + PERSISTIDO via /consultar?pt=1 — para LISTA *e* CONSULTA: o
+      // /info devolve o nome cru do catálogo/OFF (Mercadona-ES/Lidl-FR → "Eggs",
+      // "Ketchup Allégé"). Isto traduz, persiste a ficha, e a ficha passa a ler o PT.
+      try { const c = await consultarProdutoEan(cod, { pt: true }); if (c?.nome) nm = c.nome; } catch { /* fica o nm do /info */ }
       // MODO LISTA: o objetivo é ADICIONAR. Com nome → adiciona já; sem nome →
       // identifica por foto e depois adiciona (a ficha é sempre secundária).
       if (paraLista) {
-        // NOME TRADUZIDO (scan-para-lista): /consultar?pt=1 espera a tradução PT e
-        // PERSISTE a ficha — o /info (acima) devolve o nome cru do OFF/catálogo
-        // (ex.: "Eggs"/"Huevos" do Mercadona). Correção 2026-06-15.
-        let nmPT = nm;
-        try { const c = await consultarProdutoEan(cod, { pt: true }); if (c?.nome) nmPT = c.nome; } catch { /* fica o nm do /info */ }
-        if (nmPT) { try { await adicionarListaItem({ nome: nmPT, ean: cod }); } catch { /* segue à confirmação */ } setAddOk({ nome: nmPT, ean: cod }); }
+        if (nm) { try { await adicionarListaItem({ nome: nm, ean: cod }); } catch { /* segue à confirmação */ } setAddOk({ nome: nm, ean: cod }); }
         else setRegisto({ ean: cod, fotos: [], naoLido: true });
         return;
       }
