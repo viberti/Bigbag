@@ -679,6 +679,41 @@ produtoRouter.get('/consultar', requireAuth, async (req, res) => {
   }
 });
 
+// AUTOCOMPLETE da busca de produto (lista + nutrição), sobre produto_busca (índice
+// FULLTEXT, ~dezenas de milhares PT). Ranking que mata os "esquisitos" do prefixo:
+//  palavra-exata (+100) > começa-com (+40) > prefixo-no-meio (~0); GENÉRICO no topo
+//  (+1000); na lista, ALIMENTO primeiro (+30); popularidade da casa desempata.
+//  Último token = prefixo (em digitação), anteriores = palavra exata.
+produtoRouter.get('/autocomplete', requireAuth, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').toLowerCase().trim();
+    const modo = req.query.modo === 'nutricao' ? 'nutricao' : 'lista';
+    const limpa = (t) => t.replace(/[^a-z0-9áàâãéêíóôõúüç]/gi, '');
+    const toks = q.split(/\s+/).map(limpa).filter((t) => t.length >= 1).slice(0, 6);
+    if (!toks.length || q.length < 2) return res.json({ sugestoes: [] });
+    const bool = toks.map((t, i) => `+${t}${i === toks.length - 1 ? '*' : ''}`).join(' ');
+    const last = toks[toks.length - 1];
+    const wb = `\\b${last}\\b`; // palavra inteira (REGEXP, word boundary)
+    const food = modo === 'lista' ? "+ (product_type='food')*30" : '';
+    const [rows] = await getPool().query(
+      `SELECT generico, nome, marca, tamanho, ean, tem_nutricao,
+              ( (nome REGEXP ?)*100 + (LOWER(nome) LIKE CONCAT(?, '%'))*40
+                + generico*1000 ${food} + LEAST(popularidade, 50) ) AS score
+         FROM produto_busca
+        WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE)
+        ORDER BY score DESC, MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) DESC
+        LIMIT 8`,
+      [wb, last, bool, bool]);
+    res.json({ sugestoes: rows.map((r) => ({
+      generico: !!r.generico, nome: r.nome, marca: r.marca || null,
+      tamanho: r.tamanho || null, ean: r.ean || null, tem_nutricao: !!r.tem_nutricao,
+    })) });
+  } catch (e) {
+    console.error('[produto/autocomplete] erro:', e.message);
+    res.json({ sugestoes: [] });
+  }
+});
+
 // normN = norm de normaliza/categoria.js (unificação 2026-06-13)
 // Procura um produto JÁ CONHECIDO (SKU com ficha/nutrição) pelo nome, por TOKENS
 // com prioridade ao substantivo-cabeça (igual à consulta). Devolve {sku_id, ean}

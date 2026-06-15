@@ -220,6 +220,12 @@ export async function consultarProdutoNome(nome) {
   if (!r.ok) throw new Error(`por-nome ${r.status}`);
   return r.json(); // { encontrado, sku_id, nome, tipo }
 }
+// Autocomplete da busca (lista/nutrição): genéricos primeiro, depois específicos.
+export async function autocompleteProduto(q, modo = 'lista') {
+  const r = await call(`/api/produto/autocomplete?q=${encodeURIComponent(q)}&modo=${modo}`);
+  if (!r.ok) throw new Error(`autocomplete ${r.status}`);
+  return r.json(); // { sugestoes: [{generico, nome, marca, tamanho, ean, tem_nutricao}] }
+}
 export async function buscarProduto(q) {
   const r = await call(`/api/produto/buscar?q=${encodeURIComponent(q)}`);
   if (!r.ok) throw new Error(`buscar ${r.status}`);

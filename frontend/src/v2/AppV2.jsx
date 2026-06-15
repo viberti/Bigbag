@@ -12,7 +12,7 @@ import {
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome, consultarProdutoEan,
   listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
-  adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem,
+  adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
@@ -301,6 +301,8 @@ function Lista({ go, back }) {
   const [aviso, setAviso] = useState('');           // feedback "Adicionei: …"
   const [escrever, setEscrever] = useState(false);
   const [txt, setTxt] = useState('');
+  const [sug, setSug] = useState([]);               // sugestões de autocomplete (genéricos primeiro)
+  const sugTimer = useRef(null);
   const mrRef = useRef(null); const streamRef = useRef(null);
   const carregar = useCallback(() => { obterLista().then((d) => setItens(d.itens || [])).catch(() => setItens([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
@@ -339,9 +341,22 @@ function Lista({ go, back }) {
     } catch { setAviso('Sem acesso ao microfone — verifique a permissão.'); }
   }
   // TEXTO → LISTA: adiciona o nome tal e qual (qualquer produto, food ou não).
+  function onTxt(v) { // digitar → autocomplete (debounce 150ms)
+    setTxt(v); setAviso('');
+    clearTimeout(sugTimer.current);
+    const q = v.trim();
+    if (q.length < 2) { setSug([]); return; }
+    sugTimer.current = setTimeout(() => {
+      autocompleteProduto(q, 'lista').then((d) => setSug(d.sugestoes || [])).catch(() => setSug([]));
+    }, 150);
+  }
+  async function escolherSug(s) { // tocar numa sugestão (genérico ou específico)
+    setTxt(''); setSug([]); setAviso('');
+    try { await adicionarListaItem({ nome: s.nome, ...(s.ean ? { ean: s.ean } : {}) }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
+  }
   async function enviarTexto(e) {
     e?.preventDefault(); const nome = txt.trim(); if (!nome) return;
-    setTxt(''); setAviso('');
+    setTxt(''); setSug([]); setAviso('');
     try { await adicionarListaItem({ nome }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
   // MEMBROS (perfis) → cor estável por membro; o ativo é "quem apanha".
@@ -397,10 +412,23 @@ function Lista({ go, back }) {
       </div>
       <div className="actfoot">
         {escrever && (
-          <form className="addmore open" onSubmit={enviarTexto}>
-            <input className="addfield" autoFocus placeholder="Escrever produto…" value={txt} onChange={(e) => setTxt(e.target.value)} style={{ color: 'var(--ink)' }} />
-            <button className="addopt" type="submit" disabled={!txt.trim()}><Ico name="plus" size={17} stroke={2} /> Adicionar</button>
-          </form>
+          <div className="addwrap">
+            {sug.length > 0 && (
+              <div className="acdrop">
+                {sug.map((s, i) => (
+                  <button type="button" className={`acitem ${s.generico ? 'gen' : ''}`} key={`${s.nome}-${s.ean || i}`} onClick={() => escolherSug(s)}>
+                    <span className="acnome">{s.nome}</span>
+                    {(s.marca || s.tamanho) && <span className="acsub">{[s.marca, s.tamanho].filter(Boolean).join(' · ')}</span>}
+                    {s.tem_nutricao && <span className="acnut" title="Tem informação nutricional" />}
+                  </button>
+                ))}
+              </div>
+            )}
+            <form className="addmore open" onSubmit={enviarTexto}>
+              <input className="addfield" autoFocus placeholder="Escrever produto…" value={txt} onChange={(e) => onTxt(e.target.value)} style={{ color: 'var(--ink)' }} />
+              <button className="addopt" type="submit" disabled={!txt.trim()}><Ico name="plus" size={17} stroke={2} /> Adicionar</button>
+            </form>
+          </div>
         )}
         {aviso && <div className="addlegend" style={{ justifyContent: 'center', color: 'var(--ink-2)' }}>{aviso}</div>}
         <div className="addbar">

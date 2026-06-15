@@ -139,6 +139,16 @@
 .v2 .item.hist .histcheck{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;display:grid;place-items:center;margin-right:2px}
 .v2 .item.hist .histcheck.on{background:var(--leaf);border-color:var(--leaf)}
 
+/* autocomplete da busca de produto (genéricos em NEGRITO, no topo) */
+.v2 .addwrap{position:relative}
+.v2 .acdrop{background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);overflow-y:auto;max-height:46vh;margin-bottom:8px}
+.v2 .acitem{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 13px;cursor:pointer;font:inherit}
+.v2 .acitem:last-child{border-bottom:0}
+.v2 .acitem:active{background:var(--line)}
+.v2 .acnome{font:400 15px var(--font);color:var(--ink)}
+.v2 .acitem.gen .acnome{font-weight:800}            /* GENÉRICO em negrito */
+.v2 .acsub{font:500 12px var(--font);color:var(--ink-3)}
+.v2 .acnut{width:8px;height:8px;border-radius:50%;background:var(--leaf);margin-left:auto;flex:0 0 auto}
 /* ações de rodapé / barra de adicionar */
 .v2 .actfoot{flex:0 0 auto;padding:10px 16px 14px}
 .v2 .addbar{display:flex;justify-content:center;align-items:center;gap:16px;padding:4px 0 2px}
