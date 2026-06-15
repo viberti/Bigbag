@@ -78,17 +78,21 @@ function Ctop({ title, sub, back, amber, av, action, onBack, onAv }) {
     </div>
   );
 }
-function Nav({ cur, go }) {
+function Nav({ cur, go, cmpCheio, onLimite }) {
   const tabs = [['home', 'Início', 'home'], ['list', 'Lista', 'lista'], ['history', 'Histórico', 'historico'], ['user', 'Perfil', 'perfil']];
   const Tab = ([ic, lb, id]) => (
     <button key={id} className={`nb ${cur === id ? 'on' : ''}`} onClick={() => go(id)}>
       <span className="ni"><Ico name={ic} size={23} stroke={2} /></span>{lb}
     </button>
   );
+  const aoScan = () => {
+    if (cur === 'comparar') { if (cmpCheio) { onLimite?.(); return; } go('scanner', { paraComparar: true }); return; }
+    go('scanner');
+  };
   return (
     <div className="cnav">
       {tabs.slice(0, 2).map(Tab)}
-      <button className="nb-scan" title={cur === 'comparar' ? 'Escanear para comparar' : 'Consultar produto'} onClick={() => go('scanner', cur === 'comparar' ? { paraComparar: true } : {})}><Ico name="scan" size={28} stroke={2.4} color="#5a4410" /></button>
+      <button className="nb-scan" title={cur === 'comparar' ? 'Escanear para comparar' : 'Consultar produto'} onClick={aoScan}><Ico name="scan" size={28} stroke={2.4} color="#5a4410" /></button>
       {tabs.slice(2).map(Tab)}
     </div>
   );
@@ -178,6 +182,8 @@ function Shell({ nome, onSair }) {
   const addCmp = useCallback((it) => setCmp((c) => (it?.ean && !c.some((x) => String(x.ean) === String(it.ean)) && c.length < 4) ? [...c, { ean: String(it.ean), nome: it.nome || null }] : c), []);
   const removeCmp = useCallback((ean) => setCmp((c) => c.filter((x) => String(x.ean) !== String(ean))), []);
   const clearCmp = useCallback(() => setCmp([]), []);
+  const [aviso, setAviso] = useState(''); // toast curto (ex.: limite do comparador)
+  useEffect(() => { if (!aviso) return undefined; const t = setTimeout(() => setAviso(''), 3800); return () => clearTimeout(t); }, [aviso]);
   const go = useCallback((id, p = {}, opts = {}) => {
     if (TABS.has(id)) setCmp([]); // aba principal → a comparação recomeça limpa
     setView((cur) => {
@@ -209,7 +215,8 @@ function Shell({ nome, onSair }) {
   return (
     <div className="v2"><Motif />
       <Screen {...common} {...view.p} />
-      {navCur && <Nav cur={navCur} go={go} />}
+      {navCur && <Nav cur={navCur} go={go} cmpCheio={cmp.length >= 4} onLimite={() => setAviso('Já tem 4 produtos — o máximo para comparar aqui. Para comparar mais, use o Histórico.')} />}
+      {aviso && <div className="toast" role="status">{aviso}</div>}
     </div>
   );
 }
@@ -500,6 +507,29 @@ function Historico({ go, back, addCmp, clearCmp }) {
   );
 }
 
+// Card de um produto no comparador — ARRASTAR para a direita remove (mesmo swipe da lista).
+function ItemCmp({ item, onRemover }) {
+  const [dx, setDx] = useState(0);
+  const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
+  const start = (e) => { const t = e.touches[0]; g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 }; };
+  const move = (e) => {
+    const r = g.current; if (!r.mov) return;
+    const t = e.touches[0]; const dX = t.clientX - r.x0; const dY = t.clientY - r.y0;
+    if (!r.horiz && Math.abs(dX) > Math.abs(dY) + 6) r.horiz = true;
+    if (r.horiz) { r.dx = Math.max(0, dX); setDx(r.dx); }
+  };
+  const end = () => { const r = g.current; r.mov = false; if (r.horiz && r.dx > 90) onRemover(item.ean); setDx(0); };
+  return (
+    <div className="swrow">
+      <div className="swrow-bg"><Ico name="close" size={18} /></div>
+      <div className="item" style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+        onTouchStart={start} onTouchMove={move} onTouchEnd={end}>
+        <div className="ib"><div className="iname">{item.nome ? nomeTalao(item.nome) : item.ean}</div></div>
+      </div>
+    </div>
+  );
+}
+
 /* ── COMPARAR ────────────────────────────────────────────────────────────── */
 // Cesto PRÓPRIO (vive no Shell): começa LIMPO e enche-se com SCANS (botão central da nav,
 // que entra em modo "para comparar"). ≠ Histórico (que mostra o que já se consultou). O
@@ -516,10 +546,9 @@ function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
   };
   const nomeDe = (ean) => res?.produtos?.find((p) => String(p.ean) === String(ean))?.nome || cmp.find((x) => String(x.ean) === String(ean))?.nome || ean;
   const medal = (p) => (p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : `${p}º`);
-  const limpar = cmp.length ? <button className="hist-cmp" title="Limpar" onClick={() => { clearCmp(); setRes(null); }}><Ico name="close" size={18} stroke={2.4} /></button> : undefined;
   return (
     <>
-      <Ctop title="Comparar" sub={cmp.length ? `${cmp.length} de 4 produtos` : 'leia os códigos de barras'} back onBack={back} action={limpar} />
+      <Ctop title="Comparar" sub={cmp.length ? undefined : 'leia os códigos de barras'} back onBack={back} />
       <div className="scrollarea">
         {res ? (
           res.erro ? <p className="empty">Falha ao comparar.</p> : (
@@ -543,10 +572,7 @@ function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
             </svg>
           </div>
         ) : cmp.map((item, i) => (
-          <div className="item" key={`${item.ean}-${i}`}>
-            <div className="ib"><div className="iname">{item.nome ? nomeTalao(item.nome) : item.ean}</div><div className="isub">no comparador</div></div>
-            <button className="hist-cmp" title="Remover" onClick={() => { removeCmp(item.ean); setRes(null); }}><Ico name="close" size={16} stroke={2.6} /></button>
-          </div>
+          <ItemCmp key={`${item.ean}-${i}`} item={item} onRemover={(ean) => { removeCmp(ean); setRes(null); }} />
         ))}
       </div>
       {!res && cmp.length > 0 && (

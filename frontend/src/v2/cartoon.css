@@ -102,6 +102,9 @@
 .v2 .cmp-bubble::after{content:'';position:absolute;left:50%;bottom:-17px;transform:translateX(-50%);border:10px solid transparent;border-top-color:var(--leaf)}
 .v2 .cmp-bubble::before{content:'';position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);border:8px solid transparent;border-top-color:#fff;z-index:1}
 .v2 .cmp-arrow{flex:1 1 auto;width:108px;min-height:130px;margin-top:8px;opacity:.9}
+
+/* toast curto (aviso de limite do comparador, etc.) */
+.v2 .toast{position:fixed;left:50%;bottom:104px;transform:translateX(-50%);background:var(--ink);color:#f4fff0;font:600 13px/1.45 var(--font);padding:11px 16px;border-radius:14px;max-width:300px;text-align:center;box-shadow:var(--sh);z-index:60}
 .v2 .cbtn-leaf{background:linear-gradient(180deg,#67b262,#46863f);color:#f7fff2}
 .v2 .cbtn-amber{background:linear-gradient(180deg,#eeb155,#cf8d24);color:#3a2606}
 .v2 .hpill{display:inline-flex;align-items:center;gap:5px;font:800 12px var(--font);padding:6px 11px;border-radius:var(--r-pill);white-space:nowrap}
