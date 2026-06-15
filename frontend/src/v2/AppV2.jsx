@@ -12,7 +12,7 @@ import {
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
   listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
-  adicionarListaItem, adicionarListaLote, vozParaLista,
+  adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
@@ -252,6 +252,48 @@ const MEMBRO_CORES = ['#3f7a3f', '#5a6fb0', '#e0734f', '#c8851f', '#8a5fb0', '#3
 // Os 3 botões da barra ADICIONAM à lista (não consultam): voz (ditado→lote),
 // escrever (nome direto, qualquer produto — não exige ficha nutricional), e
 // código (scan→adiciona). Antes voz/texto caíam na CONSULTA e falhavam p/ não-alimentos.
+// Subtítulo de preço de um item da lista. CORRIGIDO (2026-06-15): a v2 lia
+// it.preco_estimado/it.preco (campos que o backend NUNCA define) → mostrava sempre
+// "sem preço". O backend dá preco_mercado/melhor_preco (FACTO, €/base) e preco_ref
+// (referência de catálogo). Mesma cadeia da v1.
+function precoLista(it) {
+  const p = it.preco_mercado ?? it.melhor_preco;
+  if (p != null) return `${eur(p)}${it.unidade_base ? `/${it.unidade_base}` : ''}`;
+  if (it.preco_ref != null) return `~${eur(it.preco_ref)}`;
+  return 'sem preço';
+}
+
+// Linha da lista com SWIPE-PARA-APAGAR (faltava na v2; só existia na v1/App.jsx).
+// Arrasta para a direita > 90px → remove. Estado de gesto por item (refs próprios).
+function ItemLista({ it, cor, onApanhar, onRemover, onInfo, onDelta, qtd }) {
+  const [dx, setDx] = useState(0);
+  const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
+  const start = (e) => { const t = e.touches[0]; g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 }; };
+  const move = (e) => {
+    const r = g.current; if (!r.mov) return;
+    const t = e.touches[0]; const dX = t.clientX - r.x0; const dY = t.clientY - r.y0;
+    if (!r.horiz && Math.abs(dX) > Math.abs(dY) + 6) r.horiz = true;
+    if (r.horiz) { r.dx = Math.max(0, dX); setDx(r.dx); }
+  };
+  const end = () => { const r = g.current; r.mov = false; if (r.horiz && r.dx > 90) onRemover(it); setDx(0); };
+  return (
+    <div className="swrow">
+      <div className="swrow-bg"><Ico name="close" size={18} /></div>
+      <div className="item" style={{ borderRight: `6px solid ${cor}`, transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+        onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+        title={it.adicionado_por ? `adicionado por ${it.adicionado_por}` : undefined}>
+        <div className="ib" onClick={() => { if (g.current.horiz) return; onApanhar(it, true); }}>
+          <div className="iname">{it.nome}</div>
+          <div className="isub">{it.marca ? `${it.marca} · ` : ''}{precoLista(it)}</div>
+        </div>
+        <span className="qval">{qtd(it)}</span>
+        <div className="qty"><button onClick={() => onDelta(it, -1)}>−</button><button onClick={() => onDelta(it, 1)}>+</button></div>
+        <button className="li-info" title="Ver ficha" onClick={() => onInfo(it)}>›</button>
+      </div>
+    </div>
+  );
+}
+
 function Lista({ go, back }) {
   const [itens, setItens] = useState(null);
   const [gravando, setGravando] = useState(false);
@@ -267,10 +309,14 @@ function Lista({ go, back }) {
     streamRef.current?.getTracks().forEach((t) => t.stop());
   }, []);
   const ativos = (itens || []).filter((i) => i.estado !== 'carrinho');
-  const total = ativos.reduce((a, b) => a + (b.preco_estimado || b.preco || 0), 0);
+  const total = ativos.reduce((a, b) => a + (Number(b.preco_mercado ?? b.melhor_preco ?? b.preco_ref) || 0) * (b.quantidade || 1), 0);
   async function delta(it, d) {
     setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, quantidade: Math.max(1, (x.quantidade || 1) + d) } : x)));
     try { await atualizarListaItem(it.id, { inc: d }); } catch { carregar(); }
+  }
+  async function remover(it) { // swipe-para-apagar (otimista; reverte se falhar)
+    setItens((xs) => xs.filter((x) => x.id !== it.id));
+    try { await removerListaItem(it.id); } catch { carregar(); }
   }
   // VOZ → LISTA: grava, transcreve para itens (vozParaLista) e adiciona em lote.
   async function alternarVoz() {
@@ -326,18 +372,12 @@ function Lista({ go, back }) {
             {grupos.map((g) => (
               <React.Fragment key={g.s}>
                 <div className="sec">{g.s}</div>
+                {/* borda direita = cor de QUEM ADICIONOU. Tocar no nome APANHA; "›" abre
+                    a ficha; ARRASTAR para a direita apaga (swipe-to-delete). */}
                 {g.itens.map((it) => (
-                  // borda direita = cor de QUEM ADICIONOU (it.adicionado_por). Tocar no
-                  // nome APANHA (risca + vai p/ "No carrinho"); o "›" abre a ficha.
-                  <div className="item" key={it.id} style={{ borderRight: `6px solid ${corDe(it.adicionado_por)}` }} title={it.adicionado_por ? `adicionado por ${it.adicionado_por}` : undefined}>
-                    <div className="ib" onClick={() => apanhar(it, true)}>
-                      <div className="iname">{it.nome}</div>
-                      <div className="isub">{it.marca ? `${it.marca} · ` : ''}{it.preco_estimado != null || it.preco != null ? `~${eur(it.preco_estimado ?? it.preco)}` : 'sem preço'}</div>
-                    </div>
-                    <span className="qval">{qtdTxt(it)}</span>
-                    <div className="qty"><button onClick={() => delta(it, -1)}>−</button><button onClick={() => delta(it, 1)}>+</button></div>
-                    <button className="li-info" title="Ver ficha" onClick={() => go('ficha', { ean: it.ean, sku_id: it.sku_id, nome: it.nome })}>›</button>
-                  </div>
+                  <ItemLista key={it.id} it={it} cor={corDe(it.adicionado_por)} qtd={qtdTxt}
+                    onApanhar={apanhar} onRemover={remover} onDelta={delta}
+                    onInfo={(x) => go('ficha', { ean: x.ean, sku_id: x.sku_id, nome: x.nome })} />
                 ))}
               </React.Fragment>
             ))}

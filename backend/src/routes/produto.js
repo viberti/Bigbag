@@ -18,7 +18,7 @@ import { fundirFichaEan } from '../normaliza/fichaEan.js';
 import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
-import { garantirFichaPT } from '../ingest/traduz.js';
+import { garantirFichaPT, pareceEstrangeiro } from '../ingest/traduz.js';
 import { resolverItensLista } from './lista.js';
 import { matchImagemB64 } from '../normaliza/matchImagem.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
@@ -96,9 +96,11 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
     } catch (e) { console.error('[consultarOuGuardar] gravar fusão:', e.message); }
   }
 
-  // tradução LLM fica FORA da fusão: só quando o nome final não é PT
+  // tradução LLM fica FORA da fusão: quando o nome final não é PT — pela flag da
+  // fusão OU por heurística (nome que ainda PARECE estrangeiro, ex.: "Eggs" que
+  // escapou como candidato "PT"). Robustez 2026-06-15.
   let nome = r.ficha.nome;
-  if (r.nomeEstrangeiro) {
+  if (r.nomeEstrangeiro || pareceEstrangeiro(nome)) {
     if (traduzir) nome = (await garantirFichaPT(pool, ean)) || nome;
     else garantirFichaPT(pool, ean).catch(() => {});
   }

@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { createHash } from 'crypto';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista, norm, tipoConsumidor, TIPOS_NOME } from '../normaliza/categoria.js';
+import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista, norm, tipoConsumidor, TIPOS_NOME, nomeSemMarca } from '../normaliza/categoria.js';
 import { classificarPorCatalogo } from '../normaliza/classificarCatalogo.js';
 import { marcaDeterministica } from '../normaliza/marca.js';
 import { pesoPelaImagem, versaoPesoImg } from '../ingest/pesoImagem.js';
@@ -163,6 +163,9 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
   if (!leve) for (const it of itens) {
     if (!it.tamanho && it.ean) pesoPelaImagem(it.ean); // fire-and-forget (dedup interno)
   }
+  // NOME "à talão": a marca já está resolvida (it.marca) e mostra-se à parte — tira-a
+  // do nome (caso Tomilho/Mercadona: marca repetida no nome E na linha de baixo).
+  for (const it of itens) if (it.marca && it.nome) it.nome = nomeSemMarca(it.nome, it.marca);
   if (!allSkuIds.size) return;
   const ids = [...allSkuIds];
   const ph = ids.map(() => '?').join(',');

@@ -13,6 +13,19 @@
 export const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 export const normAlfa = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
+// Remove SÓ os tokens da MARCA de um nome (a marca mostra-se à parte na lista).
+// Distinto de limparNomeProduto (esse corta também quantidade/formato). Conservador:
+// se a remoção esvaziar o nome, devolve o original. Regra do dono (2026-06-15): se
+// sabemos a marca, é fácil tirá-la do nome — vale para QUALQUER produto, não um caso.
+export function nomeSemMarca(nome, marca) {
+  if (!nome || !marca) return nome;
+  const mt = new Set(normAlfa(marca).split(' ').filter(Boolean));
+  if (!mt.size) return nome;
+  const palavras = String(nome).split(/\s+/).filter(Boolean);
+  const limpas = palavras.filter((w) => !mt.has(normAlfa(w).replace(/\s/g, '')));
+  return (limpas.length ? limpas : palavras).join(' ');
+}
+
 // Categorias alimentares que DISPENSAM ficha nutricional POR-PRODUTO (não entram na
 // worklist "por identificar"): a nutrição vem da CLASSE (cereais/massas; pão, que é
 // fresco-like) ou é irrelevante (álcool). Decisão do dono (2026-06-11): "vinho não

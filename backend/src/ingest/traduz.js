@@ -6,7 +6,7 @@ import { chatCompletion } from '../openrouter.js';
 import { config } from '../config.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 
-const PROMPT_TRADUZ = `Recebes campos da ficha de um produto alimentar (nome, ingredientes, alergenios), possivelmente noutra língua (espanhol, francês, inglês, alemão…). Traduz para PORTUGUÊS DO BRASIL (PT-BR) o que NÃO estiver em português; o que já estiver em português fica EXATAMENTE igual (não reescrevas). MARCAS e nomes próprios NUNCA se traduzem (ex.: "Yogur estilo griego natural" → "Iogurte estilo grego natural"; "Hacendado" fica "Hacendado"). Mantém números, percentagens, unidades e E-números tal como estão. Campo null fica null. Devolve SÓ JSON:
+const PROMPT_TRADUZ = `Recebes campos da ficha de um produto alimentar (nome, ingredientes, alergenios), possivelmente noutra língua (espanhol, francês, INGLÊS, alemão…). Traduz para PORTUGUÊS DO BRASIL (PT-BR) o que NÃO estiver em português; o que já estiver em português fica EXATAMENTE igual (não reescrevas). Traduz também nomes GENÉRICOS em inglês (ex.: "Eggs" → "Ovos"; "Sliced bread" → "Pão de forma fatiado"; "Sparkling water" → "Água com gás"). MARCAS e nomes próprios NUNCA se traduzem (ex.: "Yogur estilo griego natural" → "Iogurte estilo grego natural"; "Hacendado" fica "Hacendado"). Mantém números, percentagens, unidades e E-números tal como estão. Campo null fica null. Devolve SÓ JSON:
 {"nome": string|null, "ingredientes": string|null, "alergenios": string|null, "mudou": boolean}
 "mudou" = true só se traduziste alguma coisa.`;
 
@@ -31,6 +31,14 @@ export async function traduzirFichaPT(campos) {
 // tentativa por EAN — desejável: a ficha pode ter mudado entretanto.)
 const _tentados = new Set();
 
+// Heurística leve: o nome ainda PARECE estrangeiro (substantivos comuns EN/ES/FR que
+// nunca são marca) → vale a pena (re)tentar traduzir, mesmo já "tentado". Conservador
+// (só nomes genéricos óbvios) para não re-pagar LLM em nomes PT ou marcas. Resolve o
+// caso "Eggs" do Mercadona: um fire-and-forget anterior marcava o EAN e a chamada
+// síncrona do scan-para-lista devolvia o inglês guardado SEM traduzir.
+const NAO_PT = /\b(eggs?|milk|water|chicken|cheese|bread|sugar|butter|fresh|frozen|sliced|sparkling|whole|huevos?|leche|pollo|queso|az[uú]car|mantequilla|oeufs?|poulet|fromage|lait|beurre)\b/i;
+export const pareceEstrangeiro = (nome) => !!nome && NAO_PT.test(nome);
+
 // Garante que a ficha de um EAN está em PT (fire-and-forget nos fluxos de consulta/
 // identificação; síncrono no backfill e no scan-para-lista). Atualiza só se o LLM
 // traduziu algo. Devolve o NOME final em PT (traduzido ou o que já lá estava), ou
@@ -38,7 +46,10 @@ const _tentados = new Set();
 export async function garantirFichaPT(pool, ean) {
   try {
     const [[r0]] = await pool.query('SELECT nome FROM produto_ean WHERE ean = ? ORDER BY id LIMIT 1', [ean]);
-    if (_tentados.has(ean)) return r0?.nome || null; // já tentado neste processo → o nome atual
+    // já tentado neste processo → devolve o nome atual, EXCETO se ainda parece
+    // estrangeiro (tradução anterior falhou/não completou): aí re-tenta, para o
+    // scan-para-lista não devolver o inglês guardado (caso "Eggs").
+    if (_tentados.has(ean) && !pareceEstrangeiro(r0?.nome)) return r0?.nome || null;
     if (_tentados.size > 5000) _tentados.clear();
     _tentados.add(ean);
     const [[r]] = await pool.query('SELECT nome, ingredientes, alergenios FROM produto_ean WHERE ean = ?', [ean]);
