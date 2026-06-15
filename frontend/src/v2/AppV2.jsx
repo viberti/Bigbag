@@ -537,9 +537,9 @@ function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
         ) : cmp.length === 0 ? (
           <div className="cmp-empty">
             <div className="cmp-bubble">Leia o código de barras dos produtos que deseja comparar</div>
-            <svg className="cmp-arrow" viewBox="0 0 130 180" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M102 14 C 134 72, 110 138, 66 162" stroke="var(--leaf-d)" strokeWidth="6.5" strokeLinecap="round" />
-              <path d="M66 162 L 49 151 M66 162 L 80 146" stroke="var(--leaf-d)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
+            <svg className="cmp-arrow" viewBox="0 0 120 300" fill="none" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M74 8 C 120 80, 92 208, 60 286" stroke="var(--leaf-d)" strokeWidth="6" strokeLinecap="round" />
+              <path d="M60 286 L 43 264 M60 286 L 77 264" stroke="var(--leaf-d)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         ) : cmp.map((item, i) => (
@@ -549,7 +549,7 @@ function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
           </div>
         ))}
       </div>
-      {!res && (
+      {!res && cmp.length > 0 && (
         <div className="actfoot">
           <button className="cbtn cbtn-leaf" style={{ width: '100%' }} disabled={!podeComparar || carregando} onClick={comparar}>
             {carregando ? 'Comparando…' : podeComparar ? `Comparar ${cmp.length} produtos` : 'Comparar'}

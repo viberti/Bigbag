@@ -97,11 +97,11 @@
 .v2 .cbtn:disabled{opacity:.45;cursor:default;box-shadow:none}
 
 /* Comparar vazia: balão de fala (cartoon) + seta curva a apontar o botão central de scan */
-.v2 .cmp-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:34px 22px 0;min-height:62vh}
-.v2 .cmp-bubble{position:relative;background:#fff;border:2.5px solid var(--leaf);border-radius:22px;padding:16px 22px;max-width:300px;text-align:center;font:800 16.5px/1.4 var(--disp);color:var(--ink);box-shadow:var(--sh-sm)}
+.v2 .cmp-empty{display:flex;flex-direction:column;align-items:center;height:100%;padding:21vh 22px 4px}
+.v2 .cmp-bubble{position:relative;background:#fff;border:2.5px solid var(--leaf);border-radius:22px;padding:16px 22px;max-width:300px;text-align:center;font:800 16.5px/1.4 var(--disp);color:var(--ink);box-shadow:var(--sh-sm);flex:0 0 auto}
 .v2 .cmp-bubble::after{content:'';position:absolute;left:50%;bottom:-17px;transform:translateX(-50%);border:10px solid transparent;border-top-color:var(--leaf)}
 .v2 .cmp-bubble::before{content:'';position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);border:8px solid transparent;border-top-color:#fff;z-index:1}
-.v2 .cmp-arrow{width:120px;height:auto;margin-top:10px;opacity:.9}
+.v2 .cmp-arrow{flex:1 1 auto;width:108px;min-height:130px;margin-top:8px;opacity:.9}
 .v2 .cbtn-leaf{background:linear-gradient(180deg,#67b262,#46863f);color:#f7fff2}
 .v2 .cbtn-amber{background:linear-gradient(180deg,#eeb155,#cf8d24);color:#3a2606}
 .v2 .hpill{display:inline-flex;align-items:center;gap:5px;font:800 12px var(--font);padding:6px 11px;border-radius:var(--r-pill);white-space:nowrap}
