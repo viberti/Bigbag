@@ -94,7 +94,7 @@
 /* botões pílula */
 .v2 .cbtn{display:inline-flex;align-items:center;justify-content:center;gap:9px;height:54px;padding:0 22px;border:0;border-radius:var(--r-pill);font:800 16px var(--disp);cursor:pointer;box-shadow:var(--sh-sm);transition:.15s}
 .v2 .cbtn:active{transform:scale(.97)}
-.v2 .cbtn:disabled{opacity:.5}
+.v2 .cbtn:disabled{opacity:.45;cursor:default;box-shadow:none}
 .v2 .cbtn-leaf{background:linear-gradient(180deg,#67b262,#46863f);color:#f7fff2}
 .v2 .cbtn-amber{background:linear-gradient(180deg,#eeb155,#cf8d24);color:#3a2606}
 .v2 .hpill{display:inline-flex;align-items:center;gap:5px;font:800 12px var(--font);padding:6px 11px;border-radius:var(--r-pill);white-space:nowrap}

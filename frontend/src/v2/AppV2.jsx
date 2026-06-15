@@ -188,7 +188,9 @@ function Shell({ nome, onSair }) {
     window.history.replaceState(null, '', '/');
     (async () => { const file = await lerTalaoPartilhado(); if (file) go('notas', { partilhado: file }); })();
   }, [go]);
-  const navCur = TABS.has(view.id) ? view.id : null;
+  // a Comparar mostra a nav (para consultar mais itens pelo botão central) sem ser um TAB
+  // que limpa a pilha — entra empilhada, o back volta de onde veio; nenhum tab fica aceso.
+  const navCur = TABS.has(view.id) ? view.id : (view.id === 'comparar' ? 'comparar' : null);
   const common = { go, back, user: nome, onSair }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
   const Screen = {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
@@ -491,34 +493,69 @@ function Historico({ go, back }) {
 }
 
 /* ── COMPARAR ────────────────────────────────────────────────────────────── */
+// Junta produtos CONSULTADOS (como o Histórico) e compara. A nav inferior fica visível
+// (botão central → consultar mais; os novos aparecem aqui ao voltar). O botão "Comparar"
+// começa DESABILITADO e habilita-se ao incluir o 2.º item.
 function Comparar({ back, iniciais }) {
-  const [res, setRes] = useState(iniciais?.length >= 2 ? 'load' : null);
-  useEffect(() => {
-    if (!(iniciais?.length >= 2)) return;
-    compararProdutos(iniciais.map((x) => x.ean)).then(setRes).catch(() => setRes({ erro: true }));
-  }, [iniciais]);
-  const nomeDe = (ean) => res?.produtos?.find((p) => String(p.ean) === String(ean))?.nome || iniciais?.find((x) => String(x.ean) === String(ean))?.nome || ean;
+  const [dados, setDados] = useState(null);
+  const [sel, setSel] = useState(() => new Set((iniciais || []).map((x) => x.ean).filter(Boolean)));
+  const [res, setRes] = useState(null);
+  const [carregando, setCarregando] = useState(false);
+  useEffect(() => { listarHistoricoProduto(12).then(setDados).catch(() => setDados({ erro: true })); }, []);
+  const produtos = dados && !dados.erro ? dados.produtos : [];
+  const temEan = produtos.some((p) => p.ean);
+  const toggle = (ean) => { setRes(null); setSel((s) => { const n = new Set(s); n.has(ean) ? n.delete(ean) : (n.size < 6 && n.add(ean)); return n; }); };
+  const podeComparar = sel.size >= 2;
+  const comparar = async () => {
+    if (!podeComparar || carregando) return;
+    setCarregando(true);
+    try { setRes(await compararProdutos([...sel])); } catch { setRes({ erro: true }); }
+    setCarregando(false);
+  };
+  const nomeDe = (ean) => res?.produtos?.find((p) => String(p.ean) === String(ean))?.nome || produtos.find((p) => String(p.ean) === String(ean))?.nome || ean;
   const medal = (p) => (p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : `${p}º`);
   return (
     <>
-      <Ctop title="Comparar" sub={iniciais?.length ? `${iniciais.length} produtos` : 'escolha 2 a 6 produtos'} back onBack={back} />
+      <Ctop title="Comparar" sub={podeComparar ? `${sel.size} para comparar` : 'inclua 2 a 6 produtos consultados'} back onBack={back} />
       <div className="scrollarea">
-        {!iniciais?.length ? (
-          <p className="empty">Abra o Histórico, toque no ícone de comparar e marque os produtos.</p>
-        ) : res === 'load' ? <p className="empty">Comparando…</p> : res?.erro ? <p className="empty">Falha ao comparar.</p> : res ? (
-          <>
-            <div style={{ font: '800 18px var(--disp)', color: 'var(--ink)', margin: '2px 0' }}>{res.perfil ? `Melhor para ${res.perfil}` : 'Resultado'}</div>
-            <div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)', marginBottom: 12 }}>por adequação ao perfil · preço de referência</div>
-            {(res.ranking || []).map((r) => (
-              <div className="item" key={r.ean}>
-                <div className="ib"><div className="iname">{medal(r.posicao)} {nomeDe(String(r.ean))}</div><div className="isub">{r.motivo || r.veredicto}</div></div>
-                <span className={`hpill ${r.veredicto === 'evitar' || r.veredicto === 'atencao' ? 'swap' : 'good'}`}>{r.veredicto}</span>
+        {res ? (
+          res.erro ? <p className="empty">Falha ao comparar.</p> : (
+            <>
+              <button className="seeall" style={{ marginBottom: 10 }} onClick={() => setRes(null)}>← voltar à seleção</button>
+              <div style={{ font: '800 18px var(--disp)', color: 'var(--ink)', margin: '2px 0' }}>{res.perfil ? `Melhor para ${res.perfil}` : 'Resultado'}</div>
+              <div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)', marginBottom: 12 }}>por adequação ao perfil · preço de referência</div>
+              {(res.ranking || []).map((r) => (
+                <div className="item" key={r.ean}>
+                  <div className="ib"><div className="iname">{medal(r.posicao)} {nomeDe(String(r.ean))}</div><div className="isub">{r.motivo || r.veredicto}</div></div>
+                  <span className={`hpill ${r.veredicto === 'evitar' || r.veredicto === 'atencao' ? 'swap' : 'good'}`}>{r.veredicto}</span>
+                </div>
+              ))}
+              {res.resumo && <div className="parecer"><p style={{ margin: 0 }}>{res.resumo}</p></div>}
+            </>
+          )
+        ) : dados == null ? <p className="empty">…</p>
+          : dados.erro ? <p className="empty">Não foi possível carregar.</p>
+          : !temEan ? <p className="empty">Consulte produtos (pelo botão central) para os comparar aqui.</p>
+          : produtos.map((p, i) => {
+            const marcado = p.ean && sel.has(p.ean);
+            return (
+              <div className={`item hist ${marcado ? 'sel' : ''}`} key={`${p.ean || p.nome}-${i}`} onClick={p.ean ? () => toggle(p.ean) : undefined} style={!p.ean ? { opacity: .45 } : undefined}>
+                {p.ean && <span className={`histcheck ${marcado ? 'on' : ''}`}>{marcado && <Ico name="check" size={14} stroke={3} color="#fff" />}</span>}
+                <div className="ib">
+                  <div className="iname">{nomeTalao(p.nome)}{p.marca && <em className="ri-marca">{limparMarca(p.marca)}</em>}</div>
+                  <div className="isub">{!p.ean ? 'sem código de barras' : (p.n_consultas > 1 ? `consultado ${p.n_consultas}×` : 'consultado')}</div>
+                </div>
               </div>
-            ))}
-            {res.resumo && <div className="parecer"><p style={{ margin: 0 }}>{res.resumo}</p></div>}
-          </>
-        ) : null}
+            );
+          })}
       </div>
+      {!res && (
+        <div className="actfoot">
+          <button className="cbtn cbtn-leaf" style={{ width: '100%' }} disabled={!podeComparar || carregando} onClick={comparar}>
+            {carregando ? 'Comparando…' : podeComparar ? `Comparar ${sel.size} produtos` : 'Comparar'}
+          </button>
+        </div>
+      )}
     </>
   );
 }
