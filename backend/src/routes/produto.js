@@ -15,6 +15,7 @@ import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { grupoDe, grupoDeNome, tokenCasa, singularizar, norm as normN, tipoConsumidor } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
 import { fundirFichaEan } from '../normaliza/fichaEan.js';
+import { acharPorNomeMarca } from '../normaliza/resolverPorNome.js';
 import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
@@ -134,7 +135,7 @@ const fillGaps = (acc, src) => {
 
 // Consolida TUDO o que sabemos de um produto (por item da nota OU por EAN):
 // funde as várias linhas de produto_ean (vlm/off) e lista as fotos guardadas.
-async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
+export async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   // dados do item: SKU (fallback genérico) + EAN do TALÃO (autoritativo).
   let skuId = skuParam || null, nome = null, itemEan = null;
   if (itemId) {
@@ -251,13 +252,43 @@ async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   // ALIMENTO vs NÃO-ALIMENTO: usa o product_type GUARDADO (backfill 058); se não houver
   // (produto fora do catálogo), classifica ao vivo (mesma lógica). Controla o layout da ficha.
   const temNutP = (o) => o?.nutricao_100g && Object.values(o.nutricao_100g).some((v) => v != null);
+  // EAN do GÉMEO adotado por-nome (mesmo produto sob outro EAN): registado no fusao
+  // da ficha quando o utilizador confirmou a sugestão. Liga nutrição+imagem do gémeo.
+  const refNome = (() => { for (const r of rows) { const f = parseJson(r.fusao); if (f?.nome_ref_ean) return String(f.nome_ref_ean); } return null; })();
+  // Nutrição CONFIRMADA guardada na ficha (ex.: adotada do gémeo): se nenhuma fonte ao
+  // vivo trouxe nutrição, usa-a — assim a adoção por-nome reflete-se na ficha.
+  if (!temNutP(off) && !temNutP(vlm) && !temNutP(base) && !temGenericoNut) {
+    const lr = rows.find((r) => r.nutricao && r.nutricao_confirmada === 1);
+    const fn = lr ? parseJson(lr.nutricao) : null;
+    if (fn && Object.values(fn).some((v) => v != null)) base = { ...(base || {}), nutricao_100g: fn };
+  }
+  // Imagem do gémeo adotado (produto_ean não guarda imagem → resolve-se do off_full).
+  if (!imagemCatalogo && refNome) {
+    try { const [[ir]] = await getPool().query('SELECT imagem_url FROM off_full WHERE ean = ? LIMIT 1', [refNome]); imagemCatalogo = ir?.imagem_url || imagemCatalogo; } catch { /* off_full pode faltar localmente */ }
+  }
   const tipo = catalogoTipo || tipoProduto({
     nome,
     temNutricao: temNutP(off) || temNutP(vlm) || temNutP(base) || temNutP(generico),
     foodGroups: off?.grupos_alimento,
     categoria: [catalogoCategoria, off?.categoria, off?.categorias_tags, base?.categoria, vlm?.categoria].filter(Boolean).join(' '),
   });
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, catalogo_categoria: catalogoCategoria, existe: rows.length > 0 || temGenericoNut };
+  // SUGESTÃO por-nome (texto acha, o utilizador confirma): ficha "magra" (sem nutrição
+  // NEM imagem em fonte nenhuma) e ainda não ligada a um gémeo → procura no off_full o
+  // MESMO produto sob OUTRO EAN (match por nome+marca, marca=gate forte). NÃO adota:
+  // devolve o candidato para a ficha sugerir e só gravar após confirmação (ver
+  // POST /adotar-nome). Só dispara para fichas magras → não pesa no caso normal.
+  let sugestaoNome = null;
+  const temNutFinal = temNutP(off) || temNutP(vlm) || temNutP(base) || temGenericoNut;
+  const marcaBusca = base?.marca || vlm?.marca || off?.marca || null;
+  const nomeBusca = nome || base?.nome || vlm?.nome || off?.nome || null;
+  if (ean && !refNome && !temNutFinal && !imagemCatalogo && nomeBusca && marcaBusca) {
+    try {
+      const cands = await acharPorNomeMarca(getPool(), { nome: nomeBusca, marca: marcaBusca, tamanho: base?.quantidade || vlm?.quantidade || off?.quantidade || null });
+      const c = cands.find((x) => (x.tem_nutricao || x.imagem_url) && x.ean !== ean);
+      if (c) sugestaoNome = { ean_ref: c.ean, nome: c.nome, marca: c.marca, tamanho: c.tamanho, nutricao_100g: c.nutricao_100g, imagem_url: c.imagem_url, tamanho_bate: c.tamanho_bate };
+    } catch { /* off_full/FULLTEXT pode faltar localmente */ }
+  }
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;
@@ -463,6 +494,51 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
   } catch (e) {
     console.error('[produto/identificar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a identificar o produto' });
+  }
+});
+
+// ADOTAR por-nome: o utilizador confirmou, na ficha, que o produto escaneado é o MESMO
+// que um gémeo achado no off_full sob outro EAN (match por nome+marca). Copia a NUTRIÇÃO
+// do gémeo para a ficha do EAN escaneado (confirmada) e regista a proveniência
+// (nome_ref_ean no fusao) — reversível (limpar o ref desfaz) e auditável. A imagem NÃO
+// se copia: o /info resolve-a do off_full por esse EAN. NUNCA é facto do EAN exato.
+// Lógica pura (testável sem HTTP): copia a nutrição do gémeo `eanRef` (off_full) para a
+// ficha de `ean` e regista a proveniência. Devolve {nutricao_100g, imagem_url} ou null se
+// o gémeo não existir. A imagem NÃO se copia (produto_ean não a guarda); fica o ref.
+export async function adotarNomeRef(pool, ean, eanRef) {
+  const [[ref]] = await pool.query(
+    `SELECT energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra, imagem_url
+       FROM off_full WHERE ean = ? LIMIT 1`, [eanRef]);
+  if (!ref) return null;
+  const nut = { energia_kcal: ref.energia_kcal, gordura: ref.gordura, gordura_saturada: ref.gordura_sat, hidratos: ref.hidratos, acucares: ref.acucares, proteina: ref.proteinas, sal: ref.sal, fibra: ref.fibra };
+  const temNut = Object.values(nut).some((v) => v != null);
+  const [[pe]] = await pool.query('SELECT id, fusao FROM produto_ean WHERE ean = ? ORDER BY id LIMIT 1', [ean]);
+  const fus = pe ? (parseJson(pe.fusao) || {}) : {};
+  fus.nome_ref_ean = eanRef;
+  fus.proveniencia = { ...(fus.proveniencia || {}), nutricao: temNut ? 'por-nome' : (fus.proveniencia?.nutricao || null), imagem: ref.imagem_url ? 'por-nome' : (fus.proveniencia?.imagem || null) };
+  if (pe) {
+    await pool.query(
+      'UPDATE produto_ean SET nutricao = COALESCE(?, nutricao), nutricao_confirmada = ?, fusao = ? WHERE ean = ?',
+      [temNut ? JSON.stringify(nut) : null, temNut ? 1 : 0, JSON.stringify(fus), ean]);
+  } else {
+    await pool.query(
+      'INSERT INTO produto_ean (ean, nutricao, nutricao_confirmada, fonte, fusao) VALUES (?,?,?,?,?)',
+      [ean, temNut ? JSON.stringify(nut) : null, temNut ? 1 : 0, 'por-nome', JSON.stringify(fus)]);
+  }
+  return { nutricao_100g: temNut ? nut : null, imagem_url: ref.imagem_url || null };
+}
+
+produtoRouter.post('/adotar-nome', requireAuth, async (req, res) => {
+  try {
+    const ean = String(req.body?.ean || '').replace(/\D/g, '');
+    const eanRef = String(req.body?.ean_ref || '').replace(/\D/g, '');
+    if (!ean || !eanRef) return res.status(400).json({ erro: 'Faltam ean e ean_ref.' });
+    const r = await adotarNomeRef(getPool(), ean, eanRef);
+    if (!r) return res.status(404).json({ erro: 'Produto de referência não encontrado.' });
+    res.json({ ok: true, ean, ean_ref: eanRef, ...r });
+  } catch (e) {
+    console.error('[produto/adotar-nome] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a adotar o produto.' });
   }
 });
 

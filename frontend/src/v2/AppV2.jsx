@@ -13,6 +13,7 @@ import {
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome, consultarProdutoEan,
   listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
+  adotarPorNome,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
@@ -570,9 +571,11 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const [aval, setAval] = useState(null);
   const [alt, setAlt] = useState(null);
   const [open, setOpen] = useState({});
+  const [adotando, setAdotando] = useState(false);
   const registado = useRef(false);
   useEffect(() => {
     registado.current = false; // novo produto → permite registar 1×
+    setAdotando(false);
     const q = { itemId: undefined, ean, skuId: sku_id };
     infoProduto(q).then(setInfo).catch(() => setInfo({ erro: true }));
     analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => setAnalise(null));
@@ -609,6 +612,21 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   // NOTA: não mostramos "categoria" no layout não-alimento — o classificador (grupoDeNome)
   // é orientado a alimentos e erra em não-alimentos ("Leite de Proteção Solar"→Laticínios).
   // Uma categoria fiável p/ não-alimentos precisa do campo product_type (ver backlog).
+  // Sugestão por-nome: o mesmo produto foi achado sob outro EAN no OFF. Confirmar adota.
+  const sug = info?.sugestao_nome || null;
+  const eanAdotar = info?.ean || ean;
+  const adotar = async () => {
+    if (!sug || !eanAdotar || adotando) return;
+    setAdotando(true);
+    try {
+      await adotarPorNome({ ean: eanAdotar, ean_ref: sug.ean_ref });
+      const q = { itemId: undefined, ean, skuId: sku_id };
+      const fresh = await infoProduto(q); setInfo(fresh);
+      analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => {});
+      avaliacaoPersonalizada(q).then((r) => setAval(r?.perfil ? r : null)).catch(() => {});
+      alternativasProduto(q).then((r) => setAlt(r?.alternativas?.length ? r : null)).catch(() => {});
+    } catch { setAdotando(false); } // falhou → mantém a sugestão p/ tentar outra vez
+  };
   const action = <button className="hist-cmp" title="Adicionar à lista" onClick={() => go('lista')}><span style={{ color: 'var(--leaf-d)' }}><Ico name="plus" size={20} stroke={2.4} /></span></button>;
   return (
     <>
@@ -619,6 +637,21 @@ function Ficha({ go, back, ean, sku_id, nome }) {
           <div className="f-name">{nomeProd}</div>
           {grau && <span className="ns-pill" style={{ background: NS_COR[grau] || '#9ec93f' }}>{grau}</span>}
         </div>
+
+        {sug && !temNut && (
+          <div className="sug-nome">
+            <div className="sug-h"><Ico name="search" size={15} color="#b06a00" /> Este código não tem ficha — achámos o mesmo produto</div>
+            <div className="sug-b">
+              {sug.imagem_url && <img src={sug.imagem_url} alt="" />}
+              <div className="sug-t">
+                <div className="sug-n">{sug.nome}{sug.marca ? ` · ${sug.marca}` : ''}</div>
+                <div className="sug-d">{[sug.tamanho, sug.nutricao_100g ? 'com tabela nutricional' : null, sug.imagem_url ? 'com foto' : null].filter(Boolean).join(' · ')}</div>
+              </div>
+            </div>
+            <button className="sug-btn" disabled={adotando} onClick={adotar}>{adotando ? 'A aplicar…' : 'Usar a nutrição e a foto deste'}</button>
+            <div className="sug-x">É o mesmo produto (talvez noutro tamanho). A nutrição é por 100 g — não muda com a embalagem.</div>
+          </div>
+        )}
 
         {ehAlimento ? (<>
           {(aval?.avaliacao || analise?.parecer) && (

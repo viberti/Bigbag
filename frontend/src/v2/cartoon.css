@@ -190,6 +190,17 @@
 .v2 .parecer .selo{font:800 11px var(--font);color:#fff;background:var(--leaf);border-radius:var(--r-pill);padding:3px 10px;margin-left:auto}
 .v2 .parecer p{margin:8px 0 0;font:500 13px/1.5 var(--font);color:var(--ink)}
 .v2 .parecer.attn{background:#fbf0d6;border:2px solid #fff;box-shadow:0 0 0 2px var(--amber)}
+
+/* Sugestão por-nome: "achámos o mesmo produto sob outro código" — confirmar adota */
+.v2 .sug-nome{background:var(--amber-soft);border:2px solid #fff;border-radius:var(--r-sm);padding:13px 15px;margin:13px 0;box-shadow:0 0 0 2px var(--amber)}
+.v2 .sug-nome .sug-h{display:flex;align-items:center;gap:7px;font:800 13.5px var(--disp);color:var(--amber-d)}
+.v2 .sug-nome .sug-b{display:flex;align-items:center;gap:11px;margin:10px 0}
+.v2 .sug-nome .sug-b img{width:52px;height:52px;border-radius:12px;object-fit:contain;background:#fff;border:1.5px solid var(--line);flex:0 0 auto}
+.v2 .sug-nome .sug-n{font:800 14px var(--font);color:var(--ink)}
+.v2 .sug-nome .sug-d{font:600 11.5px var(--font);color:var(--ink-3);margin-top:2px}
+.v2 .sug-nome .sug-btn{width:100%;height:44px;border:0;border-radius:var(--r-pill);background:var(--amber);color:#4a3206;font:800 14px var(--disp);cursor:pointer;box-shadow:var(--sh-sm)}
+.v2 .sug-nome .sug-btn:disabled{opacity:.6;cursor:default}
+.v2 .sug-nome .sug-x{font:500 11px/1.45 var(--font);color:var(--ink-3);margin-top:8px}
 .v2 .parecer .selo.attn{background:var(--amber);color:#3a2606}
 .v2 .acc-link{margin-top:10px;background:0;border:0;font:800 13px var(--disp);color:var(--leaf-d);cursor:pointer;padding:0}
 .v2 .reguas{background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);padding:13px 14px;box-shadow:var(--sh-sm);margin-bottom:12px}

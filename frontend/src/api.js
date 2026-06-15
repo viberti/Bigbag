@@ -124,6 +124,17 @@ export async function identificarProduto({ ean, skuId, itemId, fotos }) {
   return r.json(); // { ean, vlm, off, fonte, custo }
 }
 
+// Adotar a nutrição/imagem de um produto GÉMEO achado por nome (mesmo produto, outro
+// EAN) — depois de o utilizador confirmar na ficha.
+export async function adotarPorNome({ ean, ean_ref }) {
+  const r = await call('/api/produto/adotar-nome', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ean, ean_ref }),
+  });
+  if (!r.ok) throw new Error(`adotar ${r.status}`);
+  return r.json(); // { ok, ean, ean_ref, nutricao_100g, imagem_url }
+}
+
 export async function resumoGastos() {
   const r = await call('/api/faturas/gastos');
   if (!r.ok) throw new Error(`gastos ${r.status}`);
