@@ -25,7 +25,7 @@ import { matchImagemB64 } from '../normaliza/matchImagem.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
 import { nutricaoContinenteLive } from '../ingest/nutricaoContinente.js';
-import { tipoProduto } from '../normaliza/tipoProduto.js';
+import { tipoProduto, decidirTipo } from '../normaliza/tipoProduto.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -266,12 +266,17 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   if (!imagemCatalogo && refNome) {
     try { const [[ir]] = await getPool().query('SELECT imagem_url FROM off_full WHERE ean = ? LIMIT 1', [refNome]); imagemCatalogo = ir?.imagem_url || imagemCatalogo; } catch { /* off_full pode faltar localmente */ }
   }
-  const tipo = catalogoTipo || tipoProduto({
+  // FUSOR food/não-food (departamento): catálogo (058) primeiro; senão funde os sinais
+  // (nutrição → VLM-tipo do pacote → [marca, passo seguinte] → nome/categoria) c/ proveniência.
+  const tipoFus = decidirTipo({
     nome,
     temNutricao: temNutP(off) || temNutP(vlm) || temNutP(base) || temNutP(generico),
     foodGroups: off?.grupos_alimento,
     categoria: [catalogoCategoria, off?.categoria, off?.categorias_tags, base?.categoria, vlm?.categoria].filter(Boolean).join(' '),
+    tipoTexto: [vlm?.tipo_no_pacote, vlm?.tipo_inferido?.tipo].filter(Boolean).join(' '),
   });
+  const tipo = catalogoTipo || tipoFus.tipo;
+  const tipoVia = catalogoTipo ? 'catalogo' : tipoFus.via;
   // SUGESTÃO por-nome (texto acha, o utilizador confirma): ficha "magra" (sem nutrição
   // NEM imagem em fonte nenhuma) e ainda não ligada a um gémeo → procura no off_full o
   // MESMO produto sob OUTRO EAN (match por nome+marca, marca=gate forte). NÃO adota:
@@ -288,7 +293,7 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
       if (c) sugestaoNome = { ean_ref: c.ean, nome: c.nome, marca: c.marca, tamanho: c.tamanho, nutricao_100g: c.nutricao_100g, imagem_url: c.imagem_url, tamanho_bate: c.tamanho_bate };
     } catch { /* off_full/FULLTEXT pode faltar localmente */ }
   }
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, existe: rows.length > 0 || temGenericoNut };
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;

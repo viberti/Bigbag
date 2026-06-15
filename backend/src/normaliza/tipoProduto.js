@@ -36,3 +36,27 @@ export function tipoProduto({ nome = '', temNutricao = false, foodGroups = null,
   if (has(FOOD_CAT, categoria)) return 'food';            // 5. categoria de alimento
   return null;                                            // ambíguo
 }
+
+// FUSOR de food/não-food (1.º nível do fusor de categoria — o "departamento"):
+// funde os sinais por ordem de fiabilidade e devolve { tipo, via } com a PROVENIÊNCIA
+// (qual sinal decidiu). Generaliza tipoProduto() acrescentando dois votos:
+//  - tipoTexto: o que o VLM LEU/JULGOU do pacote (tipo_no_pacote + tipo_inferido) — texto
+//    FORTE (palavras do fabricante > nome cru); entra logo após a nutrição. Ex.: nome
+//    "Pérolas" (homónimo) mas tipoTexto "massa alimentícia" → food; "Vela de Cumpleaños"
+//    no pacote → non_food (derruba o prior food da marca Hacendado).
+//  - marcaShareFood (0..1, opcional — passo seguinte): fração de produtos 'food' da marca,
+//    minada do catálogo. Especialista de departamento (Hacendado 0.99 → food; Deliplus
+//    0.03 → non_food). null = sem sinal de marca.
+export function decidirTipo({ nome = '', temNutricao = false, foodGroups = null, categoria = '', tipoTexto = '', marcaShareFood = null } = {}) {
+  if (temNutricao || temFG(foodGroups)) return { tipo: 'food', via: 'nutricao' };
+  if (tipoTexto) { // o VLM viu o produto → o seu tipo é mais fiável que o nome cru
+    if (has(NON_FOOD_NOME, tipoTexto) || has(NON_FOOD_CAT, tipoTexto)) return { tipo: 'non_food', via: 'vlm-tipo' };
+    if (has(FOOD_NOME, tipoTexto) || has(FOOD_CAT, tipoTexto)) return { tipo: 'food', via: 'vlm-tipo' };
+  }
+  if (marcaShareFood != null) { // marca especialista de departamento (mini marca_perfil)
+    if (marcaShareFood >= 0.9) return { tipo: 'food', via: 'marca' };
+    if (marcaShareFood <= 0.1) return { tipo: 'non_food', via: 'marca' };
+  }
+  const t = tipoProduto({ nome, temNutricao, foodGroups, categoria }); // cascata por nome/categoria
+  return { tipo: t, via: t ? 'nome-categoria' : 'ambiguo' };
+}
