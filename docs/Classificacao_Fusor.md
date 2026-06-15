@@ -202,9 +202,18 @@ leguminosas · farinhas/açúcar) — onde nutrição e alternativas mais pesam.
 - ✅ existe: `fichaEan` (o molde), `classificarPorCatalogo` (voto de família, loja),
   match-por-nome (`acharPorNomeMarca`), match-por-imagem (CLIP/Qdrant, ~57k vetores),
   off_full (OFF por EAN), `marca`/`tipoProduto`, facetas como colunas, IDF de tokens.
+- ✅ **construído 2026-06-15 (1.º nível do fusor — o DEPARTAMENTO food/não-food):**
+  - **campos novos do VLM** (§8): `tipo_no_pacote` + `tipo_inferido` em `extrairProdutoFotos`
+    (lê **e** julga; o juízo não altera nome/marca). Capturado em todo scan, no `vlm_json`.
+  - **`decidirTipo()`** (`tipoProduto.js`): o fusor food/não-food com **proveniência**
+    (`{tipo, via}`) — funde nutrição → VLM-tipo → marca → nome/categoria. Ligado no
+    `consolidarProduto` (expõe `tipo_via`). 12 testes puros + e2e verificado.
+  - **`marca_perfil`** (migração 060 + `scripts/construir_marca_perfil.mjs`): share food/
+    não-food por marca, minado do product_type (058). 6069 marcas (Hacendado 0.99, Deliplus
+    0.03). O voto da marca-especialista-de-departamento, **depois** do VLM-tipo.
 - ◻ a construir: a árvore `categoria_no`, a ponte `categoria_ancora` (LLM offline), o
-  `marca_perfil`, o `ean_empresa` + coerência, o **fusor** que orquestra tudo com
-  proveniência, os **campos novos do VLM** (§8), o golden de classificação.
+  `marca_perfil` **por NÍVEL** (família, não só departamento), o `ean_empresa` + coerência,
+  o **fusor de FAMÍLIA** (generalizar `decidirTipo` à árvore), o golden de classificação.
 
 ---
 
