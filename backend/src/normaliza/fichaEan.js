@@ -32,7 +32,10 @@ import { nutricaoPlausivel } from './validadores.js';
 import { tituloProduto } from './titulo.js';
 import { parseJsonCol } from '../db.js';
 
-const FONTES_PT = ['continente', 'auchan', 'mercadona-off', 'lidl', 'pingodoce'];
+// Fontes cujo `nome` é PT FIÁVEL (lojas PT). NÃO inclui mercadona-off (nomes do OFF,
+// ES/EN — ex. "Eggs"), mercadona (ES), lidl-fr (FR), leclerc (ES), piccantino/consum:
+// essas só contribuem via nome_pt traduzido, senão caem na tradução LLM. Dono 2026-06-15.
+const FONTES_PT = ['continente', 'auchan', 'lidl', 'pingodoce'];
 
 // ── helpers puros (exportados p/ testes) ─────────────────────────────────────
 
@@ -220,9 +223,12 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     nome = escolherNome(candsNome);
     prov.nome = candsNome.find((c) => norm(c.texto) === norm(nome))?.fonte || 'fusao';
   } else {
-    // nenhum nome PT: melhor estrangeiro (OFF > VLM) — a tradução LLM corre depois
-    nome = limparNomeProduto(off?.nome || vlm?.nome || null, marca);
-    prov.nome = off?.nome ? 'off' : vlm?.nome ? 'vlm' : null;
+    // nenhum nome PT: melhor estrangeiro (OFF > VLM > catálogo de loja estrangeira,
+    // ex. Mercadona-ES/Lidl-FR) — a tradução LLM corre depois. Sem o fallback de
+    // catálogo, um produto só-Mercadona-ES/Lidl-FR sem OFF ficava SEM nome.
+    const catEstr = cat.map((c) => c.nome).find(Boolean) || null;
+    nome = limparNomeProduto(off?.nome || vlm?.nome || catEstr || null, marca);
+    prov.nome = off?.nome ? 'off' : vlm?.nome ? 'vlm' : catEstr ? 'catalogo' : null;
     nomeEstrangeiro = !!nome;
     // o nome já gravado DIFERENTE do estrangeiro é (quase de certeza) a tradução
     // LLM da volta anterior — não a perder (caso Passata do 1.º backfill)
