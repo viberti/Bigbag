@@ -20,6 +20,7 @@ export const FAMILIAS = {
   azeite_oleo:        { label: 'Azeite e Óleo',             dep: 'food', grupo: 'mercearia', seccao: 'condimentos',  unidade: 'l'  },
   especiarias:        { label: 'Especiarias e Temperos',    dep: 'food', grupo: 'mercearia', seccao: 'condimentos',  unidade: 'kg' },
   farinha_acucar:     { label: 'Farinhas, Açúcar e Fermentos', dep: 'food', grupo: 'mercearia', seccao: 'mercearia', unidade: 'kg' },
+  cafe_cha:           { label: 'Café, Chá e Infusões',       dep: 'food', grupo: 'mercearia', seccao: 'cafe_cha',    unidade: 'kg' },
 };
 
 export const familia = (slug) => FAMILIAS[slug] || null;
@@ -32,6 +33,7 @@ const T = Object.fromEntries(TIPOS_NOME);
 // alimentar; o fusor aplica-o nesse contexto (não a bebidas/frescos com os mesmos tokens).
 const FAM_RE = [
   ['conservas_peixe',    /(^|[^a-z])(atum|sardinhas?|anchovas?|anchoa|cavala|\bsarda\b|biqueir[ao]|melva|filetes? de (peixe|cavala|sarda|anchova))/],
+  ['cafe_cha',           T.cafe_cha],
   ['azeite_oleo',        /(^|[^a-z])(azeite|olive oil|oleo (de )?(girassol|alimentar|vegetal|amendoim|colza|milho)|\boleo\b)/],
   ['molhos_condimentos', /(^|[^a-z])(ketchup|maionese|mayon|mostarda|mustard|\bmolho|\bsauce\b|pesto|vinagrete?|sofrito|aioli|alioli|barbecue|teriyaki|worcester|tabasco|guacamole|\bbechamel)/],
   ['especiarias',        /(^|[^a-z])(\bsal\b|pimenta|oregaos?|oregano|canela|\bcaril\b|\bcurry\b|cominho|colorau|paprica|noz[- ]moscada|\blouro\b|\bcravo\b|acafrao|gengibre em po|tomilho|alecrim|especiaria|\btempero)/],
@@ -39,7 +41,7 @@ const FAM_RE = [
   ['arroz',              /(^|[^a-z])(arroz|basmati|risotto|risoto|arborio|carolino|\bagulha\b|jasmim)/],
   ['cereais_pa',         T.cereais],
   ['leguminosas',        /(^|[^a-z])(feij[ao]|feijoes|\bgrao\b|grao de bico|garbanzo|lentilhas?|\bervilhas?\b|\bfavas?\b)/],
-  ['conservas_vegetais', /(^|[^a-z])(milho doce|\bmilho\b|tomate (pelado|triturado|frito)|polpa de tomate|passatas?|pelati|concentrado de tomate|cogumelos?|champignon|pimentos? (piquillo|morron|assados)|piquillo|palmito|alcachofra|espargos)/],
+  ['conservas_vegetais', /(^|[^a-z])(milho doce|\bmilho\b|tomate (pelado|triturado|frito)|polpa de tomate|passatas?|pelati|concentrado de tomate|cogumelos?|champignon|pimentos? (piquillo|morron|assados)|piquillo|palmito|alcachofra|espargos|azeitonas?|\bpickles?\b|\bpicles\b|em calda|em vinagre|cebolinhas?)/],
   ['farinha_acucar',     /(^|[^a-z])(farinha|\bacucar\b|azucar|fermento (em po|de padeiro|quimico)|levedura|gelatina (neutra|em po)|maizena|amido de milho|\bfecula)/],
 ];
 

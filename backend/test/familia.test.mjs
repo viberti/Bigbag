@@ -57,6 +57,17 @@ test('cereais de pequeno-almoço', () => {
     assert.equal(familiaPorNome(n), 'cereais_pa', n);
 });
 
+test('café, chá e infusões (família acrescentada após a cobertura)', () => {
+  for (const n of ['Café Delta Solúvel Descafeinado', 'Café Nescafé Gold 100g', 'Chá Verde 20 Saquetas', 'Infusão de Camomila'])
+    assert.equal(familiaPorNome(n), 'cafe_cha', n);
+});
+
+test('conservas_vegetais estendidas: azeitonas, pickles, fruta em calda', () => {
+  assert.equal(familiaPorNome('Azeitona Verde Inteira Manzanilha'), 'conservas_vegetais');
+  assert.equal(familiaPorNome('Pickles Ferbar em Vinagre'), 'conservas_vegetais');
+  assert.equal(familiaPorNome('Pêssego em Calda'), 'conservas_vegetais');
+});
+
 test('fora do ramo / desconhecido → null', () => {
   assert.equal(familiaPorNome('Produto Misterioso XYZ'), null);
   assert.equal(familiaPorNome(''), null);
