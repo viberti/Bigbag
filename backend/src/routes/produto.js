@@ -12,7 +12,7 @@ import { config } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
-import { grupoDe, grupoDeNome, tokenCasa, singularizar, norm as normN, tipoConsumidor } from '../normaliza/categoria.js';
+import { grupoDe, grupoDeNome, tokenCasa, singularizar, norm as normN, normAlfa, tipoConsumidor } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
 import { fundirFichaEan } from '../normaliza/fichaEan.js';
 import { acharPorNomeMarca } from '../normaliza/resolverPorNome.js';
@@ -266,14 +266,26 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   if (!imagemCatalogo && refNome) {
     try { const [[ir]] = await getPool().query('SELECT imagem_url FROM off_full WHERE ean = ? LIMIT 1', [refNome]); imagemCatalogo = ir?.imagem_url || imagemCatalogo; } catch { /* off_full pode faltar localmente */ }
   }
+  // Voto da MARCA (fatia departamento do marca_perfil): só quando vai pesar (sem
+  // catálogo-tipo) e há marca. Especialista de departamento vota forte (Hacendado→food).
+  let marcaShareFood = null;
+  const marcaTipo = base?.marca || vlm?.marca || off?.marca || null;
+  if (!catalogoTipo && marcaTipo) {
+    try {
+      const [[mp]] = await getPool().query(
+        'SELECT share_food FROM marca_perfil WHERE marca_norm = ? AND (n_food + n_nonfood) >= 8', [normAlfa(marcaTipo)]);
+      if (mp && mp.share_food != null) marcaShareFood = mp.share_food;
+    } catch { /* marca_perfil pode não existir ainda */ }
+  }
   // FUSOR food/não-food (departamento): catálogo (058) primeiro; senão funde os sinais
-  // (nutrição → VLM-tipo do pacote → [marca, passo seguinte] → nome/categoria) c/ proveniência.
+  // (nutrição → VLM-tipo do pacote → marca → nome/categoria) com proveniência.
   const tipoFus = decidirTipo({
     nome,
     temNutricao: temNutP(off) || temNutP(vlm) || temNutP(base) || temNutP(generico),
     foodGroups: off?.grupos_alimento,
     categoria: [catalogoCategoria, off?.categoria, off?.categorias_tags, base?.categoria, vlm?.categoria].filter(Boolean).join(' '),
     tipoTexto: [vlm?.tipo_no_pacote, vlm?.tipo_inferido?.tipo].filter(Boolean).join(' '),
+    marcaShareFood,
   });
   const tipo = catalogoTipo || tipoFus.tipo;
   const tipoVia = catalogoTipo ? 'catalogo' : tipoFus.via;
