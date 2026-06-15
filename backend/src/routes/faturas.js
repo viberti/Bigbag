@@ -378,6 +378,7 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
                  WHERE pe2.ean = COALESCE(i.ean, ident.ean) AND pe2.categoria IS NOT NULL AND pe2.categoria <> ''
                  ORDER BY pe2.id LIMIT 1)) AS categoria,
               i.descricao_original AS descricao_raw,
+              i.desconto_direto, i.is_clearance,
               (SELECT pe3.quantidade FROM produto_ean pe3
                  WHERE pe3.ean = COALESCE(i.ean, ident.ean) AND pe3.quantidade IS NOT NULL AND pe3.quantidade <> ''
                  ORDER BY pe3.id LIMIT 1) AS tamanho,

@@ -764,7 +764,9 @@ function Despensa({ go, back }) {
 const MESF = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 function Notas({ go, back, partilhado }) {
   const [notas, setNotas] = useState(null);
-  const [filtro, setFiltro] = useState('todas');
+  // PRESERVAR a última escolha do filtro de mercado entre aberturas (localStorage).
+  const [filtro, setFiltroRaw] = useState(() => { try { return localStorage.getItem('compras_filtro') || 'todas'; } catch { return 'todas'; } });
+  const setFiltro = useCallback((v) => { setFiltroRaw(v); try { localStorage.setItem('compras_filtro', v); } catch { /* noop */ } }, []);
   const [enviando, setEnviando] = useState(false);
   const fileRef = useRef(null);
   const partilhadoEnviado = useRef(false);
@@ -779,6 +781,8 @@ function Notas({ go, back, partilhado }) {
   useEffect(() => { if (partilhado && !partilhadoEnviado.current) { partilhadoEnviado.current = true; enviar(partilhado); } }, [partilhado, enviar]);
   const lista = notas || [];
   const nomeLoja = (n) => n.loja || n.mercado || 'Outro';
+  // se a loja guardada já não tem compras, volta a "todas" (evita lista vazia)
+  useEffect(() => { if (filtro !== 'todas' && notas && !notas.some((n) => nomeLoja(n) === filtro)) setFiltro('todas'); }, [notas]); // eslint-disable-line react-hooks/exhaustive-deps
   const mesDe = (n) => { const d = new Date(n.data); return Number.isNaN(d.getTime()) ? { k: -1, l: '—' } : { k: d.getFullYear() * 12 + d.getMonth(), l: MESF[d.getMonth()] }; };
   // chips por loja, ordenados por nº de compras
   const cont = {}; lista.forEach((n) => { const k = nomeLoja(n); cont[k] = (cont[k] || 0) + 1; });
@@ -907,9 +911,11 @@ function agruparTipo(prods) {
   prods.forEach((p) => { const k = tipoDe(p.nome);
     if (!m[k]) m[k] = { tipo: k, total: 0, prods: [], orig: String(p.nome || k).trim().split(/\s+/)[0] || k };
     m[k].total += Number(p.total) || 0; m[k].prods.push(p); });
-  return Object.values(m).map((t) => { // rótulo da PALAVRA ORIGINAL (mantém acentos), plural simples
-    const base = t.orig.charAt(0).toUpperCase() + t.orig.slice(1);
-    return { ...t, label: t.prods.length > 1 && !/s$/i.test(base) ? base + 's' : base };
+  return Object.values(m).map((t) => { // rótulo = PALAVRA ORIGINAL (mantém acentos)
+    // NÃO gerar plural algoritmicamente (regra do dono 2026-06-15): "Arroz"→"Arrozs",
+    // "Pão"→"Pãos" são terríveis. Mostra a palavra como está; a contagem dá o número.
+    // (Plurais corretos, se quisermos, via dicionário LLM cacheado — não por regra.)
+    return { ...t, label: t.orig.charAt(0).toUpperCase() + t.orig.slice(1) };
   }).sort((a, b) => b.total - a.total);
 }
 function GastosCat({ go, back, label, grupos, total, cor }) {
@@ -974,6 +980,13 @@ function Recibo({ go, back, id }) {
                   <span className="ri-nm">
                     {nomeTalao(p.produto)}{marca && <em className="ri-marca">{marca}</em>}
                     {sub && <small className="ri-sub">{sub}</small>}
+                    {(linha === 0 || p.desconto_direto > 0 || p.is_clearance) && (
+                      <span className="ri-pills">
+                        {linha === 0 ? <span className="pill free">grátis</span>
+                          : p.desconto_direto > 0 ? <span className="pill desc">−{eur(p.desconto_direto)}</span>
+                            : <span className="pill desc">promoção</span>}
+                      </span>
+                    )}
                   </span>
                   {!temFicha && <button className="ri-cam" title="Identificar produto" onClick={(e) => { e.stopPropagation(); identificar(); }}><Ico name="camera" size={17} stroke={2} color="#3f7a3f" /></button>}
                   <span className="ri-p">{eur(linha)}</span>
@@ -1166,7 +1179,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
       const r = await identificarProduto({ ean: registo.ean, fotos: registo.fotos });
       const nm = r?.vlm?.nome || r?.off?.nome || 'Produto';
       if (paraLista) { try { await adicionarListaItem({ nome: nm, ean: registo.ean }); } catch { /* segue à confirmação */ } setRegisto(null); setAddOk({ nome: nm, ean: registo.ean }); }
-      else go('ficha', { ean: registo.ean }, { replace: true });
+      else go('ficha', { ean: registo.ean, nome: nm }, { replace: true }); // passa o nome → a ficha não pisca "sem nome"
     } catch { setRegBusy(false); setRegisto((r) => r && { ...r, erro: true }); }
   }
   async function lanterna() {
@@ -1210,11 +1223,20 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
             <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 6 }} onClick={() => { setAddOk(null); setModo('codigo'); }}><Ico name="scan" size={18} color="#f7fff2" /> Escanear outro</button>
             <button className="acc-link" onClick={() => go('ficha', { ean: addOk.ean })}>Ver ficha do produto</button>
           </div>
-        ) : registo ? (
+        ) : registo ? (regBusy ? (
+          // VLM a processar a(s) foto(s): animação "analisando" em vez de tela sem nome
+          <div className="analisando">
+            <div className="an-card">
+              {registo.fotos[0] && <img src={URL.createObjectURL(registo.fotos[0])} alt="produto" className="an-img" />}
+              <span className="an-scan" />
+            </div>
+            <div className="an-txt">Analisando produto<i className="an-dots" /></div>
+            <div className="sc-hint" style={{ margin: 0 }}>a ler o rótulo — um instante…</div>
+          </div>
+        ) : (
           <>
             <div className="sc-cam photo">
               {!registo.semcam && <video ref={fotoVideoRef} playsInline muted />}
-              {regBusy && <span style={{ position: 'absolute', font: '800 15px var(--disp)', color: 'var(--ink)', background: 'rgba(251,253,246,.9)', padding: '8px 16px', borderRadius: 999 }}>{paraLista ? 'Adicionando…' : 'Cadastrando…'}</span>}
               <div className="sc-frame" />
             </div>
             {registo.fotos.length > 0 && (
@@ -1222,11 +1244,11 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
                 {registo.fotos.map((f, i) => <img key={i} src={URL.createObjectURL(f)} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 10, border: '2px solid #fff', flex: '0 0 auto' }} />)}
               </div>
             )}
-            <button className="cbtn cbtn-amber" style={{ width: '100%', marginBottom: 10 }} onClick={capturarRegisto} disabled={regBusy || registo.semcam}>
+            <button className="cbtn cbtn-amber" style={{ width: '100%', marginBottom: 10 }} onClick={capturarRegisto} disabled={registo.semcam}>
               <Ico name="camera" size={18} color="#3a2606" /> Tirar foto {registo.fotos.length ? `(${registo.fotos.length})` : ''}
             </button>
             {registo.fotos.length > 0 && (
-              <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={registar} disabled={regBusy}>{regBusy ? '…' : paraLista ? 'Identificar e adicionar' : 'Cadastrar produto'}</button>
+              <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={registar}>{paraLista ? 'Identificar e adicionar' : 'Cadastrar produto'}</button>
             )}
             <div className="sc-hint">{
               registo.semcam ? 'Sem acesso à câmera — verifique a permissão.'
@@ -1234,7 +1256,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
                 : `${registo.naoLido ? 'Não encontrei pelo código de barras — vamos identificar por foto. ' : ''}Fotografe a frente e o rótulo${paraLista ? '' : ' (e a tabela nutricional)'} — quantas fotos precisar.`
             }</div>
           </>
-        ) : foto?.fase === 'resultados' ? (
+        )) : foto?.fase === 'resultados' ? (
           <>
             <p className="sc-hint" style={{ marginTop: 4 }}>Qual destes é? Toque para ver a ficha.</p>
             {foto.cands.map((c) => (

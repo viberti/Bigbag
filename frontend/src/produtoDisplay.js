@@ -45,8 +45,9 @@ export function agregarItensTalao(itens) {
     const unit = qtd ? linha / qtd : linha;
     const key = [it.produto, it.ean || '', limparMarca(it.marca) || '', Math.round(unit * 100)].join('|');
     const ex = mapa.get(key);
-    if (ex) { ex.quantidade += qtd; ex.preco += linha; }
-    else { mapa.set(key, { ...it, quantidade: qtd, preco: linha }); out.push(mapa.get(key)); }
+    const desc = Number(it.desconto_direto) || 0;
+    if (ex) { ex.quantidade += qtd; ex.preco += linha; ex.desconto_direto += desc; ex.is_clearance = ex.is_clearance || !!it.is_clearance; }
+    else { mapa.set(key, { ...it, quantidade: qtd, preco: linha, desconto_direto: desc, is_clearance: !!it.is_clearance }); out.push(mapa.get(key)); }
   }
   return out;
 }
