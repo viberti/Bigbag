@@ -51,7 +51,7 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 - **`Analise_Fontes_Normalizacao.md`** — fontes (números reais) + plano v2 (fases A/B/C/**D=classificação por catálogo**).
 - **`Visao_Multi_Pais.md`** — direção multi-país (Europa) + **arquitetura de 2 camadas**: IDENTIDADE universal (EAN, partilhada, enriquece com cada país) vs PREÇO+LOCALE (por país, parametrizável). Princípio **locale-ready, não locale-completo**.
 - **`Auth_Zitadel.md`** — serviço de autenticação partilhado (Zitadel IdP OIDC self-host): infra, IDs/endpoints, integração do BigBag (PKCE + JWT + allowlist), modelo multi-app, e o que falta (Google login).
-- **`Visao_Conselheiro_Saude_Alimentar.md`** · **`Vertical_Espanha_Mercadona.md`** · **`Paper_Resolucao_Produtos_Talao.md`** · **`Aula_Classificacao_Produtos.md`** (didático) · Runbook de bootstrap.
+- **`Visao_Conselheiro_Saude_Alimentar.md`** · **`Vertical_Espanha_Mercadona.md`** · **`Paper_Resolucao_Produtos_Talao.md`** · **`Aula_Classificacao_Produtos.md`** + **`Aula_Matching_Produtos.md`** (didáticos: arrumar vs. identificar produto, esp. sem EAN) · Runbook de bootstrap.
 
 ## Internacionalização (i18n)
 - **Visão multi-país (dono, 2026-06-13):** o app não é só PT. Separar **IDENTIDADE universal por EAN** (partilhada entre países) de **PREÇO+LOCALE por país**. Alimentar a 1.ª (agnóstica), manter a 2.ª parametrizável — **locale-ready, não locale-completo** (ver `Visao_Multi_Pais.md`). Não construir a maquinaria multi-país agora; só parar de cravar PT mais fundo onde a versão por `locale` custa o mesmo.
