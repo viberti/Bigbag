@@ -189,7 +189,10 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     categoria: offLive?.categoria ?? offD?.categoria,
     ingredientes: offLive?.ingredientes ?? offD?.ingredientes, // p/ ficha; na escolha entram os DOIS
     alergenios: offLive?.alergenios || offD?.alergenios,
-    nutricao_100g: offLive?.nutricao_100g ?? offD?.nutricao_100g ?? null,
+    // nutrição: a do LIVE só vence se TIVER valores — senão cai para o dump/off_full.
+    // (?? deixava um objeto VAZIO {} do off_json antigo bloquear o off_full bom — caso
+    // do Leite Meio Gordo: off_full tinha 48kcal mas o {} guardado ganhava.)
+    nutricao_100g: temNut(offLive?.nutricao_100g) ? offLive.nutricao_100g : (offD?.nutricao_100g ?? null),
   } : null;
   const vlm = extra.vlm || (atual?.vlm_json ? parse(atual.vlm_json) : null);
   const manual = new Set(Object.entries(parse(atual?.fusao)?.proveniencia || {}).filter(([, f]) => f === 'manual').map(([k]) => k));
