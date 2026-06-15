@@ -10,7 +10,7 @@ import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
-  avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome,
+  avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome, consultarProdutoEan,
   listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem,
 } from '../api.js';
@@ -1084,7 +1084,12 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
       // MODO LISTA: o objetivo é ADICIONAR. Com nome → adiciona já; sem nome →
       // identifica por foto e depois adiciona (a ficha é sempre secundária).
       if (paraLista) {
-        if (nm) { try { await adicionarListaItem({ nome: nm, ean: cod }); } catch { /* segue à confirmação */ } setAddOk({ nome: nm, ean: cod }); }
+        // NOME TRADUZIDO (scan-para-lista): /consultar?pt=1 espera a tradução PT e
+        // PERSISTE a ficha — o /info (acima) devolve o nome cru do OFF/catálogo
+        // (ex.: "Eggs"/"Huevos" do Mercadona). Correção 2026-06-15.
+        let nmPT = nm;
+        try { const c = await consultarProdutoEan(cod, { pt: true }); if (c?.nome) nmPT = c.nome; } catch { /* fica o nm do /info */ }
+        if (nmPT) { try { await adicionarListaItem({ nome: nmPT, ean: cod }); } catch { /* segue à confirmação */ } setAddOk({ nome: nmPT, ean: cod }); }
         else setRegisto({ ean: cod, fotos: [], naoLido: true });
         return;
       }
