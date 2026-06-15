@@ -233,7 +233,10 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     if (c.nome_pt && norm(c.nome_pt) !== norm(c.nome)) candsNome.push({ texto: limparNomeProduto(c.nome_pt, marca || c.marca), fonte: c.fonte, traduzido: true });
     if (FONTES_PT.includes(c.fonte)) candsNome.push({ texto: limparNomeProduto(c.nome, marca || c.marca), fonte: c.fonte, traduzido: false });
   }
-  if (off?.nome_pt) candsNome.push({ texto: limparNomeProduto(off.nome_pt, marca), fonte: 'off', traduzido: true });
+  // mesmo guard das linhas de catálogo (acima): nome_pt IGUAL ao nome não é tradução
+  // (off_produto tem nome_pt="Tomato Ketchup"=nome) — senão ganha o nome estrangeiro
+  // a fingir de PT e vence o nome PT real do Continente.
+  if (off?.nome_pt && norm(off.nome_pt) !== norm(off.nome)) candsNome.push({ texto: limparNomeProduto(off.nome_pt, marca), fonte: 'off', traduzido: true });
   let nome, nomeEstrangeiro = false;
   if (manual.has('nome')) { nome = atual?.nome ?? null; prov.nome = 'manual'; }
   else if (candsNome.length) {
