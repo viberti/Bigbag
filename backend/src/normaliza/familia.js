@@ -55,3 +55,14 @@ export function familiaPorNome(nome, marca = null) {
   if (marca && MARCA_MASSA.test(norm(marca))) return 'massa';
   return null;
 }
+
+// TODAS as famílias que um texto casa (não pára na 1.ª). Para a PONTE categoria→família:
+// uma string de categoria que casa 2+ famílias é COMPOSTA ("Arroz e Massa") → ambígua →
+// vai ao resíduo (LLM/fusor decide), em vez de ser mapeada errado pela 1.ª que calha.
+export function familiasQueCasam(texto) {
+  const s = norm(texto);
+  if (!s) return [];
+  const out = [];
+  for (const [slug, re] of FAM_RE) if (re.test(s)) out.push(slug);
+  return [...new Set(out)];
+}
