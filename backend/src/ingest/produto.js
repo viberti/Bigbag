@@ -14,6 +14,11 @@ const PROMPT = `És um extrator de RÓTULOS de produtos de supermercado. Vês um
   "quantidade": string|null,      // peso/volume LÍQUIDO (ex.: "500 g", "1 L", "4 x 125 g")
   "ean": string|null,             // os DÍGITOS do código de barras, se visível na foto
   "categoria": string|null,       // tipo de produto (ex.: "iogurte grego", "bolacha digestive", "leite UHT")
+  "tipo_no_pacote": string|null,  // o texto de TIPO que o FABRICANTE imprimiu, VERBATIM (VER REGRAS)
+  "tipo_inferido": {              // o teu JUÍZO do que é o produto, COM a evidência (VER REGRAS)
+    "tipo": string|null,          // ex.: "massa seca", "achocolatado em pó", "anchovas em conserva", "detergente"
+    "evidencia": string|null      // o que te levou lá (texto do pacote + forma visível + uso/cozedura)
+  },
   "ingredientes": string|null,    // VER REGRAS ABAIXO
   "alergenios": string|null,      // alergénios destacados (ex.: "leite, glúten")
   "validade": string|null,        // texto da validade como impresso (VER REGRAS)
@@ -37,6 +42,12 @@ REGRAS DOS INGREDIENTES (importante):
 - Se a lista aparecer em VÁRIAS línguas, usa a versão PORTUGUESA (PT-PT); se não houver, a que estiver.
 - Mantém o destaque dos alergénios (MAIÚSCULAS/negrito) tal como aparece no rótulo, e repete-os em "alergenios".
 - Se a lista de ingredientes não estiver visível/legível em nenhuma foto, mete null (não inventes ingredientes a partir do nome do produto).
+
+REGRAS DO TIPO (importante — ajuda a classificar o produto, sobretudo quando o NOME é ambíguo):
+- "tipo_no_pacote": COPIA, tal como impresso, qualquer DECLARAÇÃO DE TIPO que o fabricante ponha na embalagem — ex.: "Massa Alimentícia", "Pasta alimenticia de calidad superior", "Bebida de aveia", "Detergente para loiça", "Azeite virgem extra", "Cacao soluble". É o tipo nas PALAVRAS DO FABRICANTE. null se não houver nenhuma.
+- "tipo_inferido.tipo": na tua melhor leitura, que TIPO de produto é isto (curto e concreto). "tipo_inferido.evidencia": o que te levou lá — junta os sinais que viste: o texto declarado, a FORMA visível do produto (ex.: pérolas/forminhas de massa, pó, líquido), e pistas de USO/COZEDURA ("12-14 min" + panela → massa/arroz; "dissolver no leite" → achocolatado).
+- IMPORTANTE: o teu juízo do tipo NÃO altera o "nome" nem a "marca" — esses são o que ESTÁ ESCRITO; o tipo é a tua leitura à PARTE. Ex.: se o nome é "Pérolas" e vês "massa alimentícia/sêmola de trigo", o "nome" continua "Pérolas" e o tipo vai para "tipo_no_pacote"/"tipo_inferido".
+- Não inventes um tipo a partir só do nome se a embalagem não der pistas; null é válido.
 
 Não inventes — null no que não conseguires ler com confiança. Só o JSON.`;
 
