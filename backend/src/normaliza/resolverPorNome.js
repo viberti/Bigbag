@@ -19,9 +19,12 @@ export async function acharPorNomeMarca(pool, { nome, marca, tamanho } = {}) {
   if (!nome) return [];
   const marcaTok = marca ? normAlfa(marca).split(' ').filter((t) => t.length >= 3) : [];
   const nomeTok = normAlfa(nome).split(' ').filter((t) => t.length >= 3 && !marcaTok.includes(t) && !/^\d+(g|kg|ml|cl|l|un)?$/i.test(t));
-  if (!nomeTok.length) return [];
-  // nome em prefixo (o VLM pode ler formas/acentos diferentes) + MARCA exigida (gate forte)
-  const bool = [...nomeTok.map((t) => `+${t}*`), ...marcaTok.map((t) => `+${t}`)].join(' ');
+  // quando o NOME é só a marca (Nutella, Coca-Cola) sobram 0 tokens de nome → busca
+  // pela própria marca; senão, tokens do nome em prefixo + MARCA exigida (gate forte).
+  const termos = nomeTok.length ? nomeTok : marcaTok;
+  if (!termos.length) return [];
+  const exigeMarca = nomeTok.length ? marcaTok : [];
+  const bool = [...termos.map((t) => `+${t}*`), ...exigeMarca.map((t) => `+${t}`)].join(' ');
   let rows;
   try {
     [rows] = await pool.query(
