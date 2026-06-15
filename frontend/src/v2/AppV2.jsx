@@ -548,7 +548,7 @@ function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
   const medal = (p) => (p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : `${p}º`);
   return (
     <>
-      <Ctop title="Comparar" sub={cmp.length ? undefined : 'leia os códigos de barras'} back onBack={back} />
+      <Ctop title="Comparar Produtos" back onBack={back} />
       <div className="scrollarea">
         {res ? (
           res.erro ? <p className="empty">Falha ao comparar.</p> : (
@@ -566,9 +566,9 @@ function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
         ) : cmp.length === 0 ? (
           <div className="cmp-empty">
             <div className="cmp-bubble">Leia o código de barras dos produtos que deseja comparar</div>
-            <svg className="cmp-arrow" viewBox="0 0 120 300" fill="none" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M74 8 C 120 80, 92 208, 60 286" stroke="var(--leaf-d)" strokeWidth="6" strokeLinecap="round" />
-              <path d="M60 286 L 43 264 M60 286 L 77 264" stroke="var(--leaf-d)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+            <svg className="cmp-arrow" viewBox="0 0 104 220" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M60 6 C 104 60, 84 155, 50 204" stroke="var(--leaf-d)" strokeWidth="6" strokeLinecap="round" />
+              <path d="M50 204 L 35 185 M50 204 L 65 185" stroke="var(--leaf-d)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         ) : cmp.map((item, i) => (
