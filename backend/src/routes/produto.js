@@ -26,7 +26,7 @@ import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
 import { nutricaoContinenteLive } from '../ingest/nutricaoContinente.js';
 import { tipoProduto, decidirTipo } from '../normaliza/tipoProduto.js';
-import { familiaDe, familiaPorNome } from '../normaliza/familia.js';
+import { familiaDe, familiaPorNome, FAMILIAS } from '../normaliza/familia.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -290,6 +290,16 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
   });
   const tipo = catalogoTipo || tipoFus.tipo;
   const tipoVia = catalogoTipo ? 'catalogo' : tipoFus.via;
+  // FAMÍLIA (2.º nível do fusor): nome + categoria-loja/OFF + VLM-tipo. Mesmos sinais do
+  // departamento. Resolve homónimos (Pérolas→massa). Alimenta as alternativas e a ficha.
+  const famR = familiaDe({
+    nome,
+    marca: marcaTipo,
+    categoria: [catalogoCategoria, off?.categoria, off?.categorias_tags, base?.categoria, vlm?.categoria].filter(Boolean).join(' '),
+    tipoTexto: [vlm?.tipo_no_pacote, vlm?.tipo_inferido?.tipo].filter(Boolean).join(' '),
+  });
+  const familiaSlug = famR.familia;
+  const familiaLabel = familiaSlug ? (FAMILIAS[familiaSlug]?.label || null) : null;
   // SUGESTÃO por-nome (texto acha, o utilizador confirma): ficha "magra" (sem nutrição
   // NEM imagem em fonte nenhuma) e ainda não ligada a um gémeo → procura no off_full o
   // MESMO produto sob OUTRO EAN (match por nome+marca, marca=gate forte). NÃO adota:
@@ -306,7 +316,7 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
       if (c) sugestaoNome = { ean_ref: c.ean, nome: c.nome, marca: c.marca, tamanho: c.tamanho, nutricao_100g: c.nutricao_100g, imagem_url: c.imagem_url, tamanho_bate: c.tamanho_bate };
     } catch { /* off_full/FULLTEXT pode faltar localmente */ }
   }
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, existe: rows.length > 0 || temGenericoNut };
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;
@@ -691,16 +701,11 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     };
     cands = cands.filter((c) => mesmaDieta(c.nome));
     // FAMÍLIA (fusor): massa compara com massa, não com ketchup/azeite (o grupo mercearia
-    // é um saco de secos). O fusor de família decide pelo NOME + categoria-loja/OFF +
-    // VLM-tipo → resolve homónimos (Pérolas: nome→null, mas "Massas secas"/"massa
-    // alimentícia" → massa). Fora da mercearia (sem família), cai no tipoConsumidor.
+    // é um saco de secos). A família já vem resolvida do consolidarProduto (nome +
+    // categoria-loja/OFF + VLM-tipo → resolve homónimos). Fora da mercearia (sem família),
+    // cai no tipoConsumidor.
     const marcaAtual = info.base?.marca || info.off?.marca || info.vlm?.marca || null;
-    const famAtual = familiaDe({
-      nome: nomeFacetas,
-      marca: marcaAtual,
-      categoria: [info.catalogo_categoria, info.off?.categoria, info.off?.categorias_tags, info.base?.categoria, info.vlm?.categoria].filter(Boolean).join(' '),
-      tipoTexto: [info.vlm?.tipo_no_pacote, info.vlm?.tipo_inferido?.tipo].filter(Boolean).join(' '),
-    }).familia;
+    const famAtual = info.familia;
     const tipoAtual = tipoConsumidor(grupo, nomeFacetas, marcaAtual);
     if (famAtual) {
       cands = cands.filter((c) => familiaPorNome(c.nome) === famAtual);

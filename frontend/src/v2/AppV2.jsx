@@ -634,7 +634,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
       <div className="scrollarea">
         <div className="f-hero">
           <div className="f-thumb">{info?.imagem_catalogo ? <img src={info.imagem_catalogo} alt="" /> : <span style={{ display: 'grid', placeItems: 'center', height: '100%' }}><Ico name="photoprod" size={28} color="#7a93b0" /></span>}</div>
-          <div className="f-name">{nomeProd}</div>
+          <div className="f-name">{nomeProd}{info?.familia_label && <span className="f-fam">{info.familia_label}</span>}</div>
           {grau && <span className="ns-pill" style={{ background: NS_COR[grau] || '#9ec93f' }}>{grau}</span>}
         </div>
 
