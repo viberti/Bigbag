@@ -88,7 +88,7 @@ function Nav({ cur, go }) {
   return (
     <div className="cnav">
       {tabs.slice(0, 2).map(Tab)}
-      <button className="nb-scan" title="Consultar produto" onClick={() => go('scanner')}><Ico name="scan" size={28} stroke={2.4} color="#5a4410" /></button>
+      <button className="nb-scan" title={cur === 'comparar' ? 'Escanear para comparar' : 'Consultar produto'} onClick={() => go('scanner', cur === 'comparar' ? { paraComparar: true } : {})}><Ico name="scan" size={28} stroke={2.4} color="#5a4410" /></button>
       {tabs.slice(2).map(Tab)}
     </div>
   );
@@ -171,7 +171,15 @@ const TABS = new Set(['home', 'lista', 'historico', 'perfil']);
 function Shell({ nome, onSair }) {
   const [view, setView] = useState({ id: 'home', p: {} });
   const stack = useRef([]);
+  // CESTO DE COMPARAÇÃO (vive no Shell → persiste no vai-e-volta do scan). Limpa-se ao
+  // entrar numa ABA principal → a tela Comparar "começa limpa" a cada entrada deliberada,
+  // e enche-se com SCANS (≠ Histórico, que mostra o já-consultado).
+  const [cmp, setCmp] = useState([]); // [{ ean, nome }]
+  const addCmp = useCallback((it) => setCmp((c) => (it?.ean && !c.some((x) => String(x.ean) === String(it.ean)) && c.length < 6) ? [...c, { ean: String(it.ean), nome: it.nome || null }] : c), []);
+  const removeCmp = useCallback((ean) => setCmp((c) => c.filter((x) => String(x.ean) !== String(ean))), []);
+  const clearCmp = useCallback(() => setCmp([]), []);
   const go = useCallback((id, p = {}, opts = {}) => {
+    if (TABS.has(id)) setCmp([]); // aba principal → a comparação recomeça limpa
     setView((cur) => {
       if (TABS.has(id)) stack.current = [];
       else if (!opts.replace && cur.id !== id) stack.current.push(cur); // replace: não empilha (substitui a tela atual)
@@ -191,7 +199,7 @@ function Shell({ nome, onSair }) {
   // a Comparar mostra a nav (para consultar mais itens pelo botão central) sem ser um TAB
   // que limpa a pilha — entra empilhada, o back volta de onde veio; nenhum tab fica aceso.
   const navCur = TABS.has(view.id) ? view.id : (view.id === 'comparar' ? 'comparar' : null);
-  const common = { go, back, user: nome, onSair }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
+  const common = { go, back, user: nome, onSair, cmp, addCmp, removeCmp, clearCmp }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
   const Screen = {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
     notas: Notas, gastos: Gastos, gastoscat: GastosCat, ficha: Ficha, comparar: Comparar,
@@ -447,7 +455,7 @@ function Lista({ go, back }) {
 }
 
 /* ── HISTÓRICO (+ comparar) ──────────────────────────────────────────────── */
-function Historico({ go, back }) {
+function Historico({ go, back, addCmp, clearCmp }) {
   const [dados, setDados] = useState(null);
   const [cmp, setCmp] = useState(false);
   const [sel, setSel] = useState(() => new Set());
@@ -483,7 +491,7 @@ function Historico({ go, back }) {
       </div>
       {cmp && sel.size >= 2 && (
         <div className="actfoot">
-          <button className="cbtn cbtn-leaf" style={{ width: '100%' }} onClick={() => go('comparar', { iniciais: escolhidos.map((p) => ({ ean: p.ean, nome: p.nome })) })}>
+          <button className="cbtn cbtn-leaf" style={{ width: '100%' }} onClick={() => { clearCmp(); escolhidos.forEach((p) => addCmp({ ean: p.ean, nome: p.nome })); go('comparar'); }}>
             Comparar {sel.size} produtos
           </button>
         </div>
@@ -493,35 +501,30 @@ function Historico({ go, back }) {
 }
 
 /* ── COMPARAR ────────────────────────────────────────────────────────────── */
-// Junta produtos CONSULTADOS (como o Histórico) e compara. A nav inferior fica visível
-// (botão central → consultar mais; os novos aparecem aqui ao voltar). O botão "Comparar"
-// começa DESABILITADO e habilita-se ao incluir o 2.º item.
-function Comparar({ back, iniciais }) {
-  const [dados, setDados] = useState(null);
-  const [sel, setSel] = useState(() => new Set((iniciais || []).map((x) => x.ean).filter(Boolean)));
+// Cesto PRÓPRIO (vive no Shell): começa LIMPO e enche-se com SCANS (botão central da nav,
+// que entra em modo "para comparar"). ≠ Histórico (que mostra o que já se consultou). O
+// botão "Comparar" começa DESABILITADO e habilita ao 2.º produto.
+function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
   const [res, setRes] = useState(null);
   const [carregando, setCarregando] = useState(false);
-  useEffect(() => { listarHistoricoProduto(12).then(setDados).catch(() => setDados({ erro: true })); }, []);
-  const produtos = dados && !dados.erro ? dados.produtos : [];
-  const temEan = produtos.some((p) => p.ean);
-  const toggle = (ean) => { setRes(null); setSel((s) => { const n = new Set(s); n.has(ean) ? n.delete(ean) : (n.size < 6 && n.add(ean)); return n; }); };
-  const podeComparar = sel.size >= 2;
+  const podeComparar = cmp.length >= 2;
   const comparar = async () => {
     if (!podeComparar || carregando) return;
     setCarregando(true);
-    try { setRes(await compararProdutos([...sel])); } catch { setRes({ erro: true }); }
+    try { setRes(await compararProdutos(cmp.map((x) => x.ean))); } catch { setRes({ erro: true }); }
     setCarregando(false);
   };
-  const nomeDe = (ean) => res?.produtos?.find((p) => String(p.ean) === String(ean))?.nome || produtos.find((p) => String(p.ean) === String(ean))?.nome || ean;
+  const nomeDe = (ean) => res?.produtos?.find((p) => String(p.ean) === String(ean))?.nome || cmp.find((x) => String(x.ean) === String(ean))?.nome || ean;
   const medal = (p) => (p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : `${p}º`);
+  const limpar = cmp.length ? <button className="hist-cmp" title="Limpar" onClick={() => { clearCmp(); setRes(null); }}><Ico name="close" size={18} stroke={2.4} /></button> : undefined;
   return (
     <>
-      <Ctop title="Comparar" sub={podeComparar ? `${sel.size} para comparar` : 'inclua 2 a 6 produtos consultados'} back onBack={back} />
+      <Ctop title="Comparar" sub={cmp.length ? `${cmp.length} produto(s)` : 'escaneie produtos para comparar'} back onBack={back} action={limpar} />
       <div className="scrollarea">
         {res ? (
           res.erro ? <p className="empty">Falha ao comparar.</p> : (
             <>
-              <button className="seeall" style={{ marginBottom: 10 }} onClick={() => setRes(null)}>← voltar à seleção</button>
+              <button className="seeall" style={{ marginBottom: 10 }} onClick={() => setRes(null)}>← voltar</button>
               <div style={{ font: '800 18px var(--disp)', color: 'var(--ink)', margin: '2px 0' }}>{res.perfil ? `Melhor para ${res.perfil}` : 'Resultado'}</div>
               <div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)', marginBottom: 12 }}>por adequação ao perfil · preço de referência</div>
               {(res.ranking || []).map((r) => (
@@ -533,26 +536,19 @@ function Comparar({ back, iniciais }) {
               {res.resumo && <div className="parecer"><p style={{ margin: 0 }}>{res.resumo}</p></div>}
             </>
           )
-        ) : dados == null ? <p className="empty">…</p>
-          : dados.erro ? <p className="empty">Não foi possível carregar.</p>
-          : !temEan ? <p className="empty">Consulte produtos (pelo botão central) para os comparar aqui.</p>
-          : produtos.map((p, i) => {
-            const marcado = p.ean && sel.has(p.ean);
-            return (
-              <div className={`item hist ${marcado ? 'sel' : ''}`} key={`${p.ean || p.nome}-${i}`} onClick={p.ean ? () => toggle(p.ean) : undefined} style={!p.ean ? { opacity: .45 } : undefined}>
-                {p.ean && <span className={`histcheck ${marcado ? 'on' : ''}`}>{marcado && <Ico name="check" size={14} stroke={3} color="#fff" />}</span>}
-                <div className="ib">
-                  <div className="iname">{nomeTalao(p.nome)}{p.marca && <em className="ri-marca">{limparMarca(p.marca)}</em>}</div>
-                  <div className="isub">{!p.ean ? 'sem código de barras' : (p.n_consultas > 1 ? `consultado ${p.n_consultas}×` : 'consultado')}</div>
-                </div>
-              </div>
-            );
-          })}
+        ) : cmp.length === 0 ? (
+          <p className="empty">Toque no <b>scan</b> (botão central) para juntar produtos. A partir de 2, dá para comparar.</p>
+        ) : cmp.map((item, i) => (
+          <div className="item" key={`${item.ean}-${i}`}>
+            <div className="ib"><div className="iname">{item.nome ? nomeTalao(item.nome) : item.ean}</div><div className="isub">no comparador</div></div>
+            <button className="hist-cmp" title="Remover" onClick={() => { removeCmp(item.ean); setRes(null); }}><Ico name="close" size={16} stroke={2.6} /></button>
+          </div>
+        ))}
       </div>
       {!res && (
         <div className="actfoot">
           <button className="cbtn cbtn-leaf" style={{ width: '100%' }} disabled={!podeComparar || carregando} onClick={comparar}>
-            {carregando ? 'Comparando…' : podeComparar ? `Comparar ${sel.size} produtos` : 'Comparar'}
+            {carregando ? 'Comparando…' : podeComparar ? `Comparar ${cmp.length} produtos` : 'Comparar'}
           </button>
         </div>
       )}
@@ -1162,7 +1158,7 @@ function Receitas({ back }) {
 }
 
 /* ── CONSULTAR PRODUTO: Código (barras) · Produto (foto ao vivo) ─────────── */
-function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId: identificar linha do talão; paraLista: ADICIONAR à lista (não consultar)
+function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar, addCmp }) { // itemId: identificar linha do talão; paraLista: ADICIONAR à lista; paraComparar: ADICIONAR ao cesto de comparação
   const [modo, setModo] = useState('codigo');
   const [erro, setErro] = useState(false);
   const [luz, setLuz] = useState(false);
@@ -1196,6 +1192,13 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
       // /info devolve o nome cru do catálogo/OFF (Mercadona-ES/Lidl-FR → "Eggs",
       // "Ketchup Allégé"). Isto traduz, persiste a ficha, e a ficha passa a ler o PT.
       try { const c = await consultarProdutoEan(cod, { pt: true }); if (c?.nome) nm = c.nome; } catch { /* fica o nm do /info */ }
+      // MODO COMPARAR: junta ao cesto de comparação (sem ir à ficha). Com nome → junta já;
+      // sem nome → cadastro por foto e depois junta.
+      if (paraComparar) {
+        if (nm) { addCmp({ ean: cod, nome: nm }); setAddOk({ nome: nm, ean: cod }); }
+        else setRegisto({ ean: cod, fotos: [], naoLido: true });
+        return;
+      }
       // MODO LISTA: o objetivo é ADICIONAR. Com nome → adiciona já; sem nome →
       // identifica por foto e depois adiciona (a ficha é sempre secundária).
       if (paraLista) {
@@ -1206,7 +1209,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
       // CONSULTA: só vai a CADASTRO o que não tem mesmo nada (ex.: filtros fora do OFF).
       if (info?.existe || nm) { go('ficha', { ean: cod }); return; }
       setRegisto({ ean: cod, fotos: [], naoLido: true });
-    } catch { if (paraLista) setRegisto({ ean: cod, fotos: [], naoLido: true }); else go('ficha', { ean: cod }); }
+    } catch { if (paraLista || paraComparar) setRegisto({ ean: cod, fotos: [], naoLido: true }); else go('ficha', { ean: cod }); }
     finally { setChk(false); }
   };
   // CÓDIGO: câmara + leitura REAL (mesma função provada da v1). Pára enquanto verifica
@@ -1248,7 +1251,8 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
     try {
       const r = await identificarProduto({ ean: registo.ean, fotos: registo.fotos });
       const nm = r?.vlm?.nome || r?.off?.nome || 'Produto';
-      if (paraLista) { try { await adicionarListaItem({ nome: nm, ean: registo.ean }); } catch { /* segue à confirmação */ } setRegisto(null); setAddOk({ nome: nm, ean: registo.ean }); }
+      if (paraComparar) { addCmp({ ean: registo.ean, nome: nm }); setRegisto(null); setAddOk({ nome: nm, ean: registo.ean }); }
+      else if (paraLista) { try { await adicionarListaItem({ nome: nm, ean: registo.ean }); } catch { /* segue à confirmação */ } setRegisto(null); setAddOk({ nome: nm, ean: registo.ean }); }
       else go('ficha', { ean: registo.ean, nome: nm }, { replace: true }); // passa o nome → a ficha não pisca "sem nome"
     } catch { setRegBusy(false); setRegisto((r) => r && { ...r, erro: true }); }
   }
@@ -1280,7 +1284,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
   return (
     <>
       <Ctop
-        title={addOk ? 'Adicionado à lista' : registo ? (paraLista ? 'Identificar por foto' : 'Cadastrar produto') : paraLista ? 'Adicionar à lista' : itemId ? 'Identificar produto' : 'Consultar produto'}
+        title={addOk ? (paraComparar ? 'Juntado à comparação' : 'Adicionado à lista') : registo ? (paraLista || paraComparar ? 'Identificar por foto' : 'Cadastrar produto') : paraComparar ? 'Escanear para comparar' : paraLista ? 'Adicionar à lista' : itemId ? 'Identificar produto' : 'Consultar produto'}
         sub={addOk || registo ? (registo ? `EAN ${registo.ean}` : '') : itemId ? nomeItem : (code ? 'aponte para o código' : 'fotografe o produto')}
         back onBack={addOk ? back : registo ? () => { setRegisto(null); setChk(false); } : back}
       />
@@ -1289,9 +1293,9 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista }) { // itemId
           <div style={{ padding: '22px 6px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 11 }}>
             <span style={{ width: 66, height: 66, borderRadius: '50%', background: 'var(--leaf-soft)', display: 'grid', placeItems: 'center', color: 'var(--leaf-d)' }}><Ico name="check" size={36} stroke={2.6} /></span>
             <div style={{ font: '800 19px var(--disp)', color: 'var(--ink)' }}>{addOk.nome}</div>
-            <div className="sc-hint" style={{ margin: 0 }}>adicionado à lista ✓</div>
+            <div className="sc-hint" style={{ margin: 0 }}>{paraComparar ? 'juntado à comparação ✓' : 'adicionado à lista ✓'}</div>
             <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 6 }} onClick={() => { setAddOk(null); setModo('codigo'); }}><Ico name="scan" size={18} color="#f7fff2" /> Escanear outro</button>
-            <button className="acc-link" onClick={() => go('ficha', { ean: addOk.ean })}>Ver ficha do produto</button>
+            <button className="acc-link" onClick={() => (paraComparar ? back() : go('ficha', { ean: addOk.ean }))}>{paraComparar ? 'Ver comparação' : 'Ver ficha do produto'}</button>
           </div>
         ) : registo ? (regBusy ? (
           // VLM a processar a(s) foto(s): animação "analisando" em vez de tela sem nome
