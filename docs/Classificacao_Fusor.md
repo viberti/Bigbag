@@ -222,10 +222,13 @@ leguminosas · farinhas/açúcar) — onde nutrição e alternativas mais pesam.
   - **alternativas por FAMÍLIA** (`routes/produto.js`): o gate passou de `tipoConsumidor`
     (nome) para `familiaDe` (fusor). **Bug original resolvido e provado:** Pérolas (nome→null)
     → família=massa → alternativas só massa (era 52/58 não-massa). e2e verificado.
-- ◻ a construir: a ponte **LLM** (compostas, resíduo), o `marca_perfil`/perfil **por NÍVEL**
-  (família), o `ean_empresa` + coerência, o **fusor de família para o SCAN** (hoje só nas
-  alternativas; estender a `consolidarProduto` para gravar a família por produto), expandir a
-  árvore a outros ramos (lacticínios, bebidas…), o golden de classificação.
+  - **família no `consolidarProduto`**: computa+devolve `familia`/`familia_label`/`familia_via`
+    (DRY p/ as alternativas) e a **ficha v2 mostra a família** como categoria limpa. Verificado
+    em produtos reais (anchovas→Conservas de Peixe, café→Café/Chá, etc.).
+- ◻ a construir: **persistir** a família por produto (coluna, p/ queries/coorte do Mestre), a
+  ponte **LLM** (compostas, resíduo), o `marca_perfil`/perfil **por NÍVEL** (família), o
+  `ean_empresa` + coerência, usar a família nas **secções da lista/despensa**, expandir a árvore
+  a outros ramos (lacticínios, bebidas…), o golden de classificação.
 
 ---
 
