@@ -524,12 +524,10 @@ function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
         {res ? (
           res.erro ? <p className="empty">Falha ao comparar.</p> : (
             <>
-              <button className="seeall" style={{ marginBottom: 10 }} onClick={() => setRes(null)}>← voltar</button>
-              <div style={{ font: '800 18px var(--disp)', color: 'var(--ink)', margin: '2px 0' }}>{res.perfil ? `Melhor para ${res.perfil}` : 'Resultado'}</div>
-              <div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)', marginBottom: 12 }}>por adequação ao perfil · preço de referência</div>
+              <div style={{ font: '800 18px var(--disp)', color: 'var(--ink)', margin: '2px 0 12px' }}>{res.perfil ? `Melhor para ${res.perfil}` : 'Resultado'}</div>
               {(res.ranking || []).map((r) => (
                 <div className="item" key={r.ean}>
-                  <div className="ib"><div className="iname">{medal(r.posicao)} {nomeDe(String(r.ean))}</div><div className="isub">{r.motivo || r.veredicto}</div></div>
+                  <div className="ib"><div className="iname"><span style={{ fontSize: '1.5em', verticalAlign: 'middle' }}>{medal(r.posicao)}</span> {nomeDe(String(r.ean))}</div><div className="isub">{r.motivo || r.veredicto}</div></div>
                   <span className={`hpill ${r.veredicto === 'evitar' || r.veredicto === 'atencao' ? 'swap' : 'good'}`}>{r.veredicto}</span>
                 </div>
               ))}
