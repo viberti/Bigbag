@@ -70,6 +70,9 @@ export async function requireAuth(req, res, next) {
     const u = checkBasic(req);
     if (u) { req.user = { id: u, via: 'test-auth' }; return next(); }
   }
-  res.set('WWW-Authenticate', 'Basic realm="Bigbag"');
+  // SEM `WWW-Authenticate: Basic` — esse header fazia o BROWSER abrir o diálogo
+  // nativo de Basic Auth ao 1.º /api 401, sequestrando o ecrã ANTES do login OIDC
+  // da app aparecer. A app trata a auth pela sua UI ("Entrar" → Zitadel; ou o form
+  // de teste, que manda o Basic no header). 401 limpo → a app mostra o login.
   return res.status(401).json({ erro: 'Autenticação necessária' });
 }
