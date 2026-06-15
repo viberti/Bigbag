@@ -15,13 +15,15 @@
 //   sem argumento → corre TODAS as lojas de SHOPS.
 import { getPool, closePool } from '../src/db.js';
 
-// Lojas PrestaShop confirmadas (EAN no slug do URL: …-<13 dígitos>.html).
+// Lojas PrestaShop confirmadas (EAN no slug do URL: …-<13 dígitos>[.html]).
+// `code` curto identifica a loja no sku_fonte (a chave única é (fonte, sku_fonte), e o id
+// PrestaShop repete-se entre lojas → o code prefixa-o para ser único).
 const SHOPS = {
-  merceariaexpresso: { base: 'https://merceariaexpresso.pt' },
-  ibersuper:         { base: 'https://ibersuper.pt' },
-  comuniti:          { base: 'https://comuniti.pt' },
-  granjadecister:    { base: 'https://granjadecister.pt' },
-  humbertomarques:   { base: 'https://humbertomarques.pt' },
+  merceariaexpresso: { base: 'https://merceariaexpresso.pt', code: 'mexp' },
+  ibersuper:         { base: 'https://ibersuper.pt',         code: 'iber' },
+  comuniti:          { base: 'https://comuniti.pt',          code: 'comu' },
+  granjadecister:    { base: 'https://granjadecister.pt',    code: 'granja' },
+  humbertomarques:   { base: 'https://humbertomarques.pt',   code: 'humb' },
 };
 const FONTE = 'harvest';
 
@@ -44,7 +46,8 @@ async function get(u) {
 async function crawl(base, { maxPaginas = 800, delayMs = 200 } = {}) {
   const host = new URL(base).host;
   const abs = (u) => (u.startsWith('http') ? u : base + (u.startsWith('/') ? u : '/' + u));
-  const isProd = (u) => /-(\d{13})\.html/.test(u);
+  // EAN no fim do slug, com OU sem .html (ibersuper não usa .html), seguido de "/?#.
+  const isProd = (u) => /-(\d{13})(?:\.html)?(?:[/?#"]|$)/.test(u);
   const isCat = (u) => u.includes(host) && !isProd(u) && /\/\d+-[a-z0-9-]+/i.test(u)
     && !/\.(jpg|jpeg|png|gif|webp|css|js|pdf|xml)(\?|$)/i.test(u);
   const prods = new Map();
@@ -53,8 +56,8 @@ async function crawl(base, { maxPaginas = 800, delayMs = 200 } = {}) {
     const u = frontier.shift();
     let h; try { h = await get(u); fetches++; } catch { continue; }
     await sleep(delayMs);
-    // produtos: cada <a ... href="…-EAN.html" ... title="Nome">
-    for (const m of h.matchAll(/<a\b[^>]*?href="([^"]*?-(\d{13})\.html)"[^>]*>/gi)) {
+    // produtos: cada <a ... href="…-EAN[.html]" ... title="Nome">
+    for (const m of h.matchAll(/<a\b[^>]*?href="([^"]*?-(\d{13})(?:\.html)?)"[^>]*>/gi)) {
       const ean = m[2]; if (!eanValido(ean)) continue;
       const nome = (m[0].match(/\btitle="([^"]+)"/i) || [])[1]?.trim() || null;
       const url = abs(m[1].split('?')[0]);
@@ -96,11 +99,18 @@ for (const [nome, cfg] of Object.entries(lojas)) {
   }
   const novos = arr.filter((e) => !inCat.has(e));
   await pool.query('DELETE FROM catalogo_produto WHERE fonte = ? AND url LIKE ?', [FONTE, cfg.base + '%']); // idempotente, por loja
-  // colunas NOT NULL sem default: sku_fonte, nome, url. nome: title do <a> → slug → EAN.
-  // sku_fonte: o id PrestaShop do URL (/(\d+)-…-EAN.html) → fallback EAN.
-  const slugNome = (url) => { const m = url && url.match(/\/\d+-(.+?)-\d{13}\.html/); return m ? m[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null; };
-  const skuFonte = (url) => { const m = url && url.match(/\/(\d+)-[^/]*-\d{13}\.html/); return m ? m[1].slice(0, 24) : null; };
-  const vals = arr.map((e) => { const p = prods.get(e); const nome = (p.nome || slugNome(p.url) || e).slice(0, 255); const url = (p.url || cfg.base).slice(0, 600); return [FONTE, skuFonte(p.url) || e, e, nome, url]; });
+  // NOT NULL sem default: sku_fonte (ÚNICO na fonte → "<code>-<id|ean>"), nome (title→slug→ean), url.
+  const slugNome = (url) => { const m = url && url.match(/\/\d+-(.+?)-\d{13}(?:\.html)?(?:[/?#]|$)/); return m ? m[1].replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null; };
+  const idUrl = (url) => { const m = url && url.match(/\/(\d+)-[^/]*-\d{13}(?:\.html)?(?:[/?#]|$)/); return m ? m[1] : null; };
+  const vistos = new Set(); const vals = [];
+  for (const e of arr) {
+    const p = prods.get(e);
+    const sku = `${cfg.code}-${idUrl(p.url) || e}`.slice(0, 24);
+    if (vistos.has(sku)) continue; vistos.add(sku);
+    const nome = (p.nome || slugNome(p.url) || e).slice(0, 255);
+    const url = (p.url || cfg.base).slice(0, 600);
+    vals.push([FONTE, sku, e, nome, url]);
+  }
   for (let i = 0; i < vals.length; i += 500) await pool.query('INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, url) VALUES ?', [vals.slice(i, i + 500)]);
   console.log(`  inseridos: ${arr.length} (fonte=${FONTE}) · NOVOS p/ o catálogo: ${novos.length} (${Math.round(novos.length / arr.length * 100)}%)`);
   totNovos += novos.length;
