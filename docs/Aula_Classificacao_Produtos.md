@@ -131,7 +131,7 @@ as próprias compras. Cada fonte tem lacunas diferentes; o sistema **cruza-as**:
 | Mercadona ES (API) | 5.060 | **100%** | 90% | ✓ (ES) | preço único nacional; `nome_pt` p/ matching |
 | Mercadona own-brand (OFF) | 586 | ✓ | 63% | ✗ | nomes PT |
 | Lidl PT (scrape) | 390 | ✗ | ✗ | 72% | pequeno |
-| **Open Food Facts** (dump local) | 26.969 | ✓ | 47% | ✗ | **nutrição só 16%**, Nutri-Score 39% — completado on-demand pela API live |
+| **Open Food Facts COMPLETO** (`off_full`, local, 2026-06-15) | **~4,5M** | ✓ (PK) | — | ✗ | **3,3M c/ imagem, 2,2M c/ nutrição** — importado por DuckDB do dump CSV |
 | Fichas próprias (fotos+OFF) | 180 EANs | ✓ | — | — | 90% com nutrição |
 | Genéricos frescos (por classe) | 291 (71 c/ nutrição) | — | — | — | "banana" tem nutrição conhecida por 100 g |
 
@@ -140,6 +140,24 @@ nutrição, quem tem nutrição não tem preço; (2) a mesma informação ("tama
 **em sítios diferentes** por loja (no nome no Auchan, na abreviatura de talão no
 Pingo Doce, em campo próprio no Mercadona); (3) os preços de catálogo são
 **referência** — o preço-facto é o do talão.
+
+**A 4.ª lição (2026-06-15): uma base de 4,5M serve por EAN, não por nome.** Pôr o
+Open Food Facts **inteiro** local (em vez do dump de 27k) acabou com os limites da
+API live: nutrição e imagem de quase qualquer EAN, na hora. MAS medimos o idioma dos
+4,5M nomes — são **maioritariamente estrangeiros** (PT < 1% dos identificáveis;
+EN/FR/ES dominam). Logo "queijo" nunca acharia "cheese"/"queso"/"fromage": **o
+gargalo da busca por nome não é o índice, é o idioma**. Conclusão de arquitetura: o
+`off_full` é uma **loja de enriquecimento chaveada por EAN** (rápida, indexada), não
+uma superfície de busca por nome. A busca por nome vive numa tabela à parte,
+`produto_busca` (~54k PT-comprável, FULLTEXT) — só o que se vende cá, já em PT.
+
+**A 5.ª lição: tradução SOB DEMANDA, nunca em lote.** Mercadona-ES/Lidl-FR trazem
+nomes ES/FR; traduzir 4,5M seria inviável e desnecessário (a maioria nunca é vista).
+Traduz-se só o que é **scaneado/usado** (LLM, prompt que cobre não-alimentar e
+descritivos junto a nomes próprios — "Gorgonzola Doux"→"Gorgonzola Suave"), e
+**grava-se** (`produto_ean.nome`) para nunca repetir. As fontes classificam-se por
+**idioma** (`FONTES_PT` = só lojas PT fiáveis); as estrangeiras caem na tradução —
+em vez de o ES/EN cru passar por PT (foi o bug do "Eggs" do Mercadona).
 
 ---
 
@@ -240,6 +258,21 @@ granularidade certa da exibição é a do caso de uso** (a família), mas o sist
 Cada degrau só roda se o anterior não resolver. **Determinístico primeiro; o LLM
 entra só onde texto livre exige interpretação — e com resultado cacheado.**
 
+**E quando o utilizador ESCREVE na lista? (autocomplete, 2026-06-15)** A cascata
+acima casa uma linha de talão / pergunta a um SKU. Mas "pôr na lista" é outro caso:
+o utilizador digita e quer **sugestões à medida que escreve**. Aqui a busca por
+tokens em memória não escala ao corpus (~54k); usa-se **FULLTEXT do MySQL** sobre
+`produto_busca` (índice no lado da BD, ~4-17ms). Três decisões de produto:
+- **Genéricos primeiro.** As pessoas põem "leite", não "Leite UHT Hacendado". A
+  busca devolve o **genérico** ("Leite", em negrito) no topo e os produtos
+  específicos por baixo. Os genéricos saem do **substantivo-cabeça por frequência**
+  (centenas de "Leite X" → genérico "Leite") + do histórico da casa.
+- **Palavra inteira, não só prefixo.** `leite*` em FULLTEXT apanharia "leiteira";
+  re-ordena-se por **palavra-exata > começa-com**, e os "esquisitos" caem fora do
+  topo. O último token (o que está a ser digitado) é prefixo; os anteriores, exatos.
+- **Corpus PT-comprável, não os 4,5M.** Só lojas PT + Mercadona/Lidl **traduzidos** —
+  senão a busca seria rápida mas inútil (idioma).
+
 ---
 
 ## 4. Vantagens do modelo
@@ -298,11 +331,18 @@ Um classificador sem métrica de qualidade é uma opinião. Medimos em **3 camad
    ("carne de porco", "frango") e genérica nos laticínios ("iogurte"). Resolvido
    *por caso de uso* (alternativas: frescos cruzam pelo grupo, processados pela
    categoria), mas falta uma regra geral de granularidade.
-2. **Marcas próprias fora do Open Food Facts.** EANs Lidl/Continente/Mercadona
-   muitas vezes não estão no OFF → a ficha exige foto do rótulo (trabalho humano).
+2. **Marcas próprias fora do Open Food Facts.** *Muito atenuado em 2026-06-15:*
+   baixámos o **OFF completo local** (`off_full`, ~4,5M EANs, 2,2M com nutrição,
+   3,3M com imagem) — a ficha por EAN ganhou um backstop enorme, sem rate-limit.
+   Resta o que nem o OFF tem: EANs internos de loja (prefixo GS1 2) e marcas
+   próprias muito recentes → aí a foto do rótulo continua a ser a fonte.
 3. **Mesmo nome, vários EANs.** "Leite Meio Gordo" existe com um EAN por cadeia.
    O nome sozinho é ambíguo; a regra atual só reusa identificação quando o nome
-   mapeia a **um único** EAN ou dentro da mesma cadeia.
+   mapeia a **um único** EAN ou dentro da mesma cadeia. *Em curso (2026-06-15):*
+   **match-por-nome** (`acharPorNomeMarca`) — um EAN desconhecido é fotografado, o
+   VLM lê nome+marca, e procura-se o **mesmo produto sob OUTRO EAN** no off_full
+   (FULLTEXT, marca = gate forte). A foto valida (match-por-imagem); o índice
+   cresce com o uso. É resolução de entidades: **texto acha, imagem confirma.**
 4. **EAN válido-mas-errado.** O leitor de imagem pode trocar um dígito e produzir
    *outro EAN real* (passa no dígito verificador!). Mitigação prevista: cruzar com
    a descrição da linha.
@@ -342,6 +382,15 @@ preço — comparação perfeita, zero LLM); **2.562 EANs** herdados pelo Pingo 
 por matching catálogo↔catálogo determinístico. Construído de forma auditável,
 com o operador como juiz, e cresce a cada talão e re-scrape. **É o ativo mais
 difícil de replicar do sistema.**
+
+Duas camadas que reforçam o grafo (2026-06-15): (1) o **OFF completo local**
+(`off_full`, ~4,5M) é o **substrato de enriquecimento por EAN** — nutrição e
+imagem para quase qualquer código de barras, sem depender de uma API externa;
+(2) o **match-por-nome+imagem** transforma o que era um beco (EAN desconhecido,
+fora de todos os catálogos) numa **nova aresta**: o produto fotografado liga-se
+ao mesmo produto já conhecido sob outro EAN. Cada foto que entra pode densificar
+o grafo em vez de só consultá-lo. **O ativo não é a base de dados — é o
+mecanismo que faz a base crescer sozinha, com correção humana só onde duvida.**
 
 ## 8. A lição de arquitetura (para levar para casa)
 
