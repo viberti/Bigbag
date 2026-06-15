@@ -51,3 +51,6 @@ BigBag_Pacote_Designer.zip
 tmp_v2design/
 tmp_v2zip*/
 tmp_auth/
+
+# scratch do setup do auth — CONTÉM SEGREDOS, nunca versionar
+zitadel.txt
