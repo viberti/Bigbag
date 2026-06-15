@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { familiaPorNome, FAMILIAS, familia } from '../src/normaliza/familia.js';
+import { familiaPorNome, FAMILIAS, familia, familiaDe } from '../src/normaliza/familia.js';
 
 test('cada família tem roll-ups completos (dep/grupo/seccao/unidade)', () => {
   for (const [slug, f] of Object.entries(FAMILIAS)) {
@@ -71,4 +71,29 @@ test('conservas_vegetais estendidas: azeitonas, pickles, fruta em calda', () => 
 test('fora do ramo / desconhecido → null', () => {
   assert.equal(familiaPorNome('Produto Misterioso XYZ'), null);
   assert.equal(familiaPorNome(''), null);
+});
+
+// ── familiaDe: o fusor de família (nome + categoria + VLM-tipo) ───────────────
+test('familiaDe: o caso PÉROLAS — nome falha, categoria/VLM-tipo resgatam', () => {
+  // nome sozinho → null (homónimo)
+  assert.equal(familiaDe({ nome: 'Pérolas', marca: 'Hacendado' }).familia, null);
+  // + categoria OFF "Massas secas" → massa
+  assert.equal(familiaDe({ nome: 'Pérolas', categoria: 'Massas secas' }).familia, 'massa');
+  // + VLM-tipo "massa alimentícia" → massa (e regista a via)
+  const r = familiaDe({ nome: 'Pérolas', tipoTexto: 'massa alimentícia de qualidade superior' });
+  assert.equal(r.familia, 'massa');
+  assert.equal(r.via, 'vlm-tipo');
+});
+
+test('familiaDe: nome forte concorda com categoria → vence claro', () => {
+  assert.equal(familiaDe({ nome: 'Esparguete Integral', categoria: 'Massa' }).familia, 'massa');
+});
+
+test('familiaDe: categoria COMPOSTA abstém-se, o nome decide', () => {
+  // "Arroz e Massa" casa 2 famílias → não vota; o nome "Esparguete" decide
+  assert.equal(familiaDe({ nome: 'Esparguete', categoria: 'Arroz e Massa' }).familia, 'massa');
+});
+
+test('familiaDe: sem sinais úteis → null', () => {
+  assert.equal(familiaDe({ nome: 'Misterioso XYZ' }).familia, null);
 });

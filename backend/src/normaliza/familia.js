@@ -66,3 +66,23 @@ export function familiasQueCasam(texto) {
   for (const [slug, re] of FAM_RE) if (re.test(s)) out.push(slug);
   return [...new Set(out)];
 }
+
+// FUSOR de FAMÍLIA: funde os sinais e devolve { familia, via, votos } (proveniência).
+// Pesos por fiabilidade: VLM-tipo (viu o pacote) > categoria-loja/OFF (1 família = limpa;
+// compostas abstêm-se) > nome+marca. Puro: a categoria entra como TEXTO (familiasQueCasam);
+// a versão persistida/LLM da ponte é a tabela categoria_ancora. RESOLVE O HOMÓNIMO — o
+// caso Pérolas: nome→null, mas "Massas secas"/"massa alimentícia" dão massa.
+export function familiaDe({ nome = '', marca = null, categoria = '', tipoTexto = '' } = {}) {
+  const votos = [];
+  const vt = familiaPorNome(tipoTexto, marca);
+  if (vt) votos.push({ familia: vt, via: 'vlm-tipo', peso: 3 });
+  const fc = familiasQueCasam(categoria);
+  if (fc.length === 1) votos.push({ familia: fc[0], via: 'categoria', peso: 2 });
+  const fn = familiaPorNome(nome, marca);
+  if (fn) votos.push({ familia: fn, via: 'nome', peso: 2 });
+  if (!votos.length) return { familia: null, via: null, votos: [] };
+  const soma = {};
+  for (const v of votos) soma[v.familia] = (soma[v.familia] || 0) + v.peso;
+  const win = Object.entries(soma).sort((a, b) => b[1] - a[1])[0][0];
+  return { familia: win, via: votos.find((v) => v.familia === win).via, votos };
+}

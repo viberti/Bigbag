@@ -26,6 +26,7 @@ import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
 import { nutricaoContinenteLive } from '../ingest/nutricaoContinente.js';
 import { tipoProduto, decidirTipo } from '../normaliza/tipoProduto.js';
+import { familiaDe, familiaPorNome } from '../normaliza/familia.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -689,10 +690,21 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       return d.size === dietaAtual.size && [...d].every((x) => dietaAtual.has(x));
     };
     cands = cands.filter((c) => mesmaDieta(c.nome));
-    // TIPO saliente: massa compara com massa, nao com ketchup/azeite (o grupo
-    // mercearia e um saco de secos). Mesmo recorte da lista (tipoConsumidor).
-    const tipoAtual = tipoConsumidor(grupo, nomeFacetas, info.base?.marca || info.off?.marca || null);
-    if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) {
+    // FAMÍLIA (fusor): massa compara com massa, não com ketchup/azeite (o grupo mercearia
+    // é um saco de secos). O fusor de família decide pelo NOME + categoria-loja/OFF +
+    // VLM-tipo → resolve homónimos (Pérolas: nome→null, mas "Massas secas"/"massa
+    // alimentícia" → massa). Fora da mercearia (sem família), cai no tipoConsumidor.
+    const marcaAtual = info.base?.marca || info.off?.marca || info.vlm?.marca || null;
+    const famAtual = familiaDe({
+      nome: nomeFacetas,
+      marca: marcaAtual,
+      categoria: [info.catalogo_categoria, info.off?.categoria, info.off?.categorias_tags, info.base?.categoria, info.vlm?.categoria].filter(Boolean).join(' '),
+      tipoTexto: [info.vlm?.tipo_no_pacote, info.vlm?.tipo_inferido?.tipo].filter(Boolean).join(' '),
+    }).familia;
+    const tipoAtual = tipoConsumidor(grupo, nomeFacetas, marcaAtual);
+    if (famAtual) {
+      cands = cands.filter((c) => familiaPorNome(c.nome) === famAtual);
+    } else if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) {
       cands = cands.filter((c) => tipoConsumidor(grupo, c.nome, null) === tipoAtual);
     }
     // parse + dedup por nome canónico; prioriza os que têm preço no histórico
@@ -721,8 +733,9 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       const doCatalogo = [];
       for (const c of catCands) {
         if (!mesmaDieta(c.nome)) continue;
-        if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual) && tipoConsumidor(grupo, c.nome, c.marca) !== tipoAtual) continue;
-        if (!['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual) && grupoDeNome(c.nome) !== grupo) continue;
+        if (famAtual) { if (familiaPorNome(c.nome, c.marca) !== famAtual) continue; }
+        else if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) { if (tipoConsumidor(grupo, c.nome, c.marca) !== tipoAtual) continue; }
+        else if (grupoDeNome(c.nome) !== grupo) continue;
         const k = c.nome.toLowerCase();
         if (vistosCat.has(k) || k === String(nomeFacetas).toLowerCase()) continue;
         vistosCat.add(k);
