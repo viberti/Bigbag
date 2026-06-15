@@ -301,8 +301,8 @@ function ItemLista({ it, cor, onApanhar, onRemover, onInfo, onDelta, qtd }) {
         onTouchStart={start} onTouchMove={move} onTouchEnd={end}
         title={it.adicionado_por ? `adicionado por ${it.adicionado_por}` : undefined}>
         <div className="ib" onClick={() => { if (g.current.horiz) return; onApanhar(it, true); }}>
-          <div className="iname">{it.nome}</div>
-          <div className="isub">{it.marca ? `${it.marca} · ` : ''}{precoLista(it)}</div>
+          <div className="iname">{nomeTalao(it.nome)}</div>
+          <div className="isub">{it.marca ? `${limparMarca(it.marca)} · ` : ''}{precoLista(it)}</div>
         </div>
         <span className="qval">{qtd(it)}</span>
         <div className="qty"><button onClick={() => onDelta(it, -1)}>−</button><button onClick={() => onDelta(it, 1)}>+</button></div>
@@ -419,7 +419,7 @@ function Lista({ go, back }) {
               {carrinho.map((it) => (
                 <div className="item done" key={it.id} style={{ borderRight: `6px solid ${corDe(it.adicionado_por)}` }} onClick={() => apanhar(it, false)}>
                   <div className="ib">
-                    <div className="iname" style={{ textDecorationColor: corDe(it.marcado_por) }}>{it.nome}</div>
+                    <div className="iname" style={{ textDecorationColor: corDe(it.marcado_por) }}>{nomeTalao(it.nome)}</div>
                     <span className="pickcart">{qtdTxt(it)} · no carrinho de {it.marcado_por || '—'}</span>
                   </div>
                   <span className="pickav" style={{ background: corDe(it.marcado_por) }}>{inicial(it.marcado_por)}</span>
@@ -435,8 +435,8 @@ function Lista({ go, back }) {
               <div className="acdrop">
                 {sug.map((s, i) => (
                   <button type="button" className={`acitem ${s.generico ? 'gen' : ''}`} key={`${s.nome}-${s.ean || i}`} onClick={() => escolherSug(s)}>
-                    <span className="acnome">{s.nome}</span>
-                    {(s.marca || s.tamanho) && <span className="acsub">{[s.marca, s.tamanho].filter(Boolean).join(' · ')}</span>}
+                    <span className="acnome">{nomeTalao(s.nome)}</span>
+                    {(s.marca || s.tamanho) && <span className="acsub">{[s.marca && limparMarca(s.marca), s.tamanho].filter(Boolean).join(' · ')}</span>}
                     {s.tem_nutricao && <span className="acnut" title="Tem informação nutricional" />}
                   </button>
                 ))}
@@ -662,7 +662,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
     return [s.base?.nutricao_100g, s.off?.nutricao_100g, s.generico?.nutricao_100g, s.vlm?.nutricao_100g].find(temValor) || {};
   })();
   const num = (...ks) => { for (const k of ks) { const v = nut[k]; if (v != null && !Number.isNaN(Number(v))) return Number(v); } return null; };
-  const nomeProd = info?.nome || info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto';
+  const nomeProd = nomeTalao(info?.nome || info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto');
   const grau = analise?.nutriscore?.grau ? String(analise.nutriscore.grau).toUpperCase() : null;
   const attn = aval?.avaliacao && /aten[çc]/i.test(aval.avaliacao.veredicto || aval.avaliacao.selo || '');
   // ALIMENTO vs NÃO-ALIMENTO: tem nutrição/Nutri-Score → ficha de alimento (Para Sue,
@@ -707,7 +707,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
             <div className="sug-b">
               {sug.imagem_url && <img src={sug.imagem_url} alt="" />}
               <div className="sug-t">
-                <div className="sug-n">{sug.nome}{sug.marca ? ` · ${sug.marca}` : ''}</div>
+                <div className="sug-n">{nomeTalao(sug.nome)}{sug.marca ? ` · ${limparMarca(sug.marca)}` : ''}</div>
                 <div className="sug-d">{[sug.tamanho, sug.nutricao_100g ? 'com tabela nutricional' : null, sug.imagem_url ? 'com foto' : null].filter(Boolean).join(' · ')}</div>
               </div>
             </div>
@@ -741,7 +741,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
                 const preco = a.eur_base ?? a.preco_por_base;
                 return (
                   <div className="altx" key={a.sku_id ?? a.ean ?? i} onClick={() => go('ficha', { ean: a.ean, sku_id: a.sku_id, nome: a.nome })}>
-                    <div className="alt-top"><span className="alt-n">{a.nome}</span>{preco != null && <span className="alt-p">{eur(preco)}/{a.unidade_base || 'kg'}</span>}</div>
+                    <div className="alt-top"><span className="alt-n">{nomeTalao(a.nome)}</span>{preco != null && <span className="alt-p">{eur(preco)}/{a.unidade_base || 'kg'}</span>}</div>
                     <Pills prot={v('proteina')} sat={v('gordura_saturada', 'saturados')} acu={v('acucares', 'acucar')} />
                   </div>
                 );
@@ -817,7 +817,7 @@ function Texto({ go, back }) {
                   <span className="fdot" style={{ background: '#e8eef3', overflow: 'hidden', padding: 0 }}>
                     {p.imagem ? <img src={p.imagem} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : inicial(p.nome)}
                   </span>
-                  <div className="fb"><div className="fn">{p.nome}</div><div className="fs">{[p.marca, p.tamanho].filter(Boolean).join(' · ')}</div></div>
+                  <div className="fb"><div className="fn">{nomeTalao(p.nome)}</div><div className="fs">{[p.marca && limparMarca(p.marca), p.tamanho].filter(Boolean).join(' · ')}</div></div>
                   <span style={{ color: 'var(--ink-3)' }}>›</span>
                 </div>
               ))}
@@ -843,7 +843,7 @@ function Despensa({ go, back }) {
               <div className="sec amber">{g.s}</div>
               {g.itens.map((it) => (
                 <div className="item" key={it.ean} onClick={() => go('ficha', { ean: it.ean, nome: it.nome })}>
-                  <div className="ib"><div className="iname">{it.nome}</div><div className="isub">{it.tamanho || it.marca || ''}</div></div>
+                  <div className="ib"><div className="iname">{nomeTalao(it.nome)}</div><div className="isub">{it.tamanho || (it.marca && limparMarca(it.marca)) || ''}</div></div>
                 </div>
               ))}
             </React.Fragment>
@@ -1024,7 +1024,7 @@ function GastosCat({ go, back, label, grupos, total, cor }) {
   const Linha = (p, i) => (
     <div className="frow" key={p.sku_id || p.nome || i} onClick={() => go('ficha', { ean: p.ean, sku_id: p.sku_id, nome: p.nome })}>
       <span className="fdot" style={{ background: cor || '#9b8cc4' }}>{inicial(p.nome)}</span>
-      <div className="fb"><div className="fn">{p.nome}</div><div className="fs">{p.n > 1 ? `${p.n}× compras` : '1 compra'}{p.marca ? ` · ${p.marca}` : ''}</div></div>
+      <div className="fb"><div className="fn">{nomeTalao(p.nome)}</div><div className="fs">{p.n > 1 ? `${p.n}× compras` : '1 compra'}{p.marca ? ` · ${limparMarca(p.marca)}` : ''}</div></div>
       <span className="fp">{eur(p.total)}</span>
     </div>
   );
@@ -1366,7 +1366,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
             {foto.cands.map((c) => (
               <div className="frow" key={c.ean} onClick={() => go('ficha', { ean: c.ean, nome: c.nome })}>
                 <span className="fdot" style={{ background: '#cfe0ee', overflow: 'hidden', padding: 0 }}>{c.imagem ? <img src={c.imagem} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : inicial(c.nome)}</span>
-                <div className="fb"><div className="fn">{c.nome || c.ean}</div><div className="fs">{c.marca || ''}{c.score != null ? ` · ${Math.round(c.score * 100)}% parecido` : ''}</div></div>
+                <div className="fb"><div className="fn">{c.nome ? nomeTalao(c.nome) : c.ean}</div><div className="fs">{(c.marca && limparMarca(c.marca)) || ''}{c.score != null ? ` · ${Math.round(c.score * 100)}% parecido` : ''}</div></div>
                 <span style={{ color: 'var(--ink-3)' }}>›</span>
               </div>
             ))}
