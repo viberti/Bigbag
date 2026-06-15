@@ -175,7 +175,7 @@ function Shell({ nome, onSair }) {
   // entrar numa ABA principal → a tela Comparar "começa limpa" a cada entrada deliberada,
   // e enche-se com SCANS (≠ Histórico, que mostra o já-consultado).
   const [cmp, setCmp] = useState([]); // [{ ean, nome }]
-  const addCmp = useCallback((it) => setCmp((c) => (it?.ean && !c.some((x) => String(x.ean) === String(it.ean)) && c.length < 6) ? [...c, { ean: String(it.ean), nome: it.nome || null }] : c), []);
+  const addCmp = useCallback((it) => setCmp((c) => (it?.ean && !c.some((x) => String(x.ean) === String(it.ean)) && c.length < 4) ? [...c, { ean: String(it.ean), nome: it.nome || null }] : c), []);
   const removeCmp = useCallback((ean) => setCmp((c) => c.filter((x) => String(x.ean) !== String(ean))), []);
   const clearCmp = useCallback(() => setCmp([]), []);
   const go = useCallback((id, p = {}, opts = {}) => {
@@ -519,7 +519,7 @@ function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
   const limpar = cmp.length ? <button className="hist-cmp" title="Limpar" onClick={() => { clearCmp(); setRes(null); }}><Ico name="close" size={18} stroke={2.4} /></button> : undefined;
   return (
     <>
-      <Ctop title="Comparar" sub={cmp.length ? `${cmp.length} produto(s)` : 'escaneie produtos para comparar'} back onBack={back} action={limpar} />
+      <Ctop title="Comparar" sub={cmp.length ? `${cmp.length} de 4 produtos` : 'leia os códigos de barras'} back onBack={back} action={limpar} />
       <div className="scrollarea">
         {res ? (
           res.erro ? <p className="empty">Falha ao comparar.</p> : (
@@ -535,7 +535,13 @@ function Comparar({ back, cmp = [], removeCmp, clearCmp }) {
             </>
           )
         ) : cmp.length === 0 ? (
-          <p className="empty">Toque no <b>scan</b> (botão central) para juntar produtos. A partir de 2, dá para comparar.</p>
+          <div className="cmp-empty">
+            <div className="cmp-bubble">Leia o código de barras dos produtos que deseja comparar</div>
+            <svg className="cmp-arrow" viewBox="0 0 130 180" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M102 14 C 134 72, 110 138, 66 162" stroke="var(--leaf-d)" strokeWidth="6.5" strokeLinecap="round" />
+              <path d="M66 162 L 49 151 M66 162 L 80 146" stroke="var(--leaf-d)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
         ) : cmp.map((item, i) => (
           <div className="item" key={`${item.ean}-${i}`}>
             <div className="ib"><div className="iname">{item.nome ? nomeTalao(item.nome) : item.ean}</div><div className="isub">no comparador</div></div>
@@ -1193,8 +1199,8 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
       // MODO COMPARAR: junta ao cesto de comparação (sem ir à ficha). Com nome → junta já;
       // sem nome → cadastro por foto e depois junta.
       if (paraComparar) {
-        if (nm) { addCmp({ ean: cod, nome: nm }); setAddOk({ nome: nm, ean: cod }); }
-        else setRegisto({ ean: cod, fotos: [], naoLido: true });
+        if (nm) { addCmp({ ean: cod, nome: nm }); back(); } // junta e VOLTA já à Comparar (sem tela intermédia)
+        else setRegisto({ ean: cod, fotos: [], naoLido: true }); // não-identificado → foto p/ identificar
         return;
       }
       // MODO LISTA: o objetivo é ADICIONAR. Com nome → adiciona já; sem nome →
@@ -1249,7 +1255,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
     try {
       const r = await identificarProduto({ ean: registo.ean, fotos: registo.fotos });
       const nm = r?.vlm?.nome || r?.off?.nome || 'Produto';
-      if (paraComparar) { addCmp({ ean: registo.ean, nome: nm }); setRegisto(null); setAddOk({ nome: nm, ean: registo.ean }); }
+      if (paraComparar) { addCmp({ ean: registo.ean, nome: nm }); back(); } // junta e volta já à Comparar
       else if (paraLista) { try { await adicionarListaItem({ nome: nm, ean: registo.ean }); } catch { /* segue à confirmação */ } setRegisto(null); setAddOk({ nome: nm, ean: registo.ean }); }
       else go('ficha', { ean: registo.ean, nome: nm }, { replace: true }); // passa o nome → a ficha não pisca "sem nome"
     } catch { setRegBusy(false); setRegisto((r) => r && { ...r, erro: true }); }
@@ -1282,7 +1288,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
   return (
     <>
       <Ctop
-        title={addOk ? (paraComparar ? 'Juntado à comparação' : 'Adicionado à lista') : registo ? (paraLista || paraComparar ? 'Identificar por foto' : 'Cadastrar produto') : paraComparar ? 'Escanear para comparar' : paraLista ? 'Adicionar à lista' : itemId ? 'Identificar produto' : 'Consultar produto'}
+        title={addOk ? 'Adicionado à lista' : registo ? (paraLista || paraComparar ? 'Identificar por foto' : 'Cadastrar produto') : paraComparar ? 'Escanear para comparar' : paraLista ? 'Adicionar à lista' : itemId ? 'Identificar produto' : 'Consultar produto'}
         sub={addOk || registo ? (registo ? `EAN ${registo.ean}` : '') : itemId ? nomeItem : (code ? 'aponte para o código' : 'fotografe o produto')}
         back onBack={addOk ? back : registo ? () => { setRegisto(null); setChk(false); } : back}
       />
@@ -1291,9 +1297,9 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
           <div style={{ padding: '22px 6px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 11 }}>
             <span style={{ width: 66, height: 66, borderRadius: '50%', background: 'var(--leaf-soft)', display: 'grid', placeItems: 'center', color: 'var(--leaf-d)' }}><Ico name="check" size={36} stroke={2.6} /></span>
             <div style={{ font: '800 19px var(--disp)', color: 'var(--ink)' }}>{addOk.nome}</div>
-            <div className="sc-hint" style={{ margin: 0 }}>{paraComparar ? 'juntado à comparação ✓' : 'adicionado à lista ✓'}</div>
+            <div className="sc-hint" style={{ margin: 0 }}>adicionado à lista ✓</div>
             <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 6 }} onClick={() => { setAddOk(null); setModo('codigo'); }}><Ico name="scan" size={18} color="#f7fff2" /> Escanear outro</button>
-            <button className="acc-link" onClick={() => (paraComparar ? back() : go('ficha', { ean: addOk.ean }))}>{paraComparar ? 'Ver comparação' : 'Ver ficha do produto'}</button>
+            <button className="acc-link" onClick={() => go('ficha', { ean: addOk.ean })}>Ver ficha do produto</button>
           </div>
         ) : registo ? (regBusy ? (
           // VLM a processar a(s) foto(s): animação "analisando" em vez de tela sem nome
