@@ -384,7 +384,34 @@ export async function consultarOFF(ean) {
     }
   } catch { /* tabela ainda não existe / erro → cai para a API */ }
 
-  if (local && !semNutricao(local.nutricao_100g)) return local; // local completo
+  // off_full (import 4,5M, 2026-06-15): completa o que o dump antigo (27k) não tem —
+  // sobretudo NUTRIÇÃO e IMAGEM. Cobre milhões de EANs sem ir à API live.
+  if (!local || semNutricao(local.nutricao_100g) || !local.imagem) {
+    let f = null;
+    try { [[f]] = await getPool().query('SELECT * FROM off_full WHERE ean = ?', [cod]); } catch { /* tabela ainda não existe */ }
+    if (f) {
+      const nutF = {
+        energia_kcal: f.energia_kcal, gordura: f.gordura, gordura_saturada: f.gordura_sat, hidratos: f.hidratos,
+        acucares: f.acucares, proteina: f.proteinas, sal: f.sal, fibra: f.fibra,
+      };
+      const full = {
+        nome: f.nome, marca: f.marca, quantidade: f.quantidade, categoria: f.categoria,
+        ingredientes: f.ingredientes, alergenios: f.alergenios,
+        categorias_tags: f.categorias_tags ? String(f.categorias_tags).split(',').map((s) => s.trim()) : null,
+        grupos_alimento: null, labels: null,
+        nutriscore: (f.nutriscore || '').toUpperCase() || null, nova: f.nova ?? null, imagem: f.imagem_url || null,
+        nutricao_100g: nutF,
+      };
+      if (!local) local = full;
+      else {
+        if (semNutricao(local.nutricao_100g) && !semNutricao(nutF)) local.nutricao_100g = nutF;
+        for (const k of ['ingredientes', 'alergenios', 'quantidade', 'nutriscore', 'nova', 'imagem', 'categoria', 'categorias_tags']) {
+          if (local[k] == null && full[k] != null) local[k] = full[k];
+        }
+      }
+    }
+  }
+  if (local && !semNutricao(local.nutricao_100g)) return local; // dump + off_full completaram
 
   const live = await consultarOffLive(cod);
   if (!local) return live;                 // sem linha local → o que a API der

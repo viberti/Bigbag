@@ -156,15 +156,32 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     `SELECT fonte, nome, nome_pt, marca, formato, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria,
             nutricao, ingredientes FROM catalogo_produto WHERE ean = ? AND nome IS NOT NULL AND nome <> ''`, [ean]);
   const [[offDump]] = await pool.query('SELECT * FROM off_produto WHERE ean = ?', [ean]);
+  // off_full (import 4,5M, 2026-06-15): nutrição em colunas planas + imagem; o dump
+  // antigo (off_produto, 27k) raramente traz nutrição — o off_full é o backstop (ex.:
+  // ketchup Heinz/Lidl tinham nutrição no OFF mas não no dump antigo).
+  const [[offFullRow]] = await pool.query(
+    `SELECT nome, marca, quantidade, categoria, ingredientes, alergenios,
+            energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra
+       FROM off_full WHERE ean = ?`, [ean]);
   const parse = parseJsonCol; // fonte única (db.js): trata coluna JSON (objeto) ou string
   // OFF: o resultado LIVE (extra.off ou off_json gravado — já curado, PT quando
   // havia) vence o dump CAMPO A CAMPO; o dump (ES/EN cru) só preenche buracos.
   // (1.º backfill: o dump escondia o off_json e ES/lixo-OCR substituía PT.)
   const offLive = extra.off || (atual?.off_json ? parse(atual.off_json) : null);
-  const offD = offDump ? {
-    nome: offDump.nome, nome_pt: offDump.nome_pt, marca: offDump.marca, quantidade: offDump.quantidade,
-    categoria: offDump.categoria, ingredientes: offDump.ingredientes, alergenios: offDump.alergenios,
-    nutricao_100g: parse(offDump.nutricao),
+  const offDumpNut = parse(offDump?.nutricao);
+  const nutOffFull = offFullRow ? {
+    energia_kcal: offFullRow.energia_kcal, gordura: offFullRow.gordura, gordura_saturada: offFullRow.gordura_sat,
+    hidratos: offFullRow.hidratos, acucares: offFullRow.acucares, proteina: offFullRow.proteinas,
+    sal: offFullRow.sal, fibra: offFullRow.fibra,
+  } : null;
+  const temNut = (n) => n && Object.values(n).some((v) => v != null);
+  const offD = (offDump || offFullRow) ? {
+    nome: offDump?.nome ?? offFullRow?.nome, nome_pt: offDump?.nome_pt ?? null,
+    marca: offDump?.marca ?? offFullRow?.marca, quantidade: offDump?.quantidade ?? offFullRow?.quantidade,
+    categoria: offDump?.categoria ?? offFullRow?.categoria,
+    ingredientes: offDump?.ingredientes ?? offFullRow?.ingredientes,
+    alergenios: offDump?.alergenios ?? offFullRow?.alergenios,
+    nutricao_100g: temNut(offDumpNut) ? offDumpNut : (nutOffFull || offDumpNut),
   } : null;
   const off = offLive || offD ? {
     nome: offLive?.nome ?? offD?.nome, nome_pt: offLive?.nome_pt ?? offD?.nome_pt,
