@@ -1230,7 +1230,9 @@ produtoRouter.post('/comparar', requireAuth, async (req, res) => {
       const info = await consolidarProduto({ eanQ: ean });
       const prod = {
         ean,
-        nome: info.off?.nome || info.vlm?.nome || info.base?.nome || info.generico?.alimento || info.nome || ean,
+        // nome RESOLVIDO PT-first (nome_canonico/catálogo PT/ficha traduzida) ANTES do cru
+        // (off/vlm em ES/maiúsculas) + título normalizado — vale p/ os cards E p/ o texto do LLM.
+        nome: tituloProduto(info.nome || info.base?.nome || info.off?.nome || info.vlm?.nome || info.generico?.alimento || ean),
         marca: info.off?.marca || info.vlm?.marca || info.base?.marca || null,
         quantidade: info.off?.quantidade || info.vlm?.quantidade || info.base?.quantidade || null,
         categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
