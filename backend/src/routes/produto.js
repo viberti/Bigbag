@@ -8,7 +8,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { requireAuth } from '../auth.js';
 import { getPool, parseJsonCol } from '../db.js';
-import { config } from '../config.js';
+import { config, paisCfg } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
@@ -136,7 +136,11 @@ const fillGaps = (acc, src) => {
 
 // Consolida TUDO o que sabemos de um produto (por item da nota OU por EAN):
 // funde as várias linhas de produto_ean (vlm/off) e lista as fotos guardadas.
-export async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
+export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais }) {
+  // PAÍS do utilizador (camada preço+locale): decide moeda + que fontes de catálogo dão
+  // o preço/nome locais. PT → €/lojas PT; BR → R$/lojas VTEX. A IDENTIDADE (EAN) é igual.
+  const cfgPais = paisCfg(pais);
+  const fontesPais = cfgPais.fontesPreco;
   // dados do item: SKU (fallback genérico) + EAN do TALÃO (autoritativo).
   let skuId = skuParam || null, nome = null, itemEan = null;
   if (itemId) {
@@ -193,8 +197,8 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
     const [[cat]] = await getPool().query(
       `SELECT COALESCE(nome_pt, nome) AS nome FROM catalogo_produto
         WHERE ean = ? AND COALESCE(nome_pt, nome) IS NOT NULL
-        ORDER BY (fonte IN ('continente','auchan','pingodoce','lidl','mercadona-off')) DESC, (nome_pt IS NOT NULL) DESC, id ASC
-        LIMIT 1`, [ean]);
+        ORDER BY (fonte IN (?)) DESC, (nome_pt IS NOT NULL) DESC, id ASC
+        LIMIT 1`, [ean, fontesPais]);
     nome = cat?.nome || null;
   }
   // NUTRIÇÃO oficial de loja (prioritária sobre OFF). Se o scan não tem nutrição
@@ -316,7 +320,19 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam }) {
       if (c) sugestaoNome = { ean_ref: c.ean, nome: c.nome, marca: c.marca, tamanho: c.tamanho, nutricao_100g: c.nutricao_100g, imagem_url: c.imagem_url, tamanho_bate: c.tamanho_bate };
     } catch { /* off_full/FULLTEXT pode faltar localmente */ }
   }
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, existe: rows.length > 0 || temGenericoNut };
+  // PREÇO-referência de catálogo no PAÍS do utilizador (camada preço+locale): o mais
+  // barato entre as fontes do país, na moeda do país. Dá um preço R$/€ à ficha do scan
+  // (referência, nunca facto — o facto vem do talão). Filtra clearance/não-produto.
+  let precoCatalogo = null;
+  if (ean) {
+    const [[p]] = await getPool().query(
+      `SELECT preco, COALESCE(moeda, ?) AS moeda, preco_por_base, unidade_base, fonte
+         FROM catalogo_produto
+        WHERE ean = ? AND preco IS NOT NULL AND fonte IN (?)
+        ORDER BY preco ASC LIMIT 1`, [cfgPais.moeda, ean, fontesPais]);
+    if (p) precoCatalogo = { preco: Number(p.preco), moeda: p.moeda || cfgPais.moeda, preco_por_base: p.preco_por_base != null ? Number(p.preco_por_base) : null, unidade_base: p.unidade_base || null, loja: p.fonte };
+  }
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;
@@ -626,7 +642,7 @@ produtoRouter.get('/info', requireAuth, async (req, res) => {
     const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
     const skuId = Number(req.query.sku_id) || null;
     if (!itemId && !eanQ && !skuId) return res.status(400).json({ erro: 'item_id, sku_id ou ean em falta' });
-    res.json(await consolidarProduto({ itemId, eanQ, skuId }));
+    res.json(await consolidarProduto({ itemId, eanQ, skuId, pais: req.user?.pais }));
   } catch (e) {
     console.error('[produto/info] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar info do produto' });
