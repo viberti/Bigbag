@@ -68,23 +68,28 @@ export async function extrairProdutoFotos(fotos, { timeoutMs, contexto } = {}) {
     { type: 'text', text: PROMPT + pista },
     ...fotos.map((f) => ({ type: 'image_url', image_url: { url: `data:${f.mime};base64,${f.base64}` } })),
   ];
-  const ctrl = new AbortController();
-  const to = setTimeout(() => ctrl.abort(), timeoutMs || 40000);
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
-      body: JSON.stringify({ model: config.openrouter.modelExtracao, messages: [{ role: 'user', content }], response_format: { type: 'json_object' }, usage: { include: true } }),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
-    const data = await res.json();
-    registrarCusto({ contexto: 'identificar_foto', modelo: data.model, usage: data.usage });
-    const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
-    return { dados, custo: Number(data.usage?.cost) || 0 };
-  } finally {
-    clearTimeout(to);
+  // RETRY (2 tentativas): o VLM é não-determinístico e ÀS VEZES devolve JSON malformado
+  // (truncado/aspas mal-escapadas) → uma única falha de parse matava TODA a identificação por
+  // foto (caso real: ficha caía de volta no OFF errado). Mesmo padrão do avaliarParaPerfil.
+  let ultimoErro;
+  for (let tent = 0; tent < 2; tent++) {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), timeoutMs || 40000);
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
+        body: JSON.stringify({ model: config.openrouter.modelExtracao, messages: [{ role: 'user', content }], response_format: { type: 'json_object' }, usage: { include: true } }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+      const data = await res.json();
+      registrarCusto({ contexto: 'identificar_foto', modelo: data.model, usage: data.usage });
+      const dados = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}'); // parse falhado → retry
+      return { dados, custo: Number(data.usage?.cost) || 0 };
+    } catch (e) { ultimoErro = e; } finally { clearTimeout(to); }
   }
+  throw ultimoErro;
 }
 
 const PROMPT_ANALISE = `És um documentalista de nutrição. Recebes os dados de UM produto alimentar (nome, categoria, ingredientes, nutrição por 100 g, e Nutri-Score/NOVA quando existirem). Produz uma análise FACTUAL e NÃO CLÍNICA — só factos sobre o produto, SEM conselhos médicos, diagnósticos nem recomendações personalizadas. Idioma: português do Brasil (trata o leitor por "você"). Devolve SÓ um objeto JSON:

@@ -72,7 +72,14 @@ export function parseJsonLoose(txt) {
   const a = s.indexOf('{');
   const b = s.lastIndexOf('}');
   if (a >= 0 && b > a) s = s.slice(a, b + 1);
-  return JSON.parse(s);
+  try { return JSON.parse(s); }
+  catch (e) {
+    // endurecimento: vírgulas finais antes de } ou ] (erro comum de LLM). Se mesmo assim falhar,
+    // re-lança (o chamador faz retry — o VLM é não-determinístico e a 2.ª resposta costuma ser válida).
+    const limpo = s.replace(/,\s*([}\]])/g, '$1');
+    if (limpo !== s) return JSON.parse(limpo);
+    throw e;
+  }
 }
 
 export async function extrairFatura({ imageBase64, mime, model, timeoutMs, correcao }) {
