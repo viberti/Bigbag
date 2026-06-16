@@ -71,6 +71,22 @@ export async function matchImagemB64(b64, opts) {
   return matchPorVetor(vec, opts);
 }
 
+// Persiste vetores no Qdrant — o corpo cresce das buscas REAIS (amortiza o download lento
+// do OFF: baixa-se uma vez, da 2.ª já cá está). pontos: [{ean, vec, fonte}]. id do ponto = o
+// EAN numérico (não colide com os ids de catálogo, que são pequenos). Idempotente (mesmo id
+// sobrescreve). Fire-and-forget no chamador. SEM ?wait (não bloqueia pela indexação).
+export async function upsertVetores(pontos) {
+  const points = (pontos || [])
+    .filter((p) => p.vec && /^\d{8,14}$/.test(String(p.ean)))
+    .map((p) => ({ id: Number(p.ean), vector: p.vec, payload: { ean: String(p.ean), fonte: p.fonte || 'on-demand' } }));
+  if (!points.length) return;
+  const r = await fetch(`${QDRANT}/collections/${COLECCAO}/points`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ points }), signal: AbortSignal.timeout(8000),
+  });
+  if (!r.ok) throw new Error(`qdrant upsert ${r.status}`);
+}
+
 // Estado do subsistema (p/ health/diagnóstico).
 export async function estadoMatchImagem() {
   try {

@@ -5,7 +5,7 @@
 // match-por-imagem (matchImagem.js) para validar. NUNCA é facto do EAN exato: o
 // chamador marca como "mesmo produto (por nome)" e pede confirmação se incerto.
 import { normAlfa } from './categoria.js';
-import { matchImagemB64, matchPorVetor, vetorizarImagemB64, vetorizarVariasB64, cosseno } from './matchImagem.js';
+import { matchImagemB64, matchPorVetor, vetorizarImagemB64, vetorizarVariasB64, cosseno, upsertVetores } from './matchImagem.js';
 import { familiaDe } from './familia.js';
 import { parseJsonCol } from '../db.js';
 
@@ -108,10 +108,15 @@ export async function acharGemeo(pool, { fotoB64, nome, marca, tamanho, termos, 
         const usados = []; const b64s = [];
         for (let i = 0; i < alvos.length; i++) if (baixadas[i]) { b64s.push(baixadas[i]); usados.push(alvos[i]); }
         const vecs = b64s.length ? await vetorizarVariasB64(b64s) : [];
+        const novos = [];
         for (let i = 0; i < usados.length; i++) {
           const sc = vecs[i] ? cosseno(vecUser, vecs[i]) : 0;
           if (sc >= 0.72) img.push({ ean: String(usados[i].ean), id: null, fonte: 'on-demand', score: Math.round(sc * 1000) / 1000 });
+          if (vecs[i]) novos.push({ ean: usados[i].ean, vec: vecs[i], fonte: usados[i].fonte || 'off' });
         }
+        // PERSISTE todos os vetorizados (não só os que casaram) → o corpo cresce p/ os próximos
+        // scans (amortiza o download lento do OFF). Fire-and-forget, não bloqueia a resposta.
+        if (novos.length) upsertVetores(novos).catch(() => {});
       } catch { /* download/embed falhou → segue só com texto + Qdrant */ }
     }
   }
