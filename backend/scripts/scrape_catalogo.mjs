@@ -162,7 +162,14 @@ const FONTES = {
   auchan: {
     sitemapIndex: 'https://www.auchan.pt/sitemap_index.xml',
     sitemapMatch: /-product\.xml/i,
-    filtros: ['/alimentacao/', '/produtos-frescos/'],
+    // Departamentos RELEVANTES p/ cesto de supermercado (dono 2026-06-16): food +
+    // bebidas/bio + drogaria (limpeza/higiene/saude/beleza) + bebe + animais. EXCLUI
+    // bazar nao-mercearia (tecnologia, brinquedos, eletrodomesticos, automovel/bricolage,
+    // roupa, viagem, casa-e-jardim, papelaria). Antes so apanhava o alimentar -> auchan
+    // ficava 0% nao-food, criando um gap que o harvest PrestaShop tapava por fora.
+    filtros: ['/alimentacao/', '/produtos-frescos/', '/bebidas-e-garrafeira/',
+      '/biologicos-e-alternativas/', '/limpeza-e-cuidados-do-lar/', '/beleza-e-higiene/',
+      '/saude-e-bem-estar/', '/o-mundo-do-bebe/', '/animais/'],
     skuDoUrl: (u) => u.match(/\/(\d+)\.html?$/)?.[1] || null,
     extrair(url, html) {
       const p = jsonLdProduct(html); if (!p) return null;
