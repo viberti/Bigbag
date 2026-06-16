@@ -15,7 +15,7 @@ import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { grupoDe, grupoDeNome, tokenCasa, singularizar, norm as normN, normAlfa, tipoConsumidor } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
 import { fundirFichaEan } from '../normaliza/fichaEan.js';
-import { acharPorNomeMarca } from '../normaliza/resolverPorNome.js';
+import { acharPorNomeMarca, acharGemeo } from '../normaliza/resolverPorNome.js';
 import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
@@ -571,7 +571,17 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       }
     } catch (e) { console.error('[produto/identificar] generico:', e.message); }
 
-    res.json({ ean, vlm, off, generico, fonte: fonte || (generico?.nutricao_100g ? 'generico' : null), custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas, ean_rejeitado: eanRejeitado, marca_provavel_ean: pistaMarca, marca_conflito: marcaConflito });
+    // GÉMEO sob OUTRO EAN: se a ficha ficou MAGRA (sem nutrição), cruza a FOTO (CLIP) com o
+    // nome+marca do VLM para achar o MESMO produto sob outro código. Convergência dos dois
+    // sinais → candidato p/ o humano confirmar (não adota automático). Buraco #1 fechado.
+    let gemeo = null;
+    try {
+      if (fotos.length && !nutricao) {
+        gemeo = await acharGemeo(getPool(), { fotoB64: fotos[0].base64, nome: vlm?.nome || nome, marca: vlm?.marca || pistaMarca, tamanho: vlm?.quantidade, eanProprio: ean });
+      }
+    } catch (e) { console.error('[produto/identificar] gemeo:', e.message); }
+
+    res.json({ ean, vlm, off, generico, fonte: fonte || (generico?.nutricao_100g ? 'generico' : null), custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas, ean_rejeitado: eanRejeitado, marca_provavel_ean: pistaMarca, marca_conflito: marcaConflito, gemeo });
   } catch (e) {
     console.error('[produto/identificar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a identificar o produto' });

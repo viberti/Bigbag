@@ -5,6 +5,7 @@
 // match-por-imagem (matchImagem.js) para validar. NUNCA é facto do EAN exato: o
 // chamador marca como "mesmo produto (por nome)" e pede confirmação se incerto.
 import { normAlfa } from './categoria.js';
+import { matchImagemB64 } from './matchImagem.js';
 
 const nutDe = (r) => ({
   energia_kcal: r.energia_kcal, gordura: r.gordura, gordura_saturada: r.gordura_sat, hidratos: r.hidratos,
@@ -47,4 +48,36 @@ export async function acharPorNomeMarca(pool, { nome, marca, tamanho } = {}) {
       tem_nutricao: temNut(nut), tamanho_bate: tamBate, rel: r.rel,
     };
   }).sort((a, b) => (b.tamanho_bate === true) - (a.tamanho_bate === true) || (b.tem_nutricao - a.tem_nutricao) || b.rel - a.rel);
+}
+
+// GÉMEO sob OUTRO EAN por CONVERGÊNCIA de dois sinais independentes: a FOTO (CLIP) e o
+// NOME+marca do VLM. Um EAN que aparece nos DOIS é quase certo (a imagem e o texto não se
+// enganam ao mesmo tempo). Devolve o melhor candidato (ou null) — NUNCA é facto: o
+// chamador mostra e pede CONFIRMAÇÃO ao humano (a foto/o texto acham; o humano confirma).
+export async function acharGemeo(pool, { fotoB64, nome, marca, tamanho, eanProprio } = {}) {
+  const proprio = String(eanProprio || '');
+  const txt = nome ? await acharPorNomeMarca(pool, { nome, marca, tamanho }) : [];
+  let img = [];
+  if (fotoB64) { try { img = await matchImagemB64(fotoB64, { k: 8, limiar: 0.72 }); } catch { img = []; } }
+  if (!txt.length && !img.length) return null;
+  const map = new Map(); // ean → { ean, detalhe, scoreImg, viaImg, viaTxt }
+  for (const c of txt) { const e = String(c.ean); if (e === proprio) continue; map.set(e, { ean: e, detalhe: c, scoreImg: 0, viaImg: false, viaTxt: true }); }
+  for (const c of img) { const e = String(c.ean); if (e === proprio) continue; const ex = map.get(e); if (ex) { ex.scoreImg = c.score; ex.viaImg = true; } else map.set(e, { ean: e, detalhe: null, scoreImg: c.score, viaImg: true, viaTxt: false }); }
+  if (!map.size) return null;
+  // pontuação: NOS DOIS domina; senão imagem-forte; depois nome-com-nutrição / tamanho.
+  const pont = (x) => (x.viaImg && x.viaTxt ? 1000 : 0) + x.scoreImg * 100 + (x.detalhe?.tem_nutricao ? 20 : 0) + (x.detalhe?.tamanho_bate === true ? 10 : 0);
+  const top = [...map.values()].sort((a, b) => pont(b) - pont(a))[0];
+  let d = top.detalhe;
+  if (!d) { // candidato só-imagem → vai buscar os detalhes ao off_full
+    const [[r]] = await pool.query(
+      `SELECT ean, nome, marca, quantidade, imagem_url, energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra
+         FROM off_full WHERE ean = ? LIMIT 1`, [top.ean]);
+    d = r ? { ean: r.ean, nome: r.nome, marca: r.marca, tamanho: r.quantidade, imagem_url: r.imagem_url, nutricao_100g: nutDe(r), tem_nutricao: temNut(nutDe(r)) } : { ean: top.ean };
+  }
+  return {
+    ean: top.ean, nome: d.nome || null, marca: d.marca || null, tamanho: d.tamanho || null,
+    imagem_url: d.imagem_url || null, nutricao_100g: d.tem_nutricao ? d.nutricao_100g : null,
+    via: top.viaImg && top.viaTxt ? 'ambos' : (top.viaImg ? 'imagem' : 'nome'),
+    score_imagem: top.scoreImg || null,
+  };
 }
