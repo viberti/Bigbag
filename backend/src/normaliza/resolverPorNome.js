@@ -6,6 +6,7 @@
 // chamador marca como "mesmo produto (por nome)" e pede confirmação se incerto.
 import { normAlfa } from './categoria.js';
 import { matchImagemB64 } from './matchImagem.js';
+import { parseJsonCol } from '../db.js';
 
 const nutDe = (r) => ({
   energia_kcal: r.energia_kcal, gordura: r.gordura, gordura_saturada: r.gordura_sat, hidratos: r.hidratos,
@@ -32,28 +33,38 @@ export async function acharPorNomeMarca(pool, { nome, marca, tamanho, termos } =
   if (marcaTok.length) bool = [...marcaTok.map((t) => `+${t}`), ...nomeTok.map((t) => `${t}*`)].join(' ');
   else if (nomeTok.length) bool = nomeTok.map((t) => `+${t}*`).join(' ');
   else return [];
-  let rows;
-  try {
-    [rows] = await pool.query(
-      `SELECT ean, nome, marca, quantidade, imagem_url,
-              energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra,
-              MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) AS rel
-         FROM off_full
-        WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE)
-        ORDER BY (energia_kcal IS NOT NULL) DESC, rel DESC
-        LIMIT 10`, [bool, bool]);
-  } catch { return []; } // índice ainda a construir / erro → sem candidatos
   const tAlvo = numTam(tamanho);
-  return rows.map((r) => {
-    const nut = nutDe(r);
-    const tCand = numTam(r.quantidade);
-    const tamBate = tAlvo && tCand ? Math.abs(tAlvo - tCand) / tAlvo < 0.1 : null; // ±10%
-    return {
-      ean: r.ean, nome: r.nome, marca: r.marca, tamanho: r.quantidade || null,
-      imagem_url: r.imagem_url || null, nutricao_100g: temNut(nut) ? nut : null,
-      tem_nutricao: temNut(nut), tamanho_bate: tamBate, rel: r.rel,
-    };
-  }).sort((a, b) => (b.tamanho_bate === true) - (a.tamanho_bate === true) || (b.tem_nutricao - a.tem_nutricao) || b.rel - a.rel);
+  const tamBateDe = (q) => { const t = numTam(q); return tAlvo && t ? Math.abs(tAlvo - t) / tAlvo < 0.1 : null; };
+  const map = new Map(); // ean → candidato (DEDUP/MERGE entre as fontes)
+  const juntar = (c) => {
+    const ex = map.get(c.ean);
+    if (!ex) { map.set(c.ean, c); return; }
+    ex.nome = ex.nome || c.nome; ex.marca = ex.marca || c.marca; ex.tamanho = ex.tamanho || c.tamanho;
+    ex.imagem_url = ex.imagem_url || c.imagem_url;
+    if (!ex.tem_nutricao && c.tem_nutricao) { ex.nutricao_100g = c.nutricao_100g; ex.tem_nutricao = true; }
+    if (ex.tamanho_bate == null) ex.tamanho_bate = c.tamanho_bate;
+    ex.rel = Math.max(ex.rel || 0, c.rel || 0);
+    ex.fonte = ex.fonte === c.fonte ? ex.fonte : 'ambos';
+  };
+  // 1) OFF (off_full) — pan-país; nutrição em colunas planas
+  try {
+    const [r1] = await pool.query(
+      `SELECT ean, nome, marca, quantidade, imagem_url, energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra,
+              MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) AS rel
+         FROM off_full WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE)
+        ORDER BY (energia_kcal IS NOT NULL) DESC, rel DESC LIMIT 12`, [bool, bool]);
+    for (const r of r1) { const nut = nutDe(r); juntar({ ean: String(r.ean), nome: r.nome, marca: r.marca, tamanho: r.quantidade || null, imagem_url: r.imagem_url || null, nutricao_100g: temNut(nut) ? nut : null, tem_nutricao: temNut(nut), tamanho_bate: tamBateDe(r.quantidade), rel: r.rel, fonte: 'off' }); }
+  } catch { /* índice/erro */ }
+  // 2) AS NOSSAS FONTES (catalogo_produto) — TODAS as lojas e PAÍSES; nutrição em JSON
+  try {
+    const [r2] = await pool.query(
+      `SELECT ean, COALESCE(nome_pt, nome) AS nome, marca, formato AS quantidade, imagem_url, nutricao,
+              MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) AS rel
+         FROM catalogo_produto WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE)
+        ORDER BY rel DESC LIMIT 30`, [bool, bool]);
+    for (const r of r2) { const nut = parseJsonCol(r.nutricao); const tn = temNut(nut); juntar({ ean: String(r.ean), nome: r.nome, marca: r.marca, tamanho: r.quantidade || null, imagem_url: r.imagem_url || null, nutricao_100g: tn ? nut : null, tem_nutricao: tn, tamanho_bate: tamBateDe(r.quantidade), rel: r.rel, fonte: 'catalogo' }); }
+  } catch { /* FULLTEXT ainda a construir (migração 064) */ }
+  return [...map.values()].sort((a, b) => (b.tamanho_bate === true) - (a.tamanho_bate === true) || (b.tem_nutricao - a.tem_nutricao) || (b.rel || 0) - (a.rel || 0));
 }
 
 // GÉMEO sob OUTRO EAN por CONVERGÊNCIA de dois sinais independentes: a FOTO (CLIP) e o
