@@ -12,7 +12,7 @@ perfilRouter.use(requireAuth);
 const limparArr = (x) => [...new Set((Array.isArray(x) ? x : []).map((s) => String(s || '').trim()).filter(Boolean))].slice(0, 40);
 // Os 6 grupos do editor → campos do resumo (as ATIVAS, lidas pela avaliação). `nut` é um array
 // novo (`metas`) — distinto do `nutrientes` (objeto) que o LLM extrai do texto.
-const GRUPO_CAMPO = { obj: 'objetivos', cond: 'condicoes', diet: 'restricoes', pref: 'preferir', evit: 'evitar', nut: 'metas' };
+const GRUPO_CAMPO = { obj: 'objetivos', cond: 'condicoes', diet: 'restricoes', pref: 'preferir', evit: 'evitar', nut: 'metas', sup: 'suplementos' };
 // Demografia saneada (só os campos esperados, como strings curtas).
 function limparDemografia(d) {
   if (!d || typeof d !== 'object') return null;

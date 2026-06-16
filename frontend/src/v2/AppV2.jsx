@@ -315,6 +315,7 @@ const GRUPOS_SAUDE = [
   { key: 'pref', campo: 'preferir', t: 'Preferir / incluir', gi: 'check', c: 'var(--leaf)', s: 'var(--leaf-soft)', d: 'var(--leaf-d)' },
   { key: 'evit', campo: 'evitar', t: 'Evitar', gi: 'close', c: 'var(--coral)', s: 'var(--coral-soft)', d: '#b4512f' },
   { key: 'nut', campo: 'metas', t: 'Metas de nutrientes', gi: 'spark', c: '#5b8fb0', s: '#dcebf2', d: '#3f6f90' },
+  { key: 'sup', campo: 'suplementos', t: 'Suplementos', gi: 'plate', c: '#8a5fb0', s: '#ece3f5', d: '#6a449a' },
 ];
 // Catálogo de sugestões por grupo (genérico, reutilizável) — alimenta a aba "Adicionar".
 // Curado e neutro; o utilizador escolhe. Strings simples (= os arrays do resumo).
@@ -325,6 +326,7 @@ const CATALOGO_SAUDE = {
   pref: ['Peixe gordo', 'Proteína magra', 'Proteína vegetal', 'Legumes', 'Fruta de baixo IG', 'Leguminosas', 'Aveia / integrais', 'Azeite', 'Frutos secos', 'Iogurte sem açúcar'],
   evit: ['Açúcar adicionado', 'Ultraprocessados', 'Fritos', 'Enchidos', 'Refrigerantes', 'Pão branco / refinados', 'Gordura saturada em excesso', 'Carne vermelha em excesso', 'Adoçantes artificiais', 'Margarina'],
   nut: ['+ Proteína', '+ Fibra', '− Açúcares', '− Sódio', '− Gordura saturada', '+ Ómega-3', '+ Cálcio', '+ Vitamina D', '+ Magnésio', '+ Potássio', '+ Ferro'],
+  sup: ['Ómega-3', 'Vitamina D', 'Vitamina B12', 'Magnésio', 'Cálcio', 'Ferro', 'Zinco', 'Multivitamínico', 'Probióticos', 'Psyllium / fibra', 'Whey / proteína', 'Creatina', 'Colagénio', 'Coenzima Q10'],
 };
 
 /* ── LISTA ───────────────────────────────────────────────────────────────── */
