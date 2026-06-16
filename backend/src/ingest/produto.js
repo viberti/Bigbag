@@ -406,7 +406,9 @@ const semNutricao = (nut) => !nut || Object.values(nut).every((v) => v == null);
 async function consultarOffLive(cod) {
   try {
     const u = `https://world.openfoodfacts.org/api/v2/product/${cod}?fields=product_name,brands,quantity,categories,categories_tags,food_groups_tags,labels_tags,ingredients_text,allergens,nutriscore_grade,nova_group,nutriments,image_url`;
-    const r = await fetch(u, { headers: { 'User-Agent': 'Bigbag/0.1 (laboratorio pessoal)' } });
+    // TIMEOUT (2,5s): sem isto, a API live do OFF a pendurar bloqueava a consulta segundos —
+    // e numa comparação de N produtos somava +8s. Falha → null (usa o local; foto trata o resto).
+    const r = await fetch(u, { headers: { 'User-Agent': 'Bigbag/0.1 (laboratorio pessoal)' }, signal: AbortSignal.timeout(2500) });
     const j = await r.json();
     if (j.status !== 1 || !j.product) return null;
     const p = j.product, n = p.nutriments || {};
@@ -477,18 +479,20 @@ export async function consultarOFF(ean) {
   }
   if (local && !semNutricao(local.nutricao_100g)) return local; // dump + off_full completaram
 
-  const live = await consultarOffLive(cod);
-  if (!local) return live;                 // sem linha local → o que a API der
-  if (!live || semNutricao(live.nutricao_100g)) return local; // live não ajudou → o local
-
-  // Completa o local com o que lhe falta (sobretudo a nutrição), mantendo o nome_pt.
-  local.nutricao_100g = live.nutricao_100g;
-  for (const k of ['ingredientes', 'alergenios', 'quantidade', 'nutriscore', 'nova', 'categorias_tags', 'grupos_alimento']) {
-    if (local[k] == null && live[k] != null) local[k] = live[k];
+  // PERF (2026-06-17): se já temos uma linha LOCAL (nome do off_full/dump) mas falta a nutrição,
+  // NÃO bloquear a consulta na API live — ela pode pendurar segundos e, para muitos produtos
+  // (ex.: ALDI alemães), nem traz nutrição. Devolve o local JÁ e enriquece em FUNDO (cura o dump
+  // para a próxima vez). A ficha fica magra nesta 1.ª vez → o fluxo de foto trata o resto.
+  if (local) {
+    consultarOffLive(cod).then((live) => {
+      if (!live || semNutricao(live.nutricao_100g)) return;
+      getPool().query('UPDATE off_produto SET nutricao = ? WHERE ean = ?', [JSON.stringify(live.nutricao_100g), cod]).catch(() => {});
+    }).catch(() => {});
+    return local;
   }
-  // self-heal: grava a nutrição no dump local para não voltar a chamar a API por este EAN.
-  getPool().query('UPDATE off_produto SET nutricao = ? WHERE ean = ?', [JSON.stringify(live.nutricao_100g), cod]).catch(() => {});
-  return local;
+
+  // SEM linha local em fonte nenhuma → a API live é a única hipótese → bloqueia (com timeout).
+  return await consultarOffLive(cod);
 }
 
 // Consulta o CATÁLOGO LOCAL por EAN (scrapes Auchan/Continente/Mercadona):

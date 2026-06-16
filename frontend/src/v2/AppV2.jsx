@@ -1495,13 +1495,8 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
       // NOME TRADUZIDO + PERSISTIDO via /consultar?pt=1 — para LISTA *e* CONSULTA: o
       // /info devolve o nome cru do catálogo/OFF (Mercadona-ES/Lidl-FR → "Eggs",
       // "Ketchup Allégé"). Isto traduz, persiste a ficha, e a ficha passa a ler o PT.
-      let fichaMagra = !!info?.ficha_magra;
-      try {
-        const c = await consultarProdutoEan(cod, { pt: true }); if (c?.nome) nm = c.nome;
-        // a consulta pode ENRIQUECER (OFF live) uma ficha antes magra → se encontrou fonte real,
-        // reavalia para não mandar às fotos um produto que afinal passou a ter ficha.
-        if (fichaMagra && c?.encontrado) { const f2 = await infoProduto({ ean: cod }); fichaMagra = !!f2?.ficha_magra; if (f2?.nome) nm = f2.nome; }
-      } catch { /* fica o nm do /info */ }
+      const fichaMagra = !!info?.ficha_magra;
+      try { const c = await consultarProdutoEan(cod, { pt: true }); if (c?.nome) nm = c.nome; } catch { /* fica o nm do /info */ }
       // MODO COMPARAR: junta ao cesto de comparação (sem ir à ficha). Com nome → junta já;
       // sem nome → cadastro por foto e depois junta.
       if (paraComparar) {
