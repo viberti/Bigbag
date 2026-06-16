@@ -477,21 +477,14 @@ export async function consultarOFF(ean) {
       }
     }
   }
-  if (local && !semNutricao(local.nutricao_100g)) return local; // dump + off_full completaram
+  // DECISÃO (dono, 2026-06-17): se o produto está no nosso OFF local (off_full, dump COMPLETO de
+  // 4,5M) mas sem nutrição, ASSUMIMOS que a API live também não a tem → NÃO chamamos a live para
+  // a nutrição (era custo/rate-limit desperdiçado e, do datacenter, pendurava segundos/produto →
+  // o caso da comparação no ALDI). A ficha fica magra → o fluxo de foto trata o resto.
+  if (local) return local;
 
-  // PERF (2026-06-17): se já temos uma linha LOCAL (nome do off_full/dump) mas falta a nutrição,
-  // NÃO bloquear a consulta na API live — ela pode pendurar segundos e, para muitos produtos
-  // (ex.: ALDI alemães), nem traz nutrição. Devolve o local JÁ e enriquece em FUNDO (cura o dump
-  // para a próxima vez). A ficha fica magra nesta 1.ª vez → o fluxo de foto trata o resto.
-  if (local) {
-    consultarOffLive(cod).then((live) => {
-      if (!live || semNutricao(live.nutricao_100g)) return;
-      getPool().query('UPDATE off_produto SET nutricao = ? WHERE ean = ?', [JSON.stringify(live.nutricao_100g), cod]).catch(() => {});
-    }).catch(() => {});
-    return local;
-  }
-
-  // SEM linha local em fonte nenhuma → a API live é a única hipótese → bloqueia (com timeout).
+  // SEM linha local em fonte nenhuma (nem no dump de 4,5M) → produto desconhecido: a API live é a
+  // única hipótese de o identificar. Rara; com timeout (2,5s em consultarOffLive).
   return await consultarOffLive(cod);
 }
 
