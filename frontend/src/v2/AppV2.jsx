@@ -720,7 +720,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const [avalLoading, setAvalLoading] = useState(true); // parecer personalizado a carregar
   const registado = useRef(false);
   const avalSeq = useRef(0); // guarda de corrida: descarta respostas de parecer fora de ordem
-  const servidorOk = useRef(false); // o /info já respondeu? (não deixar a base local sobrepor-se)
+  const servidorOk = useRef(false); // o /info teve SUCESSO? (um ERRO não conta: offline, a base local deve aparecer)
   useEffect(() => {
     registado.current = false; // novo produto → permite registar 1×
     servidorOk.current = false;
@@ -729,10 +729,12 @@ function Ficha({ go, back, ean, sku_id, nome }) {
     // entre EANs) e invalida quaisquer pedidos de parecer ainda em voo (guarda de corrida).
     setInfo(null); setAval(null); setAnalise(null); setAlt(null); setAvalLoading(true); avalSeq.current += 1;
     const q = { itemId: undefined, ean, skuId: sku_id };
-    // LOCAL-FIRST: mostra a ficha da BASE LOCAL já (instantâneo/offline) enquanto o /info resolve;
-    // não sobrepõe se o servidor já respondeu (corrida).
-    if (ean) fichaLocal(ean).then((fl) => { if (fl && !servidorOk.current) setInfo((prev) => prev || infoDaBaseLocal(fl)); }).catch(() => {});
-    infoProduto(q).then((r) => { servidorOk.current = true; setInfo(r); }).catch(() => { servidorOk.current = true; setInfo({ erro: true }); });
+    // LOCAL-FIRST: mostra a ficha da BASE LOCAL (instantâneo/offline). Aplica-se enquanto o /info
+    // não teve SUCESSO e o ecrã está vazio OU em erro — assim, OFFLINE (o /info falha), a base
+    // local aparece à mesma e não fica tapada pelo {erro}. Não sobrepõe uma resposta boa do servidor.
+    if (ean) fichaLocal(ean).then((fl) => { if (fl && !servidorOk.current) setInfo((prev) => (!prev || prev.erro) ? infoDaBaseLocal(fl) : prev); }).catch(() => {});
+    infoProduto(q).then((r) => { servidorOk.current = true; setInfo(r); })
+      .catch(() => { setInfo((prev) => (prev && prev._local) ? prev : { erro: true }); }); // erro NÃO marca servidorOk nem tapa a base local
     analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => setAnalise(null));
     alternativasProduto(q).then((r) => setAlt(r?.alternativas?.length ? r : null)).catch(() => setAlt(null));
     // o parecer personalizado corre num efeito SEPARADO ligado à nutrição (ver abaixo): a
@@ -1508,13 +1510,22 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
     setChk(true);
     try {
       // BASE LOCAL primeiro: se conhecemos o EAN (catálogo PT/Mercadona/off PT pré-carregado),
-      // resolve INSTANTÂNEO/OFFLINE sem ir ao servidor. Telemetria mede hit (local) vs miss.
+      // resolve INSTANTÂNEO/OFFLINE sem ir ao servidor. Telemetria: hit só se há NOME local
+      // utilizável (um registo sem nome é, na prática, um miss).
       const fl = await fichaLocal(cod);
-      registarHitLocal(cod, !!fl, paraLista ? 'lista' : paraComparar ? 'comparar' : 'consulta');
+      registarHitLocal(cod, !!fl?.nome, paraLista ? 'lista' : paraComparar ? 'comparar' : 'consulta');
       if (fl?.nome) {
-        if (paraComparar) { addCmp({ ean: cod, nome: fl.nome }); back(); return; }
-        if (paraLista) { try { await adicionarListaItem({ nome: fl.nome, ean: cod }); } catch { /* segue à confirmação */ } setAddOk({ nome: fl.nome, ean: cod }); return; }
-        go('ficha', { ean: cod }); return; // consulta → ficha (enriquece via /info quando online)
+        // CONSULTA → ficha (a própria ficha trata o nome via /info quando online).
+        if (!paraLista && !paraComparar) { go('ficha', { ean: cod }); return; }
+        // LISTA/COMPARAR guardam o NOME verbatim → só usam o nome local quando é PT-fiável:
+        // origem 'pt_cat' (lojas PT) ou 'uso' (já traduzido no servidor). 'merc_es'/'pt_off'
+        // podem trazer nome estrangeiro → caem no caminho do servidor, que TRADUZ e persiste.
+        const ptOk = fl.origem === 'pt_cat' || fl.origem === 'uso';
+        if (ptOk) {
+          if (paraComparar) { addCmp({ ean: cod, nome: fl.nome }); back(); return; }
+          try { await adicionarListaItem({ nome: fl.nome, ean: cod }); } catch { /* segue à confirmação */ }
+          setAddOk({ nome: fl.nome, ean: cod }); return;
+        }
       }
       const info = await infoProduto({ ean: cod });
       let nm = info?.nome || info?.off?.nome || info?.vlm?.nome || info?.base?.nome;

@@ -96,9 +96,6 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
       );
       await guardarNomes(ean, null, [{ nome: f.nome, origem: (r.fusao.proveniencia.nome || 'fusao').slice(0, 20) }]);
       await atualizarConteudoFicha(pool, ean);
-      // CRESCER COM O USO: este EAN foi resolvido FORA do cliente → entra na base_local
-      // partilhada (vira HIT na próxima sync de todos os telefones).
-      await upsertBaseLocal(pool, ean, f).catch((e) => console.error('[base_local upsert]', e.message));
     } catch (e) { console.error('[consultarOuGuardar] gravar fusão:', e.message); }
   }
 
@@ -106,23 +103,36 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
   // fusão OU por heurística (nome que ainda PARECE estrangeiro, ex.: "Eggs" que
   // escapou como candidato "PT"). Robustez 2026-06-15.
   let nome = r.ficha.nome;
+  // CRESCER COM O USO: este EAN foi resolvido no servidor → entra na base_local PARTILHADA.
+  // Corre SEMPRE (também em cache-hit, senão o corpus já-resolvido antes da migração nunca
+  // povoava a base) e com o nome JÁ TRADUZIDO — a tradução grava em produto_ean.nome, não na
+  // base_local; sem isto a base ficava com o nome estrangeiro para TODOS os telefones.
+  // ptOk = o nome a gravar é PT-fiável (não parece estrangeiro). A app confia em origem 'uso'
+  // para a LISTA (que guarda o nome verbatim) → só carimba 'uso' quando é mesmo PT; tradução
+  // falhada/no-op deixa o nome estrangeiro → 'uso_es' (a lista cai no servidor, nunca polui).
+  const crescerBaseLocal = (n) => upsertBaseLocal(pool, ean, { ...r.ficha, nome: n }, !pareceEstrangeiro(n))
+    .catch((e) => console.error('[base_local upsert]', e.message));
   if (r.nomeEstrangeiro || pareceEstrangeiro(nome)) {
-    if (traduzir) nome = (await garantirFichaPT(pool, ean)) || nome;
-    else garantirFichaPT(pool, ean).catch(() => {});
+    if (traduzir) { nome = (await garantirFichaPT(pool, ean)) || nome; await crescerBaseLocal(nome); }
+    else garantirFichaPT(pool, ean).then((pt) => crescerBaseLocal(pt || nome)).catch(() => crescerBaseLocal(nome));
+  } else {
+    await crescerBaseLocal(nome);
   }
   return { encontrado: true, fonte: r.fusao.proveniencia.nome || 'fusao', nome };
 }
 
 // CRESCER COM O USO (dono, 2026-06-17): todo o EAN resolvido no servidor (um miss, buscado fora
 // do cliente) entra na base_local PARTILHADA com nutrição/ingredientes → vira HIT na próxima sync
-// de TODOS os telefones. Linhas vivas levam origem 'uso'; o `seq` (auto) fá-las descer no próximo
-// poll. ON DUPLICATE não mexe no `seq` nem na `origem` (refresca dados sem re-sync inútil) e o
-// COALESCE evita apagar nutrição/ingredientes que já lá estavam com uma resolução mais magra.
-async function upsertBaseLocal(pool, ean, f) {
+// de TODOS os telefones. `ptOk`: nome PT-fiável → origem 'uso' (a lista confia); senão 'uso_es'
+// (nome ainda estrangeiro p.ex. tradução falhou — fica fora do atalho da lista até traduzir).
+// O `seq` (auto) fá-las descer no próximo poll. ON DUPLICATE não mexe no `seq` nem na `origem`
+// (refresca dados sem re-sync inútil; preserva a classificação do bootstrap) e o COALESCE evita
+// apagar nutrição/ingredientes que já lá estavam com uma resolução mais magra.
+async function upsertBaseLocal(pool, ean, f, ptOk = true) {
   if (!ean || !f?.nome) return;
   await pool.query(
     `INSERT INTO base_local (ean, nome, marca, quantidade, categoria, alergenios, nutricao, ingredientes, origem)
-       VALUES (?,?,?,?,?,?,?,?,'uso')
+       VALUES (?,?,?,?,?,?,?,?,?)
      ON DUPLICATE KEY UPDATE
        nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
        alergenios=COALESCE(VALUES(alergenios), alergenios),
@@ -130,7 +140,8 @@ async function upsertBaseLocal(pool, ean, f) {
        ingredientes=COALESCE(VALUES(ingredientes), ingredientes)`,
     [ean, lim(f.nome, 255), lim(f.marca, 120), lim(f.quantidade, 80), lim(f.categoria, 120),
       lim(f.alergenios, 255), f.nutricao ? JSON.stringify(f.nutricao) : null,
-      f.ingredientes ? String(f.ingredientes).slice(0, 1200) : null],
+      f.ingredientes ? String(f.ingredientes).slice(0, 1200) : null,
+      ptOk ? 'uso' : 'uso_es'],
   );
 }
 
