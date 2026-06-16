@@ -1222,9 +1222,12 @@ produtoRouter.get('/personalizado', requireAuth, async (req, res) => {
     const skuId = Number(req.query.sku_id) || null;
     if (!itemId && !eanQ && !skuId) return res.status(400).json({ erro: 'item_id, sku_id ou ean em falta' });
 
-    const [[p]] = await getPool().query('SELECT id, nome, resumo FROM perfil_membro WHERE ativo = 1 LIMIT 1');
+    const [[p]] = await getPool().query('SELECT id, nome, resumo, saude_estado FROM perfil_membro WHERE ativo = 1 LIMIT 1');
     if (!p) return res.json({ perfil: null });
-    const resumo = typeof p.resumo === 'string' ? JSON.parse(p.resumo) : p.resumo;
+    const resumo = parseJsonCol(p.resumo) || {};
+    // a demografia (sexo/idade/peso/altura) vive em saude_estado → junta-se ao resumo p/ o prompt.
+    const demografia = parseJsonCol(p.saude_estado)?.demografia;
+    if (demografia) resumo.demografia = demografia;
 
     const info = await consolidarProduto({ itemId, eanQ, skuId });
     const produto = {
@@ -1285,8 +1288,10 @@ produtoRouter.post('/comparar', requireAuth, async (req, res) => {
       .map((e) => String(e).replace(/\D/g, '')).filter((e) => e.length >= 8))].slice(0, 6);
     if (eans.length < 2) return res.status(400).json({ erro: 'São precisos pelo menos 2 produtos.' });
 
-    const [[p]] = await getPool().query('SELECT id, nome, resumo FROM perfil_membro WHERE ativo = 1 LIMIT 1');
-    const resumo = p ? (typeof p.resumo === 'string' ? JSON.parse(p.resumo) : p.resumo) : null;
+    const [[p]] = await getPool().query('SELECT id, nome, resumo, saude_estado FROM perfil_membro WHERE ativo = 1 LIMIT 1');
+    const resumo = p ? (parseJsonCol(p.resumo) || {}) : null;
+    const demografiaCmp = p ? parseJsonCol(p.saude_estado)?.demografia : null;
+    if (resumo && demografiaCmp) resumo.demografia = demografiaCmp;
 
     const produtos = [];
     for (const ean of eans) {

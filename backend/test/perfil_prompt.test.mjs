@@ -37,6 +37,15 @@ test('perfilParaTexto: une metas do editor (array) com nutrientes do texto (obje
   assert.match(txt, /\+ fibra \(30 g\)/);
 });
 
+test('perfilParaTexto: demografia entra como linha "Pessoa" (sem o email)', () => {
+  const txt = perfilParaTexto({
+    objetivos: ['Mais energia'],
+    demografia: { sexo: 'Feminino', idade: '54', peso: '70', altura: '170', email: 'sue@x.com' },
+  });
+  assert.match(txt, /Pessoa: Mulher · 54 anos · 70 kg · 170 cm/);
+  assert.doesNotMatch(txt, /sue@x\.com|email/i); // PII irrelevante NÃO vai ao LLM
+});
+
 test('perfilParaTexto: perfil vazio/ausente é honesto (não inventa)', () => {
   assert.equal(perfilParaTexto(null), 'SEM PERFIL');
   assert.equal(perfilParaTexto({}), 'PERFIL SEM CARACTERÍSTICAS DEFINIDAS');

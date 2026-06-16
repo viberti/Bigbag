@@ -115,6 +115,14 @@ export function perfilParaTexto(resumo) {
   if (!resumo || typeof resumo !== 'object') return 'SEM PERFIL';
   const linhas = [];
   const sec = (rotulo, itens) => { if (itens.length) linhas.push(`- ${rotulo}: ${itens.join('; ')}`); };
+  // demografia (sexo/idade/peso/altura) — contexto relevante p/ a avaliação (necessidades
+  // diferem com idade/sexo). O email NÃO entra (PII irrelevante para nutrição).
+  const d = resumo.demografia;
+  if (d && typeof d === 'object') {
+    const sexo = d.sexo === 'Feminino' ? 'Mulher' : d.sexo === 'Masculino' ? 'Homem' : (String(d.sexo || '').trim() || null);
+    const pessoa = [sexo, d.idade && `${d.idade} anos`, d.peso && `${d.peso} kg`, d.altura && `${d.altura} cm`].filter(Boolean);
+    if (pessoa.length) linhas.push(`- Pessoa: ${pessoa.join(' · ')}`);
+  }
   sec('Objetivos', arrTxt(resumo.objetivos));
   sec('Condições de saúde', arrTxt(resumo.condicoes));
   sec('Dieta e restrições', arrTxt(resumo.restricoes));
