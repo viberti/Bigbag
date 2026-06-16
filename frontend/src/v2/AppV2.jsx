@@ -712,8 +712,10 @@ function Ficha({ go, back, ean, sku_id, nome }) {
     const q = { itemId: undefined, ean, skuId: sku_id };
     infoProduto(q).then(setInfo).catch(() => setInfo({ erro: true }));
     analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => setAnalise(null));
-    avaliacaoPersonalizada(q).then((r) => setAval(r?.perfil ? r : null)).catch(() => setAval(null));
     alternativasProduto(q).then((r) => setAlt(r?.alternativas?.length ? r : null)).catch(() => setAlt(null));
+    // o parecer personalizado corre num efeito SEPARADO ligado à nutrição (ver abaixo): a
+    // nutrição pode chegar DEPOIS (VLM/adoção) e o parecer tem de re-correr, senão dizia
+    // "sem ficha nutricional" para sempre.
   }, [ean, sku_id]);
   // histórico: regista com o NOME REAL do produto (depois de resolver), nunca o
   // do prop (que pode ser o do utilizador herdado, ou vazio no scan só-EAN).
@@ -739,6 +741,13 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   // réguas, alternativas). Senão (filtros de café, detergente… ou alimento sem ficha
   // relevante: água/vinho/especiarias) → ficha simples (marca/categoria/tamanho).
   const temNut = Object.values(nut).some((v) => v != null && v !== '');
+  // PARECER personalizado: corre quando o info está pronto e RE-corre se a nutrição aparecer
+  // depois (VLM lê o verso / adoção de gémeo). Sem isto, o parecer ficava preso em "sem ficha
+  // nutricional" mesmo depois de a nutrição entrar (bug do dono: correu antes do VLM responder).
+  useEffect(() => {
+    if (!info || info.erro) return;
+    avaliacaoPersonalizada({ itemId: undefined, ean, skuId: sku_id }).then((r) => setAval(r?.perfil ? r : null)).catch(() => setAval(null));
+  }, [ean, sku_id, temNut, info?.erro]); // eslint-disable-line react-hooks/exhaustive-deps
   const ehAlimento = temNut || !!grau;
   const marcaViaEan = info?.marca_via === 'ean_empresa'; // marca veio do prefixo do EAN (voto), não de uma fonte
   const marcaP = info?.marca || info?.off?.marca || info?.vlm?.marca || info?.base?.marca || null;
@@ -1609,8 +1618,15 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
             <div className="sc-hint">{
               registo.semcam ? 'Sem acesso à câmera — verifique a permissão.'
                 : registo.erro ? (paraLista ? 'Falha ao adicionar. Tente de novo.' : 'Falha ao cadastrar. Tente de novo.')
-                : `${registo.naoLido ? 'Não encontrei pelo código de barras — vamos identificar por foto. ' : ''}Fotografe a frente e o rótulo${paraLista ? '' : ' (e a tabela nutricional)'} — quantas fotos precisar.`
+                : registo.naoLido && !paraLista ? 'Não encontrei pelo código — vamos identificar por foto.'
+                  : paraLista ? 'Fotografe a frente e o rótulo — quantas precisar.'
+                    : 'Fotografe a frente e o rótulo.'
             }</div>
+            {!paraLista && !registo.semcam && !registo.erro && (
+              <div className="sc-hint" style={{ marginTop: 6, color: 'var(--amber-d)', fontWeight: 700 }}>
+                <Ico name="spark" size={13} color="var(--amber-d)" /> Não esqueça a <b>tabela nutricional</b> (verso) — é ela que dá a análise de saúde.
+              </div>
+            )}
           </>
         )) : foto?.fase === 'resultados' ? (
           <>
