@@ -11,13 +11,13 @@ import { getAuth } from './api.js';
 const KEY_TS = 'bb_base_sync_ts';
 const KEY_CURSOR = 'bb_base_cat_cursor';
 const KEY_VER = 'bb_base_ver';
-// FICHAS bulk (base_local, migração 067): ~63k EANs PT+Mercadona-ES COM nutrição,
-// pré-construída no servidor. Cursor próprio (por `ean`), versão própria.
+// FICHAS bulk (base_local, migrações 067-068): ~63k EANs PT+Mercadona-ES COM nutrição,
+// pré-construída no servidor E que CRESCE com o uso (cada miss resolvido entra lá). Cursor por
+// `seq` monotónico (apanha as inserções vivas, que o cursor por `ean` deixava de fora).
 const KEY_BULK_TS = 'bb_bulk_sync_ts';
-const KEY_BULK_CURSOR = 'bb_bulk_cursor';
+const KEY_BULK_CURSOR = 'bb_bulk_cursor'; // último `seq` sincronizado
 const KEY_BULK_VER = 'bb_bulk_ver';
-const KEY_BULK_SRV = 'bb_bulk_srv_ver'; // versão do servidor já sincronizada
-const BULK_VER = '1'; // INCREMENTAR p/ forçar resync total do lado do cliente
+const BULK_VER = '2'; // INCREMENTAR p/ forçar resync total do cliente (v2: cursor por seq, era ean)
 // Versão da base: INCREMENTAR quando o servidor re-normaliza dados existentes
 // (ex.: capitalização uniforme) — o cursor incremental não os re-desceria.
 // Mudança de versão → resync completo na próxima sincronização.
@@ -90,38 +90,27 @@ export async function sincronizarFichasBulk({ forcar = false } = {}) {
   try {
     if (localStorage.getItem(KEY_BULK_VER) !== BULK_VER) {
       localStorage.removeItem(KEY_BULK_TS);
-      localStorage.setItem(KEY_BULK_CURSOR, '');
-      localStorage.removeItem(KEY_BULK_SRV);
+      localStorage.setItem(KEY_BULK_CURSOR, '0'); // cursor de seq recomeça do 0
       localStorage.setItem(KEY_BULK_VER, BULK_VER);
     }
     const agora = Date.now();
     if (!forcar && agora - (Number(localStorage.getItem(KEY_BULK_TS)) || 0) < INTERVALO_MS) return;
     const auth = getAuth();
     if (!auth) return;
-    let cursor = localStorage.getItem(KEY_BULK_CURSOR) || '';
-    let srvVer = localStorage.getItem(KEY_BULK_SRV) || '';
+    let cursor = Number(localStorage.getItem(KEY_BULK_CURSOR)) || 0;
     for (let i = 0; i < 30; i++) {
-      const r = await fetch(`/api/produto/base-local-fichas?desde_ean=${encodeURIComponent(cursor)}`, {
+      const r = await fetch(`/api/produto/base-local-fichas?desde_seq=${cursor}`, {
         headers: { Authorization: `Basic ${auth}` },
       });
       if (!r.ok) return;
       const d = await r.json();
-      // base reconstruída no servidor a meio do percurso → recomeça do zero (overwrite por EAN)
-      if (d.versao && srvVer && d.versao !== srvVer && cursor !== '') {
-        cursor = ''; srvVer = d.versao;
-        localStorage.setItem(KEY_BULK_SRV, srvVer);
-        localStorage.setItem(KEY_BULK_CURSOR, '');
-        continue;
-      }
-      srvVer = d.versao || srvVer;
-      localStorage.setItem(KEY_BULK_SRV, srvVer);
       await guardarLote('fichas', (d.fichas || []).map((f) => ({
         ean: String(f.ean), nome: f.nome, marca: f.marca, quantidade: f.quantidade,
         categoria: f.categoria, ingredientes: f.ingredientes, alergenios: f.alergenios,
         nutricao_100g: parse(f.nutricao), nutriscore: f.nutriscore, nova: f.nova,
         product_type: f.product_type, origem: f.origem, fonte: 'base_local',
       })));
-      cursor = d.cursor || cursor;
+      cursor = Number(d.cursor) || cursor;
       localStorage.setItem(KEY_BULK_CURSOR, String(cursor));
       if (d.fim) break;
     }

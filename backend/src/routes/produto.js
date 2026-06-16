@@ -96,6 +96,9 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
       );
       await guardarNomes(ean, null, [{ nome: f.nome, origem: (r.fusao.proveniencia.nome || 'fusao').slice(0, 20) }]);
       await atualizarConteudoFicha(pool, ean);
+      // CRESCER COM O USO: este EAN foi resolvido FORA do cliente → entra na base_local
+      // partilhada (vira HIT na próxima sync de todos os telefones).
+      await upsertBaseLocal(pool, ean, f).catch((e) => console.error('[base_local upsert]', e.message));
     } catch (e) { console.error('[consultarOuGuardar] gravar fusão:', e.message); }
   }
 
@@ -108,6 +111,27 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
     else garantirFichaPT(pool, ean).catch(() => {});
   }
   return { encontrado: true, fonte: r.fusao.proveniencia.nome || 'fusao', nome };
+}
+
+// CRESCER COM O USO (dono, 2026-06-17): todo o EAN resolvido no servidor (um miss, buscado fora
+// do cliente) entra na base_local PARTILHADA com nutrição/ingredientes → vira HIT na próxima sync
+// de TODOS os telefones. Linhas vivas levam origem 'uso'; o `seq` (auto) fá-las descer no próximo
+// poll. ON DUPLICATE não mexe no `seq` nem na `origem` (refresca dados sem re-sync inútil) e o
+// COALESCE evita apagar nutrição/ingredientes que já lá estavam com uma resolução mais magra.
+async function upsertBaseLocal(pool, ean, f) {
+  if (!ean || !f?.nome) return;
+  await pool.query(
+    `INSERT INTO base_local (ean, nome, marca, quantidade, categoria, alergenios, nutricao, ingredientes, origem)
+       VALUES (?,?,?,?,?,?,?,?,'uso')
+     ON DUPLICATE KEY UPDATE
+       nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
+       alergenios=COALESCE(VALUES(alergenios), alergenios),
+       nutricao=COALESCE(VALUES(nutricao), nutricao),
+       ingredientes=COALESCE(VALUES(ingredientes), ingredientes)`,
+    [ean, lim(f.nome, 255), lim(f.marca, 120), lim(f.quantidade, 80), lim(f.categoria, 120),
+      lim(f.alergenios, 255), f.nutricao ? JSON.stringify(f.nutricao) : null,
+      f.ingredientes ? String(f.ingredientes).slice(0, 1200) : null],
+  );
 }
 
 // Guarda todos os nomes vistos para um produto (por EAN), para matching/canónico.
@@ -1112,21 +1136,21 @@ produtoRouter.get('/base-local', requireAuth, async (req, res) => {
 // ~63k EANs (catálogo PT + Mercadona ES + PT do off_full) para o scan responder instantâneo/
 // offline. Incremental por cursor de `ean` (a PK ordena), em chunks. `versao` muda quando se
 // reconstrói a base → o telefone faz resync do zero.
-const BASE_LOCAL_VER = '1';
+const BASE_LOCAL_VER = '2'; // cursor por `seq` (apanha crescimento vivo); v1 era por `ean`
 produtoRouter.get('/base-local-fichas', requireAuth, async (req, res) => {
   try {
-    const desde = String(req.query.desde_ean || '');
+    const desde = Number(req.query.desde_seq) || 0;
     const limite = Math.min(Math.max(Number(req.query.limite) || 3000, 100), 5000);
     const [fichas] = await getPool().query(
-      `SELECT ean, nome, marca, quantidade, categoria, product_type, alergenios,
+      `SELECT seq, ean, nome, marca, quantidade, categoria, product_type, alergenios,
               nutriscore, nova, CAST(nutricao AS CHAR) AS nutricao, ingredientes, origem
          FROM base_local
-        WHERE ean > ?
-        ORDER BY ean
+        WHERE seq > ?
+        ORDER BY seq
         LIMIT ?`,
       [desde, limite],
     );
-    const ultimo = fichas.length ? fichas[fichas.length - 1].ean : desde;
+    const ultimo = fichas.length ? fichas[fichas.length - 1].seq : desde;
     res.json({ versao: BASE_LOCAL_VER, fichas, cursor: ultimo, fim: fichas.length < limite });
   } catch (e) {
     console.error('[produto/base-local-fichas] erro:', e.message);

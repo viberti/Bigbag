@@ -20,8 +20,12 @@ const NUT_OFF = `JSON_OBJECT(
 // off_full guarda nutriscore como 'a'..'e' mas também 'not-applicable'/'unknown' → só letra
 const NS = "CASE WHEN o.nutriscore REGEXP '^[a-eA-E]$' THEN LOWER(o.nutriscore) ELSE NULL END";
 
-console.log('[base_local] TRUNCATE…');
-await pool.query('TRUNCATE base_local');
+// NÃO se faz TRUNCATE: a base_local CRESCE com o uso (linhas origem='uso', inseridas pelo
+// consultarOuGuardar a cada miss resolvido) e um rebuild do bootstrap não as pode apagar.
+// Pass 1 faz upsert (ON DUPLICATE) → re-correr refresca o catálogo, preserva 'uso' e mantém
+// o `seq` das linhas existentes (não força re-sync inútil no telefone). Stale do catálogo
+// que saiu da fonte fica (inofensivo: a nutrição continua válida).
+console.log('[base_local] rebuild idempotente (preserva linhas vivas origem=uso)…');
 
 // Melhor linha de catálogo por EAN: prefere a que TEM nutrição, depois a fonte PT mais fiável.
 console.log('[base_local] melhor linha de catálogo por EAN (bl_cat)…');
@@ -68,7 +72,11 @@ await pool.query(
           LEFT(COALESCE(NULLIF(c.ingredientes,''), o.ingredientes), 1200),
           c.origem
      FROM bl_cat c
-     LEFT JOIN off_full o ON o.ean = c.ean`,
+     LEFT JOIN off_full o ON o.ean = c.ean
+   ON DUPLICATE KEY UPDATE
+     nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
+     product_type=VALUES(product_type), alergenios=VALUES(alergenios), nutriscore=VALUES(nutriscore),
+     nova=VALUES(nova), nutricao=VALUES(nutricao), ingredientes=VALUES(ingredientes), origem=VALUES(origem)`,
 );
 const [[{ c: n1 }]] = await pool.query('SELECT COUNT(*) c FROM base_local');
 console.log(`[base_local] após passo 1 = ${n1}`);
