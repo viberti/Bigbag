@@ -7,6 +7,8 @@
   - **IDENTIDADE** (EAN → nome/marca/nutrição/ingredientes/foto/categoria) — **agnóstica de país, partilhada**, enriquece com cada país.
   - **PREÇO + LOCALE** (preço, disponibilidade, nome-de-talão) — **por país**.
 - **O método é agnóstico de país; as fontes é que são locais.** Os mesmos 6 passos e a mesma taxonomia repetem-se em qualquer país — só mudam os domínios.
+- **Custo de acesso é critério de triagem (dono, 2026-06-16):** isto é um lab pessoal → **preferir fontes abertas/gratuitas**. Ranking: **aberto/grátis** (OFF, Wireshape, scrape de lojas) **> grátis-com-token** (registo de conta) **> comercial/pago** (ex. Cosmos/Bluesoft) — pago só como *fallback* de último recurso, nunca o caminho principal.
+- **Antes de colher, mede o que já tens DE GRAÇA.** O `off_full` (OFF, aberto) já cobre muito por país — ex. BR: **32 300 produtos `789/790`, 21,8k c/ nutrição, 20,4k c/ imagem, já ligados ao `fichaEan`**. Não reconstruir o que o OFF já dá; caçar só o que ele NÃO tem (não-food, preço+locale, cauda local).
 
 ## Os 6 passos: SEMENTE → DESCOBRIR → CLASSIFICAR → SONDAR → MEDIR → COLHER
 
@@ -59,12 +61,16 @@
 ## 7. Exemplo trabalhado: BRASIL (validação, 2026-06-16)
 SEMENTE: 18 EANs `789…` do `off_full` (Pilão, União, Camil, Yoki, Hellmann's, Moça, Nescau, Ninho, Sadia, Maizena, Nissin, Mucilon…). DESCOBRIR: 6 buscas. Resultado da CLASSIFICAÇÃO:
 
-- **Registo-EAN (jackpot): `cosmos.bluesoft.com.br`** — apareceu em **1.º para os 6 EANs**. Registo central BR: GTIN + nome + **NCM/tributação**. SONDA: web **403** (anti-bot), **API `api.cosmos.bluesoft.com.br/gtins/<ean>.json` = 401** (precisa de **token grátis — registo pelo dono**). Equivalente BR da Nutripédia, mas ainda mais central. *Também `data.wireshape.com` (registo GTIN) e OFF-BR.*
-- **Retalho e-commerce BR (camada preço+locale), vários com EAN-no-URL:** `condor.com.br/product/<EAN>`, `superkan.com.br/.../<EAN>/d`, `davo.com.br/.../prod_<EAN>`, `redemix.com.br/<EAN>…/p`, `mercado.carrefour.com.br/...<id>/p`, `zaffari.com.br`, `savegnago.com.br`, `coopsupermercado.com.br`, `supermercadobomdemais.com.br`, `nicolini`.
-- **Fabricante:** `pilao.com.br`, `camil.com.br`, `yoki.com.br`, `uniao.com.br`, `nestle.com.br` — montra (por slug, provável sem EAN). Exceção a confirmar: `hellmanns.com.br/p/<slug>.html/<EAN>` (EAN no URL).
-- **Diáspora/exportação** (BR products lá fora, muitos PrestaShop com EAN-no-URL): `bomsabor.ch/...-<EAN>.html`, `everydaybrazil.com`, `hibrazilmarket.com`, `kingfoodbrasil.com.br`, `natubrazil.com`.
+**Base GRÁTIS que já temos:** `off_full` (OFF, aberto) = **32 300 produtos BR `789/790`** (21,8k nutrição, 20,4k imagem), já ligado ao `fichaEan`. É o backbone da identidade-alimentar BR a custo zero. O `catalogo_produto` BR é só 387. → no BR já partimos cobertos no alimentar; caçar o que o OFF NÃO tem.
 
-**Leitura:** o BR confirma o padrão — há um **registo-EAN central dominante** (Cosmos) atrás de uma barreira de token, retalhistas com EAN-no-URL (recolhíveis), fabricantes-montra (enriquecimento), e diáspora PrestaShop (redundância). Próximo passo BR: o dono regista um token Cosmos → harvester por EAN; em paralelo, 2-3 retalhistas com EAN-no-URL para a camada preço.
+Fontes por tipo (com **custo de acesso**):
+- **Registo-EAN ABERTO (o caminho): `data.wireshape.com`** (Wireshape / "Smart Consumer") — robots `Allow: /` + sitemap (enumerável), JSON-LD, EAN+nutrição+imagem+marca, **sem bloqueio (200)**. Grátis. *+ a API aberta do OFF-BR (`br.openfoodfacts.org/api/v2/product/<ean>.json`).*
+- **Registo-EAN PAGO (fallback, NÃO usar): `cosmos.bluesoft.com.br`** — registo central BR (GTIN+nome+NCM), apareceu 1.º para os 6 EANs, mas é **empresa comercial de acesso pago** (web 403, API 401/token). Bom mas pago → preterido (dono, 2026-06-16).
+- **Retalho e-commerce BR (camada preço+locale), vários com EAN-no-URL — grátis (scrape educado):** `condor.com.br/product/<EAN>`, `superkan.com.br/.../<EAN>/d`, `davo.com.br/.../prod_<EAN>`, `redemix.com.br/<EAN>…/p`, `mercado.carrefour.com.br`, `zaffari.com.br`, `savegnago.com.br`, `coopsupermercado.com.br`, `nicolini`.
+- **Fabricante:** `pilao.com.br`, `camil.com.br`, `yoki.com.br`, `uniao.com.br`, `nestle.com.br` — montra (por slug, provável sem EAN). Exceção a confirmar: `hellmanns.com.br/p/<slug>.html/<EAN>`.
+- **Diáspora/exportação** (PrestaShop com EAN-no-URL): `bomsabor.ch/...-<EAN>.html`, `everydaybrazil.com`, `hibrazilmarket.com`, `kingfoodbrasil.com.br`, `natubrazil.com`.
+
+**Leitura:** o BR confirma o padrão E a regra do custo — o registo central mais visível é **pago (Cosmos)**, mas existe um **registo aberto equivalente (Wireshape)** + a base OFF que já temos. Próximo passo BR (free-first): (1) sondar a fundo o Wireshape (universo no sitemap, campos no JSON-LD) e medir novidade vs off_full; (2) 2-3 retalhistas BR com EAN-no-URL para a camada preço+categoria-local; (3) Cosmos só se faltar algo que mais nada dê.
 
 ## 8. Registo de Fontes (doc vivo, por país)
 Manter uma tabela por país: **fonte · tipo · plataforma · EAN-exposto · campos · universo · estado · novidade**. É o roadmap da expansão. (PT atual: Nutripédia, lojas PrestaShop .pt, Auchan/Continente/PD/Lidl, Mercadona-ES, Lidl-FR — ver `Analise_Fontes_Normalizacao.md`.)
