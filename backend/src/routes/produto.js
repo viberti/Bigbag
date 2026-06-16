@@ -347,7 +347,15 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   }
   // VOTO da análise do EAN: empresa → MARCA quando nenhuma fonte deu marca (caso Nesquik).
   // Só a marca ASSERTIDA (coerência≥0.8); a identidade vem das fontes, isto é só o fallback.
-  const marcaFonte = base?.marca || vlm?.marca || off?.marca || null;
+  // A marca do CATÁLOGO (por EAN, preferindo fontes do país) é fonte real → vem antes do voto.
+  let marcaCatalogo = null;
+  if (ean && /^\d{13}$/.test(ean)) {
+    const [[cm]] = await getPool().query(
+      `SELECT marca FROM catalogo_produto WHERE ean = ? AND marca IS NOT NULL AND marca <> ''
+        ORDER BY (fonte IN (?)) DESC, id ASC LIMIT 1`, [ean, fontesPais]);
+    marcaCatalogo = cm?.marca || null;
+  }
+  const marcaFonte = base?.marca || vlm?.marca || off?.marca || marcaCatalogo || null;
   const marcaResolvida = marcaFonte || analiseEanInfo?.empresa?.marca || null;
   const marcaVia = marcaFonte ? 'fonte' : (analiseEanInfo?.empresa?.marca ? 'ean_empresa' : null);
   return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut };
