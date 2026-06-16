@@ -5,7 +5,7 @@
 // NOTA (fase protótipo): copy PT-BR embutido como no handoff; passar por i18n depois.
 // ──────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { norm as normCat, singularizar } from '../../../backend/src/normaliza/categoria.js';
+import { norm as normCat, singularizar, grupoDeNome } from '../../../backend/src/normaliza/categoria.js';
 import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
@@ -412,7 +412,10 @@ function Lista({ go, back }) {
     setItens((xs) => xs.filter((x) => x.id !== it.id));
     try { await removerListaItem(it.id); } catch { carregar(); }
   }
-  // VOZ → LISTA: grava, transcreve para itens (vozParaLista) e adiciona em lote.
+  // VOZ → LISTA: grava, transcreve para itens (vozParaLista) e adiciona — SEM "Adicionei…" e
+  // SEM espera: assim que a transcrição volta, os itens aparecem JÁ (otimista, secção pelo nome
+  // no cliente) e reconciliam em fundo com a lista RESOLVIDA que o /lote devolve (uma só ida ao
+  // servidor a seguir — antes fazia adicionarListaLote + carregar, dois resolverItensLista).
   async function alternarVoz() {
     if (gravando) { mrRef.current?.stop(); return; }
     setAviso('');
@@ -425,9 +428,17 @@ function Lista({ go, back }) {
         stream.getTracks().forEach((t) => t.stop()); setGravando(false); setProc(true);
         try {
           const { produtos } = await vozParaLista(new Blob(pedacos, { type: mr.mimeType || 'audio/webm' }));
-          if (produtos?.length) { await adicionarListaLote(produtos); carregar(); setAviso(`Adicionei: ${produtos.map((p) => p.nome).join(', ')}`); }
-          else setAviso('Não percebi. Toque no micro e tente de novo.');
-        } catch { setAviso('Falha ao ouvir. Tente de novo.'); } finally { setProc(false); }
+          setProc(false);
+          if (!produtos?.length) { setAviso('Não percebi. Toque no micro e tente de novo.'); return; }
+          // OTIMISTA: mostra os itens ditados já (sem preço/marca ainda; secção pelo nome).
+          const base = -Date.now();
+          setItens((xs) => [
+            ...produtos.map((p, i) => ({ id: base - i, nome: p.nome, quantidade: p.quantidade || 1, estado: 'ativo', adicionado_por: ativoNome, grupo: grupoDeNome(p.nome), _otimista: true })),
+            ...(xs || []),
+          ]);
+          try { const r = await adicionarListaLote(produtos); if (r?.itens) setItens(r.itens); else carregar(); }
+          catch { carregar(); } // falhou a gravar → repõe o estado real do servidor
+        } catch { setProc(false); setAviso('Falha ao ouvir. Tente de novo.'); }
       };
       mrRef.current = mr; mr.start(); setGravando(true);
     } catch { setAviso('Sem acesso ao microfone — verifique a permissão.'); }
