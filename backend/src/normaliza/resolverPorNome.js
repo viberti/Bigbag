@@ -72,7 +72,7 @@ export async function acharPorNomeMarca(pool, { nome, marca, tamanho, termos } =
 // Baixa uma imagem (URL) → base64 cru (sem prefixo data:), p/ vetorizar on-demand. null se falhar.
 async function baixarB64(url) {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    const r = await fetch(url, { signal: AbortSignal.timeout(5000) }); // tight: OFF é lento do datacenter
     if (!r.ok) return null;
     const buf = Buffer.from(await r.arrayBuffer());
     return buf.length ? buf.toString('base64') : null;
@@ -101,11 +101,12 @@ export async function acharGemeo(pool, { fotoB64, nome, marca, tamanho, termos, 
   if (vecUser && txt.length) {
     const famAlvo = familiaDe({ nome: nome || '', marca, tipoTexto: tipoTexto || '' }).familia;
     const condiz = (c) => { const f = familiaDe({ nome: c.nome || '', marca: c.marca, categoria: c.categoria || '' }).familia; return !famAlvo || !f || f === famAlvo; }; // só EXCLUI se ambos têm família e diferem
-    const alvos = txt.filter((c) => c.imagem_url && !jaImg.has(String(c.ean)) && String(c.ean) !== proprio && condiz(c)).slice(0, 6);
+    const alvos = txt.filter((c) => c.imagem_url && !jaImg.has(String(c.ean)) && String(c.ean) !== proprio && condiz(c)).slice(0, 3);
     if (alvos.length) {
       try {
+        const baixadas = await Promise.all(alvos.map((c) => baixarB64(c.imagem_url))); // PARALELO (não série)
         const usados = []; const b64s = [];
-        for (const c of alvos) { const b = await baixarB64(c.imagem_url); if (b) { b64s.push(b); usados.push(c); } }
+        for (let i = 0; i < alvos.length; i++) if (baixadas[i]) { b64s.push(baixadas[i]); usados.push(alvos[i]); }
         const vecs = b64s.length ? await vetorizarVariasB64(b64s) : [];
         for (let i = 0; i < usados.length; i++) {
           const sc = vecs[i] ? cosseno(vecUser, vecs[i]) : 0;
