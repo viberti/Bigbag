@@ -330,7 +330,9 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
          FROM catalogo_produto
         WHERE ean = ? AND preco IS NOT NULL AND fonte IN (?)
         ORDER BY preco ASC LIMIT 1`, [cfgPais.moeda, ean, fontesPais]);
-    if (p) precoCatalogo = { preco: Number(p.preco), moeda: p.moeda || cfgPais.moeda, preco_por_base: p.preco_por_base != null ? Number(p.preco_por_base) : null, unidade_base: p.unidade_base || null, loja: p.fonte };
+    // a fonte ∈ fontesPais → o preço está na moeda do país POR DEFINIÇÃO (não depender
+    // da coluna `moeda`, cujo default é EUR e pode estar errado em fontes raspadas).
+    if (p) precoCatalogo = { preco: Number(p.preco), moeda: cfgPais.moeda, preco_por_base: p.preco_por_base != null ? Number(p.preco_por_base) : null, unidade_base: p.unidade_base || null, loja: p.fonte };
   }
   return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), existe: rows.length > 0 || temGenericoNut };
 }

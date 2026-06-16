@@ -15,6 +15,7 @@ const SITEMAP = arg('sitemap');
 const HOST = arg('host') || (SITEMAP ? new URL(SITEMAP).origin : '');
 const LIMITE = Number(arg('limite')) || 0;
 const CONC = Number(arg('conc')) || 5;
+const MOEDA = arg('moeda') || 'EUR'; // moeda da loja (BR=BRL); default EUR (ES/PT legado)
 if (!FONTE || !SITEMAP) { console.error('faltam --fonte e --sitemap'); process.exit(1); }
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -66,14 +67,14 @@ urls = [...new Set(urls)].filter((u) => !feitos.has(u) && !/\.xml($|\?)/i.test(u
 if (LIMITE) urls = urls.slice(0, LIMITE);
 console.log(`${FONTE}: ${urls.length} fichas por raspar (${feitos.size} já feitas)`);
 
-const COLS = 'fonte, sku_fonte, ean, nome, marca, categoria_path, categoria, cat_n1, formato, unidade_base, formato_valor, preco, preco_por_base, url, imagem_url, scraped_at';
+const COLS = 'fonte, sku_fonte, ean, nome, marca, categoria_path, categoria, cat_n1, formato, unidade_base, formato_valor, preco, moeda, preco_por_base, url, imagem_url, scraped_at';
 async function gravar(rows) {
   if (!rows.length) return;
-  const ph = rows.map(() => '(' + new Array(15).fill('?').join(',') + ',NOW())').join(',');
+  const ph = rows.map(() => '(' + new Array(16).fill('?').join(',') + ',NOW())').join(',');
   await pool.query(
     `INSERT INTO catalogo_produto (${COLS}) VALUES ${ph}
      ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome=VALUES(nome), marca=VALUES(marca), formato=VALUES(formato),
-       unidade_base=VALUES(unidade_base), formato_valor=VALUES(formato_valor), preco=VALUES(preco),
+       unidade_base=VALUES(unidade_base), formato_valor=VALUES(formato_valor), preco=VALUES(preco), moeda=VALUES(moeda),
        preco_por_base=VALUES(preco_por_base), imagem_url=VALUES(imagem_url), scraped_at=NOW()`, rows.flat());
 }
 
@@ -88,7 +89,7 @@ function rowDe(url, p) {
   return ['', sku, eanValido(ean) ? ean : null, nome, brandStr(p.brand).slice(0, 140) || null,
     null, p.category ? String(p.category).slice(0, 140) : null, null,
     fmt ? `${fmt.formato_valor ?? ''}${fmt.unidade_base ?? ''}`.trim() || null : null,
-    fmt?.unidade_base || null, fmt?.formato_valor ?? null, preco, ppb,
+    fmt?.unidade_base || null, fmt?.formato_valor ?? null, preco, MOEDA, ppb,
     url.slice(0, 600), img ? String(img).slice(0, 600) : null];
 }
 
