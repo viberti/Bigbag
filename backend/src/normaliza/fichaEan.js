@@ -35,7 +35,7 @@ import { parseJsonCol } from '../db.js';
 // Fontes cujo `nome` é PT FIÁVEL (lojas PT). NÃO inclui mercadona-off (nomes do OFF,
 // ES/EN — ex. "Eggs"), mercadona (ES), lidl-fr (FR), leclerc (ES), piccantino/consum:
 // essas só contribuem via nome_pt traduzido, senão caem na tradução LLM. Dono 2026-06-15.
-const FONTES_PT = ['continente', 'auchan', 'lidl', 'pingodoce'];
+const FONTES_PT = ['continente', 'auchan', 'lidl', 'pingodoce', 'nutripedia'];
 
 // ── helpers puros (exportados p/ testes) ─────────────────────────────────────
 
