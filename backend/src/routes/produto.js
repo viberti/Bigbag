@@ -20,6 +20,7 @@ import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT, pareceEstrangeiro } from '../ingest/traduz.js';
+import { analiseEan } from '../normaliza/ean.js';
 import { resolverItensLista } from './lista.js';
 import { matchImagemB64 } from '../normaliza/matchImagem.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
@@ -334,7 +335,17 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
     // da coluna `moeda`, cujo default é EUR e pode estar errado em fontes raspadas).
     if (p) precoCatalogo = { preco: Number(p.preco), moeda: cfgPais.moeda, preco_por_base: p.preco_por_base != null ? Number(p.preco_por_base) : null, unidade_base: p.unidade_base || null, loja: p.fonte };
   }
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), existe: rows.length > 0 || temGenericoNut };
+  // ANÁLISE DO EAN (passo 0 do funil): país GS1 + empresa minada (ean_empresa). Sinal
+  // determinístico disponível ANTES de qualquer fonte. A `marca` da empresa só se asserta
+  // com coerência alta (share≥0.8); senão fica `marca_provavel` (peso = coerência).
+  let analiseEanInfo = null;
+  if (ean && /^\d{13}$/.test(ean)) {
+    const [[emp]] = await getPool().query('SELECT marca, pais AS pais_emp, share, n_produtos FROM ean_empresa WHERE prefixo = ?', [ean.slice(0, 8)]);
+    analiseEanInfo = analiseEan(ean, {
+      empresa: emp ? { prefixo: ean.slice(0, 8), marca: emp.share >= 0.8 ? emp.marca : null, marca_provavel: emp.marca, pais: emp.pais_emp, coerencia: Number(emp.share), n: emp.n_produtos } : null,
+    });
+  }
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;
