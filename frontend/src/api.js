@@ -160,9 +160,15 @@ export async function listarPorIdentificar() {
   return itens || [];
 }
 
-export async function carregarPerfil({ nome, texto }) {
-  const r = await call('/api/perfil', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome, texto }) });
+export async function carregarPerfil({ nome, texto, demografia }) {
+  const r = await call('/api/perfil', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome, texto, demografia }) });
   if (!r.ok) throw new Error(`perfil ${r.status}`);
+  return r.json();
+}
+// Guarda as características de saúde do editor (ativas no resumo; inativas/demografia à parte).
+export async function salvarSaude(id, { ativas, inativas, demografia }) {
+  const r = await call(`/api/perfil/${id}/saude`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ativas, inativas, demografia }) });
+  if (!r.ok) throw new Error(`saude ${r.status}`);
   return r.json();
 }
 export async function listarPerfis() {

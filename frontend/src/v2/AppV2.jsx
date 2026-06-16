@@ -11,7 +11,7 @@ import {
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome, consultarProdutoEan,
-  listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
+  listarPerfis, ativarPerfil, carregarPerfil, salvarSaude, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
   adotarPorNome, definirPais,
 } from '../api.js';
@@ -250,7 +250,7 @@ function Shell({ nome, onSair, pais }) {
   const Screen = {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
     notas: Notas, gastos: Gastos, gastoscat: GastosCat, ficha: Ficha, comparar: Comparar,
-    texto: Texto, despensa: Despensa, recibo: Recibo, receitas: Receitas,
+    texto: Texto, despensa: Despensa, recibo: Recibo, receitas: Receitas, perfilsaude: PerfilSaude,
     scanner: Scanner, voz: Voz,
   }[view.id] || Home;
   return (
@@ -304,6 +304,28 @@ function Home({ go, user, abrirConta }) {
     </>
   );
 }
+
+/* ── PERFIL DE SAÚDE (editor de características) ──────────────────────────── */
+// Os 6 grupos do editor ↔ campos do `resumo` (as ATIVAS são as que a avaliação lê).
+// `nut` mapeia em `metas` (array novo), distinto do `nutrientes` (objeto) que o LLM extrai.
+const GRUPOS_SAUDE = [
+  { key: 'obj', campo: 'objetivos', t: 'Objetivos', gi: 'spark', c: 'var(--leaf)', s: 'var(--leaf-soft)', d: 'var(--leaf-d)' },
+  { key: 'cond', campo: 'condicoes', t: 'Condições de saúde', gi: 'heart', c: '#d98a3c', s: 'var(--amber-soft)', d: 'var(--amber-d)' },
+  { key: 'diet', campo: 'restricoes', t: 'Dieta & restrições', gi: 'leaf', c: 'var(--leaf)', s: 'var(--leaf-soft)', d: 'var(--leaf-d)' },
+  { key: 'pref', campo: 'preferir', t: 'Preferir / incluir', gi: 'check', c: 'var(--leaf)', s: 'var(--leaf-soft)', d: 'var(--leaf-d)' },
+  { key: 'evit', campo: 'evitar', t: 'Evitar', gi: 'close', c: 'var(--coral)', s: 'var(--coral-soft)', d: '#b4512f' },
+  { key: 'nut', campo: 'metas', t: 'Metas de nutrientes', gi: 'spark', c: '#5b8fb0', s: '#dcebf2', d: '#3f6f90' },
+];
+// Catálogo de sugestões por grupo (genérico, reutilizável) — alimenta a aba "Adicionar".
+// Curado e neutro; o utilizador escolhe. Strings simples (= os arrays do resumo).
+const CATALOGO_SAUDE = {
+  obj: ['Perder gordura', 'Ganhar massa muscular', 'Reduzir colesterol (LDL)', 'Estabilizar a glicemia', 'Mais energia', 'Melhorar o sono', 'Reduzir inflamação', 'Mais saciedade', 'Saúde óssea', 'Saúde do coração'],
+  cond: ['Hipertensão', 'Colesterol alto', 'Pré-diabetes', 'Diabetes', 'Resistência à insulina', 'Menopausa', 'Osteopenia', 'Refluxo', 'Saúde intestinal', 'Ácido úrico / gota'],
+  diet: ['Mediterrânea', 'Baixo índice glicémico', 'Défice calórico', 'Low-carb', 'Sem glúten', 'Sem lactose', 'Vegetariana', 'Vegana', 'Jejum intermitente', 'Menos sal', 'Menos álcool'],
+  pref: ['Peixe gordo', 'Proteína magra', 'Proteína vegetal', 'Legumes', 'Fruta de baixo IG', 'Leguminosas', 'Aveia / integrais', 'Azeite', 'Frutos secos', 'Iogurte sem açúcar'],
+  evit: ['Açúcar adicionado', 'Ultraprocessados', 'Fritos', 'Enchidos', 'Refrigerantes', 'Pão branco / refinados', 'Gordura saturada em excesso', 'Carne vermelha em excesso', 'Adoçantes artificiais', 'Margarina'],
+  nut: ['+ Proteína', '+ Fibra', '− Açúcares', '− Sódio', '− Gordura saturada', '+ Ómega-3', '+ Cálcio', '+ Vitamina D', '+ Magnésio', '+ Potássio', '+ Ferro'],
+};
 
 /* ── LISTA ───────────────────────────────────────────────────────────────── */
 // Cor por MEMBRO (perfil): cada membro recebe uma cor estável da paleta (por ordem
@@ -1148,7 +1170,7 @@ function Recibo({ go, back, id }) {
 }
 
 /* ── PERFIL ──────────────────────────────────────────────────────────────── */
-function Perfil({ user }) {
+function Perfil({ user, go }) {
   const [perfis, setPerfis] = useState(null);
   const [nome, setNome] = useState('');     // nome do membro a criar/editar
   const [texto, setTexto] = useState(''); const [aGuardar, setAGuardar] = useState(false); const [msg, setMsg] = useState('');
@@ -1191,6 +1213,10 @@ function Perfil({ user }) {
           })()}
         </div>
 
+        <button className="cbtn cbtn-leaf" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={() => go('perfilsaude')}>
+          <Ico name="leaf" size={17} stroke={2.2} color="#fff" /> Editar perfil de saúde
+        </button>
+
         {(perfis || []).length > 0 && <>
           <div className="menu-cap">Quem está comprando</div>
           <div className="members">
@@ -1212,6 +1238,172 @@ function Perfil({ user }) {
           <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 4 }} disabled={aGuardar || !nome.trim()} onClick={guardar}>{aGuardar ? '…' : 'Guardar membro'}</button>
         </div>
         <div className="v2-ver">BigBag · versão {APP_VERSION}</div>
+      </div>
+    </>
+  );
+}
+
+/* ── EDITOR DE PERFIL DE SAÚDE ───────────────────────────────────────────── */
+// Características em pílulas por grupo, 3 abas (Ativas/Desativadas/Adicionar), vários membros.
+// As ATIVAS vão para o resumo (o que a avaliação lê); as inativas ficam guardadas. Catálogo
+// genérico alimenta "Adicionar". Toggle/add são estado local; só "Guardar" persiste.
+function subDemografia(d) {
+  if (!d) return 'perfil de saúde';
+  const sexo = d.sexo === 'Feminino' ? 'Mulher' : d.sexo === 'Masculino' ? 'Homem' : null;
+  const partes = [sexo, d.idade && `${d.idade} anos`, d.peso && `${d.peso} kg`, d.altura && `${d.altura} cm`].filter(Boolean);
+  return partes.length ? partes.join(' · ') : 'perfil de saúde';
+}
+function PerfilSaude({ back }) {
+  const [perfis, setPerfis] = useState(null);
+  const [curId, setCurId] = useState(null);
+  const [view, setView] = useState('on');       // on | off | add
+  const [screen, setScreen] = useState('edit');  // edit | novo
+  const [estado, setEstado] = useState({});      // { key: { ativas:[], inativas:[] } }
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [nv, setNv] = useState({ nome: '', email: '', idade: '', sexo: '', peso: '', altura: '' });
+
+  const carregar = useCallback(() => listarPerfis().then((ps) => { setPerfis(ps || []); return ps || []; }).catch(() => { setPerfis([]); return []; }), []);
+  const corId = useMemo(() => { const m = new Map(); [...(perfis || [])].sort((a, b) => a.id - b.id).forEach((p, i) => m.set(p.id, MEMBRO_CORES[i % MEMBRO_CORES.length])); return m; }, [perfis]);
+
+  function estadoDe(p) {
+    const ina = p?.saude_estado?.inativas || {};
+    const e = {};
+    for (const g of GRUPOS_SAUDE) {
+      const at = Array.isArray(p?.resumo?.[g.campo]) ? p.resumo[g.campo].filter((s) => typeof s === 'string' && s.trim()) : [];
+      e[g.key] = { ativas: [...new Set(at)], inativas: [...new Set((ina[g.key] || []).filter((s) => typeof s === 'string' && s.trim()))] };
+    }
+    return e;
+  }
+  const selecionar = useCallback((p) => {
+    setCurId(p.id); setEstado(estadoDe(p)); setScreen('edit'); setView('on'); setMsg('');
+    if (!p.ativo) ativarPerfil(p.id).then(() => listarPerfis().then(setPerfis).catch(() => {})).catch(() => {});
+  }, []);
+  useEffect(() => { carregar().then((ps) => { const a = ps.find((p) => p.ativo) || ps[0]; if (a) selecionar(a); else setScreen('novo'); }); }, [carregar, selecionar]);
+
+  const catalogoDe = (key) => {
+    const e = estado[key] || { ativas: [], inativas: [] };
+    const usados = new Set([...e.ativas, ...e.inativas].map((s) => s.toLowerCase()));
+    return (CATALOGO_SAUDE[key] || []).filter((s) => !usados.has(s.toLowerCase()));
+  };
+  const counts = useMemo(() => {
+    let a = 0, i = 0, cat = 0;
+    for (const g of GRUPOS_SAUDE) { a += estado[g.key]?.ativas.length || 0; i += estado[g.key]?.inativas.length || 0; cat += catalogoDe(g.key).length; }
+    return { a, i, cat };
+  }, [estado]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mut = (fn) => setEstado((e) => { const n = {}; for (const k of Object.keys(e)) n[k] = { ativas: [...e[k].ativas], inativas: [...e[k].inativas] }; fn(n); return n; });
+  const desativar = (key, s) => mut((n) => { n[key].ativas = n[key].ativas.filter((x) => x !== s); if (!n[key].inativas.includes(s)) n[key].inativas.push(s); });
+  const reativar = (key, s) => mut((n) => { n[key].inativas = n[key].inativas.filter((x) => x !== s); if (!n[key].ativas.includes(s)) n[key].ativas.push(s); });
+  const adicionar = (key, s) => mut((n) => { if (!n[key].ativas.includes(s)) n[key].ativas.push(s); });
+
+  async function guardar() {
+    if (!curId || saving) return; setSaving(true); setMsg('');
+    const ativas = {}, inativas = {};
+    for (const g of GRUPOS_SAUDE) { ativas[g.key] = estado[g.key]?.ativas || []; inativas[g.key] = estado[g.key]?.inativas || []; }
+    try { await salvarSaude(curId, { ativas, inativas }); setMsg('Perfil guardado.'); carregar(); }
+    catch { setMsg('Falha ao guardar.'); } finally { setSaving(false); }
+  }
+  async function criar() {
+    const nome = nv.nome.trim(); if (!nome || saving) return; setSaving(true); setMsg('');
+    const demografia = { email: nv.email, idade: nv.idade, sexo: nv.sexo, peso: nv.peso, altura: nv.altura };
+    try {
+      const r = await carregarPerfil({ nome, demografia });
+      const ps = await carregar();
+      const novo = ps.find((p) => p.id === r.id) || ps.find((p) => p.nome.toLowerCase() === nome.toLowerCase());
+      setNv({ nome: '', email: '', idade: '', sexo: '', peso: '', altura: '' });
+      if (novo) selecionar(novo);
+    } catch { setMsg('Falha ao criar o membro.'); } finally { setSaving(false); }
+  }
+
+  const membro = (perfis || []).find((p) => p.id === curId) || null;
+
+  if (screen === 'novo') {
+    const ini = (nv.nome.trim()[0] || '?').toUpperCase();
+    return (
+      <>
+        <Ctop title="Novo membro" back onBack={() => (perfis?.length ? setScreen('edit') : back())} />
+        <div className="psw">
+          <div className="form">
+            <div className="av-pick"><div className="av-big">{ini}</div><div className="av-hint">A inicial vem do nome</div></div>
+            <div className="fld"><label>Nome</label><input placeholder="Ex.: Maria Sousa" value={nv.nome} onChange={(e) => setNv({ ...nv, nome: e.target.value })} maxLength={80} /></div>
+            <div className="fld"><label>Email</label><input type="email" placeholder="nome@email.com" value={nv.email} onChange={(e) => setNv({ ...nv, email: e.target.value })} /></div>
+            <div className="frow2">
+              <div className="fld"><label>Idade</label><div className="suffix"><input inputMode="numeric" placeholder="0" value={nv.idade} onChange={(e) => setNv({ ...nv, idade: e.target.value })} /><span className="u">anos</span></div></div>
+              <div className="fld"><label>Sexo</label><div className="segsex">{['Feminino', 'Masculino', 'Outro'].map((s) => <button key={s} className={nv.sexo === s ? 'on' : ''} onClick={() => setNv({ ...nv, sexo: s })}>{s === 'Feminino' ? 'F' : s === 'Masculino' ? 'M' : 'Outro'}</button>)}</div></div>
+            </div>
+            <div className="frow2">
+              <div className="fld"><label>Peso</label><div className="suffix"><input inputMode="decimal" placeholder="0" value={nv.peso} onChange={(e) => setNv({ ...nv, peso: e.target.value })} /><span className="u">kg</span></div></div>
+              <div className="fld"><label>Altura</label><div className="suffix"><input inputMode="numeric" placeholder="0" value={nv.altura} onChange={(e) => setNv({ ...nv, altura: e.target.value })} /><span className="u">cm</span></div></div>
+            </div>
+            <p style={{ font: '600 12px/1.5 var(--font)', color: 'var(--ink-2)', margin: '4px 4px 0' }}>A seguir poderá escolher as características de saúde deste perfil.</p>
+            {msg && <div style={{ font: '600 12.5px var(--font)', color: 'var(--coral)', margin: '8px 4px 0' }}>{msg}</div>}
+          </div>
+          <div className="pssave"><button className="cbtn cbtn-leaf" disabled={saving || !nv.nome.trim()} onClick={criar}>{saving ? '…' : 'Criar perfil'}</button></div>
+        </div>
+      </>
+    );
+  }
+
+  const cor = corId.get(curId) || 'var(--leaf-d)';
+  const area = (() => {
+    if (perfis == null) return <p className="empty">…</p>;
+    const blocos = GRUPOS_SAUDE.map((g) => {
+      const e = estado[g.key] || { ativas: [], inativas: [] };
+      const lista = view === 'add' ? catalogoDe(g.key) : view === 'on' ? e.ativas : e.inativas;
+      if (!lista.length) return null;
+      const cls = view === 'add' ? 'pill add' : view === 'on' ? 'pill on' : 'pill off';
+      const onTap = view === 'add' ? adicionar : view === 'on' ? desativar : reativar;
+      return (
+        <div className="grp" key={g.key}>
+          <div className="grp-h"><span className="gi" style={{ background: g.c }}><Ico name={g.gi} size={16} stroke={2.2} color="#fff" /></span><span className="gt">{g.t}</span><span className="gn">{lista.length}</span></div>
+          <div className="pills">
+            {lista.map((s) => (
+              <button className={cls} key={s} style={{ '--gc': g.c, '--gs': g.s, '--gd': g.d }} onClick={() => onTap(g.key, s)}>
+                <span className="tx">{s}</span>
+                <span className={`mk ${view === 'add' ? 'add-mk' : ''}`}>{view === 'on' ? <Ico name="check" size={13} stroke={3} /> : <Ico name="plus" size={13} stroke={2.6} />}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }).filter(Boolean);
+    if (blocos.length) return blocos;
+    const vazio = view === 'add' ? ['Sem mais sugestões', 'Já adicionou todas as características sugeridas.']
+      : view === 'on' ? ['Sem características ativas', 'Toque em “Desativadas” ou “Adicionar” para incluir.']
+        : ['Nada desativado', 'Tudo ativo. 👍'];
+    return <div className="emptyv"><b>{vazio[0]}</b>{vazio[1]}</div>;
+  })();
+
+  return (
+    <>
+      <Ctop title="Perfil de saúde" back onBack={back} />
+      <div className="psw">
+        <div className="memrow">
+          {(perfis || []).map((p) => (
+            <button className={`mem ${p.id === curId ? 'on' : ''}`} key={p.id} onClick={() => selecionar(p)}>
+              <span className="mav" style={p.id === curId ? { background: corId.get(p.id), color: '#fff', border: 0 } : undefined}>{inicial(p.nome)}</span>
+              <span className="mnm">{p.nome}</span>
+            </button>
+          ))}
+          <button className="mem add-mem" onClick={() => { setNv({ nome: '', email: '', idade: '', sexo: '', peso: '', altura: '' }); setScreen('novo'); }}><span className="mav"><Ico name="plus" size={18} stroke={2.6} /></span><span className="mnm">Novo</span></button>
+        </div>
+        {membro && (
+          <div className="who">
+            <span className="av" style={{ background: cor, color: '#fff' }}>{inicial(membro.nome)}</span>
+            <div><div className="nm">{membro.nome}</div><div className="sb">{subDemografia(membro.saude_estado?.demografia)}</div></div>
+            <div className="cnt"><b>{counts.a}</b><span>ativas</span></div>
+          </div>
+        )}
+        <div className="seg">
+          <button className={view === 'on' ? 'on' : ''} onClick={() => setView('on')}>Ativas <span className="b">{counts.a}</span></button>
+          <button className={`off-tab ${view === 'off' ? 'on' : ''}`} onClick={() => setView('off')}>Desativadas <span className="b">{counts.i}</span></button>
+          <button className={`add-tab ${view === 'add' ? 'on' : ''}`} onClick={() => setView('add')}><Ico name="plus" size={16} stroke={2.8} /> Adicionar <span className="b">{counts.cat}</span></button>
+        </div>
+        <div className="area">{area}</div>
+        <div className="pssave">
+          {msg && <div style={{ font: '700 12.5px var(--font)', color: 'var(--leaf-d)', textAlign: 'center', margin: '0 0 8px' }}>{msg}</div>}
+          <button className="cbtn cbtn-leaf" disabled={saving || !curId} onClick={guardar}>{saving ? '…' : 'Guardar perfil'}</button>
+        </div>
       </div>
     </>
   );
