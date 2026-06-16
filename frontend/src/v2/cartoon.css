@@ -432,3 +432,9 @@
 .v2 .psw .suffix{position:relative}
 .v2 .psw .suffix .u{position:absolute;right:14px;top:50%;transform:translateY(-50%);font:700 13px var(--font);color:var(--ink-3)}
 .v2 .psw .suffix input{padding-right:42px}
+.v2 .psw .notas{margin-top:20px}
+.v2 .psw .notas label{display:flex;align-items:center;gap:7px;font:800 14.5px var(--disp);color:var(--ink);margin:0 2px 9px}
+.v2 .psw .notas textarea{width:100%;min-height:130px;border:2px solid var(--line);border-radius:var(--r-sm);background:var(--card);padding:12px 14px;font:500 13.5px/1.55 var(--font);color:var(--ink);outline:0;box-sizing:border-box;resize:vertical}
+.v2 .psw .notas textarea:focus{border-color:var(--leaf)}
+.v2 .psw .notas textarea::placeholder{color:var(--ink-3)}
+.v2 .psw .notas .hint{font:600 11.5px var(--font);color:var(--ink-3);margin:6px 2px 0}

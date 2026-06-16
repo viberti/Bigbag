@@ -166,8 +166,8 @@ export async function carregarPerfil({ nome, texto, demografia }) {
   return r.json();
 }
 // Guarda as características de saúde do editor (ativas no resumo; inativas/demografia à parte).
-export async function salvarSaude(id, { ativas, inativas, demografia }) {
-  const r = await call(`/api/perfil/${id}/saude`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ativas, inativas, demografia }) });
+export async function salvarSaude(id, { ativas, inativas, demografia, notas }) {
+  const r = await call(`/api/perfil/${id}/saude`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ativas, inativas, demografia, notas }) });
   if (!r.ok) throw new Error(`saude ${r.status}`);
   return r.json();
 }

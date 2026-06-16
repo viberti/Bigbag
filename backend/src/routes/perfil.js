@@ -81,6 +81,9 @@ perfilRouter.post('/:id/saude', async (req, res) => {
     if (!m) return res.status(404).json({ erro: 'Membro não encontrado' });
     const resumo = parseJsonCol(m.resumo) || {};
     for (const [g, campo] of Object.entries(GRUPO_CAMPO)) resumo[campo] = limparArr(ativas[g]);
+    // TEXTO LIVRE: o que não cabe em pílula (plano de refeições, suplementos, horários…) →
+    // fica em resumo.notas, que o prompt já inclui (linha "- Notas:"). null se vazio.
+    if (typeof req.body?.notas === 'string') resumo.notas = req.body.notas.trim().slice(0, 4000) || null;
     const est = parseJsonCol(m.saude_estado) || {};
     est.inativas = Object.fromEntries(Object.keys(GRUPO_CAMPO).map((g) => [g, limparArr(inativas[g])]));
     const demografia = limparDemografia(req.body?.demografia);

@@ -1259,6 +1259,7 @@ function PerfilSaude({ back }) {
   const [view, setView] = useState('on');       // on | off | add
   const [screen, setScreen] = useState('edit');  // edit | novo
   const [estado, setEstado] = useState({});      // { key: { ativas:[], inativas:[] } }
+  const [notas, setNotas] = useState('');        // texto livre (o que não cabe em pílula)
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [nv, setNv] = useState({ nome: '', email: '', idade: '', sexo: '', peso: '', altura: '' });
@@ -1276,7 +1277,7 @@ function PerfilSaude({ back }) {
     return e;
   }
   const selecionar = useCallback((p) => {
-    setCurId(p.id); setEstado(estadoDe(p)); setScreen('edit'); setView('on'); setMsg('');
+    setCurId(p.id); setEstado(estadoDe(p)); setNotas(typeof p.resumo?.notas === 'string' ? p.resumo.notas : ''); setScreen('edit'); setView('on'); setMsg('');
     if (!p.ativo) ativarPerfil(p.id).then(() => listarPerfis().then(setPerfis).catch(() => {})).catch(() => {});
   }, []);
   useEffect(() => { carregar().then((ps) => { const a = ps.find((p) => p.ativo) || ps[0]; if (a) selecionar(a); else setScreen('novo'); }); }, [carregar, selecionar]);
@@ -1300,7 +1301,7 @@ function PerfilSaude({ back }) {
     if (!curId || saving) return; setSaving(true); setMsg('');
     const ativas = {}, inativas = {};
     for (const g of GRUPOS_SAUDE) { ativas[g.key] = estado[g.key]?.ativas || []; inativas[g.key] = estado[g.key]?.inativas || []; }
-    try { await salvarSaude(curId, { ativas, inativas }); setMsg('Perfil guardado.'); carregar(); }
+    try { await salvarSaude(curId, { ativas, inativas, notas }); setMsg('Perfil guardado.'); carregar(); }
     catch { setMsg('Falha ao guardar.'); } finally { setSaving(false); }
   }
   async function criar() {
@@ -1367,11 +1368,24 @@ function PerfilSaude({ back }) {
         </div>
       );
     }).filter(Boolean);
-    if (blocos.length) return blocos;
     const vazio = view === 'add' ? ['Sem mais sugestões', 'Já adicionou todas as características sugeridas.']
-      : view === 'on' ? ['Sem características ativas', 'Toque em “Desativadas” ou “Adicionar” para incluir.']
+      : view === 'on' ? ['Sem características ativas', 'Toque em “Adicionar” para incluir, ou escreva nas notas abaixo.']
         : ['Nada desativado', 'Tudo ativo. 👍'];
-    return <div className="emptyv"><b>{vazio[0]}</b>{vazio[1]}</div>;
+    const pilulas = blocos.length ? blocos : <div className="emptyv"><b>{vazio[0]}</b>{vazio[1]}</div>;
+    if (view !== 'on') return pilulas;
+    // TEXTO LIVRE: o que não cabe em pílula (plano de refeições, suplementos, horários…).
+    // Entra na avaliação tal como as pílulas (o prompt inclui a linha "- Notas:").
+    return (
+      <>
+        {blocos.length ? blocos : null}
+        <div className="notas">
+          <label><Ico name="list" size={16} stroke={2.2} color="var(--leaf-d)" /> Notas / observações</label>
+          <textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={4000}
+            placeholder="O que não cabe em pílula — plano de refeições, suplementos, horários de treino, valores de exames, observações do nutricionista…" />
+          <div className="hint">Texto livre. Entra na avaliação tal como as características acima.</div>
+        </div>
+      </>
+    );
   })();
 
   return (
