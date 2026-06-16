@@ -15,7 +15,7 @@ import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { grupoDe, grupoDeNome, tokenCasa, singularizar, norm as normN, normAlfa, tipoConsumidor } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
 import { fundirFichaEan } from '../normaliza/fichaEan.js';
-import { acharPorNomeMarca, acharGemeo } from '../normaliza/resolverPorNome.js';
+import { acharPorNomeMarca, acharGemeo, nomeCondizGemeo } from '../normaliza/resolverPorNome.js';
 import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
@@ -321,8 +321,11 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   const nomeBusca = nome || base?.nome || vlm?.nome || off?.nome || null;
   if (ean && !refNome && !temNutFinal && !imagemCatalogo && nomeBusca && marcaBusca) {
     try {
-      const cands = await acharPorNomeMarca(getPool(), { nome: nomeBusca, marca: marcaBusca, tamanho: base?.quantidade || vlm?.quantidade || off?.quantidade || null, termos: Array.isArray(vlm?.termos_busca) ? vlm.termos_busca : null });
-      const c = cands.find((x) => (x.tem_nutricao || x.imagem_url) && x.ean !== ean);
+      const termosBusca = Array.isArray(vlm?.termos_busca) ? vlm.termos_busca : null;
+      const cands = await acharPorNomeMarca(getPool(), { nome: nomeBusca, marca: marcaBusca, tamanho: base?.quantidade || vlm?.quantidade || off?.quantidade || null, termos: termosBusca });
+      // GATE de precisão: só propõe se o NOME (ou os termos do VLM) condisser — não só a marca
+      // (que pode ser genérica/mal-extraída, ex.: 'Sauerkraut'). Senão, a foto é o caminho.
+      const c = cands.find((x) => (x.tem_nutricao || x.imagem_url) && x.ean !== ean && nomeCondizGemeo({ nome: nomeBusca, marca: marcaBusca, termos: termosBusca, candNome: x.nome }));
       if (c) sugestaoNome = { ean_ref: c.ean, nome: c.nome, marca: c.marca, tamanho: c.tamanho, nutricao_100g: c.nutricao_100g, imagem_url: c.imagem_url, tamanho_bate: c.tamanho_bate };
     } catch { /* off_full/FULLTEXT pode faltar localmente */ }
   }

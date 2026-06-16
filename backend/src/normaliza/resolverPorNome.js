@@ -19,6 +19,27 @@ const temNut = (n) => n && Object.values(n).some((v) => v != null);
 // tamanho aproximado igual? ("250 g" ~ "250g" ~ "0,25 kg"). Heurística leve por número.
 const numTam = (s) => { const m = String(s || '').replace(',', '.').match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml|cl)?/i); if (!m) return null; let v = parseFloat(m[1]); const u = (m[2] || '').toLowerCase(); if (u === 'kg' || u === 'l') v *= 1000; return v; };
 
+const STOP_GEMEO = new Set(['de', 'do', 'da', 'dos', 'das', 'com', 'sem', 'para', 'por', 'em', 'no', 'na', 'von', 'der', 'die', 'das', 'of', 'the', 'und', 'le', 'la', 'el', 'di', 'del', 'au', 'aux']);
+const toksSig = (s) => (normAlfa(s || '') || '').split(' ').filter((t) => t.length >= 4 && !STOP_GEMEO.has(t) && !/\d/.test(t));
+// GATE DE PRECISÃO da SUGESTÃO de gémeo (não da busca — a busca fica com recall alto). A busca
+// usa a MARCA como gate forte; mas quando a "marca" é genérica/mal-extraída (ex.: 'Sauerkraut' =
+// chucrute, não marca) casa qualquer produto com essa palavra → gémeo errado ('Allseasons' →
+// 'Delikatess Sauerkraut...'). Só PROPOR se o candidato partilhar ≥1 token significativo com o
+// NOME do produto OU com os `termos` do VLM, FORA da marca. Preserva o Ovomaltine quando o VLM dá
+// o termo ('achocolatado' ∈ 'Achocolatado Ovomaltine'); sem esse sinal, não propõe (a FOTO é o
+// caminho fiável). Puro/testável.
+export function nomeCondizGemeo({ nome, marca, termos, candNome }) {
+  const marcaToks = new Set(toksSig(marca));
+  const semMarca = (s) => toksSig(s).filter((t) => !marcaToks.has(t));
+  const alvo = new Set([...semMarca(nome), ...(Array.isArray(termos) ? termos : []).flatMap(semMarca)]);
+  const candExtra = semMarca(candNome);
+  // nome do produto = SÓ a marca (sem nada discriminativo) → só propõe se o candidato TAMBÉM for
+  // só a marca (mono-marca, ex.: 'Nutella' → 'Nutella 400g'); se o candidato traz outro conteúdo
+  // próprio (Sauerkraut→'Delikatess... Spreewald'), não há como confirmar → não propor.
+  if (!alvo.size) return candExtra.length === 0;
+  return candExtra.some((t) => alvo.has(t));
+}
+
 export async function acharPorNomeMarca(pool, { nome, marca, tamanho, termos } = {}) {
   if (!nome && !(termos && termos.length)) return [];
   const marcaTok = marca ? normAlfa(marca).split(' ').filter((t) => t.length >= 3) : [];
