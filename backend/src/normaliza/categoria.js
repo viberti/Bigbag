@@ -235,6 +235,19 @@ export function grupoDeNome(nome) {
   return grupoDeTexto(n);
 }
 
+// Uma "marca" que é na verdade um TIPO/genérico (Leite, Iogurte, Bolacha, Água…) é DADO ERRADO
+// (campo marca mal preenchido na fonte — caso real: OFF com marca='Sauerkraut'). grupoDeNome cai
+// num grupo ESPECÍFICO para tipos e em GRUPO_OUTROS para marcas reais (Nestlé, Allseasons,
+// Ovomaltine → outros). NÃO apanha genéricos ESTRANGEIROS fora do vocabulário PT/ES (ex.:
+// 'Sauerkraut' → outros) — esses precisam da blocklist por rácio do corpus (nome≫marca).
+export function marcaEhTipo(marca) {
+  const m = norm(marca);
+  // só PALAVRA ÚNICA: marcas multi-palavra são marcas ("Pingo Doce" cairia em 'doces' por "doce").
+  if (!m || m.includes(' ')) return false;
+  const g = grupoDeNome(m);
+  return !!(g && g !== GRUPO_OUTROS);
+}
+
 // Ordem dos sinais INVERTIDA (decisão do dono, 2026-06-13): NOME antes dos
 // food_groups do OFF — coerente com o resolvedor único (o nosso vocabulário e o
 // catálogo valem mais que o crowdsourcing do OFF). A ordem antiga (OFF primeiro)
