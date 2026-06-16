@@ -19,6 +19,7 @@ const PROMPT = `És um extrator de RÓTULOS de produtos de supermercado. Vês um
     "tipo": string|null,          // ex.: "massa seca", "achocolatado em pó", "anchovas em conserva", "detergente"
     "evidencia": string|null      // o que te levou lá (texto do pacote + forma visível + uso/cozedura)
   },
+  "termos_busca": [string]|null,  // 2-5 palavras-chave p/ ENCONTRAR este produto noutra base (VER REGRAS)
   "ingredientes": string|null,    // VER REGRAS ABAIXO
   "alergenios": string|null,      // alergénios destacados (ex.: "leite, glúten")
   "validade": string|null,        // texto da validade como impresso (VER REGRAS)
@@ -48,6 +49,11 @@ REGRAS DO TIPO (importante — ajuda a classificar o produto, sobretudo quando o
 - "tipo_inferido.tipo": na tua melhor leitura, que TIPO de produto é isto (curto e concreto). "tipo_inferido.evidencia": o que te levou lá — junta os sinais que viste: o texto declarado, a FORMA visível do produto (ex.: pérolas/forminhas de massa, pó, líquido), e pistas de USO/COZEDURA ("12-14 min" + panela → massa/arroz; "dissolver no leite" → achocolatado).
 - IMPORTANTE: o teu juízo do tipo NÃO altera o "nome" nem a "marca" — esses são o que ESTÁ ESCRITO; o tipo é a tua leitura à PARTE. Ex.: se o nome é "Pérolas" e vês "massa alimentícia/sêmola de trigo", o "nome" continua "Pérolas" e o tipo vai para "tipo_no_pacote"/"tipo_inferido".
 - Não inventes um tipo a partir só do nome se a embalagem não der pistas; null é válido.
+
+REGRAS DOS TERMOS DE BUSCA (para CASAR este produto com o MESMO produto noutra base):
+- Dá 2-5 PALAVRAS-CHAVE que melhor o identificariam numa busca: o substantivo-cabeça (o que É: "achocolatado", "creme barrar", "bolacha") + o(s) qualificador(es) distintivo(s) (sabor/variedade: "morango", "integral", "sem lactose").
+- MINÚSCULAS. NÃO incluas: peso/volume/contagem, palavras de marketing ("novo", "promoção", "edição especial", "+ grátis", "leve mais pague menos"), nem a MARCA (já vai em "marca").
+- É o conjunto MÍNIMO de palavras que numa busca achariam este produto noutra loja — corta o ruído da embalagem. Ex.: "Fortificante Ovomaltine 400g" → ["achocolatado"]; "Creme Vegetal Becel Original 250g" → ["creme","barrar","vegetal"].
 
 Não inventes — null no que não conseguires ler com confiança. Só o JSON.`;
 

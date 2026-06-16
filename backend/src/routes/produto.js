@@ -316,7 +316,7 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   const nomeBusca = nome || base?.nome || vlm?.nome || off?.nome || null;
   if (ean && !refNome && !temNutFinal && !imagemCatalogo && nomeBusca && marcaBusca) {
     try {
-      const cands = await acharPorNomeMarca(getPool(), { nome: nomeBusca, marca: marcaBusca, tamanho: base?.quantidade || vlm?.quantidade || off?.quantidade || null });
+      const cands = await acharPorNomeMarca(getPool(), { nome: nomeBusca, marca: marcaBusca, tamanho: base?.quantidade || vlm?.quantidade || off?.quantidade || null, termos: Array.isArray(vlm?.termos_busca) ? vlm.termos_busca : null });
       const c = cands.find((x) => (x.tem_nutricao || x.imagem_url) && x.ean !== ean);
       if (c) sugestaoNome = { ean_ref: c.ean, nome: c.nome, marca: c.marca, tamanho: c.tamanho, nutricao_100g: c.nutricao_100g, imagem_url: c.imagem_url, tamanho_bate: c.tamanho_bate };
     } catch { /* off_full/FULLTEXT pode faltar localmente */ }
@@ -577,7 +577,7 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
     let gemeo = null;
     try {
       if (fotos.length && !nutricao) {
-        gemeo = await acharGemeo(getPool(), { fotoB64: fotos[0].base64, nome: vlm?.nome || nome, marca: vlm?.marca || pistaMarca, tamanho: vlm?.quantidade, eanProprio: ean });
+        gemeo = await acharGemeo(getPool(), { fotoB64: fotos[0].base64, nome: vlm?.nome || nome, marca: vlm?.marca || pistaMarca, tamanho: vlm?.quantidade, termos: Array.isArray(vlm?.termos_busca) ? vlm.termos_busca : null, eanProprio: ean });
       }
     } catch (e) { console.error('[produto/identificar] gemeo:', e.message); }
 

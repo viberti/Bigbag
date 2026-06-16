@@ -16,10 +16,13 @@ const temNut = (n) => n && Object.values(n).some((v) => v != null);
 // tamanho aproximado igual? ("250 g" ~ "250g" ~ "0,25 kg"). Heurística leve por número.
 const numTam = (s) => { const m = String(s || '').replace(',', '.').match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml|cl)?/i); if (!m) return null; let v = parseFloat(m[1]); const u = (m[2] || '').toLowerCase(); if (u === 'kg' || u === 'l') v *= 1000; return v; };
 
-export async function acharPorNomeMarca(pool, { nome, marca, tamanho } = {}) {
-  if (!nome) return [];
+export async function acharPorNomeMarca(pool, { nome, marca, tamanho, termos } = {}) {
+  if (!nome && !(termos && termos.length)) return [];
   const marcaTok = marca ? normAlfa(marca).split(' ').filter((t) => t.length >= 3) : [];
-  const nomeTok = normAlfa(nome).split(' ').filter((t) => t.length >= 3 && !marcaTok.includes(t) && !/^\d+(g|kg|ml|cl|l|un)?$/i.test(t));
+  // tokens de busca: PREFERE os `termos` do VLM (já discriminativos, sem ruído de embalagem —
+  // ex.: "achocolatado" em vez de "fortificante"); senão deriva-os do nome (heurística).
+  const fonteTok = (termos && termos.length) ? termos.join(' ') : nome;
+  const nomeTok = normAlfa(fonteTok || '').split(' ').filter((t) => t.length >= 3 && !marcaTok.includes(t) && !/^\d+(g|kg|ml|cl|l|un)?$/i.test(t));
   // RECALL > precisão (dono 2026-06-16: o texto é a espinha — o OFF de 4,5M nunca terá as
   // fotos todas vetorizadas). A MARCA é o gate FORTE (obrigatória, casa em nome OU marca);
   // os tokens do NOME são OPCIONAIS — pontuam (rel) mas NÃO filtram. Assim "Fortificante
@@ -57,9 +60,9 @@ export async function acharPorNomeMarca(pool, { nome, marca, tamanho } = {}) {
 // NOME+marca do VLM. Um EAN que aparece nos DOIS é quase certo (a imagem e o texto não se
 // enganam ao mesmo tempo). Devolve o melhor candidato (ou null) — NUNCA é facto: o
 // chamador mostra e pede CONFIRMAÇÃO ao humano (a foto/o texto acham; o humano confirma).
-export async function acharGemeo(pool, { fotoB64, nome, marca, tamanho, eanProprio } = {}) {
+export async function acharGemeo(pool, { fotoB64, nome, marca, tamanho, termos, eanProprio } = {}) {
   const proprio = String(eanProprio || '');
-  const txt = nome ? await acharPorNomeMarca(pool, { nome, marca, tamanho }) : [];
+  const txt = (nome || (termos && termos.length)) ? await acharPorNomeMarca(pool, { nome, marca, tamanho, termos }) : [];
   let img = [];
   if (fotoB64) { try { img = await matchImagemB64(fotoB64, { k: 8, limiar: 0.72 }); } catch { img = []; } }
   if (!txt.length && !img.length) return null;
