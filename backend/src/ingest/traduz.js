@@ -24,6 +24,27 @@ export async function traduzirFichaPT(campos) {
   try { return JSON.parse(conteudo); } catch { return null; }
 }
 
+// 2.º VOTO da tradução (dono, 2026-06-17): o tradutor às VEZES alucina e troca o TIPO de
+// produto (caso real: "Mozzarella Queso" → "Ovo de Mozzarella"; queijo→ovo). Como sai
+// "PT-plausível", a guarda nunca o re-verifica e fica cravado. Este 2.º voto olha o ORIGINAL +
+// a tradução e corrige se o significado/tipo mudou — julga o SENTIDO (robusto à grafia
+// Muçarela/Mussarela). Só corre na 1.ª tradução (re-leituras reusam o nome gravado).
+const PROMPT_VERIFICA = `Verificas a TRADUÇÃO para PT-BR do NOME de um produto de supermercado. Recebes o NOME ORIGINAL (noutra língua) e uma TRADUÇÃO proposta. Confirma que a tradução preserva o MESMO produto — sobretudo o TIPO (queijo≠ovo, leite≠iogurte, atum≠frango…) e os termos descritivos. Se estiver correta, devolve-a IGUAL. Se trocou o tipo/significado ou inventou (ex.: "Queso"→"Ovo"), devolve a tradução CORRETA. MARCAS e denominações (Mozzarella, Gorgonzola, Hacendado) NÃO se traduzem. PT-BR. Devolve SÓ JSON: {"nome": string, "corrigido": boolean}`;
+
+export async function verificarTraducaoNome(original, traduzido) {
+  if (!original || !traduzido) return traduzido || null;
+  try {
+    const conteudo = await chatCompletion({
+      messages: [{ role: 'system', content: PROMPT_VERIFICA }, { role: 'user', content: JSON.stringify({ original, traducao: traduzido }) }],
+      model: config.openrouter.modelConsulta, responseFormat: { type: 'json_object' }, timeoutMs: 20000, contexto: 'traducao_verifica',
+    });
+    const j = JSON.parse(conteudo);
+    const nome = j?.nome ? String(j.nome).trim() : traduzido;
+    if (j?.corrigido && nome && nome !== traduzido) console.warn('[traduz] 2.º voto corrigiu:', JSON.stringify({ original, ruim: traduzido, bom: nome }));
+    return nome || traduzido;
+  } catch { return traduzido; } // verificação falhou → fica a 1.ª tradução (não pior que antes)
+}
+
 // Guarda anti re-tradução: o LLM corria a CADA chamada, mesmo com a ficha já em
 // PT (o "mudou" só era avaliado DEPOIS de pagar a chamada). Um EAN tentado uma
 // vez neste processo não volta a ir ao LLM — re-identificações e re-consultas
@@ -56,7 +77,11 @@ export async function garantirFichaPT(pool, ean) {
     if (!r || (!r.nome && !r.ingredientes && !r.alergenios)) return r?.nome || null;
     const t = await traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios });
     if (!t?.mudou) return r.nome || null;
-    const nomePT = tituloProduto(t.nome ?? r.nome);
+    // 2.º VOTO só na 1.ª tradução: se o NOME mudou, um verificador confirma/corrige o tipo de
+    // produto (apanha alucinações tipo "Queso"→"Ovo" antes de ficarem cravadas).
+    let nomeTrad = t.nome ?? r.nome;
+    if (t.nome && t.nome !== r.nome) nomeTrad = (await verificarTraducaoNome(r.nome, t.nome)) || t.nome;
+    const nomePT = tituloProduto(nomeTrad);
     await pool.query('UPDATE produto_ean SET nome = ?, ingredientes = ?, alergenios = ? WHERE ean = ?', [
       nomePT, t.ingredientes ?? r.ingredientes, t.alergenios ?? r.alergenios, ean,
     ]);
