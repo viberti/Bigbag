@@ -345,7 +345,12 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
       empresa: emp ? { prefixo: ean.slice(0, 8), marca: emp.share >= 0.8 ? emp.marca : null, marca_provavel: emp.marca, pais: emp.pais_emp, coerencia: Number(emp.share), n: emp.n_produtos } : null,
     });
   }
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, existe: rows.length > 0 || temGenericoNut };
+  // VOTO da análise do EAN: empresa → MARCA quando nenhuma fonte deu marca (caso Nesquik).
+  // Só a marca ASSERTIDA (coerência≥0.8); a identidade vem das fontes, isto é só o fallback.
+  const marcaFonte = base?.marca || vlm?.marca || off?.marca || null;
+  const marcaResolvida = marcaFonte || analiseEanInfo?.empresa?.marca || null;
+  const marcaVia = marcaFonte ? 'fonte' : (analiseEanInfo?.empresa?.marca ? 'ean_empresa' : null);
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut };
 }
 
 const MAX_FOTOS = 10;

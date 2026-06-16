@@ -708,7 +708,8 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   // relevante: água/vinho/especiarias) → ficha simples (marca/categoria/tamanho).
   const temNut = Object.values(nut).some((v) => v != null && v !== '');
   const ehAlimento = temNut || !!grau;
-  const marcaP = info?.off?.marca || info?.vlm?.marca || info?.base?.marca || null;
+  const marcaViaEan = info?.marca_via === 'ean_empresa'; // marca veio do prefixo do EAN (voto), não de uma fonte
+  const marcaP = info?.marca || info?.off?.marca || info?.vlm?.marca || info?.base?.marca || null;
   const tamanhoP = info?.off?.quantidade || info?.vlm?.quantidade || info?.base?.quantidade || null;
   // NOTA: não mostramos "categoria" no layout não-alimento — o classificador (grupoDeNome)
   // é orientado a alimentos e erra em não-alimentos ("Leite de Proteção Solar"→Laticínios).
@@ -797,7 +798,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
         </>) : (
           // NÃO-ALIMENTO (ou alimento sem ficha nutricional): só os factos que temos.
           <div className="reguas">
-            {[['Marca', marcaP], ['Categoria', info?.catalogo_categoria], ['Tamanho', tamanhoP]].filter(([, v]) => v).map(([k, v]) => (
+            {[['Marca', marcaViaEan ? <>{marcaP} <span className="f-hint">· pelo código</span></> : marcaP], ['Categoria', info?.catalogo_categoria], ['Tamanho', tamanhoP]].filter(([, v]) => v).map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, padding: '6px 0' }}>
                 <span className="rg-l">{k}</span><span style={{ font: '700 13.5px var(--font)', color: 'var(--ink)', textAlign: 'right' }}>{v}</span>
               </div>
