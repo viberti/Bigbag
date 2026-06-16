@@ -248,6 +248,10 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
   // (off_produto tem nome_pt="Tomato Ketchup"=nome) — senão ganha o nome estrangeiro
   // a fingir de PT e vence o nome PT real do Continente.
   if (off?.nome_pt && norm(off.nome_pt) !== norm(off.nome)) candsNome.push({ texto: limparNomeProduto(off.nome_pt, marca), fonte: 'off', traduzido: true });
+  // O VLM viu o PACOTE REAL → o `nome_pt` dele é a tradução mais fiável (do rótulo, não do OFF).
+  // Entra como candidato PT: vence o fallback estrangeiro E a `garantirFichaPT` não re-traduz
+  // (o nome já fica PT) — é a "1.ª tradução de graça" pedida ao VLM. (dono, 2026-06-17)
+  if (vlm?.nome_pt && norm(vlm.nome_pt) !== norm(vlm.nome || '')) candsNome.push({ texto: limparNomeProduto(vlm.nome_pt, marca), fonte: 'vlm', traduzido: true });
   let nome, nomeEstrangeiro = false;
   if (manual.has('nome')) { nome = atual?.nome ?? null; prov.nome = 'manual'; }
   else if (candsNome.length) {

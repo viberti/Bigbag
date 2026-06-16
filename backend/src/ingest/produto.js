@@ -9,7 +9,9 @@ import { registrarCusto } from '../custo.js';
 
 const PROMPT = `És um extrator de RÓTULOS de produtos de supermercado. Vês uma ou mais fotos do MESMO produto, possivelmente de FACES DIFERENTES (frente, verso, lista de ingredientes, tabela nutricional, código de barras, fundo/aba com a validade). COMBINA a informação de todas as fotos. Descobre o MÁXIMO possível e devolve SÓ um objeto JSON, sem texto à volta:
 {
-  "nome": string|null,            // nome do produto como na embalagem
+  "nome": string|null,            // nome do produto como na embalagem (na língua do rótulo)
+  "nome_pt": string|null,         // o "nome" traduzido para PT-BR (VER REGRAS); = nome se já estiver em PT
+  "idioma": string|null,          // idioma do texto do rótulo (código curto: pt, es, fr, en, de, it…)
   "marca": string|null,
   "quantidade": string|null,      // peso/volume LÍQUIDO (ex.: "500 g", "1 L", "4 x 125 g")
   "ean": string|null,             // os DÍGITOS do código de barras, se visível na foto
@@ -54,6 +56,11 @@ REGRAS DOS TERMOS DE BUSCA (para CASAR este produto com o MESMO produto noutra b
 - Dá 2-5 PALAVRAS-CHAVE que melhor o identificariam numa busca: o substantivo-cabeça (o que É: "achocolatado", "creme barrar", "bolacha") + o(s) qualificador(es) distintivo(s) (sabor/variedade: "morango", "integral", "sem lactose").
 - MINÚSCULAS. NÃO incluas: peso/volume/contagem, palavras de marketing ("novo", "promoção", "edição especial", "+ grátis", "leve mais pague menos"), nem a MARCA (já vai em "marca").
 - É o conjunto MÍNIMO de palavras que numa busca achariam este produto noutra loja — corta o ruído da embalagem. Ex.: "Fortificante Ovomaltine 400g" → ["achocolatado"]; "Creme Vegetal Becel Original 250g" → ["creme","barrar","vegetal"].
+
+REGRA DO IDIOMA E DA TRADUÇÃO (importante — tu vês o pacote REAL, és a melhor fonte para traduzir):
+- "idioma": o idioma PREDOMINANTE do texto do rótulo (código curto: pt, es, fr, en, de, it…).
+- "nome_pt": o "nome" traduzido para PORTUGUÊS DO BRASIL. Traduz as palavras DESCRITIVAS (ex.: "Queso"→"Queijo", "Geschnitten"→"Fatiado", "Sparkling"→"com gás"), mas NÃO traduzas MARCAS nem denominações próprias (Mozzarella, Gorgonzola, Hacendado). Se o nome JÁ estiver em português, repete-o EXATAMENTE igual.
+- CUIDADO a NÃO trocar o TIPO do produto: "Queso"=queijo (NUNCA "ovo"), "Leche"=leite, "Atún"=atum. O nome_pt tem de ser o MESMO produto que vês na foto.
 
 Não inventes — null no que não conseguires ler com confiança. Só o JSON.`;
 
