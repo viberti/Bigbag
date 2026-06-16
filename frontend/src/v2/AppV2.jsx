@@ -118,7 +118,9 @@ export default function AppV2() {
   if (sessao === undefined) return <div className="v2"><div className="v2-load">…</div></div>;
   if (sessao?.semAcesso) return <SemAcesso onSair={sair} />;
   if (!sessao) return <LoginV2 onEntrar={setSessao} />;
-  const nome = (sessao.user?.id || '').replace(/^./, (c) => c.toUpperCase());
+  // nome legível: o `nome` das claims OIDC (given_name do Google); senão o local-part do email
+  // capitalizado (nunca o email inteiro com @domínio).
+  const nome = sessao.user?.nome || (sessao.user?.id || '').split('@')[0].replace(/^./, (c) => c.toUpperCase());
   return <Shell nome={nome} onSair={sair} pais={sessao.user?.pais || 'PT'} />;
 }
 
@@ -241,7 +243,9 @@ function Shell({ nome, onSair, pais }) {
   }, [go]);
   // a Comparar mostra a nav (para consultar mais itens pelo botão central) sem ser um TAB
   // que limpa a pilha — entra empilhada, o back volta de onde veio; nenhum tab fica aceso.
-  const navCur = TABS.has(view.id) ? view.id : (view.id === 'comparar' ? 'comparar' : null);
+  // a ficha (informação do produto) também leva a barra inferior — `cur` não casa nenhuma aba
+  // (nada destacado), o scan central vira "consultar produto". cnav é flex (não tapa o conteúdo).
+  const navCur = TABS.has(view.id) ? view.id : (view.id === 'comparar' ? 'comparar' : (view.id === 'ficha' ? 'ficha' : null));
   const common = { go, back, user: nome, onSair, abrirConta: () => setConta(true), cmp, addCmp, removeCmp, clearCmp }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
   const Screen = {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,

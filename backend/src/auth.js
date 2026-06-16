@@ -51,19 +51,32 @@ function checkBasic(req) {
 
 // JWKS remoto do Zitadel (cacheado pela própria jose). Só se houver issuer.
 const JWKS = config.auth.oidcIssuer ? createRemoteJWKSet(new URL(`${config.auth.oidcIssuer}/oauth/v2/keys`)) : null;
-const emailCache = new Map(); // sub → email (evita /userinfo repetido)
+const perfilCache = new Map(); // sub → { email, nome } (evita /userinfo repetido)
 
-// email do utilizador: do próprio token, senão do /userinfo (1× por sub, cacheado).
-async function emailDoToken(payload, token) {
-  let email = payload.email || null;
-  if (email) return String(email).toLowerCase();
+// Primeiro nome legível a partir das claims OIDC: `given_name` (Google dá-o), senão a 1.ª
+// palavra de `name`. null se nada utilizável (cai no email no frontend).
+function primeiroNome({ given_name: dado, name: completo } = {}) {
+  const n = (dado || (completo ? String(completo).trim().split(/\s+/)[0] : '') || '').trim();
+  return n || null;
+}
+
+// email+nome do utilizador: do próprio token, senão do /userinfo (1× por sub, cacheado).
+async function perfilDoToken(payload, token) {
+  let email = payload.email ? String(payload.email).toLowerCase() : null;
+  let nome = primeiroNome(payload);
+  if (email && nome) return { email, nome };
   const sub = payload.sub;
-  if (emailCache.has(sub)) return emailCache.get(sub);
+  if (perfilCache.has(sub)) { const c = perfilCache.get(sub); return { email: email || c.email, nome: nome || c.nome }; }
   try {
     const r = await fetch(`${config.auth.oidcIssuer}/oidc/v1/userinfo`, { headers: { Authorization: `Bearer ${token}` } });
-    if (r.ok) { const u = await r.json(); email = (u.email || '').toLowerCase() || null; emailCache.set(sub, email); return email; }
+    if (r.ok) {
+      const u = await r.json();
+      email = email || ((u.email || '').toLowerCase() || null);
+      nome = nome || primeiroNome(u);
+      perfilCache.set(sub, { email, nome });
+    }
   } catch { /* rede falhou */ }
-  return null;
+  return { email, nome };
 }
 
 async function checkBearer(req) {
@@ -72,7 +85,7 @@ async function checkBearer(req) {
   const token = header.slice(7).trim();
   try {
     const { payload } = await jwtVerify(token, JWKS, { issuer: config.auth.oidcIssuer });
-    return { sub: payload.sub, email: await emailDoToken(payload, token) };
+    return { sub: payload.sub, ...(await perfilDoToken(payload, token)) };
   } catch { return null; } // assinatura/issuer/expiração inválidos
 }
 
@@ -84,7 +97,7 @@ export async function requireAuth(req, res, next) {
     if (al.length && (!b.email || !al.includes(b.email))) {
       return res.status(403).json({ erro: 'Conta sem acesso ao BigBag.', email: b.email || null });
     }
-    req.user = { id: b.email || b.sub, email: b.email, sub: b.sub, via: 'oidc', ...(await resolveLocale(b.email)) };
+    req.user = { id: b.email || b.sub, email: b.email, nome: b.nome || null, sub: b.sub, via: 'oidc', ...(await resolveLocale(b.email)) };
     return next();
   }
   // 2) rede de segurança: test-auth (Basic) durante a migração
