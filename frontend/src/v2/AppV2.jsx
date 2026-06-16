@@ -29,7 +29,16 @@ const Ico = ({ name, size = 24, stroke, color }) =>
   <span style={{ display: 'inline-grid' }} dangerouslySetInnerHTML={{ __html: ICON(name, { size, stroke, color }) }} />;
 const Mk = ({ size = 30, chip }) =>
   <span style={{ display: 'inline-grid' }} dangerouslySetInnerHTML={{ __html: BIGBAG_MARK({ size, chip }) }} />;
-const eur = (v) => (v == null || Number.isNaN(Number(v)) ? '—' : `${Number(v).toFixed(2).replace('.', ',')} €`);
+// Moeda do utilizador (camada locale): definida no load da sessão (/api/me). `eur`
+// mantém o nome por compatibilidade mas formata na moeda corrente (PT €, BR R$).
+let MOEDA = 'EUR';
+const setMoeda = (m) => { if (m) MOEDA = m; };
+const fmtPreco = (v, moeda = MOEDA) => {
+  if (v == null || Number.isNaN(Number(v))) return '—';
+  const s = Number(v).toFixed(2).replace('.', ',');
+  return moeda === 'BRL' ? `R$ ${s}` : `${s} €`;
+};
+const eur = (v) => fmtPreco(v);
 const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 function dataCurta(s) {
   if (!s) return '';
@@ -102,7 +111,7 @@ function Nav({ cur, go, cmpCheio, onLimite }) {
 export default function AppV2() {
   const [sessao, setSessao] = useState(undefined);
   useEffect(() => {
-    verificarSessao().then(setSessao).catch((e) => setSessao(String(e?.message) === '403' ? { semAcesso: true } : null));
+    verificarSessao().then((s) => { setMoeda(s?.user?.moeda); setSessao(s); }).catch((e) => setSessao(String(e?.message) === '403' ? { semAcesso: true } : null));
   }, []);
   // sair: limpa o test-auth e, se houver sessão OIDC, encerra-a no Zitadel (SSO).
   const sair = async () => { clearAuth(); if (await oidcUser()) oidcLogout(); else { setSessao(null); window.location.replace('/'); } };
@@ -697,7 +706,15 @@ function Ficha({ go, back, ean, sku_id, nome }) {
       <div className="scrollarea">
         <div className="f-hero">
           <div className="f-thumb">{info?.imagem_catalogo ? <img src={info.imagem_catalogo} alt="" /> : <span style={{ display: 'grid', placeItems: 'center', height: '100%' }}><Ico name="photoprod" size={28} color="#7a93b0" /></span>}</div>
-          <div className="f-name">{nomeProd}{info?.familia_label && <span className="f-fam">{info.familia_label}</span>}</div>
+          <div className="f-name">{nomeProd}{info?.familia_label && <span className="f-fam">{info.familia_label}</span>}
+            {info?.preco_catalogo && (
+              <span className="f-preco">
+                <b>{fmtPreco(info.preco_catalogo.preco, info.preco_catalogo.moeda)}</b>
+                {info.preco_catalogo.preco_por_base != null && <span className="f-ppb"> · {fmtPreco(info.preco_catalogo.preco_por_base, info.preco_catalogo.moeda)}/{info.preco_catalogo.unidade_base || 'un'}</span>}
+                <span className="f-pref"> · referência</span>
+              </span>
+            )}
+          </div>
           {grau && <span className="ns-pill" style={{ background: NS_COR[grau] || '#9ec93f' }}>{grau}</span>}
         </div>
 
