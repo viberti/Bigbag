@@ -29,6 +29,7 @@
 - Marcar `.<cc>` local vs global.
 
 ### 4. SONDAR — checklist técnico de recolhabilidade (por candidato de topo)
+- **Modo de acesso — ENUMERÁVEL vs CONSULTA-por-EAN (distinção crítica):** uma fonte *enumerável* (sitemap/categorias/API de catálogo/id-sequência) **descobre EANs novos** — expande o universo. Uma fonte de *consulta-por-EAN* (só responde a um EAN que já tens) **só enriquece** o que já encontraste, nunca alarga. *Lição BR: o Wireshape responde a qualquer EAN (URL determinística) mas o sitemap não lista produtos → é enriquecimento, não descoberta; e mais fraco que o OFF (sem nutrição no estruturado).* Para CRESCER o catálogo, priorizar enumeráveis.
 - **robots.txt** — o que é permitido; há `Sitemap:`?
 - **sitemap.xml** — enumerável? quantos URLs de produto? (dá o **tamanho do universo**)
 - **EAN exposto?** no slug do URL? `gtin13` no JSON-LD? `barcode` no `/products/<slug>.json` (Shopify)? tabela de especificações?
@@ -43,6 +44,7 @@
 | **PrestaShop** | `…-<13díg>[.html]`, `?page=N` | EAN no slug do URL (crawl categorias+paginação) |
 | **Shopify** | `/products.json`, `/products/<slug>.json` | `variants[].barcode` (o bulk omite-o; a ficha tem) + `gtin13` no JSON-LD |
 | **SFCC/Demandware** | `sitemap_index.xml` → `*-product.xml` | JSON-LD Product (Auchan/Continente/PD/Mercadona) |
+| **VTEX** (dominante no BR) | `Shopify.theme` ausente + `__RUNTIME__`/vtex no HTML | **API pública** `/api/catalog_system/pub/products/search?_from=N&_to=N+49` → `items[].ean` + nome + marca + **categoria-path** + **preço** + imagem (50/pág, offset≤2500 → paginar por categoria) |
 | **WooCommerce** | sitemaps `wp`, `/product/` | JSON-LD + tabela de atributos |
 | **Angular/Vue transfer-state** | `<script type="application/json">` com a resposta da API inline | parse do blob (Nutripédia: chave = base64 do path da API) |
 | **Registo custom** (Cosmos) | página por `/<ean>-<slug>` | normalmente **API com token** (registo grátis) |
@@ -63,14 +65,14 @@ SEMENTE: 18 EANs `789…` do `off_full` (Pilão, União, Camil, Yoki, Hellmann's
 
 **Base GRÁTIS que já temos:** `off_full` (OFF, aberto) = **32 300 produtos BR `789/790`** (21,8k nutrição, 20,4k imagem), já ligado ao `fichaEan`. É o backbone da identidade-alimentar BR a custo zero. O `catalogo_produto` BR é só 387. → no BR já partimos cobertos no alimentar; caçar o que o OFF NÃO tem.
 
-Fontes por tipo (com **custo de acesso**):
-- **Registo-EAN ABERTO (o caminho): `data.wireshape.com`** (Wireshape / "Smart Consumer") — robots `Allow: /` + sitemap (enumerável), JSON-LD, EAN+nutrição+imagem+marca, **sem bloqueio (200)**. Grátis. *+ a API aberta do OFF-BR (`br.openfoodfacts.org/api/v2/product/<ean>.json`).*
-- **Registo-EAN PAGO (fallback, NÃO usar): `cosmos.bluesoft.com.br`** — registo central BR (GTIN+nome+NCM), apareceu 1.º para os 6 EANs, mas é **empresa comercial de acesso pago** (web 403, API 401/token). Bom mas pago → preterido (dono, 2026-06-16).
-- **Retalho e-commerce BR (camada preço+locale), vários com EAN-no-URL — grátis (scrape educado):** `condor.com.br/product/<EAN>`, `superkan.com.br/.../<EAN>/d`, `davo.com.br/.../prod_<EAN>`, `redemix.com.br/<EAN>…/p`, `mercado.carrefour.com.br`, `zaffari.com.br`, `savegnago.com.br`, `coopsupermercado.com.br`, `nicolini`.
-- **Fabricante:** `pilao.com.br`, `camil.com.br`, `yoki.com.br`, `uniao.com.br`, `nestle.com.br` — montra (por slug, provável sem EAN). Exceção a confirmar: `hellmanns.com.br/p/<slug>.html/<EAN>`.
-- **Diáspora/exportação** (PrestaShop com EAN-no-URL): `bomsabor.ch/...-<EAN>.html`, `everydaybrazil.com`, `hibrazilmarket.com`, `kingfoodbrasil.com.br`, `natubrazil.com`.
+Fontes por tipo (com **custo de acesso** e **modo de acesso**, após sondagem profunda):
+- **★ A FONTE BR: retalho em VTEX (enumerável, grátis, EAN+preço+categoria).** O **VTEX é a plataforma dominante do retalho BR** (Carrefour, Pão de Açúcar, muitos regionais). A API pública `/<host>/api/catalog_system/pub/products/search` devolve **EAN + nome + marca + categoria-path + preço R$ + imagem**. **Um adaptador serve todos os retalhistas VTEX.** Medido em `www.savegnago.com.br`: 446 EANs amostrados → **195 (44%) novos** (nem catálogo nem off_full) + preço+categoria BR para TODOS. Alimenta **as duas camadas** (identidade + preço/locale) de uma vez. *(Carrefour deu 503 nesse endpoint — varia por loja; o savegnago serve limpo.)*
+- **Base GRÁTIS já carregada:** OFF (`off_full`) = 32 300 BR (21,8k nutrição). Cobre a identidade-alimentar; o VTEX preenche o resto (não-food, cauda local) + preço.
+- **Registo-EAN — só CONSULTA (enriquece, não descobre):** `data.wireshape.com` é aberto e responde a **qualquer EAN** por URL determinística (GTIN-14 em hex), com nome+marca+imagem no JSON-LD — **mas o sitemap não lista produtos (não enumerável) e não traz nutrição** → enriquecimento marginal vs OFF. + API aberta do OFF-BR por EAN. **`cosmos.bluesoft.com.br` = comercial/pago → preterido** (web 403, API token).
+- **Fabricante:** `pilao/camil/yoki/uniao/nestle.com.br` — montra (sem EAN). Exceção: `hellmanns.com.br/p/<slug>.html/<EAN>`.
+- **Diáspora/exportação** (PrestaShop com EAN-no-URL): `bomsabor.ch`, `everydaybrazil.com`, `kingfoodbrasil.com.br`.
 
-**Leitura:** o BR confirma o padrão E a regra do custo — o registo central mais visível é **pago (Cosmos)**, mas existe um **registo aberto equivalente (Wireshape)** + a base OFF que já temos. Próximo passo BR (free-first): (1) sondar a fundo o Wireshape (universo no sitemap, campos no JSON-LD) e medir novidade vs off_full; (2) 2-3 retalhistas BR com EAN-no-URL para a camada preço+categoria-local; (3) Cosmos só se faltar algo que mais nada dê.
+**Leitura (lição-mãe da metodologia):** a jogada de maior alavanca não é caçar fontes uma a uma — é **identificar a PLATAFORMA de retalho dominante do país e escrever um adaptador** (PT→PrestaShop/SFCC; BR→**VTEX**). Uma plataforma = um adaptador = dezenas de retalhistas, com EAN+preço+categoria. As fontes-registo (pagas tipo Cosmos, ou de só-consulta tipo Wireshape) são secundárias quando já temos o OFF + um adaptador de plataforma. **Próximo passo BR:** construir o adaptador VTEX genérico, semear com savegnago + 3-4 grandes lojas VTEX BR, carregar em `catalogo_produto` (identidade) e na camada de preço BR.
 
 ## 8. Registo de Fontes (doc vivo, por país)
 Manter uma tabela por país: **fonte · tipo · plataforma · EAN-exposto · campos · universo · estado · novidade**. É o roadmap da expansão. (PT atual: Nutripédia, lojas PrestaShop .pt, Auchan/Continente/PD/Lidl, Mercadona-ES, Lidl-FR — ver `Analise_Fontes_Normalizacao.md`.)
