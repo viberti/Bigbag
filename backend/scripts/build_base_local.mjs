@@ -17,6 +17,8 @@ const NUT_OFF = `JSON_OBJECT(
   'sal',o.sal,'fibra',o.fibra,'gordura',o.gordura,'acucares',o.acucares,
   'hidratos',o.hidratos,'proteina',o.proteinas,'energia_kcal',o.energia_kcal,
   'gordura_saturada',o.gordura_sat)`;
+// off_full guarda nutriscore como 'a'..'e' mas também 'not-applicable'/'unknown' → só letra
+const NS = "CASE WHEN o.nutriscore REGEXP '^[a-eA-E]$' THEN LOWER(o.nutriscore) ELSE NULL END";
 
 console.log('[base_local] TRUNCATE…');
 await pool.query('TRUNCATE base_local');
@@ -59,7 +61,7 @@ await pool.query(
   `INSERT INTO base_local
      (ean,nome,marca,quantidade,categoria,product_type,alergenios,nutriscore,nova,nutricao,ingredientes,origem)
    SELECT c.ean, c.nome, c.marca, c.quantidade, c.categoria, c.product_type,
-          o.alergenios, o.nutriscore, o.nova,
+          LEFT(o.alergenios,255), ${NS}, o.nova,
           CASE WHEN JSON_EXTRACT(c.nutricao,'$.energia_kcal') IS NOT NULL THEN c.nutricao
                WHEN o.energia_kcal IS NOT NULL THEN ${NUT_OFF}
                ELSE c.nutricao END,
@@ -78,7 +80,7 @@ await pool.query(
   `INSERT IGNORE INTO base_local
      (ean,nome,marca,quantidade,categoria,product_type,alergenios,nutriscore,nova,nutricao,ingredientes,origem)
    SELECT o.ean, LEFT(o.nome,255), LEFT(o.marca,120), LEFT(o.quantidade,80), LEFT(o.categoria,120), NULL,
-          o.alergenios, o.nutriscore, o.nova,
+          LEFT(o.alergenios,255), ${NS}, o.nova,
           CASE WHEN o.energia_kcal IS NOT NULL THEN ${NUT_OFF} ELSE NULL END,
           LEFT(o.ingredientes,1200), 'pt_off'
      FROM off_full o
