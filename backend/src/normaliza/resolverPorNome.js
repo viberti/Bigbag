@@ -20,12 +20,15 @@ export async function acharPorNomeMarca(pool, { nome, marca, tamanho } = {}) {
   if (!nome) return [];
   const marcaTok = marca ? normAlfa(marca).split(' ').filter((t) => t.length >= 3) : [];
   const nomeTok = normAlfa(nome).split(' ').filter((t) => t.length >= 3 && !marcaTok.includes(t) && !/^\d+(g|kg|ml|cl|l|un)?$/i.test(t));
-  // quando o NOME é só a marca (Nutella, Coca-Cola) sobram 0 tokens de nome → busca
-  // pela própria marca; senão, tokens do nome em prefixo + MARCA exigida (gate forte).
-  const termos = nomeTok.length ? nomeTok : marcaTok;
-  if (!termos.length) return [];
-  const exigeMarca = nomeTok.length ? marcaTok : [];
-  const bool = [...termos.map((t) => `+${t}*`), ...exigeMarca.map((t) => `+${t}`)].join(' ');
+  // RECALL > precisão (dono 2026-06-16: o texto é a espinha — o OFF de 4,5M nunca terá as
+  // fotos todas vetorizadas). A MARCA é o gate FORTE (obrigatória, casa em nome OU marca);
+  // os tokens do NOME são OPCIONAIS — pontuam (rel) mas NÃO filtram. Assim "Fortificante
+  // Ovomaltine 400g" acha o off_full que se chama só "Ovomaltine" (o `+fortificante` exigido
+  // matava-o). Sem marca, o nome volta a ser o único gate. O tamanho/nutrição desempatam.
+  let bool;
+  if (marcaTok.length) bool = [...marcaTok.map((t) => `+${t}`), ...nomeTok.map((t) => `${t}*`)].join(' ');
+  else if (nomeTok.length) bool = nomeTok.map((t) => `+${t}*`).join(' ');
+  else return [];
   let rows;
   try {
     [rows] = await pool.query(
