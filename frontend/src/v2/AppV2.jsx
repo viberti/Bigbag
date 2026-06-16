@@ -97,7 +97,7 @@ function Nav({ cur, go, cmpCheio, onLimite }) {
   );
   const aoScan = () => {
     if (cur === 'comparar') { if (cmpCheio) { onLimite?.(); return; } go('scanner', { paraComparar: true }); return; }
-    go('scanner');
+    go('scanner', { k: Date.now() }); // k muda a cada toque → o Scanner volta ao modo CÓDIGO mesmo já estando aberto
   };
   return (
     <div className="cnav">
@@ -249,7 +249,10 @@ function Shell({ nome, onSair, pais }) {
   // que limpa a pilha — entra empilhada, o back volta de onde veio; nenhum tab fica aceso.
   // a ficha (informação do produto) também leva a barra inferior — `cur` não casa nenhuma aba
   // (nada destacado), o scan central vira "consultar produto". cnav é flex (não tapa o conteúdo).
-  const navCur = TABS.has(view.id) ? view.id : (view.id === 'comparar' ? 'comparar' : (view.id === 'ficha' ? 'ficha' : null));
+  // a régua aparece nos TABS, na comparar, na ficha E na CONSULTA por scan (modo default — não
+  // nos fluxos de tarefa do scanner: identificar linha/adicionar à lista/comparar, que voltam).
+  const consultaScan = view.id === 'scanner' && !view.p?.itemId && !view.p?.paraLista && !view.p?.paraComparar;
+  const navCur = TABS.has(view.id) ? view.id : (view.id === 'comparar' ? 'comparar' : (view.id === 'ficha' ? 'ficha' : consultaScan ? 'scanner' : null));
   const common = { go, back, user: nome, onSair, abrirConta: () => setConta(true), cmp, addCmp, removeCmp, clearCmp }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
   const Screen = {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
@@ -1487,8 +1490,12 @@ function Receitas({ back }) {
 }
 
 /* ── CONSULTAR PRODUTO: Código (barras) · Produto (foto ao vivo) ─────────── */
-function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar, addCmp }) { // itemId: identificar linha do talão; paraLista: ADICIONAR à lista; paraComparar: ADICIONAR ao cesto de comparação
+function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar, addCmp, k }) { // itemId: identificar linha do talão; paraLista: ADICIONAR à lista; paraComparar: ADICIONAR ao cesto de comparação
   const [modo, setModo] = useState('codigo');
+  // CONSULTA default (sem fluxo de tarefa) → mostra a régua de navegação; o scan vem da régua,
+  // por isso o botão "Código" sai da barra de métodos e a régua reabre sempre no modo código (k).
+  const naRegua = !itemId && !paraLista && !paraComparar;
+  useEffect(() => { setModo('codigo'); setFoto(null); }, [k]); // toque no scan da régua → volta ao código
   const [erro, setErro] = useState(false);
   const [luz, setLuz] = useState(false);
   const [temLuz, setTemLuz] = useState(false);
@@ -1741,7 +1748,8 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
               ['produto', 'photoprod', 'Produto', () => { setModo('foto'); setFoto(null); }],
               ['voz', 'mic', 'Voz', () => go('voz')],
               ['texto', 'search', 'Texto', () => go('texto')],
-            ].filter(([id]) => !somente || somente.includes(id)).map(([id, ic, lb, on]) => (
+            ].filter(([id]) => !(naRegua && id === 'codigo')) // consulta default: o scan vem da régua
+              .filter(([id]) => !somente || somente.includes(id)).map(([id, ic, lb, on]) => (
               <button key={id} className={`smode ${(id === 'codigo' && code) || (id === 'produto' && !code) ? 'on' : ''}`} onClick={on}>
                 <Ico name={ic} size={24} stroke={2} /><span>{lb}</span>
               </button>
