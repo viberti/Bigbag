@@ -705,10 +705,15 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const [alt, setAlt] = useState(null);
   const [open, setOpen] = useState({});
   const [adotando, setAdotando] = useState(false);
+  const [avalLoading, setAvalLoading] = useState(true); // parecer personalizado a carregar
   const registado = useRef(false);
+  const avalSeq = useRef(0); // guarda de corrida: descarta respostas de parecer fora de ordem
   useEffect(() => {
     registado.current = false; // novo produto → permite registar 1×
     setAdotando(false);
+    // limpa o estado do produto ANTERIOR (senão o parecer/análise antigos persistiam ao navegar
+    // entre EANs) e invalida quaisquer pedidos de parecer ainda em voo (guarda de corrida).
+    setAval(null); setAnalise(null); setAlt(null); setAvalLoading(true); avalSeq.current += 1;
     const q = { itemId: undefined, ean, skuId: sku_id };
     infoProduto(q).then(setInfo).catch(() => setInfo({ erro: true }));
     analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => setAnalise(null));
@@ -746,7 +751,11 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   // nutricional" mesmo depois de a nutrição entrar (bug do dono: correu antes do VLM responder).
   useEffect(() => {
     if (!info || info.erro) return;
-    avaliacaoPersonalizada({ itemId: undefined, ean, skuId: sku_id }).then((r) => setAval(r?.perfil ? r : null)).catch(() => setAval(null));
+    const meu = (avalSeq.current += 1); // só a resposta MAIS RECENTE conta (mata a corrida)
+    setAvalLoading(true);
+    avaliacaoPersonalizada({ itemId: undefined, ean, skuId: sku_id })
+      .then((r) => { if (meu === avalSeq.current) { setAval(r?.perfil ? r : null); setAvalLoading(false); } })
+      .catch(() => { if (meu === avalSeq.current) { setAval(null); setAvalLoading(false); } });
   }, [ean, sku_id, temNut, info?.erro]); // eslint-disable-line react-hooks/exhaustive-deps
   const ehAlimento = temNut || !!grau;
   const marcaViaEan = info?.marca_via === 'ean_empresa'; // marca veio do prefixo do EAN (voto), não de uma fonte
@@ -766,7 +775,8 @@ function Ficha({ go, back, ean, sku_id, nome }) {
       const q = { itemId: undefined, ean, skuId: sku_id };
       const fresh = await infoProduto(q); setInfo(fresh);
       analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => {});
-      avaliacaoPersonalizada(q).then((r) => setAval(r?.perfil ? r : null)).catch(() => {});
+      // o parecer re-corre sozinho pelo efeito (a nutrição adotada muda `temNut`) — com guarda
+      // de corrida; não o chamamos aqui à parte (evita resposta fora de ordem a sobrepor-se).
       alternativasProduto(q).then((r) => setAlt(r?.alternativas?.length ? r : null)).catch(() => {});
     } catch { setAdotando(false); } // falhou → mantém a sugestão p/ tentar outra vez
   };
@@ -805,12 +815,14 @@ function Ficha({ go, back, ean, sku_id, nome }) {
         )}
 
         {ehAlimento ? (<>
-          {(aval?.avaliacao || analise?.parecer) && (
+          {avalLoading ? (
+            <div className="parecer"><div className="ph">A avaliar<i className="an-dots" /></div></div>
+          ) : (aval?.avaliacao || analise?.parecer) ? (
             <div className={`parecer ${attn ? 'attn' : ''}`}>
               <div className="ph">{aval?.perfil ? `Para ${aval.perfil}` : 'Parecer'}{aval?.avaliacao?.selo && <span className={`selo ${attn ? 'attn' : ''}`}>{aval.avaliacao.selo}</span>}</div>
               <p>{aval?.avaliacao?.texto || aval?.avaliacao?.parecer || analise?.parecer}</p>
             </div>
-          )}
+          ) : null}
           <div className="reguas">
             <Regua label="Açúcares" tipo="acucares" val={num('acucares', 'acucar')} />
             <Regua label="Gordura" tipo="gordura" val={num('gordura', 'lipidos')} />
