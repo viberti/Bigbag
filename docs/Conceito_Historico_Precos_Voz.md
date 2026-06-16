@@ -239,6 +239,10 @@ Padrão do 1417, sem quebrar os projetos vizinhos (pitacos.ai, 1417):
    - **Perfil de saúde ESTRUTURADO** (§13): editor em **pílulas por 9 grupos** + texto livre + demografia. O perfil entra no prompt da avaliação como **bloco etiquetado** (`perfilParaTexto`, `ingest/perfil.js`), não JSON cru. Detalhe em [`Visao_Conselheiro_Saude_Alimentar.md`](Visao_Conselheiro_Saude_Alimentar.md).
    - **Nome do utilizador na saudação:** primeiro nome legível das claims OIDC (`given_name` do Google; `GET /api/me` devolve `nome`).
 
+9. **Decisões fechadas na sessão 2026-06-17:**
+   - **Base local no telefone, MEDIDA e que CRESCE.** Réplica de identificação+nutrição no IndexedDB (~63k EANs: catálogo PT + Mercadona-ES + EANs PT do `off_full`, com nutrição) para o scan responder **instantâneo/offline** — agora também na **v2** (antes só a v1). Princípio do dono: **"começar com menos, medir a taxa de hits, ajustar"** — LIDL/ALDI ficam **de fora de propósito** e a telemetria (`base_local_evento`; CLI `taxa_base_local.mjs` ou aba `/admin` "Base local") mede o miss e diz o que adicionar.
+   - **A base CRESCE COM O USO.** Todo o EAN resolvido FORA do cliente (um miss, buscado no servidor) entra na `base_local` **partilhada de todos**, com nutrição/ingredientes (`upsertBaseLocal` no `consultarOuGuardar`, origem `uso`) → vira HIT na próxima sync. A 1.ª vez que se scaneia um LIDL/ALDI (ou qualquer produto novo), ele entra — a base **converge no que esta casa compra**. Sync por `seq` monotónico (migr. 068, o cursor por `ean` não apanhava inserções vivas). Detalhe no Schema (067-068) e no CLAUDE.md.
+
 ### Eixo "saúde" — princípios já fechados (v0.75)
 - **Factual, não clínico.** A análise descreve (Nutri-Score, NOVA, semáforo, E-números) com base em *standards* de rotulagem; **não diagnostica nem prescreve**.
 - **Perfil = DADOS, nunca instruções.** O ficheiro do perfil é tratado como descrição da pessoa; os prompts barram *prompt injection*. Alergias verificadas de forma **determinística** (segurança não se delega a um LLM). Dados clínicos sensíveis **não versionados**.
