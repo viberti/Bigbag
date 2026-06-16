@@ -5,7 +5,8 @@
 // match-por-imagem (matchImagem.js) para validar. NUNCA é facto do EAN exato: o
 // chamador marca como "mesmo produto (por nome)" e pede confirmação se incerto.
 import { normAlfa } from './categoria.js';
-import { matchImagemB64 } from './matchImagem.js';
+import { matchImagemB64, matchPorVetor, vetorizarImagemB64, vetorizarVariasB64, cosseno } from './matchImagem.js';
+import { familiaDe } from './familia.js';
 import { parseJsonCol } from '../db.js';
 
 const nutDe = (r) => ({
@@ -40,6 +41,7 @@ export async function acharPorNomeMarca(pool, { nome, marca, tamanho, termos } =
     const ex = map.get(c.ean);
     if (!ex) { map.set(c.ean, c); return; }
     ex.nome = ex.nome || c.nome; ex.marca = ex.marca || c.marca; ex.tamanho = ex.tamanho || c.tamanho;
+    ex.categoria = ex.categoria || c.categoria;
     ex.imagem_url = ex.imagem_url || c.imagem_url;
     if (!ex.tem_nutricao && c.tem_nutricao) { ex.nutricao_100g = c.nutricao_100g; ex.tem_nutricao = true; }
     if (ex.tamanho_bate == null) ex.tamanho_bate = c.tamanho_bate;
@@ -49,33 +51,69 @@ export async function acharPorNomeMarca(pool, { nome, marca, tamanho, termos } =
   // 1) OFF (off_full) — pan-país; nutrição em colunas planas
   try {
     const [r1] = await pool.query(
-      `SELECT ean, nome, marca, quantidade, imagem_url, energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra,
+      `SELECT ean, nome, marca, quantidade, categoria, imagem_url, energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra,
               MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) AS rel
          FROM off_full WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE)
         ORDER BY (energia_kcal IS NOT NULL) DESC, rel DESC LIMIT 12`, [bool, bool]);
-    for (const r of r1) { const nut = nutDe(r); juntar({ ean: String(r.ean), nome: r.nome, marca: r.marca, tamanho: r.quantidade || null, imagem_url: r.imagem_url || null, nutricao_100g: temNut(nut) ? nut : null, tem_nutricao: temNut(nut), tamanho_bate: tamBateDe(r.quantidade), rel: r.rel, fonte: 'off' }); }
+    for (const r of r1) { const nut = nutDe(r); juntar({ ean: String(r.ean), nome: r.nome, marca: r.marca, tamanho: r.quantidade || null, categoria: r.categoria || null, imagem_url: r.imagem_url || null, nutricao_100g: temNut(nut) ? nut : null, tem_nutricao: temNut(nut), tamanho_bate: tamBateDe(r.quantidade), rel: r.rel, fonte: 'off' }); }
   } catch { /* índice/erro */ }
   // 2) AS NOSSAS FONTES (catalogo_produto) — TODAS as lojas e PAÍSES; nutrição em JSON
   try {
     const [r2] = await pool.query(
-      `SELECT ean, COALESCE(nome_pt, nome) AS nome, marca, formato AS quantidade, imagem_url, nutricao,
+      `SELECT ean, COALESCE(nome_pt, nome) AS nome, marca, formato AS quantidade, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria, imagem_url, nutricao,
               MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) AS rel
          FROM catalogo_produto WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE)
         ORDER BY rel DESC LIMIT 30`, [bool, bool]);
-    for (const r of r2) { const nut = parseJsonCol(r.nutricao); const tn = temNut(nut); juntar({ ean: String(r.ean), nome: r.nome, marca: r.marca, tamanho: r.quantidade || null, imagem_url: r.imagem_url || null, nutricao_100g: tn ? nut : null, tem_nutricao: tn, tamanho_bate: tamBateDe(r.quantidade), rel: r.rel, fonte: 'catalogo' }); }
+    for (const r of r2) { const nut = parseJsonCol(r.nutricao); const tn = temNut(nut); juntar({ ean: String(r.ean), nome: r.nome, marca: r.marca, tamanho: r.quantidade || null, categoria: r.categoria || null, imagem_url: r.imagem_url || null, nutricao_100g: tn ? nut : null, tem_nutricao: tn, tamanho_bate: tamBateDe(r.quantidade), rel: r.rel, fonte: 'catalogo' }); }
   } catch { /* FULLTEXT ainda a construir (migração 064) */ }
   return [...map.values()].sort((a, b) => (b.tamanho_bate === true) - (a.tamanho_bate === true) || (b.tem_nutricao - a.tem_nutricao) || (b.rel || 0) - (a.rel || 0));
+}
+
+// Baixa uma imagem (URL) → base64 cru (sem prefixo data:), p/ vetorizar on-demand. null se falhar.
+async function baixarB64(url) {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    if (!r.ok) return null;
+    const buf = Buffer.from(await r.arrayBuffer());
+    return buf.length ? buf.toString('base64') : null;
+  } catch { return null; }
 }
 
 // GÉMEO sob OUTRO EAN por CONVERGÊNCIA de dois sinais independentes: a FOTO (CLIP) e o
 // NOME+marca do VLM. Um EAN que aparece nos DOIS é quase certo (a imagem e o texto não se
 // enganam ao mesmo tempo). Devolve o melhor candidato (ou null) — NUNCA é facto: o
 // chamador mostra e pede CONFIRMAÇÃO ao humano (a foto/o texto acham; o humano confirma).
-export async function acharGemeo(pool, { fotoB64, nome, marca, tamanho, termos, eanProprio } = {}) {
+export async function acharGemeo(pool, { fotoB64, nome, marca, tamanho, termos, tipoTexto, eanProprio } = {}) {
   const proprio = String(eanProprio || '');
   const txt = (nome || (termos && termos.length)) ? await acharPorNomeMarca(pool, { nome, marca, tamanho, termos }) : [];
+
+  // foto do utilizador vetorizada UMA vez (reusada: Qdrant + cossenos diretos on-demand).
+  let vecUser = null;
+  if (fotoB64) { try { vecUser = await vetorizarImagemB64(fotoB64); } catch { vecUser = null; } }
+  // imagem: busca nos NOSSOS ~57k vetorizados (Qdrant).
   let img = [];
-  if (fotoB64) { try { img = await matchImagemB64(fotoB64, { k: 8, limiar: 0.72 }); } catch { img = []; } }
+  if (vecUser) { try { img = await matchPorVetor(vecUser, { k: 8, limiar: 0.72 }); } catch { img = []; } }
+  const jaImg = new Set(img.map((c) => String(c.ean)));
+
+  // ENRIQUECIMENTO ON-DEMAND (o OFF não está vetorizado): candidatos de TEXTO com foto, FORA
+  // do Qdrant, que passam o gate de CATEGORIA (família do VLM × família do candidato) → baixa
+  // + vetoriza + cosseno direto. Lazy e barato: texto+categoria já reduziram a um punhado.
+  if (vecUser && txt.length) {
+    const famAlvo = familiaDe({ nome: nome || '', marca, tipoTexto: tipoTexto || '' }).familia;
+    const condiz = (c) => { const f = familiaDe({ nome: c.nome || '', marca: c.marca, categoria: c.categoria || '' }).familia; return !famAlvo || !f || f === famAlvo; }; // só EXCLUI se ambos têm família e diferem
+    const alvos = txt.filter((c) => c.imagem_url && !jaImg.has(String(c.ean)) && String(c.ean) !== proprio && condiz(c)).slice(0, 6);
+    if (alvos.length) {
+      try {
+        const usados = []; const b64s = [];
+        for (const c of alvos) { const b = await baixarB64(c.imagem_url); if (b) { b64s.push(b); usados.push(c); } }
+        const vecs = b64s.length ? await vetorizarVariasB64(b64s) : [];
+        for (let i = 0; i < usados.length; i++) {
+          const sc = vecs[i] ? cosseno(vecUser, vecs[i]) : 0;
+          if (sc >= 0.72) img.push({ ean: String(usados[i].ean), id: null, fonte: 'on-demand', score: Math.round(sc * 1000) / 1000 });
+        }
+      } catch { /* download/embed falhou → segue só com texto + Qdrant */ }
+    }
+  }
   if (!txt.length && !img.length) return null;
   const map = new Map(); // ean → { ean, detalhe, scoreImg, viaImg, viaTxt }
   for (const c of txt) { const e = String(c.ean); if (e === proprio) continue; map.set(e, { ean: e, detalhe: c, scoreImg: 0, viaImg: false, viaTxt: true }); }

@@ -18,6 +18,29 @@ export async function vetorizarImagemB64(b64) {
   return d.itens?.[0]?.vec || null;
 }
 
+// Vetoriza VÁRIAS imagens b64 num só pedido (batch). Devolve um vetor (ou null) por
+// imagem, na mesma ordem. Usado no enriquecimento on-demand: baixar as fotos dos
+// candidatos de TEXTO (OFF, não vetorizados) e compará-las por cosseno DIRETO.
+export async function vetorizarVariasB64(b64s) {
+  if (!b64s?.length) return [];
+  const r = await fetch(`${INFER}/embed`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ b64: b64s }), signal: AbortSignal.timeout(60000),
+  });
+  if (!r.ok) throw new Error(`infer ${r.status}`);
+  const d = await r.json();
+  return (d.itens || []).map((it) => it.vec || null);
+}
+
+// Cosseno entre dois vetores (mesma dim). Para comparar a foto do utilizador com a foto
+// de um candidato vetorizado on-demand (que NÃO está no Qdrant).
+export function cosseno(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  return (na && nb) ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+}
+
 // Busca os k produtos mais parecidos por vetor. Agrega por EAN (uma EAN pode ter
 // várias fotos = vários pontos; fica o melhor score = voto multi-foto natural).
 // `limiar` = cosseno mínimo p/ considerar match (calibrar com dados).

@@ -577,7 +577,7 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
     let gemeo = null;
     try {
       if (fotos.length && !nutricao) {
-        gemeo = await acharGemeo(getPool(), { fotoB64: fotos[0].base64, nome: vlm?.nome || nome, marca: vlm?.marca || pistaMarca, tamanho: vlm?.quantidade, termos: Array.isArray(vlm?.termos_busca) ? vlm.termos_busca : null, eanProprio: ean });
+        gemeo = await acharGemeo(getPool(), { fotoB64: fotos[0].base64, nome: vlm?.nome || nome, marca: vlm?.marca || pistaMarca, tamanho: vlm?.quantidade, termos: Array.isArray(vlm?.termos_busca) ? vlm.termos_busca : null, tipoTexto: [vlm?.tipo_no_pacote, vlm?.tipo_inferido?.tipo].filter(Boolean).join(' '), eanProprio: ean });
       }
     } catch (e) { console.error('[produto/identificar] gemeo:', e.message); }
 
