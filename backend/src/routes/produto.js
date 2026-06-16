@@ -268,9 +268,14 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
     const fn = lr ? parseJson(lr.nutricao) : null;
     if (fn && Object.values(fn).some((v) => v != null)) base = { ...(base || {}), nutricao_100g: fn };
   }
-  // Imagem do gémeo adotado (produto_ean não guarda imagem → resolve-se do off_full).
+  // Imagem do gémeo adotado (produto_ean não guarda imagem → resolve-se pelo ref). O gémeo
+  // pode ser do off_full OU do nosso catálogo (BR) → tenta os dois, senão a foto não aparece.
   if (!imagemCatalogo && refNome) {
-    try { const [[ir]] = await getPool().query('SELECT imagem_url FROM off_full WHERE ean = ? LIMIT 1', [refNome]); imagemCatalogo = ir?.imagem_url || imagemCatalogo; } catch { /* off_full pode faltar localmente */ }
+    try {
+      const [[ir]] = await getPool().query('SELECT imagem_url FROM off_full WHERE ean = ? LIMIT 1', [refNome]);
+      imagemCatalogo = ir?.imagem_url || imagemCatalogo;
+      if (!imagemCatalogo) { const [[ic]] = await getPool().query("SELECT imagem_url FROM catalogo_produto WHERE ean = ? AND imagem_url IS NOT NULL ORDER BY id LIMIT 1", [refNome]); imagemCatalogo = ic?.imagem_url || imagemCatalogo; }
+    } catch { /* off_full/catalogo pode faltar localmente */ }
   }
   // Voto da MARCA (fatia departamento do marca_perfil): só quando vai pesar (sem
   // catálogo-tipo) e há marca. Especialista de departamento vota forte (Hacendado→food).
@@ -597,16 +602,27 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
 // ficha de `ean` e regista a proveniência. Devolve {nutricao_100g, imagem_url} ou null se
 // o gémeo não existir. A imagem NÃO se copia (produto_ean não a guarda); fica o ref.
 export async function adotarNomeRef(pool, ean, eanRef) {
+  // O gémeo pode estar no off_full OU só no NOSSO catálogo (ex.: BR) — a busca varre os dois
+  // (migração 064), por isso a adoção também tem de ler os dois. Senão um gémeo de catálogo
+  // dá `null` aqui e a adoção falha em SILÊNCIO (o botão "Usar" não fazia nada).
+  let nut = null; let imagemRef = null;
   const [[ref]] = await pool.query(
     `SELECT energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra, imagem_url
        FROM off_full WHERE ean = ? LIMIT 1`, [eanRef]);
-  if (!ref) return null;
-  const nut = { energia_kcal: ref.energia_kcal, gordura: ref.gordura, gordura_saturada: ref.gordura_sat, hidratos: ref.hidratos, acucares: ref.acucares, proteina: ref.proteinas, sal: ref.sal, fibra: ref.fibra };
+  if (ref) {
+    nut = { energia_kcal: ref.energia_kcal, gordura: ref.gordura, gordura_saturada: ref.gordura_sat, hidratos: ref.hidratos, acucares: ref.acucares, proteina: ref.proteinas, sal: ref.sal, fibra: ref.fibra };
+    imagemRef = ref.imagem_url || null;
+  } else {
+    const [[cat]] = await pool.query(
+      "SELECT nutricao, imagem_url FROM catalogo_produto WHERE ean = ? AND nutricao IS NOT NULL AND JSON_LENGTH(nutricao) > 0 ORDER BY (fonte = 'continente') DESC, (fonte = 'auchan') DESC, id LIMIT 1", [eanRef]);
+    if (cat) { nut = parseJson(cat.nutricao); imagemRef = cat.imagem_url || null; }
+  }
+  if (!nut) return null;
   const temNut = Object.values(nut).some((v) => v != null);
   const [[pe]] = await pool.query('SELECT id, fusao FROM produto_ean WHERE ean = ? ORDER BY id LIMIT 1', [ean]);
   const fus = pe ? (parseJson(pe.fusao) || {}) : {};
   fus.nome_ref_ean = eanRef;
-  fus.proveniencia = { ...(fus.proveniencia || {}), nutricao: temNut ? 'por-nome' : (fus.proveniencia?.nutricao || null), imagem: ref.imagem_url ? 'por-nome' : (fus.proveniencia?.imagem || null) };
+  fus.proveniencia = { ...(fus.proveniencia || {}), nutricao: temNut ? 'por-nome' : (fus.proveniencia?.nutricao || null), imagem: imagemRef ? 'por-nome' : (fus.proveniencia?.imagem || null) };
   if (pe) {
     await pool.query(
       'UPDATE produto_ean SET nutricao = COALESCE(?, nutricao), nutricao_confirmada = ?, fusao = ? WHERE ean = ?',
@@ -616,7 +632,7 @@ export async function adotarNomeRef(pool, ean, eanRef) {
       'INSERT INTO produto_ean (ean, nutricao, nutricao_confirmada, fonte, fusao) VALUES (?,?,?,?,?)',
       [ean, temNut ? JSON.stringify(nut) : null, temNut ? 1 : 0, 'por-nome', JSON.stringify(fus)]);
   }
-  return { nutricao_100g: temNut ? nut : null, imagem_url: ref.imagem_url || null };
+  return { nutricao_100g: temNut ? nut : null, imagem_url: imagemRef };
 }
 
 produtoRouter.post('/adotar-nome', requireAuth, async (req, res) => {
