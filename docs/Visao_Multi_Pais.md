@@ -49,6 +49,30 @@ Escolher fontes de **gama completa com marcas nacionais/internacionais** (Auchan
 3. **Parar de cravar PT mais fundo**: quando se mexer num prompt, no resolvedor de nome ou na leitura de talão, deixá-los a receber um `locale`/`país` (mesmo que o valor seja sempre `pt-PT` por agora).
 4. **País nº 2 óbvio = Espanha** (Euro, fronteira de marcas partilhada com PT, Alcampo/Mercadona já em parte). Quando se sair do laboratório, arranca-se a Camada 2 para esse locale.
 
+## 1.ª concretização: a Camada LOCALE existe (2026-06-16)
+
+A postura "locale-ready, não locale-completo" deixou de ser só intenção — há agora uma implementação real, mínima e aditiva. O país nº 2 acabou por ser o **Brasil** (PT-BR já é a língua-base do app), não a Espanha, mas a arquitetura é a mesma.
+
+**Camada 2 parametrizada (PREÇO+LOCALE):**
+- **Migração 062** `usuario` (`email` PK, `pais` CHAR(2) default `PT`, `locale` default `pt-BR`) — aditiva; o país resolve-se por email.
+- **`config.paises`** (`backend/src/config.js`, fonte única): `PT` → `{ moeda: EUR, símbolo: €, fontesPreco: [continente, auchan, pingodoce, lidl, mercadona, …] }`; `BR` → `{ moeda: BRL, símbolo: R$, fontesPreco: [savegnago, zaffari, supernosso, comper, atacadao, supermuffato, prezunic, zonasul, carone, giassi, mambo, condor, assai, dia-br] }`. `paisCfg(pais)` dá moeda/símbolo/fontes com fallback ao default.
+- **`resolveLocale(email)`** (`auth.js`, cacheado, nunca bloqueia a auth): lê/cria a linha em `usuario` → `req.user` ganha `pais`/`locale`/`moeda`/`simbolo`. `POST /api/me/pais` (PT/BR) persiste + invalida o cache.
+- **`/info`** (`consolidarProduto`, `routes/produto.js`): o preço de catálogo (referência) sai na moeda do país do utilizador, pescado só das `fontesPreco` desse país (PT→€/lojas PT; BR→R$/lojas VTEX). A IDENTIDADE (nutrição/imagem/marca por EAN) continua global.
+- **Frontend** (`v2/AppV2.jsx`): seletor de país (PT/BR) no menu do avatar; mudar persiste e **recarrega a app** na nova moeda/locale (`fmtPreco` formata € ou R$).
+
+Isto valida a regra de ouro na prática: a Camada 2 ficou num punhado de pontos parametrizáveis (uma tabela, um mapa de config, um resolvedor, um endpoint, um seletor) — **sem tocar na Camada 1**.
+
+## Entrada no Brasil — fontes de catálogo (2026-06-16)
+
+O Brasil entrou pelo **retalho em VTEX**, a plataforma dominante do retalho BR (`Metodologia_Descoberta_Fontes.md`): um **único adaptador** (`backend/scripts/harvest_vtex.mjs`) colhe qualquer loja VTEX pela API pública `/<host>/api/catalog_system/pub/products/search` → **EAN + nome + marca + categoria-path + preço R$ + imagem**. Mede-se a sobreposição por amostra (em `savegnago`: 446 EANs → ~44% novos, nem no catálogo nem no `off_full`) — alimenta **as duas camadas de uma vez**.
+
+- **VTEX** (~11 mercados regionais): savegnago, zaffari, supernosso, comper, atacadao, prezunic, zonasul, carone, giassi, supermuffato, mambo (+condor long-tail). EANs + preço + categoria BR.
+- **Pão de Açúcar (GPA)** via API Linx (`harvest_paodeacucar.mjs`, fonte `paodeacucar`) — sem EAN no payload (corpo para match por imagem), por isso não entra nas `fontesPreco`.
+- **Carrefour BR — BLOQUEADO** (Cloudflare/503 no endpoint VTEX; varia por loja). Pendente: captura em browser (IP residencial).
+- Nomes vêm em **PT-BR** (língua-base do app) → **não passam pela tradução LLM** (ao contrário das fontes ES/FR).
+
+**Ligação às duas camadas:** cada EAN BR colhido **enriquece a IDENTIDADE universal** (o pool partilhado por EAN — o savegnago melhora a ficha que o PT vê, e vice-versa), enquanto a sua linha de **PREÇO+LOCALE** (R$, loja BR) só conta para quem tem `pais=BR`. É a arquitetura de 2 camadas a funcionar com um país real, não só PT.
+
 ## Estado relacionado
 - Match cross-loja por imagem+metadados (PD→catálogo): ver `match-por-imagem-estado` (memória) e `catalogo_match`. É o motor que liga o mesmo produto entre lojas/países sem depender da escrita.
 - Vertical Espanha+Mercadona: `Vertical_Espanha_Mercadona.md` (ideia de produto anterior, agora subsumida nesta visão mais ampla).

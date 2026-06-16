@@ -3,7 +3,7 @@
 > Documento de **visão**. Captura a direção do projeto para além do histórico de preços:
 > usar a mesma máquina de classificação facetada para avaliar a **nutrição e saúde**
 > das compras de uma família ao longo do tempo. Sem segredos nem dados pessoais.
-> Última atualização: 2026-06-08.
+> Última atualização: 2026-06-16.
 >
 > **Ver também:** [`Taxonomia_Produto.md`](Taxonomia_Produto.md) (modelo facetado),
 > [`Normalizacao.md`](Normalizacao.md) (estado), [`Paper_Resolucao_Produtos_Talao.md`](Paper_Resolucao_Produtos_Talao.md) (método).
@@ -154,7 +154,7 @@ factual-não-clínico, porque **aplica as regras que a pessoa (e o seu nutricion
 definiram** — não diagnostica nem prescreve.
 
 **Como funciona:**
-1. **Perfil por membro** (`perfil_membro`, um "ativo" de cada vez). O perfil é **carregado de um ficheiro gerado por outro LLM** (a partir dos exames/objetivos/cardápio da pessoa) **ou colado em texto**. Dele extrai-se um **resumo estruturado**: objetivos, restrições, **alergias**, **intolerâncias**, condições, preferir, evitar, metas por nutriente.
+1. **Perfil por membro** (`perfil_membro`, um "ativo" de cada vez). O perfil é **editado em pílulas** (§7-ter), **importado de um ficheiro/texto gerado por outro LLM** (a partir dos exames/objetivos/cardápio da pessoa), ou ambos. Dele resulta um **resumo estruturado**: objetivos, restrições, **alergias**, **intolerâncias**, condições, preferir, evitar, metas por nutriente, suplementos, medicação, atividade física.
 2. **Avaliação personalizada do produto**, em duas partes:
    - **Alertas DETERMINÍSTICOS** (sem IA): alergia / intolerância / "evitar" detetados por correspondência de **grupos de sinónimos PT↔EN/OFF** (ex.: `en:milk` = leite, lactose, nata, queijo, *whey*…) contra os ingredientes/alergénios do produto. São a rede de segurança que **não pode falhar por criatividade do modelo**.
    - **Parecer/veredicto LLM** (`adequado` / `atenção` / `evitar`) — relaciona o produto com os objetivos e nutrientes do perfil de forma concreta ("alto em sódio, e você quer reduzir sódio"), em tom de conversa.
@@ -167,6 +167,40 @@ definiram** — não diagnostica nem prescreve.
 **Fases seguintes (backlog):** comparar o produto com os **habituais** da pessoa,
 sugerir **substituições** dentro da coorte que sirvam melhor o perfil, e **tendências**
 do carrinho à luz das metas do perfil (açúcar/sódio/% ultraprocessado por membro).
+
+## 7-ter. ✅ FEITO — o editor de perfil de saúde (2026-06-16)
+
+O perfil deixou de ser só um ficheiro/texto a importar: ganhou um **editor estruturado**
+(v2, componente `PerfilSaude`) onde as características da pessoa são **pílulas** organizadas
+em **9 grupos** — *Objetivos · Condições de saúde · Dieta & restrições · Preferir/incluir
+· Evitar · Metas de nutrientes · Suplementos · Medicação · Atividade física*. O ecrã tem
+**3 abas**: **Ativas** (o que conta para a avaliação), **Desativadas** (guardadas mas fora
+do prompt) e **Adicionar** (catálogo de sugestões genérico por grupo, clicar=ativar). Um
+campo de **Notas** (texto livre) acolhe o que não cabe numa pílula (plano de refeições,
+exames…). Há **Importar de texto** — colar leva ao LLM que extrai pílulas + demografia +
+notas — e **múltiplos membros** numa fila de avatares, com formulário "Novo"
+(nome/email/idade/sexo/peso/altura).
+
+**Modelo de dados — o `resumo` fica PURO.** As características **ativas** são exatamente os
+arrays do `resumo` que a avaliação já lê (objetivos/condicoes/restricoes/preferir/evitar/
+metas/suplementos/medicacao/atividade_fisica). As **inativas** e a **demografia** vivem à
+parte em `perfil_membro.saude_estado` (migração **066**, JSON) — para nunca poluírem o
+prompt. Editar uma pílula é só mover entre estes dois sítios.
+
+**Avaliação — bloco etiquetado, não JSON cru.** O perfil vai ao prompt formatado por
+`perfilParaTexto` (`ingest/perfil.js`, exportado e testado): uma **secção nomeada por
+grupo** (o LLM vê e usa TODOS), uma linha **`Pessoa`** com a demografia (sexo/idade/peso/
+altura; o **email fica de fora** por ser PII irrelevante à nutrição), e as **metas-do-editor
+unidas aos nutrientes-do-texto** numa só secção. Se houver **medicação**, o prompt manda
+considerar **interações fármaco-alimento** factuais e conhecidas (sem prescrever nem ajustar
+doses). Aplica-se igual a **avaliar** e a **comparar**.
+
+**Tela Perfil minimalista.** O separador *Perfil* mostra só o **avatar do membro ativo**;
+tocar abre o editor — todo o detalhe vive lá dentro, não na tela.
+
+**Bug corrigido (parecer "preso").** A avaliação personalizada **re-corre quando a nutrição
+aparece** (o VLM leu o verso, ou adotou-se a ficha de um gémeo): já não fica encalhada em
+"sem ficha nutricional".
 
 ## 8. Reusar standards — não reinventar
 

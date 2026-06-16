@@ -233,9 +233,18 @@ Padrão do 1417, sem quebrar os projetos vizinhos (pitacos.ai, 1417):
    - **Peso em falta cura-se por imagem** (ferramenta peso-pela-imagem, 051): catálogo→OFF→Google Images (SerpApi; o **CSE Google está bloqueado pela conta-revendedor IONOS**, 403 estrutural). SerpApi free=250/mês — chega ao uso lazy; alternativa futura: Brave (2k/mês) ou CSE com billing pessoal.
    - **Marca importa** (exprime gosto): vem da **ficha por EAN** (autoritativa) > deteção no nome. Problema anotado: OFF com marca errada (Buitoni≠Delverde) → proposta "guarda por prefixo GS1" no doc de exploração.
 
+8. **Decisões fechadas na sessão 2026-06-16:**
+   - **Árbitro multimodal para o conflito OFF↔VLM** (ideia do dono: "manda OFF + VLM + as FOTOS a outro VLM e deixa-o resolver"). Ao identificar por foto, quando o OFF e o VLM **discordam no nome/marca**, um VLM olha as fotos do pacote e decide qual é o nome e qual é a marca — melhor que uma regra fixa de prioridade, e resolve trocas/genéricos **em qualquer língua**. Caso-prova: chucrute ALDI alemão que o OFF tinha com nome e marca trocados e sem nutrição. Implementado em `arbitrarMarcaNome` (`ingest/produto.js`), chamado por `/identificar` só quando há conflito; o resultado entra na fusão (`fichaEan.js`, fonte `'arbitro'`) **abaixo do catálogo curado, acima de OFF/VLM**. Detalhe em [`Classificacao_Fusor.md`](Classificacao_Fusor.md) e no Schema.
+   - **Scan de produto desconhecido → PEDIR FOTOS, não abrir ficha inútil.** Quando a ficha sai **magra** (`ficha_magra`: sem nutrição **nem** imagem), em vez de mostrar uma ficha vazia o app convida a fotografar o produto; a dica de captura sugere a **TABELA NUTRICIONAL (verso)** — é o que rende a nutrição (e dispara o árbitro acima). O `/info` expõe a flag `ficha_magra`.
+   - **Perfil de saúde ESTRUTURADO** (§13): editor em **pílulas por 9 grupos** + texto livre + demografia. O perfil entra no prompt da avaliação como **bloco etiquetado** (`perfilParaTexto`, `ingest/perfil.js`), não JSON cru. Detalhe em [`Visao_Conselheiro_Saude_Alimentar.md`](Visao_Conselheiro_Saude_Alimentar.md).
+   - **Nome do utilizador na saudação:** primeiro nome legível das claims OIDC (`given_name` do Google; `GET /api/me` devolve `nome`).
+
 ### Eixo "saúde" — princípios já fechados (v0.75)
 - **Factual, não clínico.** A análise descreve (Nutri-Score, NOVA, semáforo, E-números) com base em *standards* de rotulagem; **não diagnostica nem prescreve**.
 - **Perfil = DADOS, nunca instruções.** O ficheiro do perfil é tratado como descrição da pessoa; os prompts barram *prompt injection*. Alergias verificadas de forma **determinística** (segurança não se delega a um LLM). Dados clínicos sensíveis **não versionados**.
+
+### Backlog de visão (não fechado)
+- **Contribuir as correções DE VOLTA ao Open Food Facts** (2026-06-16). O pipeline produz, com frequência, nome/marca/nutrição **melhores** que os do OFF (o árbitro multimodal, a fusão, o VLM do rótulo). Escrever esses ganhos numa base externa (OFF) fecharia o ciclo — mas é **decisão para outro momento**: precisa de conta/credenciais OFF, consentimento, e um **gate de confiança** antes de escrever. Anotado, não construído.
 
 ---
 

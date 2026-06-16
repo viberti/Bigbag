@@ -60,7 +60,7 @@ que ele é especialista**.
 
 | Sinal | Tier | Responde a… | Peso | Ressalva (medida) |
 |---|---|---|---|---|
-| **EAN — país** (prefixo GS1) | determinístico | locale | roteia | **só locale para PRIVATE LABELS**; multinacionais = país-sede (ver Nesquik/anchovas) |
+| **EAN — país** (prefixo GS1) | determinístico ✅ | locale | roteia | **só locale para PRIVATE LABELS**; multinacionais = país-sede (ver Nesquik/anchovas) |
 | **EAN — empresa** (prefixo de empresa) | determinístico | marca/retalhista | roteia | private label = generalista |
 | **EAN — vizinhos item-ref** | auxiliar/condicional | família | **= coerência medida da empresa** | só onde a numeração da empresa é coerente; **0 onde for ruído** |
 | **Marca (lida) — perfil IDF por nível** | determinístico | departamento→família | **= concentração medida** | Hacendado: 99% *food*, ~0 família |
@@ -178,6 +178,11 @@ escreve** na nossa árvore — a saída é um **voto** que passa pela ponte `cat
 **Ler primeiro, julgar depois**, campos distintos, e **nunca** deixar o palpite "melhorar"
 o nome (renomear "Pérolas"→"Massa Pérolas" contamina a identidade).
 
+> **Primo construído (2026-06-16): o mesmo VLM-que-olha-o-pacote, mas para a IDENTIDADE.**
+> O `arbitrarMarcaNome` (§10) aplica esta disciplina ao **conflito nome↔marca**: quando OFF e
+> VLM discordam, o VLM olha as fotos e decide qual é o nome e qual é a marca — sem regra fixa de
+> prioridade. É a prova de que "a FOTO julga, o texto é pista" generaliza além da categoria.
+
 ## 9. Governança (o custo real, não a construção)
 
 Golden de classificação (como `golden_grupos`) = **gate** do deploy; **juiz-com-canários**
@@ -227,14 +232,38 @@ leguminosas · farinhas/açúcar) — onde nutrição e alternativas mais pesam.
     em produtos reais (anchovas→Conservas de Peixe, café→Café/Chá, etc.).
 - ✅ **construído 2026-06-16 (PASSO 0 — a ANÁLISE DO EAN):**
   - **`normaliza/ean.js`** (puro, 4 testes): `paisDoEan` (tabela GS1 completa, prefixo→país),
-    `eanInterno` (código de loja 2xx), `analiseEan` (passo 0). Casos do doc verificados:
-    Nesquik→CH (sede, não locale), Pérolas→ES, anchovas→DE.
+    `eanInterno` (código de loja 2xx), `eanValido` (checksum), `analiseEan` (passo 0). Casos
+    do doc verificados: Nesquik→CH (sede, não locale), Pérolas→ES, anchovas→DE.
   - **`ean_empresa`** (migração 063 + `scripts/construir_ean_empresa.mjs`): prefixo-8→marca
     dominante + país + **coerência (share)**, minado de 166k EANs distintos (dedup por EAN).
     10,3k prefixos; 59% com share≥0.8. Asserta a marca só com coerência alta (Bauducco 0.84
     p/ Visconti); senão *~provável* (Sumol 0.14); sem dados → não inventa (Nesquik).
-  - **ligado ao `consolidarProduto`**: o `/info` devolve `analise_ean {pais, interno, empresa}`.
+  - **ligado ao `consolidarProduto`**: o `/info` devolve `analise_ean {pais, interno, empresa}`;
+    a marca da `ean_empresa` **entra no voto da marca** (`marcaVia='ean_empresa'`) quando
+    `share≥0.8`, senão fica *provável*. No scan a marca provável passa como **pista ao VLM**
+    (`pistaMarca`) — desempata a leitura e expõe conflito EAN↔pacote.
     ◻ falta: **vizinhos item-ref** (3.º sub-sinal, coerência da numeração p/ família).
+- ✅ **construído 2026-06-16 (CONFLITO de nome/marca, ROUTING e GATES — robustez da identidade):**
+  - **ÁRBITRO MULTIMODAL** (`arbitrarMarcaNome`, `ingest/produto.js`): quando OFF e VLM
+    **discordam** no nome/marca de um produto por FOTO, em vez de uma regra fixa de prioridade,
+    um VLM (modelo de extração, multimodal) **olha para as fotos do pacote** + os dois textos e
+    decide qual é o **nome** e qual é a **marca** — resolve trocas (OFF com nome↔marca invertidos)
+    e genéricos em **qualquer língua**. Só corre **no conflito** (barato à escala); retry 2×. Entra
+    na fusão (`fichaEan.js`, `extra.arbitro`) **abaixo do catálogo curado, acima de OFF/VLM**.
+    Provado e2e: EAN `4068706789656` (chucrute ALDI alemão) — OFF "Allseasons/Sauerkraut"
+    (**trocado**) + VLM "Sauerkraut/All Seasons" → árbitro **"Chucrute / All Seasons"** (alta).
+  - **GUARD `marcaEhTipo`** (`categoria.js`): rejeita uma "marca" que é na verdade um **TIPO/
+    genérico PT-ES** (Leite/Iogurte/Bolacha mal-metidos no campo marca da fonte) — não a mostra
+    nem a usa como gate; `grupoDeNome` cai num grupo específico p/ tipos e em "outros" p/ marcas
+    reais. **Single-token** (não quebra "Pingo Doce"). **Não** apanha genéricos **estrangeiros**
+    ('Sauerkraut' alemão) → blocklist por **rácio do corpus** (nome≫marca; medido: 'Sauerkraut'
+    1158 nomes vs 5 marcas) fica no backlog.
+  - **ROUTING `ficha_magra`**: o `/info` expõe `ficha_magra` (sem nutrição **nem** imagem). O
+    scan de consulta com ficha magra **pede FOTOS** (VLM) em vez de abrir uma ficha inútil — mesmo
+    havendo nome/marca (talvez só decodificado do EAN).
+  - **GATE de precisão da sugestão de gémeo** (`nomeCondizGemeo`, `resolverPorNome.js`): só
+    **propõe** o gémeo se o **nome** ou os `termos` do VLM condisserem (não só a marca, que pode
+    ser genérica → casaria o produto errado). Mono-marca tratada (Nutella→Nutella 400 g). Puro.
 - ◻ a construir: **persistir** a família por produto (coluna, p/ queries/coorte do Mestre), a
   ponte **LLM** (compostas, resíduo), o `marca_perfil`/perfil **por NÍVEL** (família), usar a
   família nas **secções da lista/despensa**, expandir a árvore a outros ramos (lacticínios,

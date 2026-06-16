@@ -89,9 +89,9 @@ export async function matchImagemB64(b64, opts) {
 }
 
 // Persiste vetores no Qdrant — o corpo cresce das buscas REAIS (amortiza o download lento
-// do OFF: baixa-se uma vez, da 2.ª já cá está). pontos: [{ean, vec, fonte}]. id do ponto = o
-// EAN numérico (não colide com os ids de catálogo, que são pequenos). Idempotente (mesmo id
-// sobrescreve). Fire-and-forget no chamador. SEM ?wait (não bloqueia pela indexação).
+// do OFF: baixa-se uma vez, da 2.ª já cá está). pontos: [{ean, vec, fonte}]. id do ponto =
+// `uuidDoEan(ean)` (UUIDv5) — NÃO Number(ean): EANs-lixo curtos do OFF colidiam com os ids
+// inteiros de catálogo. Idempotente (mesmo EAN → mesmo id). Fire-and-forget; SEM ?wait.
 export async function upsertVetores(pontos) {
   const points = (pontos || [])
     .filter((p) => p.vec && /^\d{8,14}$/.test(String(p.ean)))
