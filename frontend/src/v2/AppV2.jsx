@@ -747,7 +747,10 @@ function Ficha({ go, back, ean, sku_id, nome }) {
     // não teve SUCESSO e o ecrã está vazio OU em erro — assim, OFFLINE (o /info falha), a base
     // local aparece à mesma e não fica tapada pelo {erro}. Não sobrepõe uma resposta boa do servidor.
     if (ean) fichaLocal(ean).then((fl) => { if (fl && !servidorOk.current) setInfo((prev) => (!prev || prev.erro) ? infoDaBaseLocal(fl) : prev); }).catch(() => {});
-    infoProduto(q).then((r) => { servidorOk.current = true; setInfo(r); })
+    // Ao chegar o servidor, PRESERVA o NOME/MARCA já mostrados da base local — é o MESMO produto;
+    // o servidor enriquece nutrição/imagem/parecer, não troca a identidade. Sem isto o nome
+    // "piscava" (base local → servidor) e parecia que tinha aberto outro produto.
+    infoProduto(q).then((r) => { servidorOk.current = true; setInfo((prev) => (prev?._local && r && !r.erro) ? { ...r, nome: prev.nome || r.nome, marca: prev.marca || r.marca } : r); })
       .catch(() => { setInfo((prev) => (prev && prev._local) ? prev : { erro: true }); }); // erro NÃO marca servidorOk nem tapa a base local
     analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => setAnalise(null));
     alternativasProduto(q).then((r) => setAlt(r?.alternativas?.length ? r : null)).catch(() => setAlt(null));
@@ -1747,7 +1750,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
           <div className="scanmode">
             {[
               ['codigo', 'scan', 'Código', () => { setModo('codigo'); setFoto(null); }],
-              ['produto', 'photoprod', 'Produto', () => { setModo('foto'); setFoto(null); }],
+              ['produto', 'photoprod', 'Foto', () => { setModo('foto'); setFoto(null); }],
               ['voz', 'mic', 'Voz', () => go('voz')],
               ['texto', 'search', 'Texto', () => go('texto')],
             ].filter(([id]) => !(naRegua && id === 'codigo')) // consulta default: o scan vem da régua
