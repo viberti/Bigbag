@@ -122,7 +122,7 @@
 .v2 .conta-sair{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:8px;border:0;border-top:1px solid var(--line);padding:11px 8px 5px;background:transparent;cursor:pointer;font:700 14px var(--font);color:#c0392b}
 .v2 .cbtn-leaf{background:linear-gradient(180deg,#67b262,#46863f);color:#f7fff2}
 .v2 .cbtn-amber{background:linear-gradient(180deg,#eeb155,#cf8d24);color:#3a2606}
-.v2 .hpill{display:inline-flex;align-items:center;gap:5px;font:800 12px var(--font);padding:6px 11px;border-radius:var(--r-pill);white-space:nowrap}
+.v2 .hpill{display:inline-flex;align-items:flex-start;gap:5px;font:700 12px/1.4 var(--font);padding:7px 12px;border-radius:14px;white-space:normal;overflow-wrap:anywhere;max-width:100%}
 .v2 .hpill.good{color:var(--leaf-d);background:var(--leaf-soft)}
 .v2 .hpill.swap{color:var(--amber-d);background:var(--amber-soft)}
 
@@ -397,8 +397,8 @@
 .v2 .psw .grp-h .gt{font:800 14.5px var(--disp);color:var(--ink)}
 .v2 .psw .grp-h .gn{margin-left:auto;font:700 11.5px var(--font);color:var(--ink-3)}
 .v2 .psw .pills{display:flex;flex-wrap:wrap;gap:9px}
-.v2 .psw .pill{display:inline-flex;align-items:center;gap:9px;max-width:100%;padding:11px 15px 11px 13px;border-radius:var(--r-pill);border:2px solid var(--line);background:var(--card);cursor:pointer;transition:.14s;text-align:left}
-.v2 .psw .pill .tx{font:700 13.5px var(--font);color:var(--ink-2);line-height:1.2}
+.v2 .psw .pill{display:inline-flex;align-items:flex-start;gap:9px;max-width:100%;padding:11px 15px 11px 13px;border-radius:18px;border:2px solid var(--line);background:var(--card);cursor:pointer;transition:.14s;text-align:left}
+.v2 .psw .pill .tx{font:700 13.5px/1.35 var(--font);color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
 .v2 .psw .pill .tx small{display:block;font:600 11px var(--font);color:var(--ink-3);margin-top:1px}
 .v2 .psw .pill .mk{width:24px;height:24px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;border:2px solid var(--line);color:transparent;background:transparent;transition:.14s}
 .v2 .psw .pill:active{transform:scale(.97)}
