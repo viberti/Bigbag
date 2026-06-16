@@ -354,13 +354,19 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   const temNutFinal = temNutP(off) || temNutP(vlm) || temNutP(base) || temGenericoNut;
   const marcaBusca = base?.marca || vlm?.marca || off?.marca || null;
   const nomeBusca = nome || base?.nome || vlm?.nome || off?.nome || null;
-  if (ean && !refNome && !temNutFinal && !imagemCatalogo && nomeBusca && marcaBusca) {
+  // NÃO sugere gémeo a NÃO-ALIMENTO: não há nutrição a adotar e a marca casa qualquer coisa
+  // (caso real: "Filtros de Café" não-alimentar → cápsulas "Café Dosettes", mesma marca Barissimo).
+  if (ean && !refNome && !temNutFinal && !imagemCatalogo && nomeBusca && marcaBusca && tipo !== 'non_food') {
     try {
       const termosBusca = Array.isArray(vlm?.termos_busca) ? vlm.termos_busca : null;
       const cands = await acharPorNomeMarca(getPool(), { nome: nomeBusca, marca: marcaBusca, tamanho: base?.quantidade || vlm?.quantidade || off?.quantidade || null, termos: termosBusca });
-      // GATE de precisão: só propõe se o NOME (ou os termos do VLM) condisser — não só a marca
-      // (que pode ser genérica/mal-extraída, ex.: 'Sauerkraut'). Senão, a foto é o caminho.
-      const c = cands.find((x) => (x.tem_nutricao || x.imagem_url) && x.ean !== ean && nomeCondizGemeo({ nome: nomeBusca, marca: marcaBusca, termos: termosBusca, candNome: x.nome }));
+      // GATE de precisão, DOIS sinais: (1) a FAMÍLIA tem de bater — só rejeita quando ambas são
+      // conhecidas e DIFEREM (caso real: Páprica/especiarias ≠ "Maíz Dulce Milho Doce"/conservas,
+      // mesma marca Hacendado + a palavra genérica "doce"); (2) o NOME/termos do VLM condizem
+      // (nomeCondizGemeo), não só a marca. Sem ambos é um gémeo errado (mesma marca, outro produto).
+      const famOk = (x) => { const f = familiaPorNome(x.nome, x.marca); return !familiaSlug || !f || f === familiaSlug; };
+      const c = cands.find((x) => (x.tem_nutricao || x.imagem_url) && x.ean !== ean && famOk(x)
+        && nomeCondizGemeo({ nome: nomeBusca, marca: marcaBusca, termos: termosBusca, candNome: x.nome }));
       if (c) sugestaoNome = { ean_ref: c.ean, nome: c.nome, marca: c.marca, tamanho: c.tamanho, nutricao_100g: c.nutricao_100g, imagem_url: c.imagem_url, tamanho_bate: c.tamanho_bate };
     } catch { /* off_full/FULLTEXT pode faltar localmente */ }
   }
