@@ -37,7 +37,9 @@ import { parseJsonCol } from '../db.js';
 // essas só contribuem via nome_pt traduzido, senão caem na tradução LLM. Dono 2026-06-15.
 // Fontes cujo `nome` é PT/PT-BR FIÁVEL (não vai à tradução LLM). Inclui lojas BR
 // (VTEX) — nomes em PT-BR, idioma-base do app. (Multi-país: ver config.paises.)
-const FONTES_PT = ['continente', 'auchan', 'lidl', 'pingodoce', 'nutripedia', 'savegnago', 'zaffari', 'supernosso', 'comper'];
+const FONTES_PT = ['continente', 'auchan', 'lidl', 'pingodoce', 'nutripedia',
+  'savegnago', 'zaffari', 'supernosso', 'comper', 'atacadao', 'supermuffato', 'prezunic',
+  'zonasul', 'carone', 'giassi', 'mambo', 'condor', 'assai', 'dia-br'];
 
 // ── helpers puros (exportados p/ testes) ─────────────────────────────────────
 

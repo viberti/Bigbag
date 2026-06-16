@@ -66,7 +66,7 @@ export const config = {
   paisDefault: 'PT',
   paises: {
     PT: { moeda: 'EUR', simbolo: '€', fontesPreco: ['continente', 'auchan', 'pingodoce', 'lidl', 'mercadona', 'mercadona-off', 'lidl-fr', 'harvest', 'nutripedia'] },
-    BR: { moeda: 'BRL', simbolo: 'R$', fontesPreco: ['savegnago', 'zaffari', 'supernosso', 'comper'] },
+    BR: { moeda: 'BRL', simbolo: 'R$', fontesPreco: ['savegnago', 'zaffari', 'supernosso', 'comper', 'atacadao', 'supermuffato', 'prezunic', 'zonasul', 'carone', 'giassi', 'mambo', 'condor', 'assai', 'dia-br'] },
   },
 };
 
