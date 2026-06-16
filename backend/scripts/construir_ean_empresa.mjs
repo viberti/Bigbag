@@ -13,14 +13,27 @@ const [b] = await pool.query("SELECT ean, marca FROM produto_ean WHERE marca IS 
 const todos = [...a, ...b].filter((r) => eanValido(r.ean));
 console.log(`pares (ean,marca) válidos: ${todos.length}`);
 
-const porPrefixo = new Map(); // prefixo → Map(marcaNorm → {n, disp})
+// 1) DEDUP por EAN: o mesmo EAN aparece em N lojas (às vezes com rótulos diferentes) —
+//    cada EAN conta UMA vez, com a sua marca-maioria. Tira o ruído de contagem de lojas.
+const porEan = new Map(); // ean → Map(marcaNorm → {n, disp})
 for (const r of todos) {
-  const pre = String(r.ean).slice(0, L);
-  const norm = String(r.marca).trim().toLowerCase();
-  if (!norm) continue;
+  const norm = String(r.marca).trim().toLowerCase(); if (!norm) continue;
+  if (!porEan.has(r.ean)) porEan.set(r.ean, new Map());
+  const m = porEan.get(r.ean);
+  if (!m.has(norm)) m.set(norm, { n: 0, disp: r.marca });
+  m.get(norm).n++;
+}
+console.log(`EANs distintos: ${porEan.size}`);
+
+// 2) marca-maioria por EAN → agrupa EANs distintos por prefixo
+const porPrefixo = new Map(); // prefixo → Map(marcaNorm → {n, disp})
+for (const [ean, marcas] of porEan) {
+  const top = [...marcas.entries()].sort((x, y) => y[1].n - x[1].n)[0];
+  const norm = top[0]; const disp = top[1].disp;
+  const pre = String(ean).slice(0, L);
   if (!porPrefixo.has(pre)) porPrefixo.set(pre, new Map());
   const m = porPrefixo.get(pre);
-  if (!m.has(norm)) m.set(norm, { n: 0, disp: r.marca });
+  if (!m.has(norm)) m.set(norm, { n: 0, disp });
   m.get(norm).n++;
 }
 
