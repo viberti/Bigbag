@@ -11,6 +11,8 @@ test('perfilParaTexto: bloco etiquetado com todas as secções do editor', () =>
     evitar: ['Açúcar adicionado'],
     metas: ['+ Proteína', '− Sódio'],
     suplementos: ['Ómega-3', 'Vitamina D'],
+    medicacao: ['Mounjaro'],
+    atividade_fisica: ['Musculação 3x/semana'],
     alergias: ['Amendoim'],
     intolerancias: [],
     nutrientes: {},
@@ -21,6 +23,8 @@ test('perfilParaTexto: bloco etiquetado com todas as secções do editor', () =>
   assert.match(txt, /Preferir \/ incluir: Peixe gordo/);
   assert.match(txt, /Metas de nutrientes: \+ Proteína; − Sódio/); // as metas do editor NÃO se perdem
   assert.match(txt, /Suplementos: Ómega-3; Vitamina D/);
+  assert.match(txt, /Medicação: Mounjaro/);
+  assert.match(txt, /Atividade física: Musculação 3x\/semana/);
   assert.match(txt, /Alergias: Amendoim/);
   // secções vazias/nulas não geram linha (sem ruído "intolerancias: []", "notas: null")
   assert.doesNotMatch(txt, /Intolerâncias/);

@@ -316,6 +316,8 @@ const GRUPOS_SAUDE = [
   { key: 'evit', campo: 'evitar', t: 'Evitar', gi: 'close', c: 'var(--coral)', s: 'var(--coral-soft)', d: '#b4512f' },
   { key: 'nut', campo: 'metas', t: 'Metas de nutrientes', gi: 'spark', c: '#5b8fb0', s: '#dcebf2', d: '#3f6f90' },
   { key: 'sup', campo: 'suplementos', t: 'Suplementos', gi: 'plate', c: '#8a5fb0', s: '#ece3f5', d: '#6a449a' },
+  { key: 'med', campo: 'medicacao', t: 'Medicação', gi: 'bell', c: '#3f9a8f', s: '#d9efe9', d: '#2f7268' },
+  { key: 'ativ', campo: 'atividade_fisica', t: 'Atividade física', gi: 'spark', c: '#c2557a', s: '#f6e1ea', d: '#9c3f60' },
 ];
 // Catálogo de sugestões por grupo (genérico, reutilizável) — alimenta a aba "Adicionar".
 // Curado e neutro; o utilizador escolhe. Strings simples (= os arrays do resumo).
@@ -327,6 +329,8 @@ const CATALOGO_SAUDE = {
   evit: ['Açúcar adicionado', 'Ultraprocessados', 'Fritos', 'Enchidos', 'Refrigerantes', 'Pão branco / refinados', 'Gordura saturada em excesso', 'Carne vermelha em excesso', 'Adoçantes artificiais', 'Margarina'],
   nut: ['+ Proteína', '+ Fibra', '− Açúcares', '− Sódio', '− Gordura saturada', '+ Ómega-3', '+ Cálcio', '+ Vitamina D', '+ Magnésio', '+ Potássio', '+ Ferro'],
   sup: ['Ómega-3', 'Vitamina D', 'Vitamina B12', 'Magnésio', 'Cálcio', 'Ferro', 'Zinco', 'Multivitamínico', 'Probióticos', 'Psyllium / fibra', 'Whey / proteína', 'Creatina', 'Colagénio', 'Coenzima Q10'],
+  med: ['Metformina', 'Ozempic / Mounjaro', 'Estatina', 'Anti-hipertensor', 'Levotiroxina', 'Insulina', 'Anticoagulante', 'Antidepressivo', 'Contracetivo', 'Anti-inflamatório'],
+  ativ: ['Musculação', 'Corrida', 'Caminhada', 'Pilates', 'Yoga', 'Natação', 'Ciclismo', 'CrossFit', 'Treino 3-4x/semana', 'Sedentário'],
 };
 
 /* ── LISTA ───────────────────────────────────────────────────────────────── */
