@@ -332,8 +332,8 @@
 .v2 .ri-pills .pill.free{color:#1f6b1c;background:var(--leaf-soft)}
 .v2 .ri-pills .pill.desc{color:#9a3b16;background:#f7e0d3}
 /* animação "Analisando produto" (espera do VLM no cadastro por foto) */
-.v2 .analisando{display:flex;flex-direction:column;align-items:center;gap:11px;padding:16px 0}
-.v2 .an-card{position:relative;width:130px;height:130px;border-radius:16px;overflow:hidden;background:var(--cream-2);border:2px solid #fff;box-shadow:var(--sh-sm)}
+.v2 .analisando{display:flex;flex-direction:column;align-items:center;gap:14px;padding:22px 0}
+.v2 .an-card{position:relative;width:270px;height:270px;max-width:80vw;max-height:80vw;border-radius:20px;overflow:hidden;background:var(--cream-2);border:2px solid #fff;box-shadow:var(--sh-sm)}
 .v2 .an-img{width:100%;height:100%;object-fit:cover}
 .v2 .an-scan{position:absolute;left:0;right:0;top:6%;height:3px;background:linear-gradient(90deg,transparent,var(--leaf),transparent);box-shadow:0 0 12px 3px rgba(99,178,98,.55);animation:anscan 1.5s ease-in-out infinite}
 @keyframes anscan{0%{top:6%}50%{top:92%}100%{top:6%}}
