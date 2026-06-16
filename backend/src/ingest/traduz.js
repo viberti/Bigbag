@@ -5,6 +5,7 @@
 import { chatCompletion } from '../openrouter.js';
 import { config } from '../config.js';
 import { tituloProduto } from '../normaliza/titulo.js';
+import { norm } from '../normaliza/categoria.js';
 
 const PROMPT_TRADUZ = `Recebes campos da ficha de um produto de SUPERMERCADO — alimentar OU não-alimentar (limpeza, higiene, cosmética, casa, animais…) — (nome, ingredientes, alergenios), possivelmente noutra língua (espanhol, francês, INGLÊS, alemão…). Traduz para PORTUGUÊS DO BRASIL (PT-BR) TUDO o que NÃO estiver em português; o que já estiver em português fica EXATAMENTE igual (não reescrevas). Traduz SEMPRE as palavras descritivas estrangeiras, MESMO ao lado de um nome próprio ou marca (exemplos: "Eggs" → "Ovos"; "Sliced bread" → "Pão de forma fatiado"; "Sparkling water" → "Água com gás"; "Gorgonzola Doux/Piquant" → "Gorgonzola Suave/Picante"; "Multiusos Desinfectante Antibacterias" → "Multiuso Desinfetante Antibactérias"; "Raisin Sec Sultanine" → "Passa de Uva Sultana"). MARCAS e nomes próprios (incl. denominações como Gorgonzola, Hacendado) NÃO se traduzem, mas as palavras à volta SIM. Põe "mudou":true se traduziste QUALQUER palavra. Mantém números, percentagens, unidades e E-números tal como estão. Campo null fica null. Devolve SÓ JSON:
 {"nome": string|null, "ingredientes": string|null, "alergenios": string|null, "mudou": boolean}
@@ -24,25 +25,33 @@ export async function traduzirFichaPT(campos) {
   try { return JSON.parse(conteudo); } catch { return null; }
 }
 
-// 2.º VOTO da tradução (dono, 2026-06-17): o tradutor às VEZES alucina e troca o TIPO de
-// produto (caso real: "Mozzarella Queso" → "Ovo de Mozzarella"; queijo→ovo). Como sai
-// "PT-plausível", a guarda nunca o re-verifica e fica cravado. Este 2.º voto olha o ORIGINAL +
-// a tradução e corrige se o significado/tipo mudou — julga o SENTIDO (robusto à grafia
-// Muçarela/Mussarela). Só corre na 1.ª tradução (re-leituras reusam o nome gravado).
-const PROMPT_VERIFICA = `Verificas a TRADUÇÃO para PT-BR do NOME de um produto de supermercado. Recebes o NOME ORIGINAL (noutra língua) e uma TRADUÇÃO proposta. Confirma que a tradução preserva o MESMO produto — sobretudo o TIPO (queijo≠ovo, leite≠iogurte, atum≠frango…) e os termos descritivos. Se estiver correta, devolve-a IGUAL. Se trocou o tipo/significado ou inventou (ex.: "Queso"→"Ovo"), devolve a tradução CORRETA. MARCAS e denominações (Mozzarella, Gorgonzola, Hacendado) NÃO se traduzem. PT-BR. Devolve SÓ JSON: {"nome": string, "corrigido": boolean}`;
-
-export async function verificarTraducaoNome(original, traduzido) {
-  if (!original || !traduzido) return traduzido || null;
-  try {
-    const conteudo = await chatCompletion({
-      messages: [{ role: 'system', content: PROMPT_VERIFICA }, { role: 'user', content: JSON.stringify({ original, traducao: traduzido }) }],
-      model: config.openrouter.modelConsulta, responseFormat: { type: 'json_object' }, timeoutMs: 20000, contexto: 'traducao_verifica',
-    });
-    const j = JSON.parse(conteudo);
-    const nome = j?.nome ? String(j.nome).trim() : traduzido;
-    if (j?.corrigido && nome && nome !== traduzido) console.warn('[traduz] 2.º voto corrigiu:', JSON.stringify({ original, ruim: traduzido, bom: nome }));
-    return nome || traduzido;
-  } catch { return traduzido; } // verificação falhou → fica a 1.ª tradução (não pior que antes)
+// 2 VOTOS INDEPENDENTES da tradução (dono, 2026-06-17): o tradutor às VEZES alucina e troca o
+// TIPO de produto (caso real: "Mozzarella Queso" → "Ovo de Mozzarella"; queijo→ovo). Como sai
+// "PT-plausível", a guarda nunca o re-verifica e fica cravado. Um VERIFICADOR (ver a tradução +
+// dizer se está certa) NÃO serve — carimba a alucinação (anchoring). A solução é traduzir 2× de
+// forma INDEPENDENTE e comparar o SIGNIFICADO. Funções puras/testáveis abaixo.
+const STOP_TRAD = new Set(['de', 'do', 'da', 'dos', 'das', 'com', 'sem', 'em', 'para', 'por', 'e', 'o', 'a', 'os', 'as', 'no', 'na']);
+const contentToks = (s) => (norm(s) || '').split(' ').filter((t) => t.length >= 3 && !STOP_TRAD.has(t) && !/\d/.test(t));
+// Duas traduções do MESMO nome "concordam" se partilham ≥ metade dos tokens de CONTEÚDO do menor
+// (robusto à grafia da denominação — "Muçarela"/"Mussarela" partilham "queijo"+"fatias"; mas
+// "Queijo" e "Ovo" não partilham → apanha a troca de TIPO).
+export function traducoesConcordam(n1, n2) {
+  const a = new Set(contentToks(n1)), b = new Set(contentToks(n2));
+  if (!a.size || !b.size) return true; // sem conteúdo comparável → não bloquear
+  let shared = 0; for (const t of a) if (b.has(t)) shared++;
+  return shared / Math.min(a.size, b.size) >= 0.5;
+}
+// Nome de CONSENSO entre N candidatos: o que concorda com MAIS dos outros (a alucinação fica
+// isolada e perde). Empate → o 1.º.
+export function consensoTraducao(nomes) {
+  const vivos = nomes.filter(Boolean);
+  if (vivos.length <= 1) return vivos[0] || null;
+  let melhor = vivos[0], melhorScore = -1;
+  for (const n of vivos) {
+    const score = vivos.filter((m) => m !== n && traducoesConcordam(n, m)).length;
+    if (score > melhorScore) { melhorScore = score; melhor = n; }
+  }
+  return melhor;
 }
 
 // Guarda anti re-tradução: o LLM corria a CADA chamada, mesmo com a ficha já em
@@ -75,12 +84,21 @@ export async function garantirFichaPT(pool, ean) {
     _tentados.add(ean);
     const [[r]] = await pool.query('SELECT nome, ingredientes, alergenios FROM produto_ean WHERE ean = ?', [ean]);
     if (!r || (!r.nome && !r.ingredientes && !r.alergenios)) return r?.nome || null;
-    const t = await traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios });
+    // 2 VOTOS INDEPENDENTES (só na 1.ª tradução; re-leituras reusam o nome gravado → zero LLM).
+    // O 1.º traduz a ficha toda; o 2.º só o nome (mais barato). Paralelos → mesmo tempo de relógio.
+    const [t, t2] = await Promise.all([
+      traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios }),
+      traduzirFichaPT({ nome: r.nome }),
+    ]);
     if (!t?.mudou) return r.nome || null;
-    // 2.º VOTO só na 1.ª tradução: se o NOME mudou, um verificador confirma/corrige o tipo de
-    // produto (apanha alucinações tipo "Queso"→"Ovo" antes de ficarem cravadas).
     let nomeTrad = t.nome ?? r.nome;
-    if (t.nome && t.nome !== r.nome) nomeTrad = (await verificarTraducaoNome(r.nome, t.nome)) || t.nome;
+    // os dois votos divergem no SIGNIFICADO do nome → 3.º voto desempata por consenso (a
+    // alucinação fica isolada). Custo do 3.º só no raro desacordo.
+    if (t.nome && t2?.nome && !traducoesConcordam(t.nome, t2.nome)) {
+      const t3 = await traduzirFichaPT({ nome: r.nome });
+      const consenso = consensoTraducao([t.nome, t2.nome, t3?.nome]);
+      if (consenso) { console.warn('[traduz] votos divergiram → consenso:', JSON.stringify({ original: r.nome, votos: [t.nome, t2.nome, t3?.nome], consenso })); nomeTrad = consenso; }
+    }
     const nomePT = tituloProduto(nomeTrad);
     await pool.query('UPDATE produto_ean SET nome = ?, ingredientes = ?, alergenios = ? WHERE ean = ?', [
       nomePT, t.ingredientes ?? r.ingredientes, t.alergenios ?? r.alergenios, ean,
