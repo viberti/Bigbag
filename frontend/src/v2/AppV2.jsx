@@ -746,17 +746,18 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   // réguas, alternativas). Senão (filtros de café, detergente… ou alimento sem ficha
   // relevante: água/vinho/especiarias) → ficha simples (marca/categoria/tamanho).
   const temNut = Object.values(nut).some((v) => v != null && v !== '');
-  // PARECER personalizado: corre quando o info está pronto e RE-corre se a nutrição aparecer
-  // depois (VLM lê o verso / adoção de gémeo). Sem isto, o parecer ficava preso em "sem ficha
-  // nutricional" mesmo depois de a nutrição entrar (bug do dono: correu antes do VLM responder).
-  useEffect(() => {
-    if (!info || info.erro) return;
-    const meu = (avalSeq.current += 1); // só a resposta MAIS RECENTE conta (mata a corrida)
+  // PARECER personalizado (chamada LLM ~2s, cacheada por perfil+produto). Dispara JÁ no mount, em
+  // PARALELO com o /info (a avaliação lê a nutrição no SERVIDOR, não depende do `info` do frontend)
+  // → o parecer carrega ao mesmo tempo que a ficha, não ~2s depois. Guarda de sequência (só a
+  // resposta mais recente conta) mata a corrida ao navegar entre EANs. Re-disparado à mão na adoção.
+  const dispararParecer = useCallback(() => {
+    const meu = (avalSeq.current += 1);
     setAvalLoading(true);
     avaliacaoPersonalizada({ itemId: undefined, ean, skuId: sku_id })
       .then((r) => { if (meu === avalSeq.current) { setAval(r?.perfil ? r : null); setAvalLoading(false); } })
       .catch(() => { if (meu === avalSeq.current) { setAval(null); setAvalLoading(false); } });
-  }, [ean, sku_id, temNut, info?.erro]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ean, sku_id]);
+  useEffect(() => { dispararParecer(); }, [dispararParecer]); // dispara no mount, em PARALELO com o /info
   const ehAlimento = temNut || !!grau;
   const marcaViaEan = info?.marca_via === 'ean_empresa'; // marca veio do prefixo do EAN (voto), não de uma fonte
   const marcaP = info?.marca || info?.off?.marca || info?.vlm?.marca || info?.base?.marca || null;
@@ -775,8 +776,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
       const q = { itemId: undefined, ean, skuId: sku_id };
       const fresh = await infoProduto(q); setInfo(fresh);
       analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => {});
-      // o parecer re-corre sozinho pelo efeito (a nutrição adotada muda `temNut`) — com guarda
-      // de corrida; não o chamamos aqui à parte (evita resposta fora de ordem a sobrepor-se).
+      dispararParecer(); // a nutrição ADOTADA mudou → re-avalia (guarda de sequência mantém a ordem)
       alternativasProduto(q).then((r) => setAlt(r?.alternativas?.length ? r : null)).catch(() => {});
     } catch { setAdotando(false); } // falhou → mantém a sugestão p/ tentar outra vez
   };
@@ -816,7 +816,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
 
         {ehAlimento ? (<>
           {avalLoading ? (
-            <div className="parecer"><div className="ph">A avaliar<i className="an-dots" /></div></div>
+            <div className="parecer"><div className="ph">Avaliando<i className="an-dots" /></div></div>
           ) : (aval?.avaliacao || analise?.parecer) ? (
             <div className={`parecer ${attn ? 'attn' : ''}`}>
               <div className="ph">{aval?.perfil ? `Para ${aval.perfil}` : 'Parecer'}{aval?.avaliacao?.selo && <span className={`selo ${attn ? 'attn' : ''}`}>{aval.avaliacao.selo}</span>}</div>
