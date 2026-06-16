@@ -428,12 +428,23 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
     const fotos = ficheiros.map((f) => ({ base64: f.buffer.toString('base64'), mime: f.mimetype || 'image/jpeg' }));
     if (!fotos.length && !eanManual) return res.status(400).json({ erro: 'Envia pelo menos uma foto ou um EAN.' });
 
-    // VLM sobre as fotos
+    // ANÁLISE DO EAN como PISTA ao VLM: marca provável pelo prefixo (ean_empresa, coerência
+    // alta). Ajuda a desempatar a leitura e deixa-nos detetar conflito EAN↔pacote.
+    let pistaMarca = null;
+    if (eanManual && /^\d{13}$/.test(eanManual)) {
+      const [[emp]] = await getPool().query('SELECT marca, share FROM ean_empresa WHERE prefixo = ?', [eanManual.slice(0, 8)]);
+      if (emp && Number(emp.share) >= 0.8) pistaMarca = emp.marca;
+    }
+    // VLM sobre as fotos (com a pista do EAN, se houver)
     let vlm = null, custo = 0;
     if (fotos.length) {
-      try { const r = await extrairProdutoFotos(fotos); vlm = r.dados; custo = r.custo; }
+      try { const r = await extrairProdutoFotos(fotos, { contexto: { marcaProvavel: pistaMarca } }); vlm = r.dados; custo = r.custo; }
       catch (e) { vlm = { erro: e.message }; }
     }
+    // CONFLITO EAN↔pacote: o VLM leu uma marca que NÃO bate com a provável pelo código
+    // (nem uma contém a outra) → sinaliza p/ revisão (pode ser EAN mal lido ou prefixo reusado).
+    const nm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const marcaConflito = !!(pistaMarca && vlm?.marca && nm(vlm.marca) && nm(pistaMarca) && !nm(vlm.marca).includes(nm(pistaMarca)) && !nm(pistaMarca).includes(nm(vlm.marca)));
     // EAN para o OFF: o manual, senão o que o VLM leu na foto. SÓ se passar o
     // dígito verificador (apanha leituras erradas → evita produtos-fantasma).
     const eanCandidato = eanManual || (vlm?.ean ? String(vlm.ean).replace(/\D/g, '') : null);
@@ -560,7 +571,7 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       }
     } catch (e) { console.error('[produto/identificar] generico:', e.message); }
 
-    res.json({ ean, vlm, off, generico, fonte: fonte || (generico?.nutricao_100g ? 'generico' : null), custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas, ean_rejeitado: eanRejeitado });
+    res.json({ ean, vlm, off, generico, fonte: fonte || (generico?.nutricao_100g ? 'generico' : null), custo, n_fotos: fotos.length, fotos_guardadas: nGuardadas, ean_rejeitado: eanRejeitado, marca_provavel_ean: pistaMarca, marca_conflito: marcaConflito });
   } catch (e) {
     console.error('[produto/identificar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a identificar o produto' });

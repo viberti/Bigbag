@@ -52,9 +52,14 @@ REGRAS DO TIPO (importante — ajuda a classificar o produto, sobretudo quando o
 Não inventes — null no que não conseguires ler com confiança. Só o JSON.`;
 
 // VLM sobre N fotos do mesmo produto. fotos: [{ base64, mime }].
-export async function extrairProdutoFotos(fotos, { timeoutMs } = {}) {
+// `contexto.marcaProvavel`: marca derivada do PREFIXO do EAN (ean_empresa, coerência alta).
+// Entra como PISTA para confirmar/desempatar — NUNCA para assumir (o rótulo manda).
+export async function extrairProdutoFotos(fotos, { timeoutMs, contexto } = {}) {
+  const pista = contexto?.marcaProvavel
+    ? `\n\nPISTA (vem do CÓDIGO DE BARRAS escaneado, NÃO do rótulo — usa só para CONFIRMAR/desempatar): a marca provável deste código é "${contexto.marcaProvavel}". Se bater com o que vês, confirma; se o pacote mostrar OUTRA marca, escreve a do PACOTE (o rótulo manda).`
+    : '';
   const content = [
-    { type: 'text', text: PROMPT },
+    { type: 'text', text: PROMPT + pista },
     ...fotos.map((f) => ({ type: 'image_url', image_url: { url: `data:${f.mime};base64,${f.base64}` } })),
   ];
   const ctrl = new AbortController();
