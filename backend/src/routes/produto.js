@@ -3,7 +3,7 @@
 // AMBOS — em ambiente de teste, para ver o que se obtém de cada fonte.
 import { Router } from 'express';
 import multer from 'multer';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { requireAuth } from '../auth.js';
@@ -22,7 +22,7 @@ import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT, pareceEstrangeiro } from '../ingest/traduz.js';
 import { analiseEan } from '../normaliza/ean.js';
 import { resolverItensLista } from './lista.js';
-import { matchImagemB64 } from '../normaliza/matchImagem.js';
+import { matchImagemB64, vetorizarImagemB64, cosseno } from '../normaliza/matchImagem.js';
 import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
 import { nutricaoContinenteLive } from '../ingest/nutricaoContinente.js';
@@ -169,6 +169,35 @@ const fillGaps = (acc, src) => {
   }
   return acc;
 };
+
+// Baixa uma imagem (URL) → base64. null se falhar (timeout curto: o OFF é lento).
+async function imgUrlB64(url) {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) return null;
+    const b = Buffer.from(await r.arrayBuffer());
+    return b.length ? b.toString('base64') : null;
+  } catch { return null; }
+}
+// CONFIRMA POR IMAGEM (CLIP) que o gémeo sugerido é MESMO o produto: compara a FOTO do
+// utilizador (produto_foto deste EAN/item) com a imagem do candidato. Devolve o score 0..1
+// (ou null se não houver foto de referência / falhar). No scan-de-código NÃO há foto → null
+// → a foto do candidato fica ESCONDIDA (não se mostra um palpite que pode nem ser parecido,
+// como o dono apanhou: Páprica ⇏ Milho). Só corre quando há mesmo foto (custo só nesse caso).
+async function confirmarGemeoPorImagem(pool, { ean, itemId, imagemUrl }) {
+  if (!imagemUrl || (!ean && !itemId)) return null;
+  const [[f]] = await pool.query(
+    `SELECT ficheiro FROM produto_foto WHERE ${ean ? 'ean = ?' : 'item_id = ?'} AND ficheiro IS NOT NULL ORDER BY ordem, id LIMIT 1`,
+    [ean || itemId]);
+  if (!f?.ficheiro) return null;
+  try {
+    const refB64 = (await readFile(f.ficheiro)).toString('base64');
+    const [vRef, candB64] = await Promise.all([vetorizarImagemB64(refB64), imgUrlB64(imagemUrl)]);
+    if (!vRef || !candB64) return null;
+    const vCand = await vetorizarImagemB64(candB64);
+    return vCand ? cosseno(vRef, vCand) : null;
+  } catch { return null; }
+}
 
 // Consolida TUDO o que sabemos de um produto (por item da nota OU por EAN):
 // funde as várias linhas de produto_ean (vlm/off) e lista as fotos guardadas.
@@ -367,7 +396,12 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
       const famOk = (x) => { const f = familiaPorNome(x.nome, x.marca); return !familiaSlug || !f || f === familiaSlug; };
       const c = cands.find((x) => (x.tem_nutricao || x.imagem_url) && x.ean !== ean && famOk(x)
         && nomeCondizGemeo({ nome: nomeBusca, marca: marcaBusca, termos: termosBusca, candNome: x.nome }));
-      if (c) sugestaoNome = { ean_ref: c.ean, nome: c.nome, marca: c.marca, tamanho: c.tamanho, nutricao_100g: c.nutricao_100g, imagem_url: c.imagem_url, tamanho_bate: c.tamanho_bate };
+      if (c) {
+        // CONFIRMAÇÃO POR IMAGEM: a foto do candidato só se mostra se a CLIP a casar com a foto
+        // do utilizador (quando há). Sem foto de referência → não confirmada → foto escondida.
+        const score = await confirmarGemeoPorImagem(getPool(), { ean, itemId, imagemUrl: c.imagem_url });
+        sugestaoNome = { ean_ref: c.ean, nome: c.nome, marca: c.marca, tamanho: c.tamanho, nutricao_100g: c.nutricao_100g, imagem_url: c.imagem_url, tamanho_bate: c.tamanho_bate, confirmada_imagem: score != null && score >= 0.72, score_imagem: score != null ? Math.round(score * 1000) / 1000 : null };
+      }
     } catch { /* off_full/FULLTEXT pode faltar localmente */ }
   }
   // PREÇO-referência de catálogo no PAÍS do utilizador (camada preço+locale): o mais

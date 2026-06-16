@@ -841,13 +841,15 @@ function Ficha({ go, back, ean, sku_id, nome }) {
           <div className="sug-nome">
             <div className="sug-h"><Ico name="search" size={15} color="#b06a00" /> Este código não tem ficha — achámos o mesmo produto</div>
             <div className="sug-b">
-              {sug.imagem_url && <img src={sug.imagem_url} alt="" />}
+              {/* a foto do candidato SÓ se mostra quando a imagem foi confirmada (CLIP) — senão
+                  era um palpite que podia nem ser parecido (Páprica ⇏ Milho). */}
+              {sug.confirmada_imagem && sug.imagem_url && <img src={sug.imagem_url} alt="" />}
               <div className="sug-t">
                 <div className="sug-n">{nomeTalao(sug.nome)}{sug.marca ? ` · ${limparMarca(sug.marca)}` : ''}</div>
-                <div className="sug-d">{[sug.tamanho, sug.nutricao_100g ? 'com tabela nutricional' : null, sug.imagem_url ? 'com foto' : null].filter(Boolean).join(' · ')}</div>
+                <div className="sug-d">{[sug.tamanho, sug.nutricao_100g ? 'com tabela nutricional' : null, (sug.confirmada_imagem && sug.imagem_url) ? 'foto confirmada' : null].filter(Boolean).join(' · ')}</div>
               </div>
             </div>
-            <button className="sug-btn" disabled={adotando} onClick={adotar}>{adotando ? 'A aplicar…' : 'Usar a nutrição e a foto deste'}</button>
+            <button className="sug-btn" disabled={adotando} onClick={adotar}>{adotando ? 'A aplicar…' : (sug.confirmada_imagem ? 'Usar a nutrição e a foto deste' : 'Usar a nutrição deste')}</button>
             <div className="sug-x">É o mesmo produto (talvez noutro tamanho). A nutrição é por 100 g — não muda com a embalagem.</div>
           </div>
         )}
