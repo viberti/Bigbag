@@ -4,10 +4,8 @@
 // com CALMA (timeout largo, várias tentativas), vetoriza e faz upsert no Qdrant → da próxima
 // vez que o produto aparecer já lá está. Idempotente (ean PK), gentil (lote pequeno, baixa
 // frequência — o embed do infer é CPU partilhado). Tabela: migração 065.
-import { vetorizarVariasB64, upsertVetores } from '../normaliza/matchImagem.js';
+import { vetorizarVariasB64, upsertVetores, eansNoQdrant } from '../normaliza/matchImagem.js';
 
-const QDRANT = process.env.QDRANT_URL || 'http://localhost:6333';
-const COL = process.env.QDRANT_COLLECTION || 'produtos_img';
 const MAX_TENT = 5;
 
 // Enfileira candidatos. INSERT IGNORE → não toca em linhas já existentes/processadas.
@@ -18,21 +16,6 @@ export async function enfileirar(pool, itens) {
   const vals = linhas.map((c) => [String(c.ean), String(c.imagem_url), c.fonte || 'off']);
   await pool.query('INSERT IGNORE INTO fila_vetorizar (ean, imagem_url, fonte) VALUES ?', [vals]);
   return linhas.length;
-}
-
-// Quais destes EANs já têm ponto no Qdrant (id do ponto = Number(ean)). Devolve Set de strings.
-async function jaNoQdrant(eans) {
-  if (!eans.length) return new Set();
-  try {
-    const r = await fetch(`${QDRANT}/collections/${COL}/points`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ids: eans.map(Number), with_payload: false, with_vector: false }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) return new Set();
-    const d = await r.json();
-    return new Set((d.result || []).map((p) => String(p.id)));
-  } catch { return new Set(); }
 }
 
 // Baixa uma imagem com timeout LARGO (em fundo, sem pressa). null se falhar.
@@ -52,11 +35,11 @@ export async function processarFila(pool, { lote = 5 } = {}) {
     [MAX_TENT, lote],
   );
   if (!pend.length) return { processados: 0, falhados: 0, jaLa: 0 };
-  const naBase = await jaNoQdrant(pend.map((p) => p.ean));
+  const naBase = await eansNoQdrant(pend.map((p) => p.ean));
   let jaLa = 0, processados = 0, falhados = 0;
   const aBaixar = [];
   for (const p of pend) {
-    if (naBase.has(String(Number(p.ean)))) {
+    if (naBase.has(String(p.ean))) {
       await pool.query('UPDATE fila_vetorizar SET processado_em = NOW() WHERE ean = ?', [p.ean]);
       jaLa++;
     } else aBaixar.push(p);
