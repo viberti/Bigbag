@@ -199,6 +199,9 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     nutricao_100g: temNut(offLive?.nutricao_100g) ? offLive.nutricao_100g : (offD?.nutricao_100g ?? null),
   } : null;
   const vlm = extra.vlm || (atual?.vlm_json ? parse(atual.vlm_json) : null);
+  // ÁRBITRO multimodal (resolve conflito OFF↔VLM olhando as fotos) — vence OFF/VLM mas não o
+  // catálogo curado. Só vem preenchido quando houve conflito no /identificar.
+  const arbitro = extra.arbitro || null;
   const manual = new Set(Object.entries(parse(atual?.fusao)?.proveniencia || {}).filter(([, f]) => f === 'manual').map(([k]) => k));
 
   const prov = {}; const div = [];
@@ -216,10 +219,11 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     return vivos[0].valor;
   };
 
-  // MARCA: catálogo (moda) > OFF > VLM
+  // MARCA: catálogo (moda) > ÁRBITRO (foto) > OFF > VLM
   const marcaCat = moda(cat.map((c) => c.marca));
   const marca = escolhe('marca', [
     { valor: marcaCat, fonte: 'catalogo' },
+    { valor: arbitro?.marca, fonte: 'arbitro' },
     { valor: off?.marca, fonte: 'off' },
     { valor: vlm?.marca, fonte: 'vlm' },
   ]);
@@ -249,6 +253,9 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
   else if (candsNome.length) {
     nome = escolherNome(candsNome);
     prov.nome = candsNome.find((c) => norm(c.texto) === norm(nome))?.fonte || 'fusao';
+  } else if (arbitro?.nome) {
+    // sem nome PT de catálogo: o ÁRBITRO (que viu as fotos) resolve OFF↔VLM. Já vem em PT-BR.
+    nome = limparNomeProduto(arbitro.nome, marca); prov.nome = 'arbitro';
   } else {
     // nenhum nome PT: melhor estrangeiro (OFF > VLM > catálogo de loja estrangeira,
     // ex. Mercadona-ES/Lidl-FR) — a tradução LLM corre depois. Sem o fallback de

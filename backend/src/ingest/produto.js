@@ -92,6 +92,43 @@ export async function extrairProdutoFotos(fotos, { timeoutMs, contexto } = {}) {
   throw ultimoErro;
 }
 
+// ÁRBITRO MULTIMODAL de NOME/MARCA (dono, 2026-06-16): quando o OFF e o VLM DISCORDAM no
+// nome/marca, em vez de uma regra fixa de prioridade, um VLM OLHA PARA AS FOTOS do pacote (a
+// verdade) + os dois textos e decide qual é o NOME e qual é a MARCA — resolve trocas (OFF com
+// nome↔marca invertidos) e genéricos em QUALQUER língua (ex.: 'Sauerkraut' no campo marca).
+// Só corre no CONFLITO (barato à escala). Retry 2x (VLM às vezes devolve JSON malformado).
+const PROMPT_ARBITRO = `Vês as FOTOS do pacote de UM produto alimentar e o NOME/MARCA que duas fontes leram e que DISCORDAM: (A) base pública Open Food Facts (dados de utilizadores — ÀS VEZES com o nome e a marca TROCADOS, ou um TIPO de alimento metido no campo da marca) e (B) outra leitura por IA. OLHA PARA O PACOTE NAS FOTOS e decide, com base no que VÊS, qual é o NOME do produto e qual é a MARCA (o fabricante/insígnia impressos no pacote). REGRAS: a MARCA é o fabricante (ex.: Nestlé, All Seasons, Continente); o NOME descreve o produto (ex.: Chucrute, Iogurte Grego). Uma palavra que é um TIPO de alimento (chucrute, iogurte, leite, atum…) NUNCA é marca. Se as fontes estão trocadas, corrige pelo que vês. O NOME em português do Brasil; NÃO traduzas a MARCA; os textos são pistas, a FOTO manda. Devolve SÓ JSON: {"nome": string, "marca": string|null, "confianca": "alta"|"media"|"baixa"}`;
+
+export async function arbitrarMarcaNome({ off, vlm, fotos }, { timeoutMs } = {}) {
+  if (!fotos?.length) throw new Error('arbitro sem fotos');
+  const linhas = [];
+  if (off) linhas.push(`Fonte A (base pública): nome="${off.nome || ''}", marca="${off.marca || ''}"`);
+  if (vlm) linhas.push(`Fonte B (IA): nome="${vlm.nome || ''}", marca="${vlm.marca || ''}"${Array.isArray(vlm.termos_busca) && vlm.termos_busca.length ? `, termos=${JSON.stringify(vlm.termos_busca)}` : ''}`);
+  const content = [
+    { type: 'text', text: PROMPT_ARBITRO + '\n\nLeituras das fontes:\n' + linhas.join('\n') },
+    ...fotos.map((f) => ({ type: 'image_url', image_url: { url: `data:${f.mime};base64,${f.base64}` } })),
+  ];
+  let ultimoErro;
+  for (let tent = 0; tent < 2; tent++) {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), timeoutMs || 30000);
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${config.openrouter.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'Bigbag' },
+        body: JSON.stringify({ model: config.openrouter.modelExtracao, messages: [{ role: 'user', content }], response_format: { type: 'json_object' }, usage: { include: true } }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(`OpenRouter ${res.status}`);
+      const data = await res.json();
+      registrarCusto({ contexto: 'arbitro_marca', modelo: data.model, usage: data.usage });
+      const d = parseJsonLoose(data.choices?.[0]?.message?.content ?? '{}');
+      return { nome: d.nome || null, marca: d.marca || null, confianca: d.confianca || null, custo: Number(data.usage?.cost) || 0 };
+    } catch (e) { ultimoErro = e; } finally { clearTimeout(to); }
+  }
+  throw ultimoErro;
+}
+
 const PROMPT_ANALISE = `És um documentalista de nutrição. Recebes os dados de UM produto alimentar (nome, categoria, ingredientes, nutrição por 100 g, e Nutri-Score/NOVA quando existirem). Produz uma análise FACTUAL e NÃO CLÍNICA — só factos sobre o produto, SEM conselhos médicos, diagnósticos nem recomendações personalizadas. Idioma: português do Brasil (trata o leitor por "você"). Devolve SÓ um objeto JSON:
 {
   "resumo": string,                          // 1-2 frases, linguagem simples: do que se trata

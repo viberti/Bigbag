@@ -10,7 +10,7 @@ import { requireAuth } from '../auth.js';
 import { getPool, parseJsonCol } from '../db.js';
 import { config, paisCfg } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
-import { extrairProdutoFotos, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
+import { extrairProdutoFotos, arbitrarMarcaNome, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
 import { grupoDe, grupoDeNome, marcaEhTipo, tokenCasa, singularizar, norm as normN, normAlfa, tipoConsumidor } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
@@ -511,7 +511,15 @@ produtoRouter.post('/identificar', requireAuth, receberFotos, async (req, res) =
       // prioridades vive em normaliza/fichaEan.js; proveniência em .fusao.
       if (ean) {
         const [[atualPE]] = await getPool().query('SELECT * FROM produto_ean WHERE ean = ? ORDER BY id LIMIT 1', [ean]);
-        const rf = await fundirFichaEan(getPool(), ean, { atual: atualPE, extra: { off: off || undefined, vlm: vlm || undefined } });
+        // ÁRBITRO multimodal: OFF e VLM discordam no nome/marca → um VLM olha as FOTOS e decide
+        // (resolve trocas/genéricos como o 'Sauerkraut'). Só no conflito; alimenta a fusão.
+        let arbitro;
+        try {
+          const conflito = off && vlm && fotos.length
+            && ((off.marca && vlm.marca && nm(off.marca) !== nm(vlm.marca)) || (off.nome && vlm.nome && nm(off.nome) !== nm(vlm.nome)));
+          if (conflito) { const a = await arbitrarMarcaNome({ off, vlm, fotos }); if (a?.nome || a?.marca) { arbitro = { nome: a.nome, marca: a.marca }; custo += a.custo || 0; } }
+        } catch (e) { console.error('[produto/identificar] arbitro:', e.message); }
+        const rf = await fundirFichaEan(getPool(), ean, { atual: atualPE, extra: { off: off || undefined, vlm: vlm || undefined, arbitro } });
         const f = rf.ficha;
         await getPool().query(
           `INSERT INTO produto_ean (ean, sku_id, item_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, nutricao_confirmada, fonte, vlm_json, off_json, fusao)
