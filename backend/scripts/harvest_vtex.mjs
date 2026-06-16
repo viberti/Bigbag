@@ -1,0 +1,131 @@
+// ADAPTADOR VTEX — colhe o catálogo de QUALQUER loja na plataforma VTEX (dominante no
+// retalho BR: Carrefour, Pão de Açúcar, regionais). Um adaptador serve todas. Alimenta
+// AS DUAS camadas: IDENTIDADE (EAN+nome+marca+categoria+imagem) e PREÇO+LOCALE (preço R$).
+//
+// FOOTPRINT (como reconhecer/achar uma loja VTEX):
+//   - caminho da API:  /api/catalog_system/pub/products/search   (no Google: inurl:catalog_system/pub)
+//   - CDN de assets:   vtexassets.com / vteximg.com.br
+//   - URL de produto:  termina em /p
+//   - TESTE infalível: GET https://<host>/api/catalog_system/pub/products/search?_from=0&_to=0
+//     devolve um array JSON  ->  é VTEX. (modo --detect abaixo faz isto a uma lista.)
+//
+// API usada (pública, sem token):
+//   - árvore de categorias:  /api/catalog_system/pub/category/tree/50
+//   - busca paginada:        /api/catalog_system/pub/products/search?fq=C:<catId>&_from=N&_to=N+49
+//     (50 por pedido; offset topo ~2500 -> paginamos POR CATEGORIA-FOLHA para varrer tudo).
+//
+// Corre NO SERVIDOR (alcança a API + tem BD). Idempotente: DELETE fonte=<x> + INSERT.
+//
+// Uso:
+//   sudo -u dev node --env-file=.env scripts/harvest_vtex.mjs <host> [fonte]
+//   sudo -u dev node --env-file=.env scripts/harvest_vtex.mjs --detect host1,host2,host3
+import { getPool, closePool } from '../src/db.js';
+import { extrairFormato, precoPorBase } from '../src/normaliza/formato.js';
+import { tituloProduto } from '../src/normaliza/titulo.js';
+
+const UA = 'Mozilla/5.0 (compatible; BigBag-catalog-probe/1.0)';
+const DELAY = Number(process.env.DELAY || 150);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+const eanOk = (s) => {
+  s = String(s || ''); if (!/^\d{13}$/.test(s)) return false; if (s[0] === '2') return false;
+  const d = s.split('').map(Number); const c = d.pop(); let su = 0;
+  for (let i = d.length - 1, w = 3; i >= 0; i--, w = w === 3 ? 1 : 3) su += d[i] * w;
+  return (10 - (su % 10)) % 10 === c;
+};
+async function getJson(u, ms = 20000) {
+  for (let t = 0; ; t++) {
+    let r;
+    try { r = await fetch(u, { headers: { 'user-agent': UA, accept: 'application/json' }, signal: AbortSignal.timeout(ms) }); }
+    catch (e) { if (t >= 3) throw e; await sleep(1000 * (t + 1)); continue; }
+    if ((r.status === 429 || r.status === 503) && t < 5) { await sleep(1500 * (t + 1)); continue; }
+    if (r.status === 404) return null;
+    if (!r.ok && r.status !== 206) throw new Error('HTTP ' + r.status);
+    const txt = await r.text(); try { return JSON.parse(txt); } catch { return null; }
+  }
+}
+
+// --detect: testa uma lista de hosts contra o endpoint VTEX.
+async function detectar(hosts) {
+  for (const h of hosts) {
+    const host = h.replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim(); if (!host) continue;
+    let vtex = false, n = null;
+    try { const a = await getJson(`https://${host}/api/catalog_system/pub/products/search?_from=0&_to=0`, 12000); vtex = Array.isArray(a); }
+    catch { /* nao-VTEX ou bloqueado */ }
+    if (vtex) { try { const c = await getJson(`https://${host}/api/catalog_system/pub/category/tree/1`, 12000); n = Array.isArray(c) ? c.length : null; } catch {} }
+    console.log(`  ${vtex ? 'VTEX ' : '  -  '} ${host}${vtex && n != null ? `  (${n} categorias de topo)` : ''}`);
+    await sleep(300);
+  }
+}
+
+const flattenCats = (tree, out = []) => { for (const c of tree || []) { out.push(c.id); if (c.hasChildren && c.children) flattenCats(c.children, out); } return out; };
+const niveis = (path) => String(path || '').split('/').map((s) => s.trim()).filter(Boolean);
+
+async function harvest(host, fonte) {
+  const pool = getPool();
+  console.log(`[vtex:${fonte}] árvore de categorias…`);
+  const tree = await getJson(`https://${host}/api/catalog_system/pub/category/tree/50`);
+  const cats = [...new Set(flattenCats(tree))];
+  console.log(`[vtex:${fonte}] ${cats.length} categorias. A varrer (delay ${DELAY}ms)…`);
+
+  const prods = new Map(); // productId -> produto (dedup entre categorias)
+  let topo = 0;
+  for (const cat of cats) {
+    for (let from = 0; from <= 2450; from += 50) {
+      let arr; try { arr = await getJson(`https://${host}/api/catalog_system/pub/products/search?fq=C:${cat}&_from=${from}&_to=${from + 49}`); } catch { break; }
+      await sleep(DELAY);
+      if (!Array.isArray(arr) || !arr.length) break;
+      for (const p of arr) if (!prods.has(p.productId)) prods.set(p.productId, p);
+      if (from === 2450) topo++; // categoria que bateu no teto (possível truncagem)
+      if (arr.length < 50) break;
+    }
+  }
+  if (topo) console.log(`[vtex:${fonte}] AVISO: ${topo} categorias atingiram o teto de 2500 (possível truncagem — sub-paginar por marca/preço se preciso).`);
+
+  // montar linhas: 1 por (produto, item-com-EAN)
+  const vals = []; const vistos = new Set(); let comEan = 0, comImg = 0;
+  for (const p of prods.values()) {
+    const path = (p.categories || [])[0] || '';
+    const nv = niveis(path).map((s) => tituloProduto(s));
+    const marca = p.brand ? tituloProduto(String(p.brand).slice(0, 140)) : null;
+    const nome = tituloProduto(String(p.productName || '').slice(0, 255));
+    const url = (p.link || (p.linkText ? `https://${host}/${p.linkText}/p` : `https://${host}`)).slice(0, 600);
+    for (const it of (p.items || [])) {
+      const ean = it.ean; if (!eanOk(ean)) continue;
+      const sku = String(it.itemId || `${p.productId}`).slice(0, 24);
+      if (vistos.has(sku)) continue; vistos.add(sku); comEan++;
+      const img = (it.images && it.images[0] && it.images[0].imageUrl) ? String(it.images[0].imageUrl).slice(0, 600) : null;
+      if (img) comImg++;
+      const preco = num(((it.sellers || [])[0]?.commertialOffer || {}).Price);
+      const fmt = extrairFormato(nome);
+      const ppb = preco != null && fmt ? precoPorBase({ preco_liquido: preco, quantidade: 1 }, fmt) : null;
+      vals.push([fonte, sku, ean, nome, marca,
+        path ? path.replace(/^\/|\/$/g, '') : null, nv[nv.length - 1] || null, nv[0] || null, nv[1] || null, nv[2] || null, nv[3] || null,
+        fmt ? (`${fmt.formato_valor ?? ''}${fmt.unidade_base ?? ''}`.trim() || null) : null, fmt?.unidade_base || null, fmt?.formato_valor ?? null,
+        preco, 'BRL', ppb, url, img]);
+    }
+  }
+  console.log(`[vtex:${fonte}] produtos:${prods.size} | linhas c/ EAN:${comEan} (${comImg} c/ imagem). A gravar…`);
+  await pool.query('DELETE FROM catalogo_produto WHERE fonte = ?', [fonte]);
+  for (let i = 0; i < vals.length; i += 500) {
+    await pool.query(
+      `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, marca, categoria_path, categoria, cat_n1, cat_n2, cat_n3, cat_n4,
+         formato, unidade_base, formato_valor, preco, moeda, preco_por_base, url, imagem_url, scraped_at)
+       VALUES ` + vals.slice(i, i + 500).map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())').join(','),
+      vals.slice(i, i + 500).flat(),
+    );
+  }
+  const [[c]] = await pool.query('SELECT COUNT(*) n, COUNT(DISTINCT ean) eans FROM catalogo_produto WHERE fonte = ?', [fonte]);
+  console.log(`✅ [vtex:${fonte}] no catálogo: ${c.n} linhas | ${c.eans} EANs distintos.`);
+  await closePool();
+}
+
+async function main() {
+  const a = process.argv[2];
+  if (!a) { console.log('uso: harvest_vtex.mjs <host> [fonte]  |  --detect host1,host2,…'); process.exit(1); }
+  if (a === '--detect') { await detectar((process.argv[3] || '').split(',')); process.exit(0); }
+  const host = a.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const fonte = (process.argv[3] || host.replace(/^www\./, '').split('.')[0]).slice(0, 16);
+  await harvest(host, fonte);
+}
+main().catch((e) => { console.error('FATAL:', e); process.exit(1); });
