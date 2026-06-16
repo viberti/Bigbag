@@ -1450,7 +1450,17 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
   const [chk, setChk] = useState(false);       // a verificar se o EAN existe
   const [registo, setRegisto] = useState(null); // EAN desconhecido → cadastro: {ean, fotos:[], semcam?, erro?, naoLido?}
   const [regBusy, setRegBusy] = useState(false);
+  const [anIdx, setAnIdx] = useState(0);       // foto a mostrar no "Analisando" (cicla as várias)
   const [addOk, setAddOk] = useState(null);    // {nome, ean} — adicionado à lista (modo paraLista)
+  // URLs das fotos do cadastro (criadas 1×; revogadas ao mudar) — evita leak do createObjectURL inline
+  const fotoUrls = useMemo(() => (registo?.fotos || []).map((f) => URL.createObjectURL(f)), [registo?.fotos]);
+  useEffect(() => () => fotoUrls.forEach((u) => URL.revokeObjectURL(u)), [fotoUrls]);
+  // enquanto ANALISA (pode demorar), cicla pelas várias fotos tiradas — passa o tempo
+  useEffect(() => {
+    if (!regBusy || (registo?.fotos?.length || 0) < 2) { setAnIdx(0); return undefined; }
+    const id = setInterval(() => setAnIdx((i) => (i + 1) % registo.fotos.length), 1400);
+    return () => clearInterval(id);
+  }, [regBusy, registo?.fotos?.length]);
   const videoRef = useRef(null);
   const trackRef = useRef(null);
   const fotoVideoRef = useRef(null);
@@ -1592,11 +1602,11 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
           // VLM a processar a(s) foto(s): animação "analisando" em vez de tela sem nome
           <div className="analisando">
             <div className="an-card">
-              {registo.fotos[0] && <img src={URL.createObjectURL(registo.fotos[0])} alt="produto" className="an-img" />}
+              {fotoUrls[anIdx] && <img key={anIdx} src={fotoUrls[anIdx]} alt="produto" className="an-img" />}
               <span className="an-scan" />
             </div>
             <div className="an-txt">Analisando produto<i className="an-dots" /></div>
-            <div className="sc-hint" style={{ margin: 0 }}>a ler o rótulo — um instante…</div>
+            <div className="sc-hint" style={{ margin: 0 }}>{registo.fotos.length > 1 ? `a ler o rótulo — foto ${anIdx + 1}/${registo.fotos.length}…` : 'a ler o rótulo — um instante…'}</div>
           </div>
         ) : (
           <>
@@ -1606,7 +1616,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
             </div>
             {registo.fotos.length > 0 && (
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '0 0 10px' }}>
-                {registo.fotos.map((f, i) => <img key={i} src={URL.createObjectURL(f)} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 10, border: '2px solid #fff', flex: '0 0 auto' }} />)}
+                {registo.fotos.map((f, i) => <img key={i} src={fotoUrls[i]} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 10, border: '2px solid #fff', flex: '0 0 auto' }} />)}
               </div>
             )}
             <button className="cbtn cbtn-amber" style={{ width: '100%', marginBottom: 10 }} onClick={capturarRegisto} disabled={registo.semcam}>
