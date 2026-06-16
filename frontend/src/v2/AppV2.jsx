@@ -16,6 +16,7 @@ import {
   adotarPorNome, definirPais,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
+import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLocal.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
 import { ICON } from './icons.js';
 import { BIGBAG_MARK } from './brand.js';
@@ -223,6 +224,9 @@ function Shell({ nome, onSair, pais }) {
   const clearCmp = useCallback(() => setCmp([]), []);
   const [aviso, setAviso] = useState(''); // toast curto (ex.: limite do comparador)
   useEffect(() => { if (!aviso) return undefined; const t = setTimeout(() => setAviso(''), 3800); return () => clearTimeout(t); }, [aviso]);
+  // BASE LOCAL: pré-carrega as fichas (identificação+nutrição de ~63k EANs PT+Mercadona-ES)
+  // para o scan responder instantâneo/offline. Fire-and-forget, auto-limitada a 1x/hora.
+  useEffect(() => { sincronizarFichasBulk(); }, []);
   const go = useCallback((id, p = {}, opts = {}) => {
     if (TABS.has(id)) setCmp([]); // aba principal → a comparação recomeça limpa
     setView((cur) => {
@@ -698,6 +702,14 @@ function Pills({ prot, sat, acu }) {
   if (!pills.length) return null;
   return <div className="alt-pills">{pills.map(([t, c], i) => <span key={i} className={`ap ${c}`}>{t}</span>)}</div>;
 }
+// Molda uma ficha da BASE LOCAL (registo plano em IndexedDB) na forma do /info, para a Ficha
+// renderizar instantâneo/offline: nome/marca + nutrição (base), sem imagem/sugestão (vêm do servidor).
+function infoDaBaseLocal(fl) {
+  return {
+    _local: true, existe: true, nome: fl.nome || null, marca: fl.marca || null,
+    base: { nutricao_100g: fl.nutricao_100g || null, quantidade: fl.quantidade || null, marca: fl.marca || null, nome: fl.nome || null },
+  };
+}
 function Ficha({ go, back, ean, sku_id, nome }) {
   const [info, setInfo] = useState(null);
   const [analise, setAnalise] = useState(null);
@@ -708,14 +720,19 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const [avalLoading, setAvalLoading] = useState(true); // parecer personalizado a carregar
   const registado = useRef(false);
   const avalSeq = useRef(0); // guarda de corrida: descarta respostas de parecer fora de ordem
+  const servidorOk = useRef(false); // o /info já respondeu? (não deixar a base local sobrepor-se)
   useEffect(() => {
     registado.current = false; // novo produto → permite registar 1×
+    servidorOk.current = false;
     setAdotando(false);
     // limpa o estado do produto ANTERIOR (senão o parecer/análise antigos persistiam ao navegar
     // entre EANs) e invalida quaisquer pedidos de parecer ainda em voo (guarda de corrida).
-    setAval(null); setAnalise(null); setAlt(null); setAvalLoading(true); avalSeq.current += 1;
+    setInfo(null); setAval(null); setAnalise(null); setAlt(null); setAvalLoading(true); avalSeq.current += 1;
     const q = { itemId: undefined, ean, skuId: sku_id };
-    infoProduto(q).then(setInfo).catch(() => setInfo({ erro: true }));
+    // LOCAL-FIRST: mostra a ficha da BASE LOCAL já (instantâneo/offline) enquanto o /info resolve;
+    // não sobrepõe se o servidor já respondeu (corrida).
+    if (ean) fichaLocal(ean).then((fl) => { if (fl && !servidorOk.current) setInfo((prev) => prev || infoDaBaseLocal(fl)); }).catch(() => {});
+    infoProduto(q).then((r) => { servidorOk.current = true; setInfo(r); }).catch(() => { servidorOk.current = true; setInfo({ erro: true }); });
     analiseProduto(q).then((r) => setAnalise(r.analise || null)).catch(() => setAnalise(null));
     alternativasProduto(q).then((r) => setAlt(r?.alternativas?.length ? r : null)).catch(() => setAlt(null));
     // o parecer personalizado corre num efeito SEPARADO ligado à nutrição (ver abaixo): a
@@ -1490,6 +1507,15 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
     }
     setChk(true);
     try {
+      // BASE LOCAL primeiro: se conhecemos o EAN (catálogo PT/Mercadona/off PT pré-carregado),
+      // resolve INSTANTÂNEO/OFFLINE sem ir ao servidor. Telemetria mede hit (local) vs miss.
+      const fl = await fichaLocal(cod);
+      registarHitLocal(cod, !!fl, paraLista ? 'lista' : paraComparar ? 'comparar' : 'consulta');
+      if (fl?.nome) {
+        if (paraComparar) { addCmp({ ean: cod, nome: fl.nome }); back(); return; }
+        if (paraLista) { try { await adicionarListaItem({ nome: fl.nome, ean: cod }); } catch { /* segue à confirmação */ } setAddOk({ nome: fl.nome, ean: cod }); return; }
+        go('ficha', { ean: cod }); return; // consulta → ficha (enriquece via /info quando online)
+      }
       const info = await infoProduto({ ean: cod });
       let nm = info?.nome || info?.off?.nome || info?.vlm?.nome || info?.base?.nome;
       // NOME TRADUZIDO + PERSISTIDO via /consultar?pt=1 — para LISTA *e* CONSULTA: o

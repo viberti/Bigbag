@@ -1108,6 +1108,47 @@ produtoRouter.get('/base-local', requireAuth, async (req, res) => {
   }
 });
 
+// BASE LOCAL — FICHAS pré-construídas (base_local, migração 067): identificação+nutrição de
+// ~63k EANs (catálogo PT + Mercadona ES + PT do off_full) para o scan responder instantâneo/
+// offline. Incremental por cursor de `ean` (a PK ordena), em chunks. `versao` muda quando se
+// reconstrói a base → o telefone faz resync do zero.
+const BASE_LOCAL_VER = '1';
+produtoRouter.get('/base-local-fichas', requireAuth, async (req, res) => {
+  try {
+    const desde = String(req.query.desde_ean || '');
+    const limite = Math.min(Math.max(Number(req.query.limite) || 3000, 100), 5000);
+    const [fichas] = await getPool().query(
+      `SELECT ean, nome, marca, quantidade, categoria, product_type, alergenios,
+              nutriscore, nova, CAST(nutricao AS CHAR) AS nutricao, ingredientes, origem
+         FROM base_local
+        WHERE ean > ?
+        ORDER BY ean
+        LIMIT ?`,
+      [desde, limite],
+    );
+    const ultimo = fichas.length ? fichas[fichas.length - 1].ean : desde;
+    res.json({ versao: BASE_LOCAL_VER, fichas, cursor: ultimo, fim: fichas.length < limite });
+  } catch (e) {
+    console.error('[produto/base-local-fichas] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a sincronizar as fichas locais' });
+  }
+});
+
+// Telemetria da BASE LOCAL: o telefone diz se RESOLVEU um EAN localmente (hit) ou teve de ir
+// ao servidor (miss). Mede a taxa de acerto e, pelos EANs dos misses, o que falta na base
+// (p.ex. produtos LIDL/ALDI europeus, deixados de fora de propósito). Fire-and-forget.
+produtoRouter.post('/local-hit', requireAuth, async (req, res) => {
+  try {
+    const ean = String(req.body?.ean || '').replace(/\D/g, '').slice(0, 20) || null;
+    const hit = req.body?.hit ? 1 : 0;
+    const origem = String(req.body?.origem || '').slice(0, 20) || null;
+    await getPool().query('INSERT INTO base_local_evento (ean, hit, origem) VALUES (?,?,?)', [ean, hit, origem]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: false });
+  }
+});
+
 // "Despensa" = inventário do que a casa TEM, alimentado por SCAN (migração 049).
 // Já NÃO deriva das compras (decisão do dono, 2026-06-12: o que se comprou não diz
 // o que ainda está em casa). Partilhada; ordenada pelo scan mais recente.
