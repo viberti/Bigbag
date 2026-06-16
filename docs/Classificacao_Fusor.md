@@ -225,10 +225,20 @@ leguminosas · farinhas/açúcar) — onde nutrição e alternativas mais pesam.
   - **família no `consolidarProduto`**: computa+devolve `familia`/`familia_label`/`familia_via`
     (DRY p/ as alternativas) e a **ficha v2 mostra a família** como categoria limpa. Verificado
     em produtos reais (anchovas→Conservas de Peixe, café→Café/Chá, etc.).
+- ✅ **construído 2026-06-16 (PASSO 0 — a ANÁLISE DO EAN):**
+  - **`normaliza/ean.js`** (puro, 4 testes): `paisDoEan` (tabela GS1 completa, prefixo→país),
+    `eanInterno` (código de loja 2xx), `analiseEan` (passo 0). Casos do doc verificados:
+    Nesquik→CH (sede, não locale), Pérolas→ES, anchovas→DE.
+  - **`ean_empresa`** (migração 063 + `scripts/construir_ean_empresa.mjs`): prefixo-8→marca
+    dominante + país + **coerência (share)**, minado de 166k EANs distintos (dedup por EAN).
+    10,3k prefixos; 59% com share≥0.8. Asserta a marca só com coerência alta (Bauducco 0.84
+    p/ Visconti); senão *~provável* (Sumol 0.14); sem dados → não inventa (Nesquik).
+  - **ligado ao `consolidarProduto`**: o `/info` devolve `analise_ean {pais, interno, empresa}`.
+    ◻ falta: **vizinhos item-ref** (3.º sub-sinal, coerência da numeração p/ família).
 - ◻ a construir: **persistir** a família por produto (coluna, p/ queries/coorte do Mestre), a
-  ponte **LLM** (compostas, resíduo), o `marca_perfil`/perfil **por NÍVEL** (família), o
-  `ean_empresa` + coerência, usar a família nas **secções da lista/despensa**, expandir a árvore
-  a outros ramos (lacticínios, bebidas…), o golden de classificação.
+  ponte **LLM** (compostas, resíduo), o `marca_perfil`/perfil **por NÍVEL** (família), usar a
+  família nas **secções da lista/despensa**, expandir a árvore a outros ramos (lacticínios,
+  bebidas…), o golden de classificação, **usar a `analise_ean` como voto no fusor** (hoje só exposta).
 
 ---
 
