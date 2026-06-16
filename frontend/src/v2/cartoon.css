@@ -105,6 +105,21 @@
 
 /* toast curto (aviso de limite do comparador, etc.) */
 .v2 .toast{position:fixed;left:50%;bottom:104px;transform:translateX(-50%);background:var(--ink);color:#f4fff0;font:600 13px/1.45 var(--font);padding:11px 16px;border-radius:14px;max-width:300px;text-align:center;box-shadow:var(--sh);z-index:60}
+/* Menu do avatar (país + sair) */
+.v2 .conta-bg{position:fixed;inset:0;background:rgba(20,40,30,.34);z-index:80;display:flex;align-items:flex-start;justify-content:flex-end;padding:54px 14px 0}
+.v2 .conta{background:var(--card);border-radius:18px;box-shadow:var(--sh);width:248px;padding:12px;animation:contaIn .14s ease-out}
+@keyframes contaIn{from{opacity:0;transform:translateY(-8px) scale(.97)}to{opacity:1;transform:none}}
+.v2 .conta-h{display:flex;align-items:center;gap:9px;font:800 15px var(--disp);color:var(--ink);padding:4px 4px 8px}
+.v2 .conta-av{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--leaf-soft);color:var(--leaf-d);font:800 13px var(--disp)}
+.v2 .conta-cap{font:700 11px var(--font);color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;padding:6px 4px 4px}
+.v2 .conta-paises{display:flex;flex-direction:column;gap:4px}
+.v2 .conta-pais{display:flex;align-items:center;gap:9px;width:100%;border:0;background:transparent;padding:9px 8px;border-radius:11px;cursor:pointer;font:600 14px var(--font);color:var(--ink)}
+.v2 .conta-pais:hover{background:var(--leaf-soft)}
+.v2 .conta-pais.on{background:var(--leaf-soft)}
+.v2 .conta-pais .conta-fl{font-size:19px}
+.v2 .conta-pais .conta-pn{flex:1;text-align:left}
+.v2 .conta-pais .conta-mo{color:var(--ink-3);font-weight:700}
+.v2 .conta-sair{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:8px;border:0;border-top:1px solid var(--line);padding:11px 8px 5px;background:transparent;cursor:pointer;font:700 14px var(--font);color:#c0392b}
 .v2 .cbtn-leaf{background:linear-gradient(180deg,#67b262,#46863f);color:#f7fff2}
 .v2 .cbtn-amber{background:linear-gradient(180deg,#eeb155,#cf8d24);color:#3a2606}
 .v2 .hpill{display:inline-flex;align-items:center;gap:5px;font:800 12px var(--font);padding:6px 11px;border-radius:var(--r-pill);white-space:nowrap}

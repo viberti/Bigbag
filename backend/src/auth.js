@@ -29,6 +29,8 @@ export async function resolveLocale(chave) {
   localeCache.set(chave, out);
   return out;
 }
+// Invalida o cache de locale de um utilizador (ao mudar o país via /api/me/pais).
+export function invalidarLocale(chave) { if (chave) localeCache.delete(chave); }
 
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a)); const bb = Buffer.from(String(b));

@@ -13,7 +13,7 @@ import {
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome, consultarProdutoEan,
   listarPerfis, ativarPerfil, carregarPerfil, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
-  adotarPorNome,
+  adotarPorNome, definirPais,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
@@ -119,7 +119,7 @@ export default function AppV2() {
   if (sessao?.semAcesso) return <SemAcesso onSair={sair} />;
   if (!sessao) return <LoginV2 onEntrar={setSessao} />;
   const nome = (sessao.user?.id || '').replace(/^./, (c) => c.toUpperCase());
-  return <Shell nome={nome} onSair={sair} />;
+  return <Shell nome={nome} onSair={sair} pais={sessao.user?.pais || 'PT'} />;
 }
 
 // Autenticado no IdP mas o email não está na allowlist do BigBag (camada 2).
@@ -180,14 +180,42 @@ async function lerTalaoPartilhado() {
     return new File([blob], nome, { type: blob.type || 'image/jpeg' });
   } catch { return null; }
 }
+// Menu do avatar (topo do Início): seletor de país (PT/BR) + sair do app. Mudar o país
+// persiste (/api/me/pais) e RECARREGA a app — re-busca tudo na nova moeda/locale.
+const PAISES = [['PT', '🇵🇹', 'Portugal', '€'], ['BR', '🇧🇷', 'Brasil', 'R$']];
+function MenuConta({ user, pais, onFechar, onSair }) {
+  const [aMudar, setAMudar] = useState(null);
+  const mudar = async (p) => {
+    if (p === pais || aMudar) return; setAMudar(p);
+    try { await definirPais(p); window.location.reload(); } catch { setAMudar(null); }
+  };
+  return (
+    <div className="conta-bg" onClick={onFechar}>
+      <div className="conta" onClick={(e) => e.stopPropagation()}>
+        <div className="conta-h"><span className="conta-av">{inicial(user)}</span><b>{user}</b></div>
+        <div className="conta-cap">País</div>
+        <div className="conta-paises">
+          {PAISES.map(([p, fl, nm, mo]) => (
+            <button key={p} className={`conta-pais ${p === pais ? 'on' : ''}`} disabled={!!aMudar} onClick={() => mudar(p)}>
+              <span className="conta-fl">{fl}</span><span className="conta-pn">{nm}<span className="conta-mo"> · {mo}</span></span>
+              {aMudar === p ? <span className="conta-sp">…</span> : p === pais ? <Ico name="check" size={17} color="var(--leaf-d)" /> : null}
+            </button>
+          ))}
+        </div>
+        <button className="conta-sair" onClick={onSair}><Ico name="logout" size={17} /> Sair do app</button>
+      </div>
+    </div>
+  );
+}
 const TABS = new Set(['home', 'lista', 'historico', 'perfil']);
-function Shell({ nome, onSair }) {
+function Shell({ nome, onSair, pais }) {
   const [view, setView] = useState({ id: 'home', p: {} });
   const stack = useRef([]);
   // CESTO DE COMPARAÇÃO (vive no Shell → persiste no vai-e-volta do scan). Limpa-se ao
   // entrar numa ABA principal → a tela Comparar "começa limpa" a cada entrada deliberada,
   // e enche-se com SCANS (≠ Histórico, que mostra o já-consultado).
   const [cmp, setCmp] = useState([]); // [{ ean, nome }]
+  const [conta, setConta] = useState(false); // menu do avatar (país + sair)
   const addCmp = useCallback((it) => setCmp((c) => (it?.ean && !c.some((x) => String(x.ean) === String(it.ean)) && c.length < 4) ? [...c, { ean: String(it.ean), nome: it.nome || null }] : c), []);
   const removeCmp = useCallback((ean) => setCmp((c) => c.filter((x) => String(x.ean) !== String(ean))), []);
   const clearCmp = useCallback(() => setCmp([]), []);
@@ -214,7 +242,7 @@ function Shell({ nome, onSair }) {
   // a Comparar mostra a nav (para consultar mais itens pelo botão central) sem ser um TAB
   // que limpa a pilha — entra empilhada, o back volta de onde veio; nenhum tab fica aceso.
   const navCur = TABS.has(view.id) ? view.id : (view.id === 'comparar' ? 'comparar' : null);
-  const common = { go, back, user: nome, onSair, cmp, addCmp, removeCmp, clearCmp }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
+  const common = { go, back, user: nome, onSair, abrirConta: () => setConta(true), cmp, addCmp, removeCmp, clearCmp }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
   const Screen = {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
     notas: Notas, gastos: Gastos, gastoscat: GastosCat, ficha: Ficha, comparar: Comparar,
@@ -225,13 +253,14 @@ function Shell({ nome, onSair }) {
     <div className="v2"><Motif />
       <Screen {...common} {...view.p} />
       {navCur && <Nav cur={navCur} go={go} cmpCheio={cmp.length >= 4} onLimite={() => setAviso('Já tem 4 produtos — o máximo para comparar aqui. Para comparar mais, use o Histórico.')} />}
+      {conta && <MenuConta user={nome} pais={pais} onFechar={() => setConta(false)} onSair={onSair} />}
       {aviso && <div className="toast" role="status">{aviso}</div>}
     </div>
   );
 }
 
 /* ── INÍCIO ──────────────────────────────────────────────────────────────── */
-function Home({ go, user }) {
+function Home({ go, user, abrirConta }) {
   const [nLista, setNLista] = useState(null);
   const [notas, setNotas] = useState(null);
   useEffect(() => {
@@ -240,7 +269,7 @@ function Home({ go, user }) {
   }, []);
   return (
     <>
-      <Ctop title={`Olá, ${user}`} sub="vamos às compras?" av={inicial(user)} onAv={() => go('perfil')} />
+      <Ctop title={`Olá, ${user}`} sub="vamos às compras?" av={inicial(user)} onAv={abrirConta} />
       <div className="scrollarea">
         <div className="herolist" onClick={() => go('lista')}>
           <span className="mkbig"><Mk size={110} /></span>

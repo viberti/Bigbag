@@ -2,7 +2,8 @@
 // MVP do esqueleto: app Express + /health para smoke test (systemd/Apache).
 // Rotas de upload e consulta entram nos Blocos 2 e 3, atrás de auth.
 import express from 'express';
-import { config } from './config.js';
+import { config, paisCfg } from './config.js';
+import { getPool } from './db.js';
 import { faturasRouter } from './routes/faturas.js';
 import { consultaRouter } from './routes/consulta.js';
 import { vozRouter } from './routes/voz.js';
@@ -11,7 +12,7 @@ import { explorarRouter } from './routes/explorar.js';
 import { produtoRouter } from './routes/produto.js';
 import { perfilRouter } from './routes/perfil.js';
 import { listaRouter } from './routes/lista.js';
-import { requireAuth } from './auth.js';
+import { requireAuth, invalidarLocale } from './auth.js';
 import { telemetriaApi, registarEventos } from './telemetria.js';
 
 const app = express();
@@ -48,6 +49,21 @@ app.get('/health', (_req, res) => {
 
 // Validação de sessão (usado pelo login da PWA).
 app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.user }));
+
+// Mudar o PAÍS do utilizador (camada locale, Visao_Multi_Pais): PT/BR. Persiste em
+// `usuario` + invalida o cache da auth → o próximo /api/me já reflete (frontend recarrega).
+app.post('/api/me/pais', requireAuth, async (req, res) => {
+  const pais = String(req.body?.pais || '').toUpperCase();
+  if (!config.paises[pais]) return res.status(400).json({ erro: 'país inválido' });
+  const email = (req.user.email || (String(req.user.id || '').includes('@') ? req.user.id : '')).toLowerCase();
+  if (!email) return res.status(400).json({ erro: 'sem email para guardar o país' });
+  try {
+    await getPool().query('INSERT INTO usuario (email, pais) VALUES (?, ?) ON DUPLICATE KEY UPDATE pais = VALUES(pais)', [email, pais]);
+    invalidarLocale(email);
+    const c = paisCfg(pais);
+    res.json({ pais, moeda: c.moeda, simbolo: c.simbolo });
+  } catch (e) { console.error('[me/pais]', e.message); res.status(500).json({ erro: 'falha a guardar' }); }
+});
 
 // Histórico da conversa (a PWA mostra-o ao abrir).
 app.get('/api/historico', requireAuth, async (req, res) => {

@@ -25,6 +25,13 @@ export async function verificarSessao() {
   return r.json();
 }
 
+// Muda o país do utilizador (camada locale): PT/BR. Devolve { pais, moeda, simbolo }.
+export async function definirPais(pais) {
+  const r = await call('/api/me/pais', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pais }) });
+  if (!r.ok) throw new Error('falha');
+  return r.json();
+}
+
 export async function carregarConversa() {
   const r = await call('/api/historico');
   if (!r.ok) return [];
