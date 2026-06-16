@@ -17,6 +17,15 @@ Talões (factos de preço, por utilizador/país), conjunto de lojas relevantes, 
 
 **Regra de ouro:** investir a fundo na Camada 1 (é tudo reaproveitável, sem locale) e manter a Camada 2 **parametrizável** em vez de PT-cravada.
 
+### Afinação (dono, 2026-06-16): para um mesmo EAN, só o NOME e o PREÇO variam por país
+As **ÚNICAS** características que variam de facto entre países são:
+- **NOME** — e mesmo assim é a *mesma* identidade, só rotulada por mercado/idioma (uma **vista** por locale, não outro produto);
+- **PREÇO** — que já varia dentro do mesmo país (por loja e no tempo).
+
+**Todo o resto — nutrição, ingredientes, imagem, marca, dimensões, identidade-de-categoria — é UM pool partilhado** que cada fonte de cada país *enriquece* (o savegnago BR melhora a ficha que o PT vê; o OFF/Continente melhora a que o BR vê).
+
+**Implicação no código** (`consolidarProduto`, 2026-06-16): nutrição/imagem/identidade resolvem-se **GLOBAIS por EAN** (qualquer fonte, sem restrição de país); o **NOME** é *preferido* pelas fontes do país mas **cai para qualquer fonte** (vista, não restrição); só o **PREÇO** é *restrito* às `fontesPreco` do país. **Regra: nunca restringir por país o que é partilhado.**
+
 ## O que já está pronto vs. PT-cravado
 
 **Agnóstico / pronto:** EAN, OFF (`consultarOFF`), match por imagem, `fonte` tag, i18n da UI (`t()`, traduzir = juntar dicionário), moeda (PT/ES/FR são todos Euro), perfis/membros.
