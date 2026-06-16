@@ -147,6 +147,13 @@ const server = app.listen(config.port, () => {
   console.log(`[bigbag-backend] a escutar na porta ${config.port} (${config.nodeEnv})`);
 });
 
+// Worker em fundo da fila de vetorização ("falha hoje, acerta amanhã"): baixa+vetoriza com
+// calma as imagens OFF que deram timeout no caminho síncrono → upsert no Qdrant. Gentil
+// (lote pequeno, baixa frequência) e unref (não segura o encerramento).
+import('./ingest/filaVetor.js').then(({ iniciarWorkerFila }) => {
+  iniciarWorkerFila(getPool(), { intervaloMs: 180000, lote: 5 });
+}).catch((e) => console.error('[fila-vetor] não arrancou:', e.message));
+
 // Encerramento limpo para o systemd parar/reiniciar sem deixar a porta presa.
 for (const sinal of ['SIGTERM', 'SIGINT']) {
   process.on(sinal, () => {

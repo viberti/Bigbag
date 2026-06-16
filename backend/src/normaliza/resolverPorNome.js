@@ -7,6 +7,7 @@
 import { normAlfa } from './categoria.js';
 import { matchImagemB64, matchPorVetor, vetorizarImagemB64, vetorizarVariasB64, cosseno, upsertVetores } from './matchImagem.js';
 import { familiaDe } from './familia.js';
+import { enfileirar } from '../ingest/filaVetor.js';
 import { parseJsonCol } from '../db.js';
 
 const nutDe = (r) => ({
@@ -101,7 +102,12 @@ export async function acharGemeo(pool, { fotoB64, nome, marca, tamanho, termos, 
   if (vecUser && txt.length) {
     const famAlvo = familiaDe({ nome: nome || '', marca, tipoTexto: tipoTexto || '' }).familia;
     const condiz = (c) => { const f = familiaDe({ nome: c.nome || '', marca: c.marca, categoria: c.categoria || '' }).familia; return !famAlvo || !f || f === famAlvo; }; // só EXCLUI se ambos têm família e diferem
-    const alvos = txt.filter((c) => c.imagem_url && !jaImg.has(String(c.ean)) && String(c.ean) !== proprio && condiz(c)).slice(0, 3);
+    const candImg = txt.filter((c) => c.imagem_url && !jaImg.has(String(c.ean)) && String(c.ean) !== proprio && condiz(c));
+    // FILA EM FUNDO: enfileira TODOS os candidatos com imagem (não só os 3 do síncrono) → o worker
+    // baixa+vetoriza com calma → cobertura futura mesmo que o download de hoje falhe ("falha hoje,
+    // acerta amanhã"). Fire-and-forget. Sem pool (chamada de teste isolada) → salta.
+    if (candImg.length && pool?.query) enfileirar(pool, candImg).catch(() => {});
+    const alvos = candImg.slice(0, 3); // SÍNCRONO: só um punhado (teto de latência ~6s)
     if (alvos.length) {
       try {
         const baixadas = await Promise.all(alvos.map((c) => baixarB64(c.imagem_url))); // PARALELO (não série)
