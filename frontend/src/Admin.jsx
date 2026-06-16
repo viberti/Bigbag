@@ -80,6 +80,9 @@ export default function Admin() {
           <button className={aba === 'custos' ? 'on' : ''} onClick={() => setAba('custos')}>
             Custos
           </button>
+          <button className={aba === 'baselocal' ? 'on' : ''} onClick={() => setAba('baselocal')}>
+            Base local
+          </button>
         </nav>
         <a className="adm-link" href="/">
           ← app
@@ -119,6 +122,8 @@ export default function Admin() {
         <TabUso />
       ) : aba === 'custos' ? (
         <TabCustos />
+      ) : aba === 'baselocal' ? (
+        <TabBaseLocal />
       ) : (
         <TabNotas notaAlvo={notaAlvo} onConsumir={() => setNotaAlvo(null)} />
       )}
@@ -1264,6 +1269,101 @@ function TabCustos() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// BASE LOCAL (telefone): taxa de HIT (resolvido no telefone, instantâneo/offline) vs MISS
+// (teve de ir ao servidor). Mede a cobertura da base pré-carregada (base_local_evento, migr. 067).
+// Os TOP MISSES (cruzados com off_full) dizem o que falta — candidatos a adicionar (LIDL/ALDI).
+function TabBaseLocal() {
+  const [dias, setDias] = useState(7);
+  const [d, setD] = useState(null);
+  useEffect(() => { setD(null); adm.baseLocal(dias).then(setD).catch(() => setD(false)); }, [dias]);
+  const r = d?.resumo || {};
+  const base = d?.base || {};
+  const taxa = r.total ? Math.round((Number(r.hits) / Number(r.total)) * 100) : null;
+  const pct = (h, n) => (n ? Math.round((Number(h) / Number(n)) * 100) : 0);
+  const pais = (p) => (p || '').replace(/en:/g, '').split(',').filter(Boolean).slice(0, 3).join(', ') || '—';
+  const maxDia = Math.max(1, ...((d?.porDia || []).map((x) => Number(x.n) || 0)));
+  return (
+    <div className="adm-itens">
+      <div className="adm-cards adm-it-cards">
+        <div className="adm-card"><span className="adm-card-n">{taxa == null ? '—' : taxa + '%'}</span><span className="adm-card-l">taxa de HIT (telefone)</span></div>
+        <div className="adm-card"><span className="adm-card-n">{r.total ?? '—'}</span><span className="adm-card-l">scans (eventos)</span></div>
+        <div className="adm-card"><span className="adm-card-n">{r.hits ?? '—'}</span><span className="adm-card-l">hits (local)</span></div>
+        <div className="adm-card"><span className="adm-card-n">{r.miss ?? '—'}</span><span className="adm-card-l">miss (servidor)</span></div>
+      </div>
+      <div className="adm-cards adm-it-cards">
+        <div className="adm-card"><span className="adm-card-n">{base.total ?? '—'}</span><span className="adm-card-l">fichas na base</span></div>
+        <div className="adm-card"><span className="adm-card-n">{base.com_nut ?? '—'}</span><span className="adm-card-l">com nutrição</span></div>
+        <div className="adm-card"><span className="adm-card-n">{base.pt_cat ?? '—'}</span><span className="adm-card-l">catálogo PT</span></div>
+        <div className="adm-card"><span className="adm-card-n">{Number(base.merc_es || 0)} / {Number(base.pt_off || 0)}</span><span className="adm-card-l">Mercadona ES / PT-OFF</span></div>
+      </div>
+      <div className="adm-sug-top">
+        <span className="adm-it-ord">janela:</span>
+        {[7, 30, 0].map((dd) => (
+          <button key={dd} className={dias === dd ? 'on' : ''} onClick={() => setDias(dd)}>{dd === 0 ? 'tudo' : `${dd} dias`}</button>
+        ))}
+        <span className="adm-sug-dica">HIT = produto resolvido no telefone (instantâneo/offline) · MISS = teve de ir ao servidor. LIDL/ALDI estão fora de propósito → caem nos misses.</span>
+      </div>
+      {d === null ? (
+        <p className="adm-vazio">a carregar…</p>
+      ) : d === false ? (
+        <p className="adm-vazio">Falha a carregar.</p>
+      ) : !r.total ? (
+        <p className="adm-vazio">Ainda sem scans nesta janela. Usa o app (consulta/scan de EANs) e volta aqui.</p>
+      ) : (
+        <div className="adm-custos-grid">
+          <div className="adm-custos-col">
+            <h3>Por contexto</h3>
+            <table className="adm-tabela">
+              <thead><tr><th>contexto</th><th>scans</th><th>hits</th><th>taxa</th></tr></thead>
+              <tbody>
+                {(d.porOrigem || []).map((o) => (
+                  <tr key={o.origem || '?'}>
+                    <td className="adm-it-nome">{o.origem || '—'}</td>
+                    <td>{o.n}</td>
+                    <td>{o.hits}</td>
+                    <td className="adm-it-peso">{pct(o.hits, o.n)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <h3>Por dia</h3>
+            <div className="adm-custos-dias">
+              {(d.porDia || []).slice().reverse().map((x) => (
+                <div key={x.dia} className="adm-custo-dia">
+                  <span className="adm-custo-dia-data">{dataCurta(x.dia)}</span>
+                  <span className="adm-custo-dia-barra"><i style={{ width: `${Math.round(100 * (Number(x.n) / maxDia))}%` }} /></span>
+                  <span className="adm-custo-dia-usd">{pct(x.hits, x.n)}%</span>
+                  <span className="adm-custo-dia-n">{x.n}×</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="adm-custos-col">
+            <h3>Top misses — o que falta na base <span style={{ fontWeight: 400, color: '#8aa' }}>(candidatos a adicionar)</span></h3>
+            {(d.misses || []).length === 0 ? (
+              <p className="adm-vazio">Sem misses nesta janela 🎉</p>
+            ) : (
+              <table className="adm-tabela">
+                <thead><tr><th>EAN</th><th>×</th><th>produto (OFF)</th><th>país</th></tr></thead>
+                <tbody>
+                  {(d.misses || []).map((m) => (
+                    <tr key={m.ean}>
+                      <td className="adm-it-nome" style={{ fontFamily: 'monospace' }}>{m.ean}</td>
+                      <td>{m.vezes}</td>
+                      <td>{m.nome ? `${m.nome}${m.marca ? ` [${m.marca}]` : ''}` : <span style={{ color: '#b99' }}>(fora do off_full)</span>}</td>
+                      <td className="adm-it-peso">{pais(m.paises)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}

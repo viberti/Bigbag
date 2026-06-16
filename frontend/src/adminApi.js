@@ -41,6 +41,7 @@ export const listarFichas = (q) => jget(`/api/admin/fichas${q ? '?q=' + encodeUR
 export const atualizarFicha = (ean, dados) => jsend(`/api/admin/fichas/${ean}`, 'PATCH', dados);
 export const uso = (dias) => jget(`/api/admin/uso${dias ? '?dias=' + dias : ''}`);
 export const custos = (dias) => jget(`/api/admin/custos${dias ? '?dias=' + dias : ''}`);
+export const baseLocal = (dias) => jget(`/api/admin/base-local${dias ? '?dias=' + dias : ''}`);
 export const capturas = (q) => jget(`/api/admin/capturas${q ? '?q=' + encodeURIComponent(q) : ''}`);
 export const mestres = () => jget('/api/admin/mestres');
 export const desligarMestre = (skuId) => jsend('/api/admin/mestres/desligar', 'POST', { skuId });

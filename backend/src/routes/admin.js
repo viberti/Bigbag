@@ -258,6 +258,50 @@ adminRouter.get('/uso', async (req, res) => {
   }
 });
 
+// BASE LOCAL (telefone): taxa de HIT (resolvido no telefone, instantâneo/offline) vs MISS
+// (teve de ir ao servidor), por contexto e por dia, + os TOP MISSES cruzados com off_full —
+// o que falta na base (p.ex. LIDL/ALDI europeus, deixados de fora de propósito). base_local_evento.
+adminRouter.get('/base-local', async (req, res) => {
+  try {
+    const pool = getPool();
+    const dias = Number(req.query.dias) || 0;
+    const filtro = dias > 0 ? 'WHERE em >= (NOW() - INTERVAL ? DAY)' : '';
+    const args = dias > 0 ? [dias] : [];
+    const [[resumo]] = await pool.query(
+      `SELECT COUNT(*) AS total, COALESCE(SUM(hit), 0) AS hits, COALESCE(SUM(hit = 0), 0) AS miss, MIN(em) AS desde
+         FROM base_local_evento ${filtro}`,
+      args,
+    );
+    const [[base]] = await pool.query(
+      `SELECT COUNT(*) AS total, SUM(nutricao IS NOT NULL) AS com_nut,
+              SUM(origem = 'pt_cat') AS pt_cat, SUM(origem = 'merc_es') AS merc_es, SUM(origem = 'pt_off') AS pt_off
+         FROM base_local`,
+    );
+    const [porOrigem] = await pool.query(
+      `SELECT origem, COUNT(*) AS n, COALESCE(SUM(hit), 0) AS hits
+         FROM base_local_evento ${filtro} GROUP BY origem ORDER BY n DESC`,
+      args,
+    );
+    const [porDia] = await pool.query(
+      `SELECT DATE(em) AS dia, COUNT(*) AS n, COALESCE(SUM(hit), 0) AS hits
+         FROM base_local_evento ${filtro} GROUP BY dia ORDER BY dia DESC LIMIT 30`,
+      args,
+    );
+    const filtroM = dias > 0 ? 'AND e.em >= (NOW() - INTERVAL ? DAY)' : '';
+    const [misses] = await pool.query(
+      `SELECT e.ean, COUNT(*) AS vezes, MAX(o.nome) AS nome, MAX(o.marca) AS marca, MAX(o.paises_tags) AS paises
+         FROM base_local_evento e LEFT JOIN off_full o ON o.ean = e.ean
+        WHERE e.hit = 0 AND e.ean IS NOT NULL AND e.ean <> '' ${filtroM}
+        GROUP BY e.ean ORDER BY vezes DESC, e.ean LIMIT 50`,
+      args,
+    );
+    res.json({ resumo, base, porOrigem, porDia, misses, dias });
+  } catch (e) {
+    console.error('[admin/base-local] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar a base local' });
+  }
+});
+
 // Define (ou limpa) o EAN de um item à mão, na aba Itens. EAN vazio → limpa.
 // EAN preenchido → valida o dígito verificador, grava em item.ean (autoritativo)
 // e enriquece a ficha (Open Food Facts → catálogo local), para o produto ganhar
