@@ -8,7 +8,27 @@
 // escreva na BD pode ficar anónima.
 import { timingSafeEqual } from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { config } from './config.js';
+import { config, paisCfg } from './config.js';
+import { getPool } from './db.js';
+
+// PAÍS+LOCALE do utilizador (cacheado): resolve por email na tabela `usuario`; cria a
+// linha (default PT) na 1.ª vez. Decide moeda/símbolo/fontes de preço (paisCfg). Sem
+// email (test-auth sem email) → default. NUNCA deixa a auth falhar por causa disto.
+const localeCache = new Map(); // email|id → { pais, locale, moeda, simbolo }
+export async function resolveLocale(chave) {
+  if (!chave) { const c = paisCfg(config.paisDefault); return { pais: config.paisDefault, locale: 'pt-BR', moeda: c.moeda, simbolo: c.simbolo }; }
+  if (localeCache.has(chave)) return localeCache.get(chave);
+  let pais = config.paisDefault, locale = 'pt-BR';
+  try {
+    const [[u]] = await getPool().query('SELECT pais, locale FROM usuario WHERE email = ?', [chave]);
+    if (u) { pais = u.pais; locale = u.locale; }
+    else if (chave.includes('@')) { await getPool().query('INSERT IGNORE INTO usuario (email, pais) VALUES (?, ?)', [chave, config.paisDefault]); }
+  } catch { /* BD indisponível → default; não bloquear a auth */ }
+  const c = paisCfg(pais);
+  const out = { pais, locale, moeda: c.moeda, simbolo: c.simbolo };
+  localeCache.set(chave, out);
+  return out;
+}
 
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a)); const bb = Buffer.from(String(b));
@@ -62,13 +82,13 @@ export async function requireAuth(req, res, next) {
     if (al.length && (!b.email || !al.includes(b.email))) {
       return res.status(403).json({ erro: 'Conta sem acesso ao BigBag.', email: b.email || null });
     }
-    req.user = { id: b.email || b.sub, email: b.email, sub: b.sub, via: 'oidc' };
+    req.user = { id: b.email || b.sub, email: b.email, sub: b.sub, via: 'oidc', ...(await resolveLocale(b.email)) };
     return next();
   }
   // 2) rede de segurança: test-auth (Basic) durante a migração
   if (config.auth.enableTestAuth) {
     const u = checkBasic(req);
-    if (u) { req.user = { id: u, via: 'test-auth' }; return next(); }
+    if (u) { req.user = { id: u, via: 'test-auth', ...(await resolveLocale(u.includes('@') ? u : null)) }; return next(); }
   }
   // SEM `WWW-Authenticate: Basic` — esse header fazia o BROWSER abrir o diálogo
   // nativo de Basic Auth ao 1.º /api 401, sequestrando o ecrã ANTES do login OIDC

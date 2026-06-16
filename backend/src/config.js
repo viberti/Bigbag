@@ -60,7 +60,20 @@ export const config = {
     // Prod: /var/lib/bigbag/lidlplus_token (chmod 600). Semente: LIDLPLUS_REFRESH_TOKEN.
     tokenFile: process.env.LIDLPLUS_TOKEN_FILE || './.lidlplus_token',
   },
+  // Camada PREÇO+LOCALE por país (Visao_Multi_Pais). A IDENTIDADE (EAN) é partilhada;
+  // o país do utilizador decide moeda + que fontes de catálogo dão o preço/nome locais.
+  // `fontesPreco`: fontes de catalogo_produto desse país (ordem = preferência).
+  paisDefault: 'PT',
+  paises: {
+    PT: { moeda: 'EUR', simbolo: '€', fontesPreco: ['continente', 'auchan', 'pingodoce', 'lidl', 'mercadona', 'mercadona-off', 'lidl-fr', 'harvest', 'nutripedia'] },
+    BR: { moeda: 'BRL', simbolo: 'R$', fontesPreco: ['savegnago', 'zaffari', 'supernosso', 'comper'] },
+  },
 };
+
+// País → config (com fallback ao default). Fonte única para moeda/símbolo/fontes.
+export function paisCfg(pais) {
+  return config.paises[(pais || config.paisDefault || 'PT').toUpperCase()] || config.paises[config.paisDefault] || config.paises.PT;
+}
 
 function parseTestUsers(raw) {
   if (!raw) return [];
