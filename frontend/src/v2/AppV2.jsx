@@ -1176,73 +1176,24 @@ function Recibo({ go, back, id }) {
 }
 
 /* ── PERFIL ──────────────────────────────────────────────────────────────── */
+// Tela "Perfil nutricional" (separador) — minimalista (dono, 2026-06-16): SÓ o avatar do membro
+// ativo; todo o detalhe (características, notas, importar texto, trocar/criar membro) vive no
+// EDITOR. Tocar no cartão abre o editor.
 function Perfil({ user, go }) {
   const [perfis, setPerfis] = useState(null);
-  const [nome, setNome] = useState('');     // nome do membro a criar/editar
-  const [texto, setTexto] = useState(''); const [aGuardar, setAGuardar] = useState(false); const [msg, setMsg] = useState('');
-  const inic = useRef(false);
-  const carregar = useCallback(() => { listarPerfis().then(setPerfis).catch(() => setPerfis([])); }, []);
-  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => { listarPerfis().then(setPerfis).catch(() => setPerfis([])); }, []);
   const ativo = (perfis || []).find((p) => p.ativo) || (perfis || [])[0];
-  // 1.ª carga: pré-preenche o nome com o membro ativo (ou o login); depois o dono controla.
-  useEffect(() => { if (perfis && !inic.current) { inic.current = true; setNome(ativo?.nome || user); } }, [perfis, ativo, user]);
-  // guarda o MEMBRO. Texto é OPCIONAL: só-nome cria o membro (cor na lista); com texto,
-  // extrai o perfil de saúde p/ as avaliações personalizadas.
-  async function guardar() {
-    const nm = nome.trim(); if (!nm || aGuardar) return; setAGuardar(true); setMsg('');
-    try { await carregarPerfil({ nome: nm, texto: texto.trim() }); setTexto(''); setMsg(texto.trim() ? 'Perfil guardado.' : `Membro "${nm}" criado.`); carregar(); }
-    catch { setMsg('Falha ao guardar.'); } finally { setAGuardar(false); }
-  }
-  const novoMembro = () => { setNome(''); setTexto(''); setMsg(''); };
+  const nome = ativo?.nome || user;
   return (
     <>
       <Ctop title="Perfil nutricional" sub="membro ativo" />
       <div className="scrollarea">
-        <div className="parecer" style={{ background: 'var(--card)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span className="m-av" style={{ background: 'var(--leaf-soft)', color: 'var(--leaf-d)', border: 0 }}>{inicial(ativo?.nome || user)}</span>
-            <div><div style={{ font: '800 17px var(--disp)', color: 'var(--ink)' }}>{ativo?.nome || user}</div><div style={{ font: '500 12.5px var(--font)', color: 'var(--ink-2)' }}>perfil ativo · usado nos pareceres</div></div>
-          </div>
-          {/* resumo pode ser STRING (legado) ou OBJETO estruturado ({notas, restricoes…}).
-              Renderizar o objeto direto crashava a tela — extrai texto + chips com segurança. */}
-          {(() => {
-            const r = ativo?.resumo; if (!r) return null;
-            if (typeof r === 'string') return r.trim() ? <p style={{ margin: '12px 0 0', font: '500 13px/1.5 var(--font)', color: 'var(--ink)' }}>{r}</p> : null;
-            const arr = (x) => (Array.isArray(x) ? x : []).filter((v) => typeof v === 'string' && v.trim());
-            const chips = [...arr(r.preferir), ...arr(r.evitar), ...arr(r.restricoes), ...arr(r.alergias), ...arr(r.intolerancias)].slice(0, 8);
-            const notas = typeof r.notas === 'string' ? r.notas : '';
-            if (!notas && !chips.length) return null;
-            return (<>
-              {notas && <p style={{ margin: '12px 0 0', font: '500 13px/1.5 var(--font)', color: 'var(--ink)' }}>{notas}</p>}
-              {chips.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>{chips.map((c, i) => <span key={i} className="hpill good">{c}</span>)}</div>}
-            </>);
-          })()}
-        </div>
-
-        <button className="cbtn cbtn-leaf" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={() => go('perfilsaude')}>
-          <Ico name="leaf" size={17} stroke={2.2} color="#fff" /> Editar perfil de saúde
+        <button className="perfil-hero" onClick={() => go('perfilsaude')}>
+          <span className="ph-av">{inicial(nome)}</span>
+          <div className="ph-nm">{nome}</div>
+          <div className="ph-sb">perfil ativo · usado nos pareceres</div>
+          <span className="ph-cta"><Ico name="leaf" size={16} stroke={2.2} color="#fff" /> Editar perfil de saúde</span>
         </button>
-
-        {(perfis || []).length > 0 && <>
-          <div className="menu-cap">Quem está comprando</div>
-          <div className="members">
-            {perfis.map((p) => (
-              <div className={`member ${p.ativo ? 'on' : ''}`} key={p.id} onClick={() => { ativarPerfil(p.id).then(carregar).catch(() => {}); setNome(p.nome); setTexto(''); setMsg(''); }}>
-                <div className="m-av">{inicial(p.nome)}</div><div className="m-name">{p.nome}</div><div className="m-on">{p.ativo ? 'ativo' : 'trocar'}</div>
-              </div>
-            ))}
-            <div className="member add" onClick={novoMembro}><div className="m-av">+</div><div className="m-name" style={{ color: 'var(--ink-3)' }}>Membro</div></div>
-          </div>
-        </>}
-
-        <div className="pf-load">
-          <div className="pf-load-h"><Ico name="spark" size={16} color="var(--leaf-d)" /> {nome.trim() && (perfis || []).some((p) => p.nome.toLowerCase() === nome.trim().toLowerCase()) ? `Editar ${nome.trim()}` : 'Novo membro'}</div>
-          <p className="pf-load-s">Dê um nome ao membro (a cor dele na lista). O perfil de saúde é <b>opcional</b> — cole o texto gerado pelo seu assistente para avaliações personalizadas, ou junte-o depois.</p>
-          <input className="addfield" style={{ width: '100%', boxSizing: 'border-box', marginBottom: 10 }} placeholder="Nome do membro (ex.: Sue)" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={80} />
-          <textarea className="pf-text" placeholder="Perfil de saúde — opcional (cole aqui)…" value={texto} onChange={(e) => setTexto(e.target.value)} />
-          {msg && <div style={{ font: '600 12.5px var(--font)', color: 'var(--leaf-d)', margin: '0 0 8px' }}>{msg}</div>}
-          <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 4 }} disabled={aGuardar || !nome.trim()} onClick={guardar}>{aGuardar ? '…' : 'Guardar membro'}</button>
-        </div>
         <div className="v2-ver">BigBag · versão {APP_VERSION}</div>
       </div>
     </>
@@ -1269,6 +1220,7 @@ function PerfilSaude({ back }) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [nv, setNv] = useState({ nome: '', email: '', idade: '', sexo: '', peso: '', altura: '' });
+  const [imp, setImp] = useState(''); const [impOpen, setImpOpen] = useState(false); const [impBusy, setImpBusy] = useState(false);
 
   const carregar = useCallback(() => listarPerfis().then((ps) => { setPerfis(ps || []); return ps || []; }).catch(() => { setPerfis([]); return []; }), []);
   const corId = useMemo(() => { const m = new Map(); [...(perfis || [])].sort((a, b) => a.id - b.id).forEach((p, i) => m.set(p.id, MEMBRO_CORES[i % MEMBRO_CORES.length])); return m; }, [perfis]);
@@ -1309,6 +1261,18 @@ function PerfilSaude({ back }) {
     for (const g of GRUPOS_SAUDE) { ativas[g.key] = estado[g.key]?.ativas || []; inativas[g.key] = estado[g.key]?.inativas || []; }
     try { await salvarSaude(curId, { ativas, inativas, notas }); setMsg('Perfil guardado.'); carregar(); }
     catch { setMsg('Falha ao guardar.'); } finally { setSaving(false); }
+  }
+  // IMPORTAR DE TEXTO: cola o perfil gerado pelo assistente → o LLM extrai as características em
+  // pílulas + demografia + notas, SOBRESCREVENDO o que cá está (ação explícita). Re-popula o editor.
+  async function importar() {
+    if (!membro || impBusy || !imp.trim()) return; setImpBusy(true); setMsg('');
+    try {
+      await carregarPerfil({ nome: membro.nome, texto: imp.trim() });
+      const ps = await carregar();
+      const m = ps.find((p) => p.id === curId) || ps.find((p) => p.nome === membro.nome);
+      if (m) selecionar(m);
+      setImp(''); setImpOpen(false); setMsg('Perfil importado do texto.');
+    } catch { setMsg('Falha ao importar.'); } finally { setImpBusy(false); }
   }
   async function criar() {
     const nome = nv.nome.trim(); if (!nome || saving) return; setSaving(true); setMsg('');
@@ -1387,8 +1351,24 @@ function PerfilSaude({ back }) {
         <div className="notas">
           <label><Ico name="list" size={16} stroke={2.2} color="var(--leaf-d)" /> Notas / observações</label>
           <textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={4000}
-            placeholder="O que não cabe em pílula — plano de refeições, suplementos, horários de treino, valores de exames, observações do nutricionista…" />
+            placeholder="O que não cabe em pílula — plano de refeições, horários de treino, valores de exames, observações do nutricionista…" />
           <div className="hint">Texto livre. Entra na avaliação tal como as características acima.</div>
+        </div>
+        <div className="impbox">
+          {!impOpen ? (
+            <button className="imp-toggle" onClick={() => setImpOpen(true)}><Ico name="upload" size={15} stroke={2.2} /> Importar de um texto</button>
+          ) : (
+            <>
+              <label><Ico name="upload" size={16} stroke={2.2} color="var(--leaf-d)" /> Importar de um texto</label>
+              <textarea value={imp} onChange={(e) => setImp(e.target.value)}
+                placeholder="Cole aqui o perfil gerado pelo seu assistente — extraímos as características em pílulas, a demografia e as notas." />
+              <div className="hint">Substitui as características pelo que for extraído do texto.</div>
+              <div className="imp-acts">
+                <button className="imp-cancel" onClick={() => { setImpOpen(false); setImp(''); }}>Cancelar</button>
+                <button className="cbtn cbtn-leaf" disabled={impBusy || !imp.trim()} onClick={importar}>{impBusy ? 'Extraindo…' : 'Extrair características'}</button>
+              </div>
+            </>
+          )}
         </div>
       </>
     );

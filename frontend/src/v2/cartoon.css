@@ -438,3 +438,21 @@
 .v2 .psw .notas textarea:focus{border-color:var(--leaf)}
 .v2 .psw .notas textarea::placeholder{color:var(--ink-3)}
 .v2 .psw .notas .hint{font:600 11.5px var(--font);color:var(--ink-3);margin:6px 2px 0}
+/* tela Perfil minimalista — só o avatar (handoff: detalhe vive no editor) */
+.v2 .perfil-hero{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;background:var(--card);border:2px solid #fff;border-radius:var(--r);padding:30px 20px 26px;box-shadow:var(--sh-sm);cursor:pointer;text-align:center}
+.v2 .perfil-hero:active{transform:scale(.99)}
+.v2 .perfil-hero .ph-av{width:88px;height:88px;border-radius:50%;background:var(--leaf-soft);color:var(--leaf-d);display:grid;place-items:center;font:800 36px var(--disp)}
+.v2 .perfil-hero .ph-nm{font:800 22px var(--disp);color:var(--ink);margin-top:6px}
+.v2 .perfil-hero .ph-sb{font:600 12.5px var(--font);color:var(--ink-2)}
+.v2 .perfil-hero .ph-cta{margin-top:14px;display:inline-flex;align-items:center;gap:8px;background:var(--leaf-d);color:#fff;font:800 14px var(--disp);border-radius:var(--r-pill);padding:11px 18px}
+/* importar de texto (dentro do editor) */
+.v2 .psw .impbox{margin-top:20px}
+.v2 .psw .impbox .imp-toggle{display:inline-flex;align-items:center;gap:7px;background:var(--cream-2);border:2px dashed var(--line);border-radius:var(--r-pill);padding:10px 16px;font:800 13px var(--disp);color:var(--ink-2);cursor:pointer}
+.v2 .psw .impbox label{display:flex;align-items:center;gap:7px;font:800 14.5px var(--disp);color:var(--ink);margin:0 2px 9px}
+.v2 .psw .impbox textarea{width:100%;min-height:120px;border:2px solid var(--line);border-radius:var(--r-sm);background:var(--card);padding:12px 14px;font:500 13.5px/1.55 var(--font);color:var(--ink);outline:0;box-sizing:border-box;resize:vertical}
+.v2 .psw .impbox textarea:focus{border-color:var(--leaf)}
+.v2 .psw .impbox textarea::placeholder{color:var(--ink-3)}
+.v2 .psw .impbox .hint{font:600 11.5px var(--font);color:var(--ink-3);margin:6px 2px 9px}
+.v2 .psw .impbox .imp-acts{display:flex;gap:9px;align-items:center}
+.v2 .psw .impbox .imp-acts .cbtn{flex:1}
+.v2 .psw .impbox .imp-cancel{background:0;border:0;color:var(--ink-3);font:800 13px var(--disp);cursor:pointer;padding:10px 6px}
