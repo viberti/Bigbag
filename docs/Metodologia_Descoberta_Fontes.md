@@ -44,7 +44,9 @@
 | **PrestaShop** | `…-<13díg>[.html]`, `?page=N` | EAN no slug do URL (crawl categorias+paginação) |
 | **Shopify** | `/products.json`, `/products/<slug>.json` | `variants[].barcode` (o bulk omite-o; a ficha tem) + `gtin13` no JSON-LD |
 | **SFCC/Demandware** | `sitemap_index.xml` → `*-product.xml` | JSON-LD Product (Auchan/Continente/PD/Mercadona) |
-| **VTEX** (dominante no BR) | `Shopify.theme` ausente + `__RUNTIME__`/vtex no HTML | **API pública** `/api/catalog_system/pub/products/search?_from=N&_to=N+49` → `items[].ean` + nome + marca + **categoria-path** + **preço** + imagem (50/pág, offset≤2500 → paginar por categoria) |
+| **VTEX** (dominante no BR) | `vtexassets.com`/`__RUNTIME__` no HTML; URL `/p` | **API pública** `/api/catalog_system/pub/products/search?fq=C:<cat>&_from=N&_to=N+49` → `items[].ean` + nome + marca + **categoria-path** + **preço** + imagem (50/pág, offset≤2500 → paginar por categoria). Adaptador: `harvest_vtex.mjs` |
+| **Magento** | `Magento_`/`static/version` no HTML; PDP `/produto/<slug>/<id>` | **`gtin13` no JSON-LD** da PDP + preço + nome; enumerar por sitemap (quando há) ou crawl de categorias |
+| **Genérico (long-tail/custom)** | qualquer PDP com `<script application/ld+json>` Product | extrair `gtin13`/`gtin` do JSON-LD (ou EAN-13 **validado** no HTML) + nome/marca/preço; enumerar por sitemap/categorias |
 | **WooCommerce** | sitemaps `wp`, `/product/` | JSON-LD + tabela de atributos |
 | **Angular/Vue transfer-state** | `<script type="application/json">` com a resposta da API inline | parse do blob (Nutripédia: chave = base64 do path da API) |
 | **Registo custom** (Cosmos) | página por `/<ean>-<slug>` | normalmente **API com token** (registo grátis) |
@@ -72,7 +74,13 @@ Fontes por tipo (com **custo de acesso** e **modo de acesso**, após sondagem pr
 - **Fabricante:** `pilao/camil/yoki/uniao/nestle.com.br` — montra (sem EAN). Exceção: `hellmanns.com.br/p/<slug>.html/<EAN>`.
 - **Diáspora/exportação** (PrestaShop com EAN-no-URL): `bomsabor.ch`, `everydaybrazil.com`, `kingfoodbrasil.com.br`.
 
-**Leitura (lição-mãe da metodologia):** a jogada de maior alavanca não é caçar fontes uma a uma — é **identificar a PLATAFORMA de retalho dominante do país e escrever um adaptador** (PT→PrestaShop/SFCC; BR→**VTEX**). Uma plataforma = um adaptador = dezenas de retalhistas, com EAN+preço+categoria. As fontes-registo (pagas tipo Cosmos, ou de só-consulta tipo Wireshape) são secundárias quando já temos o OFF + um adaptador de plataforma. **Próximo passo BR:** construir o adaptador VTEX genérico, semear com savegnago + 3-4 grandes lojas VTEX BR, carregar em `catalogo_produto` (identidade) e na camada de preço BR.
+**Landscape de plataformas BR (sondado por EAN-popular, 2026-06-16):** o retalho BR não é monoplataforma —
+- **VTEX** (a maior fatia, melhor caminho): savegnago, zaffari, supernosso, comper, atacadotreichel, mambo → API com EAN+preço+categoria, enumerável. *Nota: a API pública pode estar desligada por loja (Carrefour 503, mambo 404 nalgumas PDP) — `--detect` confirma quais.*
+- **Magento**: sondadelivery, palato, extrabom, tendaatacado → `gtin13` no JSON-LD da PDP + preço (enumeração varia: sitemap quando há, senão crawl de categorias).
+- **GPA-próprio** (Pão de Açúcar, Extra): EAN no HTML da página (adaptador específico).
+- **Marketplaces** (MercadoLivre, Magazine Luiza, Amazon): outro tipo (multi-vendedor) — fora do âmbito de catálogo de loja.
+
+**Leitura (lição-mãe da metodologia):** a jogada de maior alavanca não é caçar fontes uma a uma — é **(a) identificar a PLATAFORMA de retalho dominante e escrever 1 adaptador** (PT→PrestaShop/SFCC; BR→**VTEX**: 1 adaptador = dezenas de lojas com EAN+preço+categoria), **(b) cobrir o long-tail com um harvester GENÉRICO de JSON-LD** (`gtin13`+preço+nome — funciona em Magento e na maioria dos custom). A enumeração (achar todas as PDP) é a variável por-site: API de catálogo (VTEX) > sitemap > crawl de categorias. As fontes-registo (Cosmos pago, Wireshape só-consulta) ficam secundárias quando já há OFF + adaptador de plataforma. **Próximo passo BR:** terminar a recolha VTEX (savegnago + 3-4 lojas) e, para o long-tail, o harvester genérico de JSON-LD por sitemap/categoria.
 
 ## 8. Registo de Fontes (doc vivo, por país)
 Manter uma tabela por país: **fonte · tipo · plataforma · EAN-exposto · campos · universo · estado · novidade**. É o roadmap da expansão. (PT atual: Nutripédia, lojas PrestaShop .pt, Auchan/Continente/PD/Lidl, Mercadona-ES, Lidl-FR — ver `Analise_Fontes_Normalizacao.md`.)
