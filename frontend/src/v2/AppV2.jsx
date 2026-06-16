@@ -771,7 +771,12 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const num = (...ks) => { for (const k of ks) { const v = nut[k]; if (v != null && !Number.isNaN(Number(v))) return Number(v); } return null; };
   const nomeProd = nomeTalao(info?.nome || info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto');
   const grau = analise?.nutriscore?.grau ? String(analise.nutriscore.grau).toUpperCase() : null;
-  const attn = aval?.avaliacao && /aten[çc]/i.test(aval.avaliacao.veredicto || aval.avaliacao.selo || '');
+  // o parecer personalizado (avaliarParaPerfil) devolve { veredicto, resumo, a_favor, contra } —
+  // o TEXTO está em `resumo` (não `texto`/`parecer`, que não existem); o selo deriva do veredicto.
+  const verd = aval?.avaliacao?.veredicto || '';
+  const attn = /aten[çc]|evitar/i.test(verd);
+  const verdSelo = { evitar: 'Evitar', atencao: 'Atenção', adequado: 'Adequado' }[verd] || null;
+  const parecerTxt = aval?.avaliacao?.resumo || analise?.parecer || '';
   // ALIMENTO vs NÃO-ALIMENTO: tem nutrição/Nutri-Score → ficha de alimento (Para Sue,
   // réguas, alternativas). Senão (filtros de café, detergente… ou alimento sem ficha
   // relevante: água/vinho/especiarias) → ficha simples (marca/categoria/tamanho).
@@ -847,10 +852,10 @@ function Ficha({ go, back, ean, sku_id, nome }) {
         {ehAlimento ? (<>
           {avalLoading ? (
             <div className="parecer"><div className="ph">Avaliando<i className="an-dots" /></div></div>
-          ) : (aval?.avaliacao || analise?.parecer) ? (
+          ) : parecerTxt ? (
             <div className={`parecer ${attn ? 'attn' : ''}`}>
-              <div className="ph">{aval?.perfil ? `Para ${aval.perfil}` : 'Parecer'}{aval?.avaliacao?.selo && <span className={`selo ${attn ? 'attn' : ''}`}>{aval.avaliacao.selo}</span>}</div>
-              <p>{aval?.avaliacao?.texto || aval?.avaliacao?.parecer || analise?.parecer}</p>
+              <div className="ph">{aval?.perfil ? `Para ${aval.perfil}` : 'Parecer'}{verdSelo && <span className={`selo ${attn ? 'attn' : ''}`}>{verdSelo}</span>}</div>
+              <p>{parecerTxt}</p>
             </div>
           ) : null}
           <div className="reguas">
