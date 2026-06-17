@@ -18,7 +18,6 @@ import { eanValido } from '../src/normaliza/ean.js';
 
 const FONTE = 'mundial';
 const API = 'https://mundial-api.supermercadosmundial.com.br/';
-const IMG = (sku) => `https://mundial-api.supermercadosmundial.com.br/products/${sku}/300x300.webp`;
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const DELAY = Number(arg('--delay', '120'));
 const LIMIT = Number(arg('--limit', '500'));
@@ -62,7 +61,7 @@ async function main() {
   for (const g of groups) {
     gi++;
     for (let offset = 0; ; offset += LIMIT) {
-      const q = `{products(where:{group:"${g}"},limit:${LIMIT},offset:${offset}){sku ean name customName brand{name}}}`;
+      const q = `{products(where:{group:"${g}"},limit:${LIMIT},offset:${offset}){sku ean name customName brand{name} hasImage images{url width}}}`;
       const j = await gql(q);
       const prods = j?.data?.products;
       if (!Array.isArray(prods)) break; // erro/sem dados → próximo group
@@ -73,7 +72,14 @@ async function main() {
         const ean = eanValido(eanCru) ? eanCru : null; if (ean) comEan++;
         const nome = String(p.customName || p.name || sku).slice(0, 255);
         const marca = (p.brand?.name || '').trim() ? String(p.brand.name).slice(0, 140) : null;
-        vals.push([FONTE, `mu-${sku}`.slice(0, 24), ean, nome, marca, 'BRL', 'https://www.supermercadosmundial.com.br/', IMG(sku)]);
+        // SÓ guarda imagem de quem TEM (hasImage); URL real do array (maior largura). Senão null —
+        // construir o URL às cegas dava ~67% de 404 (medido).
+        let img = null;
+        if (p.hasImage && Array.isArray(p.images) && p.images.length) {
+          const best = p.images.reduce((a, b) => ((b.width || 0) > (a.width || 0) ? b : a), p.images[0]);
+          img = best?.url ? String(best.url).slice(0, 600) : null;
+        }
+        vals.push([FONTE, `mu-${sku}`.slice(0, 24), ean, nome, marca, 'BRL', 'https://www.supermercadosmundial.com.br/', img]);
       }
       await upsert(pool, vals);
       total += vals.length;
