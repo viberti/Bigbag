@@ -8,25 +8,41 @@ import { getPool, closePool } from '../src/db.js';
 import { tokensTaco } from '../src/normaliza/taco.js';
 import { chatCompletion } from '../src/openrouter.js';
 import { parseJsonLoose } from '../src/ingest/extract.js';
+import { config } from '../src/config.js';
 
 const FICHEIRO = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'fao.json');
 
-const PROMPT = `Recebes nomes de alimentos da base FAO/INFOODS em INGLÊS (peixes e leguminosas). Devolve o NOME COMUM GENÉRICO em PORTUGUÊS DO BRASIL de cada um, como apareceria num produto/receita.
+const PROMPT = `Recebes uma lista NUMERADA de nomes de alimentos da base FAO/INFOODS em INGLÊS (peixes e leguminosas). Devolve o NOME COMUM GENÉRICO em PORTUGUÊS DO BRASIL de cada um, na MESMA ORDEM.
 - TIRA descritores: "raw", "fillet", "whole", "mature", "dried", "split", "w/o skin", "(n.s.)", "(ASEAN)", "fresh".
 - MANTÉM a espécie/variedade que distingue (ex.: pinto bean→"Feijão Carioca"; adzuki bean→"Feijão Azuki"; kidney bean→"Feijão Vermelho"; chickpea→"Grão-de-bico"; lentil→"Lentilha"; cowpea→"Feijão Fradinho"; skipjack tuna→"Atum"; Nile tilapia→"Tilápia"; hake→"Pescada"; sardine→"Sardinha").
 - Nome curto, comum no Brasil. Sem marca. Capitalização normal.
-Recebes um array JSON de {i, en}. Devolve SÓ {"r":[{"i":<i>,"pt":"<nome PT>"}, …]} com TODOS os i.`;
+Devolve SÓ {"r":["<nome PT 1>","<nome PT 2>", …]} com EXATAMENTE o mesmo número de nomes da lista, pela ordem.`;
+
+function extrair(content) {
+  let obj;
+  try { obj = JSON.parse(content); } catch { try { obj = parseJsonLoose(content); } catch { return null; } }
+  const r = obj?.r ?? (Array.isArray(obj) ? obj : null);
+  return Array.isArray(r) ? r.map((x) => (x == null ? '' : String(x).trim())) : null;
+}
 
 async function traduzir(nomes) {
-  const pt = new Array(nomes.length);
-  for (let i = 0; i < nomes.length; i += 50) {
-    const lote = nomes.slice(i, i + 50).map((en, k) => ({ i: i + k, en }));
-    const content = await chatCompletion({
-      messages: [{ role: 'system', content: PROMPT }, { role: 'user', content: JSON.stringify(lote) }],
-      responseFormat: { type: 'json_object' }, contexto: 'traducao',
-    });
-    const obj = parseJsonLoose(content);
-    for (const r of (obj?.r || [])) if (Number.isInteger(r.i) && r.pt) pt[r.i] = String(r.pt).trim();
+  const pt = new Array(nomes.length).fill(null);
+  for (let i = 0; i < nomes.length; i += 40) {
+    const lote = nomes.slice(i, i + 40);
+    const user = lote.map((en, k) => `${k + 1}. ${en}`).join('\n');
+    let r = null;
+    for (let tent = 0; tent < 2 && !r; tent++) {
+      try {
+        const content = await chatCompletion({
+          messages: [{ role: 'system', content: PROMPT }, { role: 'user', content: user }],
+          model: config.openrouter.modelConsulta, responseFormat: { type: 'json_object' }, contexto: 'traducao',
+        });
+        const cand = extrair(content);
+        if (cand && cand.length === lote.length) r = cand;
+      } catch { /* retry */ }
+    }
+    if (r) for (let k = 0; k < lote.length; k++) pt[i + k] = r[k] || null; // sem tradução → fica EN no fallback
+    else console.warn(`  lote ${i}-${i + lote.length} sem tradução (fica EN)`);
   }
   return pt;
 }
