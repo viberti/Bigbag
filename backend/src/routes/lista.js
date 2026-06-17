@@ -579,12 +579,15 @@ async function sugestoesCadencia(pool) {
       JOIN sku_normalizado s ON s.id = i.sku_id
      WHERE i.is_non_product = 0
      GROUP BY s.id
-    HAVING COUNT(DISTINCT DATE(f.data_compra)) >= 3`);
+    HAVING COUNT(DISTINCT DATE(f.data_compra)) >= 4`);
   const hoje = Date.now();
   const cands = [];
   for (const r of rows) {
     const ds = String(r.datas || '').split(',').map((d) => new Date(d).getTime()).filter(Boolean).sort((a, b) => a - b);
-    if (ds.length < 3) continue;
+    if (ds.length < 4) continue; // ≥4 compras → cadência fiável (3 era ruidoso: deixava entrar miminhos/one-offs)
+    // HÁBITO SUSTENTADO: o padrão tem de existir há ≥1 mês — corta o BURST SAZONAL (ex.: alperce comprado
+    // 4× num "ritmo" de 5d mas tudo em 2 semanas de época → não é "compro alperce a cada 5 dias").
+    if ((ds[ds.length - 1] - ds[0]) / 86400000 < 30) continue;
     const gaps = [];
     for (let i = 1; i < ds.length; i++) gaps.push((ds[i] - ds[i - 1]) / 86400000);
     gaps.sort((a, b) => a - b);

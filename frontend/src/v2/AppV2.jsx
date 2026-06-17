@@ -553,11 +553,6 @@ function Lista({ go, back, destaque }) {
     setSugCad((xs) => xs.filter((x) => x.nome !== sg.nome));
     try { await adicionarListaItem({ nome: sg.nome, quantidade: sg.quantidade || 1 }); setDestaqueAlvo({ nome: nomeTalao(sg.nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
-  async function addTodasSug() {
-    const lote = sugCad.map((s) => ({ nome: s.nome, quantidade: s.quantidade || 1 }));
-    if (!lote.length) return; setSugCad([]);
-    try { const r = await adicionarListaLote(lote); if (r?.itens) setItens(r.itens); else carregar(); } catch { carregar(); }
-  }
   async function addNome(nome) {
     try { await adicionarListaItem({ nome }); setDestaqueAlvo({ nome: nomeTalao(nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
@@ -605,11 +600,8 @@ function Lista({ go, back, destaque }) {
         <div className="descob">
           {sugCad.length > 0 && !acabarFechado && (
             <div className="disc-card">
-              <div className="disc-h"><span><Ico name="spark" size={14} color="var(--amber-d)" /> Talvez esteja a acabar</span>
-                <span className="disc-hr">
-                  {sugCad.length > 1 && <button className="disc-all" onClick={addTodasSug}>+ todos</button>}
-                  <button className="disc-x" title="Fechar" onClick={() => setAcabarFechado(true)}><Ico name="close" size={15} /></button>
-                </span></div>
+              <div className="disc-h"><span><Ico name="spark" size={14} color="var(--amber-d)" /> Será que você precisa de…</span>
+                <button className="disc-x" title="Fechar" onClick={() => setAcabarFechado(true)}><Ico name="close" size={15} /></button></div>
               <div className="disc-chips">
                 {sugCad.map((s) => (
                   <button className="disc-chip" key={s.nome} onClick={() => addSug(s)} title={s.dias ? `há ${s.dias} dias` : ''}>
