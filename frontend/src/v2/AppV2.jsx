@@ -1879,7 +1879,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
               ['produto', 'photoprod', 'Foto', () => { setModo('foto'); setFoto(null); }],
               ['voz', 'mic', 'Voz', () => go('voz')],
               ['texto', 'search', 'Texto', () => go('texto')],
-            ].filter(([id]) => !(naRegua && id === 'codigo')) // consulta default: o scan vem da régua
+            ].filter(([id]) => !((naRegua || paraLista) && id === 'codigo')) // consulta E lista: o código vem do scan da régua → barra mostra só Foto·Voz·Texto
               .filter(([id]) => !somente || somente.includes(id)).map(([id, ic, lb, on]) => (
               <button key={id} className={`smode ${(id === 'codigo' && code) || (id === 'produto' && !code) ? 'on' : ''}`} onClick={on}>
                 <Ico name={ic} size={24} stroke={2} /><span>{lb}</span>
