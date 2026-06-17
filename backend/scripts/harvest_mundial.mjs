@@ -62,7 +62,7 @@ async function main() {
   for (const g of groups) {
     gi++;
     for (let offset = 0; ; offset += LIMIT) {
-      const q = `{products(where:{group:"${g}"},limit:${LIMIT},offset:${offset}){sku ean name customName customBrand}}`;
+      const q = `{products(where:{group:"${g}"},limit:${LIMIT},offset:${offset}){sku ean name customName brand{name}}}`;
       const j = await gql(q);
       const prods = j?.data?.products;
       if (!Array.isArray(prods)) break; // erro/sem dados → próximo group
@@ -72,7 +72,7 @@ async function main() {
         const eanCru = String(p.ean || '').replace(/\D/g, '');
         const ean = eanValido(eanCru) ? eanCru : null; if (ean) comEan++;
         const nome = String(p.customName || p.name || sku).slice(0, 255);
-        const marca = (p.customBrand || '').trim() ? String(p.customBrand).slice(0, 140) : null;
+        const marca = (p.brand?.name || '').trim() ? String(p.brand.name).slice(0, 140) : null;
         vals.push([FONTE, `mu-${sku}`.slice(0, 24), ean, nome, marca, 'BRL', IMG(sku)]);
       }
       await upsert(pool, vals);
