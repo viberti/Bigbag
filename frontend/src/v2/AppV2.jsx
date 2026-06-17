@@ -1636,7 +1636,6 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
   const [registo, setRegisto] = useState(null); // EAN desconhecido → cadastro: {ean, fotos:[], semcam?, erro?, naoLido?}
   const [regBusy, setRegBusy] = useState(false);
   const [anIdx, setAnIdx] = useState(0);       // foto a mostrar no "Analisando" (cicla as várias)
-  const [addOk, setAddOk] = useState(null);    // {nome, ean} — adicionado à lista (modo paraLista)
   // URLs das fotos do cadastro (criadas 1×; revogadas ao mudar) — evita leak do createObjectURL inline
   const fotoUrls = useMemo(() => (registo?.fotos || []).map((f) => URL.createObjectURL(f)), [registo?.fotos]);
   useEffect(() => () => fotoUrls.forEach((u) => URL.revokeObjectURL(u)), [fotoUrls]);
@@ -1677,8 +1676,8 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
         const ptOk = fl.origem === 'pt_cat' || fl.origem === 'uso';
         if (ptOk) {
           if (paraComparar) { addCmp({ ean: cod, nome: fl.nome }); back(); return; }
-          try { await adicionarListaItem({ nome: fl.nome, ean: cod }); } catch { /* segue à confirmação */ }
-          setAddOk({ nome: fl.nome, ean: cod }); return;
+          try { await adicionarListaItem({ nome: fl.nome, ean: cod }); } catch { /* outbox/sync apanha */ }
+          back(); return; // adicionado → volta JÁ à lista (sem ecrã de confirmação)
         }
       }
       const info = await infoProduto({ ean: cod });
@@ -1698,7 +1697,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
       // MODO LISTA: o objetivo é ADICIONAR. Com nome → adiciona já; sem nome →
       // identifica por foto e depois adiciona (a ficha é sempre secundária).
       if (paraLista) {
-        if (nm) { try { await adicionarListaItem({ nome: nm, ean: cod }); } catch { /* segue à confirmação */ } setAddOk({ nome: nm, ean: cod }); }
+        if (nm) { try { await adicionarListaItem({ nome: nm, ean: cod }); } catch { /* outbox/sync apanha */ } back(); } // adicionado → volta JÁ à lista
         else setRegisto({ ean: cod, fotos: [], naoLido: true });
         return;
       }
@@ -1714,7 +1713,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
   // CÓDIGO: câmara + leitura REAL (mesma função provada da v1). Pára enquanto verifica
   // (chk) ou em cadastro (registo) para não re-disparar.
   useEffect(() => {
-    if (!code || chk || registo || addOk) return undefined;
+    if (!code || chk || registo) return undefined;
     let leitor; setErro(false); setTemLuz(false); setLuz(false);
     (async () => {
       leitor = await lerCodigoBarras(videoRef.current, aoCodigo, () => setErro(true));
@@ -1722,7 +1721,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
       if (tr && (tr.getCapabilities?.() || {}).torch) { trackRef.current = tr; setTemLuz(true); }
     })();
     return () => { leitor?.stop?.(); trackRef.current = null; };
-  }, [code, chk, registo, addOk, go, itemId, nomeItem]);
+  }, [code, chk, registo, go, itemId, nomeItem]);
   // PRODUTO: câmara AO VIVO dentro do app (não abre a câmara nativa). O disparo
   // captura o frame atual e envia ao reconhecimento por imagem (matchFoto da v1).
   useEffect(() => {
@@ -1751,7 +1750,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
       const r = await identificarProduto({ ean: registo.ean, fotos: registo.fotos });
       const nm = r?.vlm?.nome || r?.off?.nome || 'Produto';
       if (paraComparar) { addCmp({ ean: registo.ean, nome: nm }); back(); } // junta e volta já à Comparar
-      else if (paraLista) { try { await adicionarListaItem({ nome: nm, ean: registo.ean }); } catch { /* segue à confirmação */ } setRegisto(null); setAddOk({ nome: nm, ean: registo.ean }); }
+      else if (paraLista) { try { await adicionarListaItem({ nome: nm, ean: registo.ean }); } catch { /* outbox/sync apanha */ } setRegisto(null); back(); } // adicionado → volta JÁ à lista
       else go('ficha', { ean: registo.ean, nome: nm }, { replace: true }); // passa o nome → a ficha não pisca "sem nome"
     } catch { setRegBusy(false); setRegisto((r) => r && { ...r, erro: true }); }
   }
@@ -1783,20 +1782,12 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
   return (
     <>
       <Ctop
-        title={addOk ? 'Adicionado à lista' : registo ? (paraLista || paraComparar ? 'Identificar por foto' : 'Cadastrar produto') : paraComparar ? 'Escanear para comparar' : paraLista ? 'Adicionar à lista' : itemId ? 'Identificar produto' : 'Consultar produto'}
-        sub={addOk || registo ? (registo ? `EAN ${registo.ean}` : '') : itemId ? nomeItem : (code ? 'aponte para o código' : 'fotografe o produto')}
-        back onBack={addOk ? back : registo ? () => { setRegisto(null); setChk(false); } : back}
+        title={registo ? (paraLista || paraComparar ? 'Identificar por foto' : 'Cadastrar produto') : paraComparar ? 'Escanear para comparar' : paraLista ? 'Adicionar à lista' : itemId ? 'Identificar produto' : 'Consultar produto'}
+        sub={registo ? `EAN ${registo.ean}` : itemId ? nomeItem : (code ? 'aponte para o código' : 'fotografe o produto')}
+        back onBack={registo ? () => { setRegisto(null); setChk(false); } : back}
       />
       <div className="scrollarea" style={{ display: 'flex', flexDirection: 'column' }}>
-        {addOk ? (
-          <div style={{ padding: '22px 6px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 11 }}>
-            <span style={{ width: 66, height: 66, borderRadius: '50%', background: 'var(--leaf-soft)', display: 'grid', placeItems: 'center', color: 'var(--leaf-d)' }}><Ico name="check" size={36} stroke={2.6} /></span>
-            <div style={{ font: '800 19px var(--disp)', color: 'var(--ink)' }}>{addOk.nome}</div>
-            <div className="sc-hint" style={{ margin: 0 }}>adicionado à lista ✓</div>
-            <button className="cbtn cbtn-leaf" style={{ width: '100%', marginTop: 6 }} onClick={() => { setAddOk(null); setModo('codigo'); }}><Ico name="scan" size={18} color="#f7fff2" /> Escanear outro</button>
-            <button className="acc-link" onClick={() => go('ficha', { ean: addOk.ean })}>Ver ficha do produto</button>
-          </div>
-        ) : registo ? (regBusy ? (
+        {registo ? (regBusy ? (
           // VLM a processar a(s) foto(s): animação "analisando" em vez de tela sem nome
           <div className="analisando">
             <div className="an-card">
