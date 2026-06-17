@@ -24,6 +24,7 @@ import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { grupoDeNome } from '../normaliza/categoria.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
+import { panoramaDashboard } from '../dashboard.js';
 
 export const adminRouter = Router();
 
@@ -60,6 +61,17 @@ adminRouter.post('/precos/reverter/:itemId', async (req, res) => {
   }
 });
 adminRouter.use(requireAuth);
+
+// DASHBOARD de gestão (/dash): panorama de fontes + países + visão global (cacheado 20 min;
+// ?forcar=1 recalcula). Custos de IA vêm de /admin/custos. Pesado a frio (~15s); cache torna-o instantâneo.
+adminRouter.get('/dashboard', async (req, res) => {
+  try {
+    res.json(await panoramaDashboard({ forcar: req.query.forcar === '1' }));
+  } catch (e) {
+    console.error('[admin/dashboard] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar o dashboard' });
+  }
+});
 
 // Inspeção do item CRU do talão: o nome como aparece na nota da loja + a loja +
 // TODAS as propriedades que extraímos (qtd, preços, €/base, unidade, EAN, flags…).
