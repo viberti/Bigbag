@@ -2,16 +2,20 @@
 // API de busca NÃO traz: EAN, marca, INGREDIENTES e TABELA NUTRICIONAL (formatada).
 //
 // A PDP é Next.js: tudo vem no <script id="__NEXT_DATA__"> em props.pageProps.product:
-//   { ean, brand, description, nutritionalMap{attributes[{code,label,value,vd}]},
+//   { ean, brand, description, nutritionalMap{header,attributes[{code,label,value,vd}]},
 //     attributeGroups[ general_characteristic{ingredientes,…}, additional_information(alergénios) ] }
-// O `value` da tabela é POR 100 g (confirmado pelo cruzamento com o %VD da porção) → entra
-// direto na shape padrão {sal,fibra,gordura,acucares,hidratos,proteina,energia_kcal,gordura_saturada}.
+//
+// BASE DA NUTRIÇÃO É INCONSISTENTE NA FONTE: o `value` às vezes é por 100 g (rótulo ANVISA
+// novo), às vezes por PORÇÃO (rótulo antigo) — sem flag. Normalizamos SEMPRE para 100 g
+// detetando a base com o `%VD` (que é SEMPRE por porção): para cada nutriente com VD conhecido,
+// per_porção = vd% × VD_ref; comparamos `value` com per_porção vs per_100g (=per_porção×100/porção)
+// e VOTAMOS. Maioria por-porção → escala ×100/porção. (Confirma: BelVita 113 kcal/porção 25g → 452/100g.)
 //
 // Endpoint LEVE: /_next/data/<buildId>/produto/<id>/<slug>.json (~168 KB, metade do HTML).
 // buildId resolve-se 1× e re-resolve-se se rodar (deploy do site); HTML é o fallback à prova de bala.
 //
-// Idempotente/retomável: processa fonte='paodeacucar' AND ean IS NULL, mais antigos primeiro
-// (scraped_at ASC); cada linha tocada leva scraped_at=NOW() → rotaciona, sem ciclo apertado.
+// Idempotente/retomável via `pdp_em` (migração 069): processa fonte='paodeacucar' AND pdp_em IS NULL;
+// cada PDP visitada (mesmo sem nutrição) leva pdp_em=NOW() → nunca re-raspa o que não tem tabela.
 //   sudo -u dev node --env-file=.env scripts/enriquecer_paodeacucar.mjs [--limite N] [--delay ms]
 import { getPool, closePool } from '../src/db.js';
 import { eanValido } from '../src/normaliza/ean.js';
@@ -30,7 +34,7 @@ async function fetchTexto(url, accept) {
       const r = await fetch(url, { headers: { 'user-agent': UA, accept }, signal: AbortSignal.timeout(22000) });
       if ((r.status === 429 || r.status >= 500) && t < 3) { await sleep(1200 * (t + 1)); continue; }
       return { status: r.status, text: r.ok ? await r.text() : '' };
-    } catch (e) { if (t >= 3) return { status: 0, text: '' }; await sleep(900 * (t + 1)); }
+    } catch { if (t >= 3) return { status: 0, text: '' }; await sleep(900 * (t + 1)); }
   }
 }
 function nextDataDoHtml(html) {
@@ -43,7 +47,6 @@ async function resolverBuildId() {
   buildId = nextDataDoHtml(text)?.buildId || null;
   return buildId;
 }
-// devolve o objeto product da PDP (endpoint leve; fallback ao HTML)
 async function obterProduto(url) {
   const mm = url.match(/\/produto\/(\d+)\/(.+)$/);
   if (!mm) return null;
@@ -59,6 +62,38 @@ async function obterProduto(url) {
 }
 
 const num = (s) => { if (s == null) return null; const m = String(s).replace(',', '.').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; };
+// porção em gramas/ml do cabeçalho ("Porção de 30G - 3 unidades", "Porção de 200 ml")
+function porcaoG(header) {
+  const m = String(header || '').match(/porç[ãa]o\s*de\s*([\d.,]+)\s*(kg|g|ml|l)\b/i);
+  if (!m) return null;
+  const v = num(m[1]); if (v == null) return null;
+  const u = m[2].toLowerCase();
+  return (u === 'kg' || u === 'l') ? v * 1000 : v;
+}
+// VD de referência ANVISA (validado por cruzamento com produtos por-100g conhecidos)
+const VD_REF = {
+  infnutricValorEnergetico: 2000, infnutricCarboidrato: 300, infnutricProteina: 50,
+  infnutricGordurasTotais: 65, infnutricGordurasSaturadas: 20, infnutricFibraAlim: 25, infnutricSodio: 2000,
+};
+// fator para passar `value` → por 100 g. Vota por nutriente: o `value` está mais perto do
+// esperado por-porção (vd×ref) ou do esperado por-100g (=por-porção×100/porção)?
+function fatorPara100g(at, pG) {
+  if (!pG) return 1; // sem porção não dá p/ aferir → assume por 100 g (o caso comum do rótulo novo)
+  let vPorcao = 0; let v100 = 0;
+  for (const [code, ref] of Object.entries(VD_REF)) {
+    const a = at.find((x) => x.code === code); if (!a) continue;
+    const val = num(a.value); const vd = num(a.vd);
+    if (val == null || val <= 0 || vd == null || vd <= 0) continue;
+    const perPorcao = (vd / 100) * ref; if (perPorcao <= 0) continue;
+    const per100 = perPorcao * 100 / pG;
+    const dP = Math.abs(Math.log(val / perPorcao));
+    const d100 = Math.abs(Math.log(val / per100));
+    if (Math.abs(dP - d100) < 0.25) continue; // porção≈100g (ambíguo) → não vota
+    if (dP < d100) vPorcao++; else v100++;
+  }
+  return vPorcao > v100 ? 100 / pG : 1;
+}
+
 function extrair(p) {
   if (!p) return null;
   const eanCru = String(p.ean || '').replace(/\D/g, '');
@@ -70,17 +105,18 @@ function extrair(p) {
   let nutricao = null;
   const at = p.nutritionalMap?.attributes;
   if (Array.isArray(at) && at.length) {
-    const v = (code) => num(at.find((x) => x.code === code)?.value);
-    const sodioMg = v('infnutricSodio');
+    const f = fatorPara100g(at, porcaoG(p.nutritionalMap.header));
+    const escala = (code) => { const v = num(at.find((x) => x.code === code)?.value); return v == null ? null : Math.round(v * f * 1000) / 1000; };
+    const sodioMg = escala('infnutricSodio');
     const n = {
       sal: sodioMg != null ? Math.round(sodioMg * 2.5) / 1000 : null, // sódio(mg) → sal(g)
-      fibra: v('infnutricFibraAlim'),
-      gordura: v('infnutricGordurasTotais'),
-      acucares: v('infnutricAcucaresTotais'),
-      hidratos: v('infnutricCarboidrato'),
-      proteina: v('infnutricProteina'),
-      energia_kcal: v('infnutricValorEnergetico'),
-      gordura_saturada: v('infnutricGordurasSaturadas'),
+      fibra: escala('infnutricFibraAlim'),
+      gordura: escala('infnutricGordurasTotais'),
+      acucares: escala('infnutricAcucaresTotais'),
+      hidratos: escala('infnutricCarboidrato'),
+      proteina: escala('infnutricProteina'),
+      energia_kcal: escala('infnutricValorEnergetico'),
+      gordura_saturada: escala('infnutricGordurasSaturadas'),
     };
     if (Object.values(n).some((x) => x != null)) nutricao = n;
   }
@@ -92,40 +128,43 @@ async function main() {
   await resolverBuildId();
   console.log(`buildId: ${buildId || '(falhou — só HTML)'} · limite ${LIMITE} · delay ${DELAY}ms`);
   const [linhas] = await pool.query(
-    `SELECT id, url FROM catalogo_produto WHERE fonte = ? AND ean IS NULL AND url IS NOT NULL
-     ORDER BY scraped_at ASC, id ASC LIMIT ?`, [FONTE, LIMITE]);
+    `SELECT id, url FROM catalogo_produto WHERE fonte = ? AND pdp_em IS NULL AND url IS NOT NULL
+     ORDER BY id ASC LIMIT ?`, [FONTE, LIMITE]);
   console.log(`a processar ${linhas.length} produtos…`);
   let ok = 0; let cEan = 0; let cNut = 0; let cIng = 0; let semEan = 0; let falhas = 0;
   for (let i = 0; i < linhas.length; i++) {
     const { id, url } = linhas[i];
     const p = await obterProduto(url).catch(() => null);
-    if (!p) { falhas++; await sleep(DELAY); continue; }
+    if (!p) { falhas++; await sleep(DELAY); continue; } // não marca pdp_em → tenta de novo numa próxima corrida
     const e = extrair(p);
-    if (e.ean) cEan++; else { semEan++; if (e.eanCru) console.error(`  ean inválido (${e.eanCru}) em ${url}`); }
+    if (e.ean) cEan++; else if (e.eanCru) semEan++;
     if (e.nutricao) cNut++;
     if (e.ingredientes) cIng++;
-    // só escreve campos que vieram (COALESCE preserva o que já houver de melhor não-nulo)
+    // PDP é autoritativa → sobrescreve nutrição/ingredientes/marca quando vêm; EAN só preenche
+    // (COALESCE) p/ nunca perder um já existente. pdp_em=NOW() marca a visita (idempotência).
     await pool.query(
       `UPDATE catalogo_produto SET
          ean = COALESCE(?, ean),
          marca = COALESCE(?, marca),
-         ingredientes = COALESCE(?, ingredientes),
-         nutricao = COALESCE(CAST(? AS JSON), nutricao),
+         ingredientes = CASE WHEN ? IS NOT NULL THEN ? ELSE ingredientes END,
+         nutricao = CASE WHEN ? IS NOT NULL THEN CAST(? AS JSON) ELSE nutricao END,
          nutricao_base = CASE WHEN ? IS NOT NULL THEN '100g' ELSE nutricao_base END,
-         scraped_at = NOW()
+         pdp_em = NOW()
        WHERE id = ?`,
-      [e.ean, e.marca, e.ingredientes, e.nutricao ? JSON.stringify(e.nutricao) : null, e.nutricao ? 1 : null, id],
+      [e.ean, e.marca, e.ingredientes, e.ingredientes,
+        e.nutricao ? JSON.stringify(e.nutricao) : null, e.nutricao ? JSON.stringify(e.nutricao) : null,
+        e.nutricao ? 1 : null, id],
     );
     ok++;
     if ((i + 1) % 50 === 0) process.stderr.write(`\r  ${i + 1}/${linhas.length} · ean ${cEan} · nutri ${cNut} · ingred ${cIng} · falhas ${falhas}   `);
     await sleep(DELAY);
   }
   process.stderr.write('\n');
-  console.log(`✅ processados ${ok} | com EAN ${cEan} (sem/ inválido ${semEan}) | com nutrição ${cNut} | com ingredientes ${cIng} | falhas de fetch ${falhas}`);
+  console.log(`✅ visitados ${ok} | com EAN ${cEan} (sem/inválido ${semEan}) | com nutrição ${cNut} | com ingredientes ${cIng} | falhas de fetch ${falhas}`);
   const [[g]] = await pool.query(
-    `SELECT COUNT(*) n, SUM(ean IS NOT NULL) ean, SUM(nutricao IS NOT NULL) nut, SUM(ingredientes IS NOT NULL) ing
+    `SELECT COUNT(*) n, SUM(pdp_em IS NOT NULL) visit, SUM(ean IS NOT NULL) ean, SUM(nutricao IS NOT NULL) nut, SUM(ingredientes IS NOT NULL) ing
      FROM catalogo_produto WHERE fonte = ?`, [FONTE]);
-  console.log(`paodeacucar agora: ${g.n} linhas | ${g.ean} c/ EAN | ${g.nut} c/ nutrição | ${g.ing} c/ ingredientes`);
+  console.log(`paodeacucar: ${g.n} linhas | ${g.visit} PDP visitadas | ${g.ean} c/ EAN | ${g.nut} c/ nutrição | ${g.ing} c/ ingredientes`);
   await closePool();
 }
 main().catch((e) => { console.error('FATAL:', e); process.exit(1); });
