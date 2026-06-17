@@ -1,0 +1,1402 @@
+[
+{
+"fonte": "ufish",
+"nome_en": "Nile tilapia, fillet, raw (n.s.)",
+"nut": {
+"energia_kcal": 92.594,
+"proteina": 18.315,
+"gordura": 2.148,
+"gordura_saturada": 0.69,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.092,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Torpedo-shaped catfishes, raw",
+"nut": {
+"energia_kcal": 110.225,
+"proteina": 17.317,
+"gordura": 4.551,
+"gordura_saturada": 1.48,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.138,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Philippine catfish, whole, raw",
+"nut": {
+"energia_kcal": 105.628,
+"proteina": 16.795,
+"gordura": 4.272,
+"gordura_saturada": 1.56,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.165,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "North African catfish, fillet, raw (n.s.)",
+"nut": {
+"energia_kcal": 102.492,
+"proteina": 17.831,
+"gordura": 3.463,
+"gordura_saturada": 1.14,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.102,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Bighead catfish, fillet, raw (ASEAN)",
+"nut": {
+"energia_kcal": 109.19,
+"proteina": 18.133,
+"gordura": 4.073,
+"gordura_saturada": 1.25,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.163,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Northern pike, fillet w/o skin, raw (n.s.)",
+"nut": {
+"energia_kcal": 82.272,
+"proteina": 18.369,
+"gordura": 0.977,
+"gordura_saturada": 0.21,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.13,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Catfish, channel, fillet, raw (n.s.)",
+"nut": {
+"energia_kcal": 111.188,
+"proteina": 15.643,
+"gordura": 5.402,
+"gordura_saturada": 1.24,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.196,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Striped catfish, fillet, raw (n.s.)",
+"nut": {
+"energia_kcal": 79.817,
+"proteina": 14.745,
+"gordura": 2.315,
+"gordura_saturada": 0.84,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.892,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Atlantic salmon, fillet w/o skin, raw (n.s.)",
+"nut": {
+"energia_kcal": 196.862,
+"proteina": 20.043,
+"gordura": 12.958,
+"gordura_saturada": 2.73,
+"hidratos": 0.0,
+"fibra": null,
+"sal": 0.121,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Rainbow trout, fillet, raw (n.s.)",
+"nut": {
+"energia_kcal": 134.895,
+"proteina": 19.213,
+"gordura": 6.449,
+"gordura_saturada": 1.5,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.149,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Common sole, fillet, raw (n.s.)",
+"nut": {
+"energia_kcal": 84.496,
+"proteina": 18.629,
+"gordura": 1.109,
+"gordura_saturada": 0.31,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.297,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Atlantic cod, fillet, raw (n.s.)",
+"nut": {
+"energia_kcal": 79.863,
+"proteina": 18.573,
+"gordura": 0.619,
+"gordura_saturada": 0.11,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.197,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Pacific cod, fillet, raw (n.s.)",
+"nut": {
+"energia_kcal": 73.06,
+"proteina": 17.17,
+"gordura": 0.487,
+"gordura_saturada": 0.08,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.333,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "European sea bass, fillet, raw (n.s.)",
+"nut": {
+"energia_kcal": 119.276,
+"proteina": 20.271,
+"gordura": 4.243,
+"gordura_saturada": 1.14,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.165,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Atlantic horse mackerel, wild, fillet w/o skin, raw (n.s.)",
+"nut": {
+"energia_kcal": 123.095,
+"proteina": 18.624,
+"gordura": 5.4,
+"gordura_saturada": 1.66,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.161,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "European/Euro-American/Oceanian crayfishes, flesh, raw (n.s.)",
+"nut": {
+"energia_kcal": 72.813,
+"proteina": 15.477,
+"gordura": 1.131,
+"gordura_saturada": 0.21,
+"hidratos": 0.182,
+"fibra": 0.0,
+"sal": 0.413,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Palaemonid shrimps, flesh, raw",
+"nut": {
+"energia_kcal": 90.758,
+"proteina": 17.73,
+"gordura": 1.481,
+"gordura_saturada": 0.38,
+"hidratos": 1.628,
+"fibra": 0.0,
+"sal": 0.396,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "River prawns, flesh, raw",
+"nut": {
+"energia_kcal": 87.5,
+"proteina": 16.605,
+"gordura": 1.512,
+"gordura_saturada": 0.39,
+"hidratos": 1.868,
+"fibra": 0.0,
+"sal": 0.312,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Monsoon river prawn, flesh, raw",
+"nut": {
+"energia_kcal": 84.053,
+"proteina": 17.567,
+"gordura": 1.36,
+"gordura_saturada": 0.34,
+"hidratos": 0.387,
+"fibra": 0.0,
+"sal": 0.188,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Giant river prawn, flesh, raw",
+"nut": {
+"energia_kcal": 90.83,
+"proteina": 17.797,
+"gordura": 1.894,
+"gordura_saturada": 0.51,
+"hidratos": 0.648,
+"fibra": 0.0,
+"sal": 0.382,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Jonah crabs/Rock crabs, flesh, raw",
+"nut": {
+"energia_kcal": 79.968,
+"proteina": 17.562,
+"gordura": 0.992,
+"gordura_saturada": 0.15,
+"hidratos": 0.198,
+"fibra": 0.0,
+"sal": 0.885,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Dungeness crab, meat, raw",
+"nut": {
+"energia_kcal": 81.535,
+"proteina": 18.078,
+"gordura": 1.015,
+"gordura_saturada": 0.17,
+"hidratos": null,
+"fibra": 0.0,
+"sal": 0.738,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Edible crab, flesh, raw (New Zealand)",
+"nut": {
+"energia_kcal": 73.7,
+"proteina": 15.5,
+"gordura": 0.9,
+"gordura_saturada": 0.1,
+"hidratos": 0.9,
+"fibra": 0.0,
+"sal": 1.228,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Tanner crabs, flesh, raw",
+"nut": {
+"energia_kcal": 83.54,
+"proteina": 18.5,
+"gordura": 1.06,
+"gordura_saturada": 0.13,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.824,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Swimming crabs, etc., flesh, raw",
+"nut": {
+"energia_kcal": 81.6,
+"proteina": 17.164,
+"gordura": 1.103,
+"gordura_saturada": 0.23,
+"hidratos": 0.754,
+"fibra": 0.0,
+"sal": 0.675,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Blue crab, flesh, raw",
+"nut": {
+"energia_kcal": 72.798,
+"proteina": 15.923,
+"gordura": 0.878,
+"gordura_saturada": 0.17,
+"hidratos": 0.302,
+"fibra": 0.0,
+"sal": 0.733,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Blue swimming crab, flesh, raw",
+"nut": {
+"energia_kcal": 87.499,
+"proteina": 19.876,
+"gordura": 0.888,
+"gordura_saturada": 0.16,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.756,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Indo-Pacific swamp crab, flesh, raw",
+"nut": {
+"energia_kcal": 78.325,
+"proteina": 14.7,
+"gordura": 1.665,
+"gordura_saturada": 0.38,
+"hidratos": 1.135,
+"fibra": 0.0,
+"sal": 0.579,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "True lobsters/Lobsterettes, flesh, raw",
+"nut": {
+"energia_kcal": 83.485,
+"proteina": 18.125,
+"gordura": 0.712,
+"gordura_saturada": 0.11,
+"hidratos": 1.144,
+"fibra": 0.0,
+"sal": 0.781,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "American lobster, flesh, raw",
+"nut": {
+"energia_kcal": 76.45,
+"proteina": 16.35,
+"gordura": 0.65,
+"gordura_saturada": 0.1,
+"hidratos": 1.3,
+"fibra": 0.0,
+"sal": 0.807,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "European lobster, flesh, raw",
+"nut": {
+"energia_kcal": 79.8,
+"proteina": 17.95,
+"gordura": 0.4,
+"gordura_saturada": 0.05,
+"hidratos": 1.1,
+"fibra": 0.0,
+"sal": 0.49,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Norway lobster, flesh, raw",
+"nut": {
+"energia_kcal": 84.609,
+"proteina": 18.93,
+"gordura": 0.569,
+"gordura_saturada": 0.08,
+"hidratos": 0.943,
+"fibra": 0.0,
+"sal": 0.912,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Spiny lobsters, flesh, raw",
+"nut": {
+"energia_kcal": 90.926,
+"proteina": 19.019,
+"gordura": 1.14,
+"gordura_saturada": 0.2,
+"hidratos": 1.148,
+"fibra": 0.0,
+"sal": 0.599,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Red rock lobster, flesh, raw",
+"nut": {
+"energia_kcal": 94.875,
+"proteina": 21.695,
+"gordura": 0.895,
+"gordura_saturada": 0.14,
+"hidratos": null,
+"fibra": 0.0,
+"sal": 0.65,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "King crabs/Stone crabs, flesh, raw",
+"nut": {
+"energia_kcal": 69.409,
+"proteina": 15.758,
+"gordura": 0.709,
+"gordura_saturada": 0.08,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 2.09,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Red king crab, flesh, raw",
+"nut": {
+"energia_kcal": 69.572,
+"proteina": 15.758,
+"gordura": 0.727,
+"gordura_saturada": 0.08,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 2.09,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Common shrimp, flesh, raw",
+"nut": {
+"energia_kcal": 93.745,
+"proteina": 18.47,
+"gordura": 1.625,
+"gordura_saturada": 0.39,
+"hidratos": 1.31,
+"fibra": 0.0,
+"sal": null,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Pandalus shrimps, flesh, raw",
+"nut": {
+"energia_kcal": 79.975,
+"proteina": 17.47,
+"gordura": 1.122,
+"gordura_saturada": 0.19,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 1.575,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Northern prawn, flesh, raw",
+"nut": {
+"energia_kcal": 72.875,
+"proteina": 16.367,
+"gordura": 0.775,
+"gordura_saturada": 0.12,
+"hidratos": 0.108,
+"fibra": 0.0,
+"sal": 1.575,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Penaeid shrimps, flesh, raw",
+"nut": {
+"energia_kcal": 91.801,
+"proteina": 19.276,
+"gordura": 1.09,
+"gordura_saturada": 0.25,
+"hidratos": 1.221,
+"fibra": 0.0,
+"sal": 0.479,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Endeavour shrimp, flesh, raw",
+"nut": {
+"energia_kcal": 97.006,
+"proteina": 22.5,
+"gordura": 0.75,
+"gordura_saturada": 0.15,
+"hidratos": 0.064,
+"fibra": 0.0,
+"sal": 0.83,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Eastern school shrimp, flesh, raw",
+"nut": {
+"energia_kcal": 84.856,
+"proteina": 17.8,
+"gordura": 1.12,
+"gordura_saturada": 0.26,
+"hidratos": 0.894,
+"fibra": 0.0,
+"sal": 0.285,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Speckled shrimp, flesh, raw",
+"nut": {
+"energia_kcal": 92.744,
+"proteina": 19.761,
+"gordura": 1.462,
+"gordura_saturada": 0.36,
+"hidratos": 0.135,
+"fibra": 0.0,
+"sal": 0.279,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Brown tiger prawn, flesh, raw",
+"nut": {
+"energia_kcal": 103.056,
+"proteina": 23.4,
+"gordura": 0.92,
+"gordura_saturada": 0.2,
+"hidratos": 0.294,
+"fibra": 0.0,
+"sal": 0.682,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Western king prawn, flesh, raw",
+"nut": {
+"energia_kcal": 103.25,
+"proteina": 23.9,
+"gordura": 0.85,
+"gordura_saturada": 0.18,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 0.67,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Banana prawn, flesh, raw",
+"nut": {
+"energia_kcal": 58.2,
+"proteina": 13.2,
+"gordura": 0.6,
+"gordura_saturada": 0.1,
+"hidratos": 0.0,
+"fibra": 0.0,
+"sal": 1.272,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Giant tiger prawn, flesh, raw (n.s.)",
+"nut": {
+"energia_kcal": 93.71,
+"proteina": 17.313,
+"gordura": 1.092,
+"gordura_saturada": 0.3,
+"hidratos": 3.658,
+"fibra": 0.0,
+"sal": 0.417,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Green tiger prawn, flesh, raw",
+"nut": {
+"energia_kcal": 97.602,
+"proteina": 20.8,
+"gordura": 1.09,
+"gordura_saturada": 0.25,
+"hidratos": 1.147,
+"fibra": 0.0,
+"sal": 0.368,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Whiteleg shrimp, flesh, raw",
+"nut": {
+"energia_kcal": 81.84,
+"proteina": 18.2,
+"gordura": 1.0,
+"gordura_saturada": 0.25,
+"hidratos": null,
+"fibra": 0.0,
+"sal": 0.537,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Sergestid shrimps, flesh, raw",
+"nut": {
+"energia_kcal": 89.255,
+"proteina": 18.455,
+"gordura": 1.515,
+"gordura_saturada": null,
+"hidratos": 0.45,
+"fibra": 0.0,
+"sal": 0.37,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Abalones, muscle, raw",
+"nut": {
+"energia_kcal": 96.103,
+"proteina": 17.706,
+"gordura": 1.093,
+"gordura_saturada": 0.25,
+"hidratos": 3.86,
+"fibra": 0.0,
+"sal": 0.944,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Conch shells, flesh, raw",
+"nut": {
+"energia_kcal": 103.717,
+"proteina": 23.264,
+"gordura": 0.506,
+"gordura_saturada": null,
+"hidratos": 1.527,
+"fibra": 0.0,
+"sal": 0.328,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Giant Eastern Pacific conch, flesh, raw",
+"nut": {
+"energia_kcal": 103.333,
+"proteina": 23.633,
+"gordura": 0.267,
+"gordura_saturada": null,
+"hidratos": 1.6,
+"fibra": 0.0,
+"sal": 0.328,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Eastern Pacific fighting conch, flesh, raw",
+"nut": {
+"energia_kcal": 104.005,
+"proteina": 22.988,
+"gordura": 0.685,
+"gordura_saturada": null,
+"hidratos": 1.472,
+"fibra": 0.0,
+"sal": 0.328,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Cupped oysters, flesh, raw",
+"nut": {
+"energia_kcal": 72.577,
+"proteina": 8.887,
+"gordura": 1.779,
+"gordura_saturada": 0.42,
+"hidratos": 5.254,
+"fibra": 0.0,
+"sal": 0.87,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Pacific cupped oyster, flesh, raw (n.s.)",
+"nut": {
+"energia_kcal": 78.27,
+"proteina": 9.724,
+"gordura": 1.816,
+"gordura_saturada": 0.42,
+"hidratos": 5.757,
+"fibra": 0.0,
+"sal": 1.038,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Mangrove cupped oyster, flesh, raw",
+"nut": {
+"energia_kcal": 61.954,
+"proteina": 8.444,
+"gordura": 1.65,
+"gordura_saturada": 0.39,
+"hidratos": 3.332,
+"fibra": 0.0,
+"sal": 0.444,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "American cupped oyster, flesh, raw (n.s.)",
+"nut": {
+"energia_kcal": 49.692,
+"proteina": 5.566,
+"gordura": 1.372,
+"gordura_saturada": 0.38,
+"hidratos": 3.77,
+"fibra": 0.0,
+"sal": 0.329,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Flat oysters, flesh, raw",
+"nut": {
+"energia_kcal": 66.688,
+"proteina": 9.423,
+"gordura": 2.08,
+"gordura_saturada": 0.66,
+"hidratos": 2.569,
+"fibra": 0.0,
+"sal": 0.923,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "European flat oyster, flesh, raw",
+"nut": {
+"energia_kcal": 61.088,
+"proteina": 10.8,
+"gordura": 1.6,
+"gordura_saturada": 0.46,
+"hidratos": 0.872,
+"fibra": 0.0,
+"sal": 1.275,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Mytilus mussels, flesh, raw",
+"nut": {
+"energia_kcal": 83.326,
+"proteina": 11.355,
+"gordura": 2.008,
+"gordura_saturada": 0.58,
+"hidratos": 4.958,
+"fibra": 0.0,
+"sal": 1.031,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Korean mussel, flesh, raw",
+"nut": {
+"energia_kcal": 107.959,
+"proteina": 12.385,
+"gordura": 2.566,
+"gordura_saturada": 0.76,
+"hidratos": 8.832,
+"fibra": 0.0,
+"sal": 1.031,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Blue mussel, flesh, raw",
+"nut": {
+"energia_kcal": 79.947,
+"proteina": 11.8,
+"gordura": 1.913,
+"gordura_saturada": 0.54,
+"hidratos": 3.882,
+"fibra": 0.0,
+"sal": 1.006,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Mediterranean mussel, flesh, raw (n.s.)",
+"nut": {
+"energia_kcal": 68.393,
+"proteina": 9.565,
+"gordura": 1.82,
+"gordura_saturada": 0.5,
+"hidratos": 3.438,
+"fibra": 0.0,
+"sal": 1.08,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Perna mussel, flesh, raw",
+"nut": {
+"energia_kcal": 81.994,
+"proteina": 13.504,
+"gordura": 1.983,
+"gordura_saturada": 0.46,
+"hidratos": 2.534,
+"fibra": 0.0,
+"sal": 0.851,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "New Zealand mussel, flesh, raw (New Zealand)",
+"nut": {
+"energia_kcal": 74.65,
+"proteina": 10.688,
+"gordura": 1.81,
+"gordura_saturada": 0.41,
+"hidratos": 3.903,
+"fibra": 0.0,
+"sal": 1.175,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Green mussel, flesh, raw",
+"nut": {
+"energia_kcal": 53.3,
+"proteina": 9.3,
+"gordura": 0.9,
+"gordura_saturada": 0.16,
+"hidratos": 2.0,
+"fibra": 0.0,
+"sal": 0.527,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Scallops, flesh, raw",
+"nut": {
+"energia_kcal": 75.132,
+"proteina": 14.936,
+"gordura": 0.736,
+"gordura_saturada": 0.14,
+"hidratos": 2.191,
+"fibra": 0.0,
+"sal": 0.643,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Great Atlantic scallop, flesh, raw",
+"nut": {
+"energia_kcal": 69.867,
+"proteina": 14.8,
+"gordura": 0.8,
+"gordura_saturada": 0.15,
+"hidratos": 0.867,
+"fibra": 0.0,
+"sal": 0.733,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Venus clams, flesh, raw",
+"nut": {
+"energia_kcal": 61.332,
+"proteina": 9.199,
+"gordura": 1.186,
+"gordura_saturada": 0.3,
+"hidratos": 3.464,
+"fibra": 0.0,
+"sal": 1.274,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Striped venus, flesh, raw",
+"nut": {
+"energia_kcal": 66.335,
+"proteina": 9.228,
+"gordura": 1.565,
+"gordura_saturada": 0.4,
+"hidratos": 3.833,
+"fibra": 0.0,
+"sal": 1.277,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Inshore squids, flesh, raw",
+"nut": {
+"energia_kcal": 82.803,
+"proteina": 15.918,
+"gordura": 1.563,
+"gordura_saturada": 0.4,
+"hidratos": 1.266,
+"fibra": 0.0,
+"sal": 0.393,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "European squid, flesh, raw (n.s.)",
+"nut": {
+"energia_kcal": 83.17,
+"proteina": 16.102,
+"gordura": 1.796,
+"gordura_saturada": 0.48,
+"hidratos": 0.649,
+"fibra": 0.0,
+"sal": 0.367,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Octopuses, etc., flesh, raw",
+"nut": {
+"energia_kcal": 64.548,
+"proteina": 13.826,
+"gordura": 0.72,
+"gordura_saturada": 0.13,
+"hidratos": 0.691,
+"fibra": 0.0,
+"sal": 1.031,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Common octopus, flesh, raw (n.s.)",
+"nut": {
+"energia_kcal": 65.071,
+"proteina": 13.69,
+"gordura": 0.821,
+"gordura_saturada": 0.17,
+"hidratos": 0.73,
+"fibra": 0.0,
+"sal": 1.062,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Ommastrephidae squids, flesh, raw",
+"nut": {
+"energia_kcal": 84.073,
+"proteina": 16.423,
+"gordura": 1.63,
+"gordura_saturada": 0.41,
+"hidratos": 0.928,
+"fibra": 0.0,
+"sal": 0.66,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Cuttlefish/Bobtail squids, flesh, raw",
+"nut": {
+"energia_kcal": 76.572,
+"proteina": 16.353,
+"gordura": 1.04,
+"gordura_saturada": 0.26,
+"hidratos": 0.45,
+"fibra": 0.0,
+"sal": 0.663,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Cuttlefish, bobtail squids, flesh, boiled",
+"nut": {
+"energia_kcal": 150.141,
+"proteina": 32.064,
+"gordura": 2.039,
+"gordura_saturada": 0.61,
+"hidratos": 0.883,
+"fibra": 0.0,
+"sal": 1.105,
+"acucares": null
+}
+},
+{
+"fonte": "ufish",
+"nome_en": "Common cuttlefish, flesh, raw",
+"nut": {
+"energia_kcal": 78.018,
+"proteina": 15.962,
+"gordura": 1.102,
+"gordura_saturada": 0.27,
+"hidratos": 1.063,
+"fibra": 0.0,
+"sal": 0.588,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Adzuki bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 318.062,
+"proteina": 20.468,
+"gordura": 0.553,
+"gordura_saturada": 0.16,
+"hidratos": 51.271,
+"fibra": 13.062,
+"sal": 0.013,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Bambara groundnuts, dried, raw",
+"nut": {
+"energia_kcal": 324.596,
+"proteina": 18.444,
+"gordura": 6.446,
+"gordura_saturada": 1.604,
+"hidratos": 33.735,
+"fibra": 28.934,
+"sal": 0.006,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Black turtle bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 305.711,
+"proteina": 22.239,
+"gordura": 1.77,
+"gordura_saturada": 0.321,
+"hidratos": 39.68,
+"fibra": 21.053,
+"sal": 0.012,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Broad bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 308.583,
+"proteina": 25.344,
+"gordura": 1.364,
+"gordura_saturada": 0.206,
+"hidratos": 38.35,
+"fibra": 20.766,
+"sal": 0.063,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Chickpea, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 337.193,
+"proteina": 20.391,
+"gordura": 5.152,
+"gordura_saturada": 0.606,
+"hidratos": 41.955,
+"fibra": 20.72,
+"sal": 0.029,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Common bean (all types), mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 305.264,
+"proteina": 20.917,
+"gordura": 1.509,
+"gordura_saturada": 0.304,
+"hidratos": 40.69,
+"fibra": 22.629,
+"sal": 0.039,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Cowpea, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 323.951,
+"proteina": 22.493,
+"gordura": 1.924,
+"gordura_saturada": 0.463,
+"hidratos": 46.866,
+"fibra": 14.601,
+"sal": 0.055,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Hyacinth bean, mature, whole, raw",
+"nut": {
+"energia_kcal": 315.824,
+"proteina": 23.249,
+"gordura": 1.51,
+"gordura_saturada": 0.434,
+"hidratos": 44.217,
+"fibra": 16.185,
+"sal": 0.051,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Kidney bean (all types), mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 310.803,
+"proteina": 21.899,
+"gordura": 2.113,
+"gordura_saturada": 0.375,
+"hidratos": 39.878,
+"fibra": 22.339,
+"sal": 0.044,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Kidney bean, red, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 306.517,
+"proteina": 22.795,
+"gordura": 1.598,
+"gordura_saturada": 0.284,
+"hidratos": 39.369,
+"fibra": 21.737,
+"sal": 0.022,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Lentil, mature, dried, split, raw",
+"nut": {
+"energia_kcal": 333.858,
+"proteina": 27.013,
+"gordura": 1.457,
+"gordura_saturada": 0.268,
+"hidratos": 47.955,
+"fibra": 10.433,
+"sal": 0.013,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Lima bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 315.87,
+"proteina": 20.913,
+"gordura": 1.547,
+"gordura_saturada": 0.363,
+"hidratos": 45.024,
+"fibra": 19.1,
+"sal": 0.018,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Lupin, whole, dried, raw (Lupinus spp.)",
+"nut": {
+"energia_kcal": 308.661,
+"proteina": 34.059,
+"gordura": 6.5,
+"gordura_saturada": 0.881,
+"hidratos": 10.813,
+"fibra": 35.336,
+"sal": 0.025,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Moth bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 326.063,
+"proteina": 23.931,
+"gordura": 1.88,
+"gordura_saturada": 0.409,
+"hidratos": 45.918,
+"fibra": 14.874,
+"sal": 0.071,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Mung bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 324.911,
+"proteina": 20.949,
+"gordura": 1.347,
+"gordura_saturada": 0.44,
+"hidratos": 49.563,
+"fibra": 15.371,
+"sal": 0.023,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Mungo bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 315.529,
+"proteina": 23.861,
+"gordura": 1.382,
+"gordura_saturada": 0.381,
+"hidratos": 42.177,
+"fibra": 19.47,
+"sal": 0.052,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Navy bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 311.009,
+"proteina": 21.826,
+"gordura": 1.777,
+"gordura_saturada": 0.338,
+"hidratos": 42.617,
+"fibra": 18.62,
+"sal": 0.042,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Pea, mature, split, dried, raw",
+"nut": {
+"energia_kcal": 330.881,
+"proteina": 21.273,
+"gordura": 1.685,
+"gordura_saturada": 0.276,
+"hidratos": 51.881,
+"fibra": 11.55,
+"sal": 0.039,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Pigeon pea, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 305.773,
+"proteina": 20.575,
+"gordura": 1.843,
+"gordura_saturada": 0.45,
+"hidratos": 41.022,
+"fibra": 21.401,
+"sal": 0.023,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Pinto bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 301.4,
+"proteina": 19.644,
+"gordura": 1.308,
+"gordura_saturada": 0.283,
+"hidratos": 43.788,
+"fibra": 17.95,
+"sal": 0.01,
+"acucares": null
+}
+},
+{
+"fonte": "upulses",
+"nome_en": "Rice bean, mature, whole, dried, raw",
+"nut": {
+"energia_kcal": 311.61,
+"proteina": 18.804,
+"gordura": 0.527,
+"gordura_saturada": 0.115,
+"hidratos": 50.321,
+"fibra": 15.184,
+"sal": 0.09,
+"acucares": null
+}
+}
+]

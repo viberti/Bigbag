@@ -21,18 +21,24 @@ export function tokensTaco(texto) {
     .filter((t) => (t.length >= 3 || FORM.has(t)) && !STOP.has(t) && !PREP.has(t)))];
 }
 
-// Devolve { nutricao_100g, descricao, categoria } se houver alimento TACO de CONFIANÇA p/ o nome; senão null.
-export async function nutricaoTaco(pool, nome) {
+// Devolve { nutricao_100g, descricao, fonte } se houver alimento de CONFIANÇA p/ o nome; senão null.
+// Consulta a TACO (BR, PRIORITÁRIA) E a FAO (peixes/leguminosas globais) — a TACO ganha nos empates
+// (mais fiel às variedades BR). Cada tabela tem o seu try (FAO ausente não derruba a TACO). O chamador
+// fica com a estimativa do LLM se devolver null.
+export async function nutricaoGenerica(pool, nome) {
   const tq = tokensTaco(nome);
   if (!tq.length) return null;
-  let rows;
-  try {
-    [rows] = await pool.query(
-      `SELECT descricao, categoria, nutricao, busca FROM nutricao_taco
-        WHERE MATCH(busca) AGAINST(? IN BOOLEAN MODE) LIMIT 60`,
-      [tq.map((t) => `${t}*`).join(' ')]);
-  } catch { return null; }
-  if (!rows?.length) return null;
+  const termo = tq.map((t) => `${t}*`).join(' ');
+  const consultar = async (tabela, fonte) => {
+    try {
+      const [r] = await pool.query(
+        `SELECT descricao, nutricao, busca FROM ${tabela} WHERE MATCH(busca) AGAINST(? IN BOOLEAN MODE) LIMIT 60`,
+        [termo]);
+      return r.map((x) => ({ ...x, fonte }));
+    } catch { return []; }
+  };
+  const rows = [...await consultar('nutricao_taco', 'taco'), ...await consultar('nutricao_fao', 'fao')];
+  if (!rows.length) return null;
 
   const headQ = tq[0];
   const tqSet = new Set(tq);
@@ -59,8 +65,9 @@ export async function nutricaoTaco(pool, nome) {
     const headMatch = arr[0] === headQ ? 5 : 0;              // preferir a ficha liderada pela 1.ª palavra
     const proto = extra.reduce((s, t) => s + (freq.get(t) || 0), 0); // variedade prototípica
     const base = /\b(cru|crua|natural)\b/.test(normAlfa(r.descricao)) ? 0.5 : 0; // forma "como vendido"
-    const score = headMatch + cobertura * 10 - extra.length * 2 + proto * 0.5 + base;
+    const priorBR = r.fonte === 'taco' ? 0.3 : 0;            // TACO ganha empates (mais fiel ao BR)
+    const score = headMatch + cobertura * 10 - extra.length * 2 + proto * 0.5 + base + priorBR;
     if (score > bestScore) { bestScore = score; best = r; }
   }
-  return best ? { nutricao_100g: parseJsonCol(best.nutricao), descricao: best.descricao, categoria: best.categoria } : null;
+  return best ? { nutricao_100g: parseJsonCol(best.nutricao), descricao: best.descricao, fonte: best.fonte } : null;
 }

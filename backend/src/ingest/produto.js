@@ -6,7 +6,7 @@ import { config } from '../config.js';
 import { parseJsonLoose } from './extract.js';
 import { getPool, parseJsonCol } from '../db.js';
 import { registrarCusto } from '../custo.js';
-import { nutricaoTaco } from '../normaliza/taco.js';
+import { nutricaoGenerica } from '../normaliza/taco.js';
 
 const PROMPT = `És um extrator de RÓTULOS de produtos de supermercado. Vês uma ou mais fotos do MESMO produto, possivelmente de FACES DIFERENTES (frente, verso, lista de ingredientes, tabela nutricional, código de barras, fundo/aba com a validade). COMBINA a informação de todas as fotos. Descobre o MÁXIMO possível e devolve SÓ um objeto JSON, sem texto à volta:
 {
@@ -275,19 +275,20 @@ export async function garantirGenericoSku(pool, skuId, nome) {
   if (!nome) return null;
   const { dados, custo } = await caracterizarProdutoNome(nome);
   const tipo = ['fresco', 'basico'].includes(dados.tipo) ? dados.tipo : 'processado';
-  // TACO (composição BR oficial): se houver alimento genérico correspondente, a sua nutrição
-  // por 100g substitui a ESTIMATIVA do LLM (dados reais > guess). Grátis; cobre arroz/feijão/
-  // frango/frutas… que o OFF/retalho BR não tem. O LLM continua a dar tipo/alimento/categoria.
-  const taco = await nutricaoTaco(pool, dados.alimento || nome).catch(() => null);
-  const nutricao = taco?.nutricao_100g || dados.nutricao_100g || null;
-  const modelo = taco ? 'taco' : config.openrouter.modelConsulta;
+  // Composição oficial (TACO BR + FAO/INFOODS peixes/leguminosas): se houver alimento genérico
+  // correspondente, a sua nutrição por 100g substitui a ESTIMATIVA do LLM (dados reais > guess).
+  // Grátis; cobre arroz/feijão/frango/frutas/pescados… que o OFF/retalho BR não tem. O LLM continua
+  // a dar tipo/alimento/categoria. fonte = 'taco' | 'fao'.
+  const gen = await nutricaoGenerica(pool, dados.alimento || nome).catch(() => null);
+  const nutricao = gen?.nutricao_100g || dados.nutricao_100g || null;
+  const modelo = gen ? gen.fonte : config.openrouter.modelConsulta;
   await pool.query(
     `INSERT INTO produto_generico (sku_id, tipo, alimento, categoria, nutricao, modelo) VALUES (?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE tipo=VALUES(tipo), alimento=VALUES(alimento), categoria=VALUES(categoria), nutricao=VALUES(nutricao), modelo=VALUES(modelo)`,
     [skuId, tipo, dados.alimento || null, dados.categoria || null,
       nutricao ? JSON.stringify(nutricao) : null, modelo],
   );
-  return { tipo, alimento: dados.alimento || null, categoria: dados.categoria || null, nutricao_100g: nutricao, cacheada: false, custo, fonte_nutricao: taco ? 'taco' : 'llm' };
+  return { tipo, alimento: dados.alimento || null, categoria: dados.categoria || null, nutricao_100g: nutricao, cacheada: false, custo, fonte_nutricao: gen ? gen.fonte : 'llm' };
 }
 
 const PROMPT_NOME = `És um normalizador de nomes de produtos de supermercado. Recebes VÁRIAS variantes do nome do MESMO produto (de talões, rótulos e bases de dados — podem estar em línguas diferentes, em MAIÚSCULAS, abreviadas ou com códigos). Escolhe/compõe o MELHOR nome canónico em PORTUGUÊS. Devolve SÓ JSON: {"nome": string}.
