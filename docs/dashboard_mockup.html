@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BigBag · Dashboard (snapshot do estado atual)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 400 14px/1.4 system-ui, -apple-system, sans-serif; }
+  .dash-shell { display: flex; min-height: 100vh; background: #eef1ec; color: #2b3b2b; }
+  .dash-side { width: 218px; flex: 0 0 218px; background: #233029; color: #c8dcc4; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+  .dash-brand { padding: 18px 16px 15px; font: 700 18px system-ui; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.09); }
+  .dash-brand b { color: #fff; } .dash-brand span { font: 600 10px system-ui; letter-spacing: .12em; text-transform: uppercase; color: #7fa379; margin-left: auto; }
+  .dash-nav { display: flex; flex-direction: column; padding: 12px 9px; gap: 2px; flex: 1; }
+  .dash-nav button { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border: 0; background: 0; color: #c8dcc4; font: 600 14px system-ui; border-radius: 8px; cursor: pointer; text-align: left; }
+  .dash-nav button:hover { background: rgba(255,255,255,.07); }
+  .dash-nav button.on { background: #3f7a3f; color: #fff; }
+  .dn-ic { font-size: 16px; width: 20px; text-align: center; }
+  .dash-side-foot { padding: 13px; border-top: 1px solid rgba(255,255,255,.09); display: flex; flex-direction: column; gap: 9px; }
+  .dash-side-foot a { color: #8fb089; text-decoration: none; font: 600 12px system-ui; }
+  .dash-refresh2 { background: rgba(255,255,255,.08); color: #c8dcc4; border: 0; border-radius: 7px; padding: 8px; cursor: pointer; font: 600 12px system-ui; }
+  .dash-ts { color: #6f8a6a; font-size: 10.5px; }
+  .dash-main { flex: 1; min-width: 0; padding: 24px 30px 64px; }
+  .dash-main-h h1 { font: 800 23px system-ui; color: #2b3b2b; margin: 0 0 18px; }
+  .dash-sub { color: #6b7b6b; font-size: 13px; margin: -6px 0 16px; }
+  .dash-h3 { font: 700 12px system-ui; text-transform: uppercase; letter-spacing: .05em; color: #7a8a7a; margin: 26px 0 8px; }
+  .dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 13px; }
+  .dash-kpi { background: #fff; border: 1px solid #e1e7de; border-radius: 11px; padding: 16px 18px; display: flex; flex-direction: column; gap: 3px; }
+  .dk-n { font: 800 28px system-ui; color: #243029; line-height: 1; }
+  .dk-l { font-size: 12.5px; color: #6b7b6b; }
+  .dk-s { font-size: 11px; color: #9aa89a; margin-top: 3px; }
+  .dash-paises { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 13px; }
+  .dash-pais { background: #fff; border: 1px solid #e1e7de; border-radius: 11px; padding: 15px 16px; display: flex; flex-direction: column; gap: 5px; cursor: pointer; text-align: left; }
+  .dash-pais:hover { border-color: #9cc497; }
+  .dp-top { display: flex; align-items: center; gap: 9px; } .dp-flag { font-size: 24px; } .dp-nome { font: 800 16px system-ui; color: #243029; }
+  .dp-num { font-size: 13px; color: #6b7b6b; } .dp-num b { color: #243029; font-weight: 800; }
+  .dp-bar { height: 6px; background: #eef2ec; border-radius: 4px; overflow: hidden; margin-top: 5px; } .dp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #67b262, #3f7a3f); }
+  .dash-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .dash-tb-l { font: 600 13px system-ui; color: #6b7b6b; }
+  .dash-sel, .dash-busca { padding: 8px 12px; border: 1px solid #cdd6cc; border-radius: 8px; font-size: 13px; background: #fff; color: #2b3b2b; } .dash-busca { min-width: 230px; }
+  .dash-count { font-size: 13px; color: #6b7b6b; margin-left: auto; }
+  .dash-csv { padding: 8px 13px; border: 1px solid #cdd6cc; border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; color: #3f7a3f; font-weight: 700; }
+  .dash-periodo { display: flex; gap: 5px; } .dash-periodo button { padding: 7px 13px; border: 1px solid #cdd6cc; border-radius: 7px; background: #fff; cursor: pointer; font-size: 13px; } .dash-periodo button.on { background: #3f7a3f; color: #fff; border-color: #3f7a3f; }
+  .dash-tabela-wrap { overflow-x: auto; background: #fff; border: 1px solid #e1e7de; border-radius: 11px; }
+  .dash-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .dash-tabela th, .dash-tabela td { padding: 9px 13px; text-align: left; border-bottom: 1px solid #eef1ec; white-space: nowrap; }
+  .dash-tabela thead th { background: #f6f8f4; color: #5a6b5a; font-weight: 700; font-size: 12px; }
+  .dash-tabela tbody tr:hover { background: #f7faf6; }
+  .dash-tabela th.dash-th { cursor: pointer; } .dash-tabela th.num, .dash-tabela td.num { text-align: right; }
+  .dash-tabela td small { color: #9aa89a; font-size: 11px; margin-left: 4px; }
+  .dash-fn { font-weight: 700; color: #243029; } .dash-plat { color: #6b7b6b; font-size: 12px; } .dash-usd { color: #c2553a; font-weight: 700; }
+  .dash-foot td { font-weight: 800; background: #f4f7f2; border-top: 2px solid #d6e0d2; border-bottom: 0; }
+  .dash-custos-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 26px; align-items: start; }
+  .dash-bars { display: flex; flex-direction: column; gap: 4px; background: #fff; border: 1px solid #e1e7de; border-radius: 11px; padding: 14px 16px; }
+  .dash-bar { display: grid; grid-template-columns: 42px 1fr 60px 46px; align-items: center; gap: 9px; font-size: 12px; }
+  .db-d { color: #8a958a; } .db-track { background: #eef2ec; border-radius: 4px; height: 15px; overflow: hidden; } .db-track i { display: block; height: 100%; background: linear-gradient(90deg, #67b262, #3f7a3f); }
+  .db-v { text-align: right; font-weight: 700; color: #243029; } .db-n { text-align: right; color: #9aa89a; }
+  @media (max-width: 980px) { .dash-custos-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="dash-shell">
+  <aside class="dash-side">
+    <div class="dash-brand">📊 <b>BigBag</b><span>dashboard</span></div>
+    <nav class="dash-nav" id="nav"></nav>
+    <div class="dash-side-foot">
+      <button class="dash-refresh2">↻ recalcular dados</button>
+      <a href="#">← voltar à app</a>
+      <span class="dash-ts">dados de 17/06/2026, 10:09</span>
+    </div>
+  </aside>
+  <main class="dash-main">
+    <div class="dash-main-h"><h1 id="titulo">Visão global</h1></div>
+    <div id="conteudo"></div>
+  </main>
+</div>
+<script>
+const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('pt-PT'));
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+const usd = (v) => '$' + Number(v).toFixed(2);
+const BAND = { PT:'🇵🇹', ES:'🇪🇸', FR:'🇫🇷', AT:'🇦🇹', BR:'🇧🇷', Global:'🌍' };
+const NAV = [['global','Visão global','🌐'],['fontes','Fontes de dados','🗂️'],['paises','Países','🌍'],['custos','Custos de IA','💸']];
+
+const FONTES = [
+ ['off_full','Global','Dump OFF (DuckDB)',4511942,4511942,3346831,2231874,1271280,null],
+ ['auchan','PT','Scrape HTML',34438,34436,34438,9255,25292,19255],
+ ['off_produto','Global','Dump OFF (antigo)',26969,26969,0,4295,0,null],
+ ['mundial','BR','GraphQL próprio',24812,24433,4336,0,0,9161],
+ ['gbarbosa','BR','VTEX (API)',24748,24748,24747,0,0,10643],
+ ['supernosso','BR','VTEX (API)',22040,22008,22028,0,0,7884],
+ ['continente','PT','Scrape HTML',19810,19810,19810,8335,8753,7966],
+ ['atacadao','BR','VTEX (API)',19655,19630,19654,0,0,10379],
+ ['bretas','BR','VTEX (API)',17735,17735,17735,0,0,5033],
+ ['prezunic','BR','VTEX (API)',15341,15341,15341,0,0,2194],
+ ['zonasul','BR','VTEX (API)',15312,15240,15310,0,0,5542],
+ ['pingodoce','PT','Scrape HTML',15197,2423,15197,1244,1228,0],
+ ['carone','BR','VTEX (API)',14866,14852,14866,0,0,4793],
+ ['paodeacucar','BR','Linx/GPA (API)',13162,12035,13162,4270,4955,4094],
+ ['condor','BR','Scrape',12528,0,12308,0,0,0],
+ ['zaffari','BR','VTEX (API)',11853,11853,11853,0,0,4198],
+ ['comper','BR','VTEX (API)',11011,11011,11011,0,0,2744],
+ ['savegnago','BR','VTEX (API)',10767,10764,10767,0,0,2317],
+ ['lidl-fr','FR','Scrape',9390,9390,1490,0,0,2933],
+ ['giassi','BR','VTEX (API)',9264,9264,9264,0,0,1823],
+ ['leclerc','FR','Scrape',8610,8609,8609,0,0,2294],
+ ['piccantino','AT','Scrape',7946,7751,7946,0,0,3058],
+ ['supermuffato','BR','VTEX (API)',6732,6731,6732,0,0,889],
+ ['consum','ES','JSON-LD',6147,6086,6081,0,0,1715],
+ ['mercadona','ES','Scrape JSON',5060,5013,5060,0,0,2369],
+ ['superprix','BR','VipCommerce (API)',4626,4081,4562,0,0,507],
+ ['harvest','BR','EANs minados',4374,4222,0,0,0,2466],
+ ['mambo','BR','VTEX (API)',2208,2208,2208,0,0,353],
+ ['mercadona-off','ES','Dump OFF',586,586,0,0,0,0],
+ ['lidl','PT','Scrape HTML',390,0,390,0,0,0],
+ ['nutripedia','PT','Transfer-state',148,148,148,148,146,21],
+].map(r => ({ fonte:r[0], pais:r[1], plataforma:r[2], produtos:r[3], eans:r[4], fotos:r[5], nut:r[6], ing:r[7], unicos:r[8] }));
+
+const PAISES = [['BR',18,118952],['PT',5,46471],['FR',2,17997],['ES',3,11485],['AT',1,7751]].map(r=>({pais:r[0],n:r[1],eans:r[2]}));
+const GLOBAL = { paises:5, unicoGlobal:4655232, off:4511942, novosRetalho:143290, nut:2231874, nutCat:19075, catalogo:197364 };
+const CUSTO = {
+  total:{usd:6.9202, chamadas:6566}, geral:{usd:6.9202},
+  ctx:[['extracao_imagem',479,2.07029,0.004322],['classificar_tipo',373,1.01136,0.002711],['mestre',2315,0.96289,0.000416],['canonicalizar',1249,0.91596,0.000733],['traducao_corpus',312,0.82142,0.002633],['extracao_texto',295,0.24352,0.000826],['analise_produto',112,0.19977,0.001784],['traducao',529,0.14435,0.000273]],
+  mod:[['google/gemini-2.5-flash',4879,5.74808],['google/gemini-2.5-flash-lite',1571,0.40125],['google/gemini-3.1-pro-preview',20,0.27189],['openai/gpt-5.5',19,0.22283],['anthropic/claude-opus-4.8',20,0.21295],['x-ai/grok-4.3',20,0.04706]],
+  dia:[['06-05',445,0.73057],['06-06',790,0.60781],['06-07',2944,2.13248],['06-08',114,0.48794],['06-09',47,0.00899],['06-10',184,0.05455],['06-11',317,0.32593],['06-12',386,0.18414],['06-13',164,0.12097],['06-14',421,1.01557],['06-15',551,1.05761],['06-16',193,0.1794],['06-17',10,0.01421]],
+};
+
+let pagina = 'global', filtroPais = '', ord = { col:'produtos', dir:-1 };
+const kpi = (n,l,s) => `<div class="dash-kpi"><span class="dk-n">${n}</span><span class="dk-l">${l}</span>${s?`<span class="dk-s">${s}</span>`:''}</div>`;
+
+function pgGlobal() {
+  const sis = FONTES.reduce((a,x)=>({p:a.p+x.produtos,f:a.f+x.fotos,n:a.n+x.nut}),{p:0,f:0,n:0});
+  return `<div class="dash-kpis">
+    ${kpi(fmt(GLOBAL.paises),'Países cobertos')}
+    ${kpi(fmt(GLOBAL.unicoGlobal),'EANs únicos (global, dedup)',`OFF ${fmt(GLOBAL.off)} + ${fmt(GLOBAL.novosRetalho)} de retalho`)}
+    ${kpi(fmt(GLOBAL.nut),'EANs com nutrição (OFF)',`+ ${fmt(GLOBAL.nutCat)} no catálogo`)}
+    ${kpi(fmt(GLOBAL.catalogo),'EANs no catálogo (retalho)')}
+  </div><h3 class="dash-h3">Totais do sistema</h3><div class="dash-kpis">
+    ${kpi(fmt(FONTES.length),'Fontes integradas')}${kpi(fmt(sis.p),'Produtos (todas as fontes)')}${kpi(fmt(sis.f),'Fotografias')}${kpi(fmt(sis.n),'Registos com nutrição')}
+  </div>`;
+}
+function pgPaises() {
+  const max = Math.max(...PAISES.map(p=>p.eans));
+  return `<p class="dash-sub">Métricas por país. Clica num país para ver as suas fontes.</p><div class="dash-paises">${PAISES.map(p=>`
+    <div class="dash-pais" onclick="filtroPais='${p.pais}';pagina='fontes';render()">
+      <div class="dp-top"><span class="dp-flag">${BAND[p.pais]}</span><span class="dp-nome">${p.pais}</span></div>
+      <div class="dp-num"><b>${fmt(p.n)}</b> fontes ativas</div><div class="dp-num"><b>${fmt(p.eans)}</b> EANs</div>
+      <div class="dp-bar"><i style="width:${Math.round(100*p.eans/max)}%"></i></div>
+    </div>`).join('')}</div>`;
+}
+const COLS = [['fonte','Fonte'],['pais','País'],['plataforma','Plataforma'],['produtos','Produtos'],['eans','EANs'],['fotos','Fotos'],['nut','Nutrição'],['ing','Ingredientes'],['unicos','EANs únicos']];
+function pgFontes() {
+  let f = FONTES.filter(x=>!filtroPais || x.pais===filtroPais);
+  f = [...f].sort((a,b)=>{const va=a[ord.col],vb=b[ord.col];return typeof va==='string'?ord.dir*String(va).localeCompare(vb):ord.dir*((va||0)-(vb||0));});
+  const r = f.reduce((a,x)=>({p:a.p+x.produtos,e:a.e+x.eans,f:a.f+x.fotos,n:a.n+x.nut,i:a.i+x.ing}),{p:0,e:0,f:0,n:0,i:0});
+  const opts = [...new Set(FONTES.map(x=>x.pais))];
+  return `<div class="dash-toolbar">
+    <select class="dash-sel" onchange="filtroPais=this.value;render()"><option value="">Todos os países</option>${opts.map(p=>`<option ${p===filtroPais?'selected':''}>${p}</option>`).join('')}</select>
+    <input class="dash-busca" placeholder="pesquisar fonte / plataforma…">
+    <span class="dash-count">${f.length} fontes</span><button class="dash-csv">⤓ CSV</button>
+  </div><div class="dash-tabela-wrap"><table class="dash-tabela"><thead><tr>
+    ${COLS.map(([c,l])=>`<th class="dash-th ${['fonte','pais','plataforma'].includes(c)?'':'num'}" onclick="sortBy('${c}')">${l}${ord.col===c?(ord.dir<0?' ▾':' ▴'):''}</th>`).join('')}
+  </tr></thead><tbody>${f.map(x=>`<tr>
+    <td class="dash-fn">${x.fonte}</td><td>${BAND[x.pais]||''} ${x.pais}</td><td class="dash-plat">${x.plataforma}</td>
+    <td class="num">${fmt(x.produtos)}</td><td class="num">${fmt(x.eans)}</td>
+    <td class="num">${fmt(x.fotos)} <small>${pct(x.fotos,x.produtos)}%</small></td>
+    <td class="num">${fmt(x.nut)} <small>${pct(x.nut,x.produtos)}%</small></td>
+    <td class="num">${fmt(x.ing)} <small>${pct(x.ing,x.produtos)}%</small></td>
+    <td class="num">${x.unicos==null?'—':fmt(x.unicos)}</td></tr>`).join('')}</tbody>
+  <tfoot><tr class="dash-foot"><td colspan="3">Total (${filtroPais||'todos'})</td><td class="num">${fmt(r.p)}</td><td class="num">${fmt(r.e)}</td><td class="num">${fmt(r.f)}</td><td class="num">${fmt(r.n)}</td><td class="num">${fmt(r.i)}</td><td class="num">—</td></tr></tfoot>
+  </table></div>`;
+}
+function pgCustos() {
+  const max = Math.max(...CUSTO.dia.map(d=>d[2]));
+  return `<div class="dash-toolbar"><span class="dash-tb-l">Período:</span><div class="dash-periodo"><button>7 dias</button><button class="on">30 dias</button><button>ano</button></div></div>
+  <div class="dash-kpis">${kpi(usd(CUSTO.total.usd),'Gasto (30 dias)')}${kpi(fmt(CUSTO.total.chamadas),'Chamadas de IA')}${kpi(usd(CUSTO.geral.usd),'Gasto total (histórico)')}</div>
+  <div class="dash-custos-grid"><div>
+    <h3 class="dash-h3">Por operação</h3><div class="dash-tabela-wrap"><table class="dash-tabela"><thead><tr><th>operação</th><th class="num">chamadas</th><th class="num">custo</th><th class="num">média</th></tr></thead><tbody>${CUSTO.ctx.map(c=>`<tr><td class="dash-fn">${c[0]}</td><td class="num">${fmt(c[1])}</td><td class="num dash-usd">${usd(c[2])}</td><td class="num"><small>${usd(c[3])}</small></td></tr>`).join('')}</tbody></table></div>
+    <h3 class="dash-h3">Por modelo</h3><div class="dash-tabela-wrap"><table class="dash-tabela"><thead><tr><th>modelo</th><th class="num">chamadas</th><th class="num">custo</th></tr></thead><tbody>${CUSTO.mod.map(m=>`<tr><td class="dash-fn">${m[0]}</td><td class="num">${fmt(m[1])}</td><td class="num dash-usd">${usd(m[2])}</td></tr>`).join('')}</tbody></table></div>
+  </div><div><h3 class="dash-h3">Evolução por dia</h3><div class="dash-bars">${CUSTO.dia.map(d=>`<div class="dash-bar"><span class="db-d">${d[0]}</span><span class="db-track"><i style="width:${Math.round(100*d[2]/max)}%"></i></span><span class="db-v">${usd(d[2])}</span><span class="db-n">${fmt(d[1])}×</span></div>`).join('')}</div></div></div>`;
+}
+function sortBy(c){ ord = ord.col===c?{col:c,dir:-ord.dir}:{col:c,dir:-1}; render(); }
+const TIT = { global:'Visão global', fontes:'Fontes de dados', paises:'Países', custos:'Custos de IA' };
+function render() {
+  document.getElementById('nav').innerHTML = NAV.map(([id,l,ic])=>`<button class="${pagina===id?'on':''}" onclick="pagina='${id}';render()"><span class="dn-ic">${ic}</span>${l}</button>`).join('');
+  document.getElementById('titulo').textContent = TIT[pagina];
+  document.getElementById('conteudo').innerHTML = pagina==='global'?pgGlobal():pagina==='paises'?pgPaises():pagina==='custos'?pgCustos():pgFontes();
+}
+render();
+</script>
+</body>
+</html>
