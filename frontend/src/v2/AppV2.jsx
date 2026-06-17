@@ -13,7 +13,7 @@ import {
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome, consultarProdutoEan,
   listarPerfis, ativarPerfil, carregarPerfil, salvarSaude, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
-  adotarPorNome, definirPais, sugestoesLista, refeicoesLista, carregarHabituais,
+  adotarPorNome, definirPais, sugestoesLista, refeicoesLista, carregarHabituais, variantesLista,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLocal.js';
@@ -370,7 +370,11 @@ function precoLista(it) {
 
 // Linha da lista com SWIPE-PARA-APAGAR (faltava na v2; só existia na v1/App.jsx).
 // Arrasta para a direita > 90px → remove. Estado de gesto por item (refs próprios).
-function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor }) {
+function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLevar, onFormas }) {
+  // tamanho da embalagem = FACTO (da ficha) → vai na linha. "levar N" = qtd habitual da casa (SUGESTÃO
+  // gentil, 1 toque). "N formas" = variante habitual (SUGESTÃO falível) → atrás de seletor, nunca como facto.
+  const levar = it.qtd_habitual > 1 && (it.quantidade || 1) === 1;
+  const formas = it.variantes_n > 1;
   const [dx, setDx] = useState(0);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
   const start = (e) => { const t = e.touches[0]; g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 }; };
@@ -389,7 +393,13 @@ function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor }) {
         title={it.adicionado_por ? `adicionado por ${it.adicionado_por}` : undefined}>
         <div className="ib" onClick={() => { if (g.current.horiz || riscaCor) return; onApanhar(it, true); }}>
           <div className="iname">{nomeTalao(it.nome)}</div>
-          <div className="isub">{it.marca ? `${limparMarca(it.marca)} · ` : ''}{precoLista(it)}</div>
+          <div className="isub">{[it.marca && limparMarca(it.marca), it.tamanho, precoLista(it)].filter(Boolean).join(' · ')}</div>
+          {(levar || formas) && (
+            <div className="ichips">
+              {levar && <button className="ichip lv" onClick={(e) => { e.stopPropagation(); onLevar(it); }}><Ico name="plus" size={11} stroke={2.8} color="var(--leaf-d)" />levar {it.qtd_habitual}</button>}
+              {formas && <button className="ichip fm" onClick={(e) => { e.stopPropagation(); onFormas(it); }}><Ico name="usual" size={11} stroke={2.2} color="var(--ink-2)" />{it.variantes_n} formas</button>}
+            </div>
+          )}
         </div>
         {riscaCor
           ? <span className="risca-tick"><Ico name="check" size={19} stroke={3} color="#fff" /></span>
@@ -416,6 +426,7 @@ function Lista({ go, back }) {
   const [habAberto, setHabAberto] = useState(false);
   const [acabarFechado, setAcabarFechado] = useState(false); // X fecha o card "talvez a acabar"
   const [picando, setPicando] = useState({}); // {id: nomeDeQuemApanha} — risca-no-lugar em curso
+  const [variantesItem, setVariantesItem] = useState(null); // item cujo seletor de variantes está aberto
   const carregar = useCallback(() => { obterLista().then((d) => setItens(d.itens || [])).catch(() => setItens([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
   // descoberta carrega ao abrir a tela (as receitas chegam quando chegarem — não bloqueia).
@@ -433,6 +444,16 @@ function Lista({ go, back }) {
   async function delta(it, d) {
     setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, quantidade: Math.max(1, (x.quantidade || 1) + d) } : x)));
     try { await atualizarListaItem(it.id, { inc: d }); } catch { carregar(); }
+  }
+  async function levar(it) { // chip "levar N": põe a quantidade habitual da casa num toque
+    const q = Math.max(1, Number(it.qtd_habitual) || 1);
+    setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, quantidade: q } : x)));
+    try { await atualizarListaItem(it.id, { quantidade: q }); } catch { carregar(); }
+  }
+  async function escolherVariante(it, v) { // seletor "N formas": concretiza o item na variante escolhida
+    setVariantesItem(null);
+    setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, nome: v.nome } : x)));
+    try { await atualizarListaItem(it.id, { nome: v.nome }); } catch { /* outbox */ } carregar();
   }
   async function remover(it) { // swipe-para-apagar (otimista; reverte se falhar)
     setItens((xs) => xs.filter((x) => x.id !== it.id));
@@ -582,7 +603,8 @@ function Lista({ go, back }) {
                 {g.itens.map((it) => (
                   <ItemLista key={it.id} it={it} cor={corDe(it.adicionado_por)} qtd={qtdTxt}
                     riscaCor={picando[it.id] ? corDe(picando[it.id]) : null}
-                    onApanhar={apanhar} onRemover={remover} onDelta={delta} />
+                    onApanhar={apanhar} onRemover={remover} onDelta={delta}
+                    onLevar={levar} onFormas={setVariantesItem} />
                 ))}
               </React.Fragment>
             ))}
@@ -631,7 +653,37 @@ function Lista({ go, back }) {
         </div>
       </div>
       {habAberto && <HabituaisSheet onFechar={() => setHabAberto(false)} onAdd={addNome} />}
+      {variantesItem && <VariantesSheet it={variantesItem} onFechar={() => setVariantesItem(null)} onEscolher={(v) => escolherVariante(variantesItem, v)} />}
     </>
+  );
+}
+
+// SHEET de VARIANTES ("N formas"): as variedades que a casa COMPROU deste produto (ex.: "Iogurte"
+// → os iogurtes que costumam levar), com foto/idas/preço. Tocar concretiza o item na variante. A
+// variante habitual é uma SUGESTÃO falível → vive aqui (escolha humana), nunca como facto na linha.
+function VariantesSheet({ it, onFechar, onEscolher }) {
+  const [vars, setVars] = useState(null);
+  useEffect(() => { variantesLista(it.nome).then((v) => setVars(v || [])).catch(() => setVars([])); }, [it.nome]);
+  return (
+    <div className="sheet-bg" onClick={onFechar}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-h"><b>Qual {nomeTalao(it.nome)}?</b><button className="sheet-x" onClick={onFechar}><Ico name="close" size={18} /></button></div>
+        <div className="sheet-sub">As que a casa costuma comprar. Toque para escolher esta da lista.</div>
+        <div className="sheet-body">
+          {vars == null ? <p className="empty">…</p> : vars.length === 0 ? <p className="empty">Sem variantes no histórico.</p>
+            : vars.map((v) => (
+              <button className="var-row" key={v.sku_id} onClick={() => onEscolher(v)}>
+                {v.imagem ? <img className="var-img" src={v.imagem} alt="" loading="lazy" /> : <span className="var-img ph"><Ico name="usual" size={18} color="var(--ink-3)" /></span>}
+                <div className="hr-b">
+                  <div className="hr-n">{nomeTalao(v.nome)}</div>
+                  <div className="hr-s">{v.idas}× comprado{v.loja ? ` · ${v.loja}` : ''}{v.preco != null ? ` · ${eur(v.preco)}${v.unidade ? `/${v.unidade}` : ''}` : ''}</div>
+                </div>
+                <Ico name="chevron" size={16} stroke={2.4} color="var(--ink-3)" />
+              </button>
+            ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

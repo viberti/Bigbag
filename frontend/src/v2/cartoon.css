@@ -241,6 +241,20 @@
 .v2 .hab-row .hr-b{flex:1;min-width:0}
 .v2 .hab-row .hr-n{font:700 14px var(--font);color:var(--ink)}
 .v2 .hab-row .hr-s{font:600 11.5px var(--font);color:var(--ink-3);margin-top:1px}
+/* chips na linha do item: "levar N" (qtd habitual da casa) + "N formas" (seletor de variante) */
+.v2 .ichips{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
+.v2 .ichip{display:inline-flex;align-items:center;gap:3px;border:0;border-radius:var(--r-pill);padding:3px 9px 3px 7px;font:800 11px var(--disp);cursor:pointer}
+.v2 .ichip.lv{background:var(--leaf-soft);color:var(--leaf-d)}
+.v2 .ichip.fm{background:var(--cream-2);color:var(--ink-2)}
+.v2 .ichip:active{transform:scale(.92)}
+/* sheet de variantes ("N formas") */
+.v2 .var-row{display:flex;align-items:center;gap:11px;width:100%;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:9px 11px;margin-bottom:8px;cursor:pointer;text-align:left}
+.v2 .var-row:active{transform:scale(.99)}
+.v2 .var-row .hr-b{flex:1;min-width:0}
+.v2 .var-row .hr-n{font:700 14px var(--font);color:var(--ink)}
+.v2 .var-row .hr-s{font:600 11.5px var(--font);color:var(--ink-3);margin-top:1px}
+.v2 .var-img{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;flex:0 0 auto}
+.v2 .var-img.ph{display:grid;place-items:center;background:var(--cream-2)}
 .v2 .hr-add{width:36px;height:36px;border-radius:50%;background:var(--leaf-soft);border:0;display:grid;place-items:center;flex:0 0 auto;cursor:pointer}
 .v2 .hr-add.done{background:var(--leaf-d)}
 
