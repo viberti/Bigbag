@@ -370,7 +370,7 @@ function precoLista(it) {
 
 // Linha da lista com SWIPE-PARA-APAGAR (faltava na v2; só existia na v1/App.jsx).
 // Arrasta para a direita > 90px → remove. Estado de gesto por item (refs próprios).
-function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd }) {
+function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor }) {
   const [dx, setDx] = useState(0);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
   const start = (e) => { const t = e.touches[0]; g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 }; };
@@ -384,14 +384,16 @@ function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd }) {
   return (
     <div className="swrow">
       <div className="swrow-bg"><Ico name="close" size={18} /></div>
-      <div className="item" style={{ borderRight: `6px solid ${cor}`, transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+      <div className={`item ${riscaCor ? 'risca' : ''}`} style={{ borderRight: `6px solid ${cor}`, transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s', '--risca-cor': riscaCor || 'transparent' }}
         onTouchStart={start} onTouchMove={move} onTouchEnd={end}
         title={it.adicionado_por ? `adicionado por ${it.adicionado_por}` : undefined}>
-        <div className="ib" onClick={() => { if (g.current.horiz) return; onApanhar(it, true); }}>
+        <div className="ib" onClick={() => { if (g.current.horiz || riscaCor) return; onApanhar(it, true); }}>
           <div className="iname">{nomeTalao(it.nome)}</div>
           <div className="isub">{it.marca ? `${limparMarca(it.marca)} · ` : ''}{precoLista(it)}</div>
         </div>
-        <div className="qty"><button onClick={() => onDelta(it, -1)}>−</button><span className="qn">{qtd(it)}</span><button onClick={() => onDelta(it, 1)}>+</button></div>
+        {riscaCor
+          ? <span className="risca-tick"><Ico name="check" size={19} stroke={3} color="#fff" /></span>
+          : <div className="qty"><button onClick={() => onDelta(it, -1)}>−</button><span className="qn">{qtd(it)}</span><button onClick={() => onDelta(it, 1)}>+</button></div>}
       </div>
     </div>
   );
@@ -413,6 +415,7 @@ function Lista({ go, back }) {
   const [refeicoes, setRefeicoes] = useState([]);   // [{nome, usa[], falta[]}]
   const [habAberto, setHabAberto] = useState(false);
   const [acabarFechado, setAcabarFechado] = useState(false); // X fecha o card "talvez a acabar"
+  const [picando, setPicando] = useState({}); // {id: nomeDeQuemApanha} — risca-no-lugar em curso
   const carregar = useCallback(() => { obterLista().then((d) => setItens(d.itens || [])).catch(() => setItens([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
   // descoberta carrega ao abrir a tela (as receitas chegam quando chegarem — não bloqueia).
@@ -509,10 +512,21 @@ function Lista({ go, back }) {
   }, [perfis]);
   const corDe = (nome) => corMembro.get(String(nome || '').toLowerCase()) || '#c8d3bd'; // neutro p/ desconhecido
   const ativoNome = (perfis.find((pf) => pf.ativo) || perfis[0])?.nome || null;
-  // APANHAR no mercado: risca com a cor do membro ativo e move p/ "No carrinho".
+  // APANHAR no mercado: o gesto-rei. RISCA NO LUGAR (risco animado na cor de quem apanha + tick a
+  // saltar) e SÓ DEPOIS (~360ms) migra p/ "No carrinho". A chamada ao servidor é DIFERIDA p/ o fim
+  // da animação → o item fica 'ativo' durante o risco e um poll a meio não o faz "saltar" (sem corrida).
   async function apanhar(it, marcado) {
-    setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, estado: marcado ? 'carrinho' : 'ativo', marcado_por: marcado ? ativoNome : null } : x)));
-    try { await atualizarListaItem(it.id, { marcado }); } catch { carregar(); }
+    if (marcado) {
+      setPicando((p) => ({ ...p, [it.id]: ativoNome }));
+      setTimeout(() => {
+        setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, estado: 'carrinho', marcado_por: ativoNome } : x)));
+        setPicando((p) => { const n = { ...p }; delete n[it.id]; return n; });
+        atualizarListaItem(it.id, { marcado: true }).catch(() => carregar());
+      }, 360);
+    } else { // des-marcar (tocar no item do carrinho) → volta JÁ a ativo
+      setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, estado: 'ativo', marcado_por: null } : x)));
+      atualizarListaItem(it.id, { marcado: false }).catch(() => carregar());
+    }
   }
   const carrinho = (itens || []).filter((i) => i.estado === 'carrinho');
   const qtdTxt = (it) => (it.unidade === 'kg' ? `${Number(it.quantidade || 1).toFixed(1).replace('.', ',')} kg` : `${it.quantidade || 1} un`);
@@ -567,6 +581,7 @@ function Lista({ go, back }) {
                     ARRASTAR para a direita apaga (swipe-to-delete). */}
                 {g.itens.map((it) => (
                   <ItemLista key={it.id} it={it} cor={corDe(it.adicionado_por)} qtd={qtdTxt}
+                    riscaCor={picando[it.id] ? corDe(picando[it.id]) : null}
                     onApanhar={apanhar} onRemover={remover} onDelta={delta} />
                 ))}
               </React.Fragment>
@@ -1681,11 +1696,20 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
           back(); return; // adicionado → volta JÁ à lista (sem ecrã de confirmação)
         }
       }
+      // MODO LISTA: montar a lista tem de ser RÁPIDO. Só precisa de NOME+EAN → UMA chamada
+      // (/consultar?pt=1 resolve, TRADUZ, persiste e PROMOVE a base_local → o PRÓXIMO scan deste EAN
+      // é HIT local instantâneo). Salta o /info (era um 2.º round-trip só p/ a ficha rica, inútil para
+      // adicionar). Offline ou EAN desconhecido → identificar por foto.
+      if (paraLista) {
+        let nmL = null;
+        try { const c = await consultarProdutoEan(cod, { pt: true }); nmL = c?.nome || null; } catch { /* offline → foto */ }
+        if (nmL) { try { await adicionarListaItem({ nome: nmL, ean: cod }); } catch { /* outbox apanha */ } back(); return; } // adicionado → volta JÁ à lista
+        setRegisto({ ean: cod, fotos: [], naoLido: true }); return;
+      }
       const info = await infoProduto({ ean: cod });
       let nm = info?.nome || info?.off?.nome || info?.vlm?.nome || info?.base?.nome;
-      // NOME TRADUZIDO + PERSISTIDO via /consultar?pt=1 — para LISTA *e* CONSULTA: o
-      // /info devolve o nome cru do catálogo/OFF (Mercadona-ES/Lidl-FR → "Eggs",
-      // "Ketchup Allégé"). Isto traduz, persiste a ficha, e a ficha passa a ler o PT.
+      // NOME TRADUZIDO + PERSISTIDO via /consultar?pt=1 — para CONSULTA e COMPARAR: o /info devolve o
+      // nome cru do catálogo/OFF (Mercadona-ES/Lidl-FR → "Eggs"). Isto traduz, persiste, ficha lê o PT.
       const fichaMagra = !!info?.ficha_magra;
       try { const c = await consultarProdutoEan(cod, { pt: true }); if (c?.nome) nm = c.nome; } catch { /* fica o nm do /info */ }
       // MODO COMPARAR: junta ao cesto de comparação (sem ir à ficha). Com nome → junta já;
@@ -1693,13 +1717,6 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
       if (paraComparar) {
         if (nm) { addCmp({ ean: cod, nome: nm }); back(); } // junta e VOLTA já à Comparar (sem tela intermédia)
         else setRegisto({ ean: cod, fotos: [], naoLido: true }); // não-identificado → foto p/ identificar
-        return;
-      }
-      // MODO LISTA: o objetivo é ADICIONAR. Com nome → adiciona já; sem nome →
-      // identifica por foto e depois adiciona (a ficha é sempre secundária).
-      if (paraLista) {
-        if (nm) { try { await adicionarListaItem({ nome: nm, ean: cod }); } catch { /* outbox/sync apanha */ } back(); } // adicionado → volta JÁ à lista
-        else setRegisto({ ean: cod, fotos: [], naoLido: true });
         return;
       }
       // CONSULTA: ficha MAGRA (sem nutrição NEM imagem — só um nome/marca, talvez só

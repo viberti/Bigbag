@@ -141,6 +141,11 @@
 .v2 .swrow .item{margin-bottom:0;position:relative;z-index:1;touch-action:pan-y;will-change:transform}
 .v2 .swrow-bg{position:absolute;inset:0;background:#e0734f;border-radius:var(--r-sm);display:flex;align-items:center;padding-left:18px;color:#fff}
 .v2 .item.done{opacity:.78}.v2 .item.done .iname{text-decoration:line-through;color:var(--ink-3)}
+/* RISCAR no lugar (gesto-rei): o risco varre o nome na cor de quem apanha + tick a saltar, antes de migrar ao carrinho */
+.v2 .item.risca .iname{background:linear-gradient(var(--risca-cor),var(--risca-cor)) left center/0 2px no-repeat;animation:riscaSweep .34s ease forwards}
+@keyframes riscaSweep{from{background-size:0 2px}to{background-size:100% 2px}}
+.v2 .risca-tick{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--risca-cor);display:grid;place-items:center;animation:tickPop .34s cubic-bezier(.2,1.5,.45,1)}
+@keyframes tickPop{0%{transform:scale(0);opacity:0}55%{transform:scale(1.25);opacity:1}100%{transform:scale(1)}}
 .v2 .ib{flex:1;min-width:0}.v2 .iname{font:700 15px var(--font);color:var(--ink)}.v2 .isub{font:500 12px var(--font);color:var(--ink-3);margin-top:1px;display:flex;align-items:center;gap:5px}
 .v2 .fits{display:inline-flex}
 .v2 .profav{width:18px;height:18px;border-radius:50%;color:#fff;font:800 9.5px var(--disp);display:inline-grid;place-items:center;flex:0 0 auto;border:1.5px solid var(--card);margin-left:-6px}

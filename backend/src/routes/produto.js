@@ -130,6 +130,15 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
 // apagar nutrição/ingredientes que já lá estavam com uma resolução mais magra.
 async function upsertBaseLocal(pool, ean, f, ptOk = true) {
   if (!ean || !f?.nome) return;
+  // PROMOÇÃO (cresce-com-o-uso, 2026-06-18): um EAN que veio do bootstrap como pt_off/merc_es/uso_es
+  // e que AGORA temos com nome PT-FIÁVEL passa a 'uso' (a lista/scan confiam → HIT local instantâneo).
+  // Re-insere para ganhar um `seq` NOVO (AUTO_INCREMENT) e RE-SINCRONIZAR para os telefones. Antes o
+  // ON DUPLICATE preservava a origem do bootstrap → 18k produtos pt_off/merc_es ficavam presos a cair
+  // SEMPRE ao servidor (só 6 linhas 'uso' em 63k). pt_cat e uso ficam como estão (não há que promover).
+  if (ptOk) {
+    const [[ex]] = await pool.query('SELECT origem FROM base_local WHERE ean = ?', [ean]);
+    if (ex && ex.origem !== 'pt_cat' && ex.origem !== 'uso') await pool.query('DELETE FROM base_local WHERE ean = ?', [ean]);
+  }
   await pool.query(
     `INSERT INTO base_local (ean, nome, marca, quantidade, categoria, alergenios, nutricao, ingredientes, origem)
        VALUES (?,?,?,?,?,?,?,?,?)
