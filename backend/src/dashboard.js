@@ -34,6 +34,7 @@ export const FONTE_META = {
   giassi: { pais: 'BR', plataforma: 'VTEX (API)' },
   supermuffato: { pais: 'BR', plataforma: 'VTEX (API)' },
   mambo: { pais: 'BR', plataforma: 'VTEX (API)' },
+  paulistao: { pais: 'BR', plataforma: 'VTEX (API)' },
   paodeacucar: { pais: 'BR', plataforma: 'Linx/GPA (API)' },
   mundial: { pais: 'BR', plataforma: 'GraphQL próprio' },
   superprix: { pais: 'BR', plataforma: 'VipCommerce (API)' },
