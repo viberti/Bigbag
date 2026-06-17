@@ -88,7 +88,7 @@ function Ctop({ title, sub, back, amber, av, action, onBack, onAv }) {
     </div>
   );
 }
-function Nav({ cur, go, cmpCheio, onLimite }) {
+function Nav({ cur, go, cmpCheio, onLimite, onScan, scanTitle }) {
   const tabs = [['home', 'Início', 'home'], ['list', 'Lista', 'lista'], ['history', 'Histórico', 'historico'], ['user', 'Perfil', 'perfil']];
   const Tab = ([ic, lb, id]) => (
     <button key={id} className={`nb ${cur === id ? 'on' : ''}`} onClick={() => go(id)}>
@@ -96,13 +96,14 @@ function Nav({ cur, go, cmpCheio, onLimite }) {
     </button>
   );
   const aoScan = () => {
+    if (onScan) { onScan(); return; } // override por tela (ex.: Minhas compras → ler talão)
     if (cur === 'comparar') { if (cmpCheio) { onLimite?.(); return; } go('scanner', { paraComparar: true }); return; }
     go('scanner', { k: Date.now() }); // k muda a cada toque → o Scanner volta ao modo CÓDIGO mesmo já estando aberto
   };
   return (
     <div className="cnav">
       {tabs.slice(0, 2).map(Tab)}
-      <button className="nb-scan" title={cur === 'comparar' ? 'Escanear para comparar' : 'Consultar produto'} onClick={aoScan}><Ico name="scan" size={28} stroke={2.4} color="#5a4410" /></button>
+      <button className="nb-scan" title={scanTitle || (cur === 'comparar' ? 'Escanear para comparar' : 'Consultar produto')} onClick={aoScan}><Ico name="scan" size={28} stroke={2.4} color="#5a4410" /></button>
       {tabs.slice(2).map(Tab)}
     </div>
   );
@@ -223,6 +224,8 @@ function Shell({ nome, onSair, pais }) {
   const removeCmp = useCallback((ean) => setCmp((c) => c.filter((x) => String(x.ean) !== String(ean))), []);
   const clearCmp = useCallback(() => setCmp([]), []);
   const [aviso, setAviso] = useState(''); // toast curto (ex.: limite do comparador)
+  // a tela "Minhas compras" regista aqui a sua ação de LER TALÃO → a régua dispara-a pelo scan central.
+  const scanNotas = useRef(null);
   useEffect(() => { if (!aviso) return undefined; const t = setTimeout(() => setAviso(''), 3800); return () => clearTimeout(t); }, [aviso]);
   // BASE LOCAL: pré-carrega as fichas (identificação+nutrição de ~63k EANs PT+Mercadona-ES)
   // para o scan responder instantâneo/offline. Fire-and-forget, auto-limitada a 1x/hora.
@@ -252,8 +255,9 @@ function Shell({ nome, onSair, pais }) {
   // a régua aparece nos TABS, na comparar, na ficha E na CONSULTA por scan (modo default — não
   // nos fluxos de tarefa do scanner: identificar linha/adicionar à lista/comparar, que voltam).
   const consultaScan = view.id === 'scanner' && !view.p?.itemId && !view.p?.paraLista && !view.p?.paraComparar;
-  const navCur = TABS.has(view.id) ? view.id : (view.id === 'comparar' ? 'comparar' : (view.id === 'ficha' ? 'ficha' : consultaScan ? 'scanner' : null));
-  const common = { go, back, user: nome, onSair, abrirConta: () => setConta(true), cmp, addCmp, removeCmp, clearCmp }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
+  // a régua aparece também nas "Minhas compras" (notas) — aí o scan central LÊ O TALÃO (≠ consultar produto).
+  const navCur = TABS.has(view.id) ? view.id : (view.id === 'comparar' ? 'comparar' : (view.id === 'ficha' ? 'ficha' : (view.id === 'notas' ? 'notas' : (consultaScan ? 'scanner' : null))));
+  const common = { go, back, user: nome, onSair, abrirConta: () => setConta(true), cmp, addCmp, removeCmp, clearCmp, scanNotas }; // `user` (não `nome`) p/ não colidir com o `nome` de produto nas params de tela
   const Screen = {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
     notas: Notas, gastos: Gastos, gastoscat: GastosCat, ficha: Ficha, comparar: Comparar,
@@ -263,7 +267,10 @@ function Shell({ nome, onSair, pais }) {
   return (
     <div className="v2"><Motif />
       <Screen {...common} {...view.p} />
-      {navCur && <Nav cur={navCur} go={go} cmpCheio={cmp.length >= 4} onLimite={() => setAviso('Já tem 4 produtos — o máximo para comparar aqui. Para comparar mais, use o Histórico.')} />}
+      {navCur && <Nav cur={navCur} go={go} cmpCheio={cmp.length >= 4}
+        onScan={navCur === 'notas' ? () => scanNotas.current?.() : null}
+        scanTitle={navCur === 'notas' ? 'Ler talão' : null}
+        onLimite={() => setAviso('Já tem 4 produtos — o máximo para comparar aqui. Para comparar mais, use o Histórico.')} />}
       {conta && <MenuConta user={nome} pais={pais} onFechar={() => setConta(false)} onSair={onSair} />}
       {aviso && <div className="toast" role="status">{aviso}</div>}
     </div>
@@ -1001,21 +1008,32 @@ function Despensa({ go, back }) {
 
 /* ── MINHAS COMPRAS (notas) — hero do mês + filtro de loja + meses + FAB ──── */
 const MESF = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-function Notas({ go, back, partilhado }) {
+function Notas({ go, back, partilhado, scanNotas }) {
   const [notas, setNotas] = useState(null);
   // PRESERVAR a última escolha do filtro de mercado entre aberturas (localStorage).
   const [filtro, setFiltroRaw] = useState(() => { try { return localStorage.getItem('compras_filtro') || 'todas'; } catch { return 'todas'; } });
   const setFiltro = useCallback((v) => { setFiltroRaw(v); try { localStorage.setItem('compras_filtro', v); } catch { /* noop */ } }, []);
   const [enviando, setEnviando] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null); // foto do talão a mostrar enquanto processa
   const fileRef = useRef(null);
   const partilhadoEnviado = useRef(false);
   const carregar = useCallback(() => { listarNotas().then(setNotas).catch(() => setNotas([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
   const enviar = useCallback(async (f) => {
-    if (!f) return; setEnviando(true);
-    try { await enviarFatura(f, 'v2'); carregar(); } catch { /* falha silenciosa */ } finally { setEnviando(false); }
+    if (!f) return;
+    // mostra a foto + animação "lendo a nota" enquanto o VLM processa (igual à análise de um produto novo)
+    const url = URL.createObjectURL(f);
+    setPreviewUrl(url); setEnviando(true);
+    try { await enviarFatura(f, 'v2'); carregar(); } catch { /* falha silenciosa */ }
+    finally { setEnviando(false); setPreviewUrl(null); URL.revokeObjectURL(url); }
   }, [carregar]);
-  async function lerTalao(e) { const f = e.target.files?.[0]; await enviar(f); e.target.value = ''; }
+  async function lerTalao(e) { const f = e.target.files?.[0]; e.target.value = ''; await enviar(f); }
+  // a régua de navegação dispara o "ler talão" pelo scan central (abre a câmara nativa).
+  useEffect(() => {
+    if (!scanNotas) return undefined;
+    scanNotas.current = () => fileRef.current?.click();
+    return () => { scanNotas.current = null; };
+  }, [scanNotas]);
   // talão chegado por partilha (Share Target): envia 1× ao montar
   useEffect(() => { if (partilhado && !partilhadoEnviado.current) { partilhadoEnviado.current = true; enviar(partilhado); } }, [partilhado, enviar]);
   const lista = notas || [];
@@ -1040,6 +1058,18 @@ function Notas({ go, back, partilhado }) {
   return (
     <>
       <Ctop title="Minhas compras" sub={filtro === 'todas' ? 'todos os mercados' : filtro} back onBack={back} />
+      {enviando ? (
+        <div className="scrollarea">
+          <div className="analisando">
+            <div className="an-card">
+              {previewUrl && <img src={previewUrl} alt="talão" className="an-img" />}
+              <span className="an-scan" />
+            </div>
+            <div className="an-txt">Lendo a nota<i className="an-dots" /></div>
+            <div className="sc-hint" style={{ margin: 0 }}>a identificar os produtos — um instante…</div>
+          </div>
+        </div>
+      ) : (
       <div className="scrollarea">
         <div className="herolist" onClick={() => go('gastos')}>
           <div className="k">Gasto em {grupos[0]?.l || 'este mês'}</div>
@@ -1069,10 +1099,9 @@ function Notas({ go, back, partilhado }) {
             </React.Fragment>
           ))}
       </div>
+      )}
+      {/* o scan central da régua aciona este input (câmara nativa) — ver Notas/scanNotas */}
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={lerTalao} />
-      <button className="fab-talao" onClick={() => fileRef.current?.click()}>
-        <span className="c"><Ico name="camera" size={20} stroke={2.2} color="#f4fff0" /></span>{enviando ? 'Lendo a nota…' : 'Ler talão'}
-      </button>
     </>
   );
 }

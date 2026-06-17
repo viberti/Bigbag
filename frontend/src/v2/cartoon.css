@@ -347,11 +347,6 @@
 .v2 .ri-cam{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:2px solid var(--leaf-soft);background:var(--leaf-soft);color:var(--leaf-d);display:grid;place-items:center;cursor:pointer;margin-right:4px}
 .v2 .ri-cam:active{transform:scale(.92)}
 
-/* FAB "Ler talão" */
-.v2 .fab-talao{position:absolute;right:16px;bottom:calc(86px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:9px;height:54px;padding:0 18px 0 8px;border-radius:var(--r-pill);background:linear-gradient(180deg,#67b262,#46863f);color:#f4fff0;font:800 15px var(--disp);box-shadow:0 10px 24px rgba(63,140,80,.45);border:0;cursor:pointer;z-index:6}
-.v2 .fab-talao .c{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center}
-.v2 .fab-talao:active{transform:scale(.96)}
-
 /* versão (rodapé do Perfil) */
 .v2 .v2-ver{text-align:center;color:var(--ink-3);font:600 11.5px var(--font);padding:20px 0 8px}
 
