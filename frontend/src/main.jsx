@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import AppV2 from './v2/AppV2.jsx';
 import Admin from './Admin.jsx';
+import Dashboard from './Dashboard.jsx';
 import Explorar from './Explorar.jsx';
 import DiagScanner from './DiagScanner.jsx';
 import './styles.css';
@@ -22,6 +23,7 @@ if (caminho === '/callback') {
     .finally(() => window.location.replace('/'));
 } else {
   const Pagina = caminho === '/admin' ? Admin
+    : caminho === '/dash' ? Dashboard
     : caminho === '/explorar' ? Explorar
     : caminho === '/diag' ? DiagScanner
     : caminho === '/v1' ? App

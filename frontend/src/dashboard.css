@@ -1,0 +1,58 @@
+/* Dashboard de gestão (/dash) — BI denso, desktop. Reusa .adm-* de styles.css. */
+.dash .adm-top { gap: 14px; align-items: center; }
+.dash-meta { font-size: 12px; color: #8a958a; }
+.dash-refresh { font-size: 12px; padding: 5px 10px; border: 1px solid #cdd6cc; border-radius: 6px; background: #fff; cursor: pointer; margin-left: auto; }
+.dash-refresh:disabled { opacity: .5; cursor: default; }
+.dash-body { padding: 14px 18px 64px; max-width: 1460px; margin: 0 auto; }
+.dash-h { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: #5a6b5a; margin: 26px 0 10px; font-weight: 800; }
+.dash-body > .dash-h:first-child { margin-top: 4px; }
+.dash-h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #7a8a7a; margin: 16px 0 6px; font-weight: 700; }
+.dash-filtro { font-size: 12px; background: #eef4ea; color: #3f7a3f; border-radius: 20px; padding: 2px 4px 2px 9px; font-weight: 700; text-transform: none; letter-spacing: 0; }
+.dash-filtro button { border: 0; background: 0; cursor: pointer; color: #3f7a3f; font-weight: 800; padding: 0 6px; }
+
+/* KPIs */
+.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(195px, 1fr)); gap: 12px; }
+.dash-kpi { background: #fff; border: 1px solid #e3e8e0; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 3px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+.dk-n { font-size: 26px; font-weight: 800; color: #2b3b2b; line-height: 1; }
+.dk-l { font-size: 12px; color: #6b7b6b; }
+.dk-s { font-size: 11px; color: #9aa89a; margin-top: 2px; }
+
+/* Países (cards clicáveis = filtro) */
+.dash-paises { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.dash-pais { background: #fff; border: 1px solid #e3e8e0; border-radius: 10px; padding: 12px 13px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; cursor: pointer; text-align: left; transition: .12s; }
+.dash-pais:hover { border-color: #bcd2b8; }
+.dash-pais.on { border-color: #3f7a3f; box-shadow: 0 0 0 2px #cfe6cb; }
+.dp-flag { font-size: 22px; line-height: 1; }
+.dp-nome { font-weight: 800; font-size: 15px; color: #2b3b2b; margin-top: 2px; }
+.dp-m { font-size: 12px; color: #6b7b6b; }
+.dp-m b { color: #2b3b2b; }
+
+/* barra acima das tabelas */
+.dash-bar-top { display: flex; align-items: center; gap: 12px; margin: 26px 0 8px; flex-wrap: wrap; }
+.dash-bar-top .dash-h { margin: 0; }
+.dash-busca { margin-left: auto; padding: 7px 12px; border: 1px solid #cdd6cc; border-radius: 7px; font-size: 13px; min-width: 220px; }
+.dash-csv { padding: 7px 12px; border: 1px solid #cdd6cc; border-radius: 7px; background: #fff; cursor: pointer; font-size: 13px; }
+.dash-periodo { margin-left: auto; display: flex; gap: 4px; }
+.dash-periodo button { padding: 5px 11px; border: 1px solid #cdd6cc; border-radius: 6px; background: #fff; cursor: pointer; font-size: 12px; }
+.dash-periodo button.on { background: #3f7a3f; color: #fff; border-color: #3f7a3f; }
+
+/* tabela de fontes (densa) */
+.dash-tabela-wrap { overflow-x: auto; }
+.dash-tabela { width: 100%; font-size: 13px; }
+.dash-tabela th.dash-th { cursor: pointer; user-select: none; white-space: nowrap; }
+.dash-tabela th.dash-th.on { color: #3f7a3f; }
+.dash-tabela th.num, .dash-tabela td.num { text-align: right; }
+.dash-tabela td small { color: #9aa89a; font-size: 11px; margin-left: 3px; }
+.dash-plat { color: #6b7b6b; font-size: 12px; white-space: nowrap; }
+.dash-foot td { font-weight: 800; background: #f4f7f2; border-top: 2px solid #d6e0d2; }
+
+/* custos */
+.dash-custos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+.dash-bars { display: flex; flex-direction: column; gap: 3px; }
+.dash-bar { display: grid; grid-template-columns: 42px 1fr 58px 46px; align-items: center; gap: 8px; font-size: 12px; }
+.db-d { color: #8a958a; }
+.db-track { background: #eef2ec; border-radius: 4px; height: 14px; overflow: hidden; }
+.db-track i { display: block; height: 100%; background: linear-gradient(90deg, #67b262, #3f7a3f); }
+.db-v { text-align: right; font-weight: 700; color: #2b3b2b; }
+.db-n { text-align: right; color: #9aa89a; }
+@media (max-width: 900px) { .dash-custos-grid { grid-template-columns: 1fr; } }
