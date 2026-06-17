@@ -206,16 +206,17 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
   // variantes) e a quantidade habitual. Determinístico — o histórico é a inteligência.
   const habitoPorSku = await habitosDosSkus(pool, ids);
   mark('habitos');
-  // PESO vs CONTAGEM derivado do HISTÓRICO (não de categoria — banana é à unidade, uvas a peso; o
-  // grupo é grosso demais). Um SKU vendido A PESO tem unidade_base kg/L E linhas de talão com
-  // quantidade FRACIONÁRIA (balcão: "Batata 1,85 kg"); à unidade, quantidade inteira. Guardamos por
-  // SKU: nº de linhas a peso vs total, e a média do peso comprado (= peso habitual da casa).
+  // PESO vs CONTAGEM derivado do HISTÓRICO (não de categoria — o grupo é grosso demais; a casa que
+  // PESA as bananas tem banana a peso, a que conta tem banana à unidade — os recibos sabem). Sinal de
+  // "vendido a PESO" numa linha de talão: `linha_peso` preenchido (balcão: "0,669 kg x 6,59 €/kg") OU
+  // `peso_em_falta=1` (ub=kg sem peso na nota: fiambre, bovino). Peso HABITUAL = preco_liquido/€-por-kg.
+  // SÓ unidade_base 'kg' (sólidos): líquidos (L) são quase sempre embalados (garrafa/pacote=contagem).
   const [pesoRows] = await pool.query(
     `SELECT i.sku_id, s.unidade_base AS unidade,
-            SUM(i.quantidade <> ROUND(i.quantidade)) AS n_frac, COUNT(*) AS n,
-            AVG(CASE WHEN i.quantidade <> ROUND(i.quantidade) THEN i.quantidade END) AS med_peso
+            SUM(i.linha_peso IS NOT NULL OR i.peso_em_falta = 1) AS n_peso, COUNT(*) AS n,
+            AVG(CASE WHEN i.preco_por_base > 0 THEN i.preco_liquido / i.preco_por_base END) AS med_peso
        FROM item i JOIN sku_normalizado s ON s.id = i.sku_id
-      WHERE i.sku_id IN (${ph}) AND i.is_non_product = 0 AND i.quantidade IS NOT NULL AND i.quantidade > 0
+      WHERE i.sku_id IN (${ph}) AND i.is_non_product = 0 AND i.preco_liquido IS NOT NULL
       GROUP BY i.sku_id`, ids);
   const pesoPorSku = new Map(pesoRows.map((r) => [r.sku_id, r]));
   const skuById = new Map(skus.map((s) => [s.id, s]));
@@ -250,12 +251,14 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
     // se fixou pelo stepper, o valor gravado vence.
     let pesoSku = null;
     for (const x of compr) {
-      const pr = pesoPorSku.get(x.sid);
-      if (pr && (pr.unidade === 'kg' || pr.unidade === 'L') && pr.n > 0 && pr.n_frac / pr.n >= 0.5) { pesoSku = pr; break; }
+      const pr = pesoPorSku.get(x.sid); // compr já ordenado por idas DESC → o mais comprado manda
+      if (pr && pr.unidade === 'kg' && pr.n_peso >= 2 && pr.n_peso / pr.n >= 0.6) { pesoSku = pr; break; }
     }
     if (pesoSku) {
       it.med_habitual = pesoSku.med_peso != null ? Math.round(num(pesoSku.med_peso) * 1000) / 1000 : null;
-      if (it.qtd_medida == null) { it.unidade = pesoSku.unidade; it.qtd_medida = it.med_habitual; it.medida_derivada = true; }
+      // sem override do user → exibe o peso HABITUAL; se os recibos nunca trouxeram o peso (bovino,
+      // queijo de balcão), arranca em 0,5 kg (o user ajusta). medida_derivada=true (não é lock do user).
+      if (it.qtd_medida == null) { it.unidade = pesoSku.unidade; it.qtd_medida = it.med_habitual != null ? it.med_habitual : 0.5; it.medida_derivada = true; }
     }
     for (const sid of skuIdsPorItem.get(it.id) || []) {
       const m = mercado ? noMercado.get(sid) : null;
