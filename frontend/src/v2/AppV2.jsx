@@ -446,6 +446,7 @@ function Lista({ go, back, destaque }) {
   // receitas possíveis com a lista (LLM cacheado) e o catálogo de HABITUAIS (histórico da casa).
   const [sugCad, setSugCad] = useState([]);         // [{nome, quantidade, urgencia, ...}]
   const [refeicoes, setRefeicoes] = useState([]);   // [{nome, usa[], falta[]}]
+  const [habituais, setHabituais] = useState([]);   // top compras da casa (idas DESC) — fundem-se na recomendação
   const [habAberto, setHabAberto] = useState(false);
   const [acabarFechado, setAcabarFechado] = useState(false); // X fecha o card "talvez a acabar"
   const [picando, setPicando] = useState({}); // {id: nomeDeQuemApanha} — risca-no-lugar em curso
@@ -461,6 +462,7 @@ function Lista({ go, back, destaque }) {
   const carregarDescoberta = useCallback(() => {
     sugestoesLista().then((s) => setSugCad(s || [])).catch(() => setSugCad([]));
     refeicoesLista().then((r) => setRefeicoes(r || [])).catch(() => setRefeicoes([]));
+    carregarHabituais().then((h) => setHabituais(h || [])).catch(() => setHabituais([]));
   }, []);
   useEffect(() => { carregarDescoberta(); }, [carregarDescoberta]);
   useEffect(() => { // item recém-incluído chegou à lista → acha-o (por EAN ou nome), scroll + realce
@@ -549,9 +551,8 @@ function Lista({ go, back, destaque }) {
   }
   // DESCOBERTA → adicionar: uma sugestão de cadência, todas de uma vez, ou um nome solto
   // (item em falta de uma receita / produto habitual).
-  async function addSug(sg) {
-    setSugCad((xs) => xs.filter((x) => x.nome !== sg.nome));
-    try { await adicionarListaItem({ nome: sg.nome, quantidade: sg.quantidade || 1 }); setDestaqueAlvo({ nome: nomeTalao(sg.nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
+  async function addRecomendado(r) { // chip do card de recomendação (cadência OU habitual) → some sozinho ao entrar na lista
+    try { await adicionarListaItem({ nome: r.nome, quantidade: r.quantidade || 1 }); setDestaqueAlvo({ nome: nomeTalao(r.nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
   async function addNome(nome) {
     try { await adicionarListaItem({ nome }); setDestaqueAlvo({ nome: nomeTalao(nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
@@ -589,6 +590,18 @@ function Lista({ go, back, destaque }) {
   const carrinho = (itens || []).filter((i) => i.estado === 'carrinho');
   const qtdTxt = (it) => (it.unidade === 'kg' ? `${Number(it.quantidade || 1).toFixed(1).replace('.', ',')} kg` : `${it.quantidade || 1} un`);
   const grupos = agruparSec(ativos);
+  // "Será que você precisa de…": a CADÊNCIA (running low) primeiro + as TOP 6 habituais da casa,
+  // sem repetir o que já está na lista nem entre si. Recalcula ao mudar a lista → o chip do item
+  // que se junta desaparece sozinho.
+  const recomendados = useMemo(() => {
+    const chave = (n) => nomeTalao(String(n || '')).toLowerCase();
+    const naLista = new Set((itens || []).map((i) => chave(i.nome)));
+    const out = []; const vistos = new Set();
+    for (const s of sugCad) { const k = chave(s.nome); if (!naLista.has(k) && !vistos.has(k)) { vistos.add(k); out.push({ nome: s.nome, quantidade: s.quantidade }); } }
+    let nHab = 0;
+    for (const h of habituais) { if (nHab >= 6) break; const k = chave(h.produto); if (!naLista.has(k) && !vistos.has(k)) { vistos.add(k); out.push({ nome: h.produto }); nHab += 1; } }
+    return out;
+  }, [sugCad, habituais, itens]);
   return (
     <>
       <Ctop title="A minha lista" sub="compartilhada<br>com a família" back onBack={back} />
@@ -598,14 +611,14 @@ function Lista({ go, back, destaque }) {
             é o arranque pelos Habituais (abaixo), para não competirem pelo mesmo espaço. */}
         {(ativos.length > 0 || carrinho.length > 0) && (
         <div className="descob">
-          {sugCad.length > 0 && !acabarFechado && (
+          {recomendados.length > 0 && !acabarFechado && (
             <div className="disc-card">
               <div className="disc-h"><span><Ico name="spark" size={14} color="var(--amber-d)" /> Será que você precisa de…</span>
                 <button className="disc-x" title="Fechar" onClick={() => setAcabarFechado(true)}><Ico name="close" size={15} /></button></div>
               <div className="disc-chips">
-                {sugCad.map((s) => (
-                  <button className="disc-chip" key={s.nome} onClick={() => addSug(s)} title={s.dias ? `há ${s.dias} dias` : ''}>
-                    <Ico name="plus" size={12} stroke={2.8} color="var(--leaf-d)" />{nomeTalao(s.nome)}{s.quantidade > 1 ? ` ×${s.quantidade}` : ''}
+                {recomendados.map((r) => (
+                  <button className="disc-chip" key={r.nome} onClick={() => addRecomendado(r)}>
+                    <Ico name="plus" size={12} stroke={2.8} color="var(--leaf-d)" />{nomeTalao(r.nome)}{r.quantidade > 1 ? ` ×${r.quantidade}` : ''}
                   </button>
                 ))}
               </div>
