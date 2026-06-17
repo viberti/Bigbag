@@ -268,8 +268,8 @@ function Shell({ nome, onSair, pais }) {
     <div className="v2"><Motif />
       <Screen {...common} {...view.p} />
       {navCur && <Nav cur={navCur} go={go} cmpCheio={cmp.length >= 4}
-        onScan={navCur === 'notas' ? () => scanNotas.current?.() : null}
-        scanTitle={navCur === 'notas' ? 'Ler talão' : null}
+        onScan={navCur === 'notas' ? () => scanNotas.current?.() : navCur === 'lista' ? () => go('scanner', { paraLista: true }) : null}
+        scanTitle={navCur === 'notas' ? 'Ler talão' : navCur === 'lista' ? 'Ler código p/ a lista' : null}
         onLimite={() => setAviso('Já tem 4 produtos — o máximo para comparar aqui. Para comparar mais, use o Histórico.')} />}
       {conta && <MenuConta user={nome} pais={pais} onFechar={() => setConta(false)} onSair={onSair} />}
       {aviso && <div className="toast" role="status">{aviso}</div>}
@@ -607,7 +607,7 @@ function Lista({ go, back }) {
         )}
         {aviso && <div className="addlegend" style={{ justifyContent: 'center', color: 'var(--ink-2)' }}>{aviso}</div>}
         <div className="addbar">
-          <button className="addfab scan" title="Ler código p/ a lista" onClick={() => go('scanner', { paraLista: true })}><Ico name="scan" size={23} stroke={2} color="#3f7a3f" /></button>
+          {/* o scan da lista vem agora do botão central da régua (Nav → paraLista) — sem ícone próprio aqui */}
           <button className={`addfab mic ${gravando ? 'rec' : ''}`} title="Ditar para a lista" onClick={alternarVoz} disabled={proc}>
             <Ico name="mic" size={24} stroke={2} color="#f4fff0" />
           </button>
