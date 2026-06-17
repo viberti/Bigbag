@@ -1,10 +1,13 @@
-// Cliente da API de operador (/api/admin). Reusa a auth Basic do api.js.
+// Cliente da API de operador (/api/admin). Auth igual ao api.js: Bearer OIDC (Google/Zitadel)
+// tem prioridade; HTTP Basic (test-auth) é fallback. Sem isto, utilizadores OIDC apanhavam 401.
 import { getAuth } from './api.js';
+import { oidcAccessToken } from './auth/oidc.js';
 
 async function call(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
-  const auth = getAuth();
-  if (auth) headers.Authorization = `Basic ${auth}`;
+  const bearer = await oidcAccessToken();
+  if (bearer) headers.Authorization = `Bearer ${bearer}`;
+  else { const auth = getAuth(); if (auth) headers.Authorization = `Basic ${auth}`; }
   const res = await fetch(path, { ...opts, headers });
   if (!res.ok) {
     const e = new Error(`HTTP ${res.status}`);

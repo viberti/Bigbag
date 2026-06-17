@@ -154,6 +154,14 @@ import('./ingest/filaVetor.js').then(({ iniciarWorkerFila }) => {
   iniciarWorkerFila(getPool(), { intervaloMs: 180000, lote: 5 });
 }).catch((e) => console.error('[fila-vetor] não arrancou:', e.message));
 
+// Aquecer a cache do DASHBOARD de gestão (/dash): o cálculo é pesado (~20s, cruza 4,5M do OFF)
+// e fica cacheado 20 min. Aquecer no arranque + refrescar antes de expirar → /dash sempre instantâneo.
+import('./dashboard.js').then(({ panoramaDashboard }) => {
+  const aquecer = () => panoramaDashboard({ forcar: true }).then(() => console.log('[dashboard] cache quente')).catch((e) => console.error('[dashboard] warm:', e.message));
+  setTimeout(aquecer, 8000);
+  setInterval(aquecer, 15 * 60 * 1000).unref();
+}).catch(() => {});
+
 // Encerramento limpo para o systemd parar/reiniciar sem deixar a porta presa.
 for (const sinal of ['SIGTERM', 'SIGINT']) {
   process.on(sinal, () => {
