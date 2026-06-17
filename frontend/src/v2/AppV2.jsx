@@ -538,6 +538,10 @@ function Lista({ go, back, destaque }) {
   async function addNome(nome) {
     try { await adicionarListaItem({ nome }); setDestaqueAlvo({ nome: nomeTalao(nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
+  async function addTodosHabituais(nomes) { // estado vazio → "juntar todos" os habituais de uma vez
+    if (!nomes?.length) return;
+    try { const r = await adicionarListaLote(nomes.map((n) => ({ nome: n }))); if (r?.itens) setItens(r.itens); else carregar(); } catch { carregar(); }
+  }
   // MEMBROS (perfis) → cor estável por membro; o ativo é "quem apanha".
   const [perfis, setPerfis] = useState([]);
   useEffect(() => { listarPerfis().then((ps) => setPerfis(ps || [])).catch(() => setPerfis([])); }, []);
@@ -572,8 +576,9 @@ function Lista({ go, back, destaque }) {
       <Ctop title="A minha lista" sub="compartilhada<br>com a família" back onBack={back} />
       {total > 0 && <div className="pricetag"><span className="pt-hole" /><div className="pt-v"><b>{eur(total)}</b><small>estimado</small></div></div>}
       <div className="scrollarea">
-        {/* DESCOBERTA (restaurada da v1): "talvez esteja a acabar" (cadência) · receitas.
-            Habituais saiu daqui → ícone de lista na barra de baixo (junto ao microfone). */}
+        {/* "Talvez esteja a acabar" (cadência) só quando a lista TEM itens — na lista vazia o herói
+            é o arranque pelos Habituais (abaixo), para não competirem pelo mesmo espaço. */}
+        {(ativos.length > 0 || carrinho.length > 0) && (
         <div className="descob">
           {sugCad.length > 0 && !acabarFechado && (
             <div className="disc-card">
@@ -592,7 +597,8 @@ function Lista({ go, back, destaque }) {
             </div>
           )}
         </div>
-        {itens == null ? <p className="empty">…</p> : ativos.length === 0 && carrinho.length === 0 ? <p className="empty">Lista vazia. Toque em + para adicionar.</p>
+        )}
+        {itens == null ? <p className="empty">…</p> : ativos.length === 0 && carrinho.length === 0 ? <EstadoVazioHabituais onAdd={addNome} onTodos={addTodosHabituais} />
           : (<>
             {grupos.map((g) => (
               <React.Fragment key={g.s}>
@@ -700,6 +706,29 @@ function VariantesSheet({ it, onFechar, onEscolher }) {
             ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ESTADO VAZIO: em vez de "Lista vazia", arranca pelos HABITUAIS da casa como chips "+" (1 toque
+// junta; ao juntar o 1.º, a lista deixa de estar vazia e o item aparece JÁ em destaque). Sem histórico
+// → mensagem de arranque (voz/scan/escrever). Reusa /api/habituais (cache stale-while-revalidate).
+function EstadoVazioHabituais({ onAdd, onTodos }) {
+  const [prods, setProds] = useState(null);
+  useEffect(() => { carregarHabituais().then((p) => setProds((p || []).slice(0, 8))).catch(() => setProds([])); }, []);
+  if (prods == null) return <p className="empty">…</p>;
+  if (!prods.length) return <p className="empty">A sua lista está vazia.<br />Toque no microfone, escaneie um código ou escreva para começar.</p>;
+  return (
+    <div className="vazio-hab">
+      <div className="vh-t"><b>Comece pelos seus habituais</b><small>1 toque para juntar — os produtos que costuma comprar</small></div>
+      <div className="disc-chips">
+        {prods.map((p) => (
+          <button className="disc-chip" key={p.produto} onClick={() => onAdd(p.produto)}>
+            <Ico name="plus" size={12} stroke={2.8} color="var(--leaf-d)" />{nomeTalao(p.produto)}
+          </button>
+        ))}
+      </div>
+      {prods.length > 1 && <button className="vh-todos" onClick={() => onTodos(prods.map((p) => p.produto))}><Ico name="plus" size={14} stroke={2.6} color="var(--leaf-d)" /> juntar todos</button>}
     </div>
   );
 }
