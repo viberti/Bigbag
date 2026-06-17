@@ -42,8 +42,8 @@ async function gql(query) {
 async function upsert(pool, vals) {
   if (!vals.length) return;
   await pool.query(
-    `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, marca, moeda, imagem_url, scraped_at)
-     VALUES ${vals.map(() => '(?,?,?,?,?,?,?,NOW())').join(',')}
+    `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, marca, moeda, url, imagem_url, scraped_at)
+     VALUES ${vals.map(() => '(?,?,?,?,?,?,?,?,NOW())').join(',')}
      ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome=VALUES(nome), marca=VALUES(marca),
        imagem_url=VALUES(imagem_url), scraped_at=NOW()`,
     vals.flat(),
@@ -73,7 +73,7 @@ async function main() {
         const ean = eanValido(eanCru) ? eanCru : null; if (ean) comEan++;
         const nome = String(p.customName || p.name || sku).slice(0, 255);
         const marca = (p.brand?.name || '').trim() ? String(p.brand.name).slice(0, 140) : null;
-        vals.push([FONTE, `mu-${sku}`.slice(0, 24), ean, nome, marca, 'BRL', IMG(sku)]);
+        vals.push([FONTE, `mu-${sku}`.slice(0, 24), ean, nome, marca, 'BRL', 'https://www.supermercadosmundial.com.br/', IMG(sku)]);
       }
       await upsert(pool, vals);
       total += vals.length;
