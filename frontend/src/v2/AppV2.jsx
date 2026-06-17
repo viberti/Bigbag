@@ -622,7 +622,6 @@ function Lista({ go, back, destaque }) {
                     <div className="iname" style={{ textDecorationColor: corDe(it.marcado_por) }}>{nomeTalao(it.nome)}</div>
                     <span className="pickcart">{qtdTxt(it)} · no carrinho de {it.marcado_por || '—'}</span>
                   </div>
-                  <span className="pickav" style={{ background: corDe(it.marcado_por) }}>{inicial(it.marcado_por)}</span>
                 </div>
               ))}
             </>)}
