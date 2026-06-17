@@ -1,4 +1,5 @@
 /* Dashboard de gestão (/dash) — BI denso, desktop. Reusa .adm-* de styles.css. */
+.adm.dash { background: #eef1ec; min-height: 100vh; color: #2b3b2b; } /* fundo CLARO de BI (o .adm é escuro) */
 .dash .adm-top { gap: 14px; align-items: center; }
 .dash-meta { font-size: 12px; color: #8a958a; }
 .dash-refresh { font-size: 12px; padding: 5px 10px; border: 1px solid #cdd6cc; border-radius: 6px; background: #fff; cursor: pointer; margin-left: auto; }
