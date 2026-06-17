@@ -206,6 +206,18 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
   // variantes) e a quantidade habitual. Determinístico — o histórico é a inteligência.
   const habitoPorSku = await habitosDosSkus(pool, ids);
   mark('habitos');
+  // PESO vs CONTAGEM derivado do HISTÓRICO (não de categoria — banana é à unidade, uvas a peso; o
+  // grupo é grosso demais). Um SKU vendido A PESO tem unidade_base kg/L E linhas de talão com
+  // quantidade FRACIONÁRIA (balcão: "Batata 1,85 kg"); à unidade, quantidade inteira. Guardamos por
+  // SKU: nº de linhas a peso vs total, e a média do peso comprado (= peso habitual da casa).
+  const [pesoRows] = await pool.query(
+    `SELECT i.sku_id, s.unidade_base AS unidade,
+            SUM(i.quantidade <> ROUND(i.quantidade)) AS n_frac, COUNT(*) AS n,
+            AVG(CASE WHEN i.quantidade <> ROUND(i.quantidade) THEN i.quantidade END) AS med_peso
+       FROM item i JOIN sku_normalizado s ON s.id = i.sku_id
+      WHERE i.sku_id IN (${ph}) AND i.is_non_product = 0 AND i.quantidade IS NOT NULL AND i.quantidade > 0
+      GROUP BY i.sku_id`, ids);
+  const pesoPorSku = new Map(pesoRows.map((r) => [r.sku_id, r]));
   const skuById = new Map(skus.map((s) => [s.id, s]));
   // Por item: preferimos €/base (comparável) ao preço de embalagem. Só caímos para
   // a embalagem (pu) se NENHUM dos SKUs casados tiver ppb — evita misturar unidades.
@@ -231,6 +243,19 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
     if (compr.length) {
       it.produto_sugerido = skuById.get(compr[0].sid)?.nome_canonico || null;
       it.qtd_habitual = Math.max(1, Math.round(compr[0].h.soma / compr[0].h.idas));
+    }
+    // MODO PESO derivado do histórico: entre os SKUs casados (compr, já por idas DESC), o MAIS
+    // comprado vendido a peso (kg/L, maioria das compras fracionárias) manda. Se o utilizador NÃO
+    // fixou peso (qtd_medida da BD = null) → exibe o PESO HABITUAL por omissão (medida_derivada);
+    // se fixou pelo stepper, o valor gravado vence.
+    let pesoSku = null;
+    for (const x of compr) {
+      const pr = pesoPorSku.get(x.sid);
+      if (pr && (pr.unidade === 'kg' || pr.unidade === 'L') && pr.n > 0 && pr.n_frac / pr.n >= 0.5) { pesoSku = pr; break; }
+    }
+    if (pesoSku) {
+      it.med_habitual = pesoSku.med_peso != null ? Math.round(num(pesoSku.med_peso) * 1000) / 1000 : null;
+      if (it.qtd_medida == null) { it.unidade = pesoSku.unidade; it.qtd_medida = it.med_habitual; it.medida_derivada = true; }
     }
     for (const sid of skuIdsPorItem.get(it.id) || []) {
       const m = mercado ? noMercado.get(sid) : null;
@@ -630,7 +655,7 @@ listaRouter.get('/sugestoes', async (req, res) => {
 // pelo POST /lote (que devolve a lista atualizada num só round-trip).
 async function montarLista(pool, mercado) {
   const [itens] = await pool.query(
-    `SELECT id, nome, ean, quantidade, categoria, estado, adicionado_por, marcado_por
+    `SELECT id, nome, ean, quantidade, unidade, qtd_medida, categoria, estado, adicionado_por, marcado_por
        FROM lista_item WHERE estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
   );
   await resolverItensLista(pool, itens, mercado);
@@ -645,10 +670,10 @@ async function montarLista(pool, mercado) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 8; // 8: preço-FACTO por EAN (item.ean + produto_ean.item_id); 7: primo do tipo; 6: cat_exib família
+const RESOLVER_V = 9; // 9: modo PESO derivado do histórico (it.unidade/qtd_medida); 8: preço-FACTO por EAN; 7: primo do tipo
 function listaSig(itens, mercado, maxItemId) {
   const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
-    itens.map((i) => `${i.id}:${i.quantidade}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
+    itens.map((i) => `${i.id}:${i.quantidade}:${i.unidade || ''}:${i.qtd_medida || ''}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
   return createHash('sha1').update(s).digest('base64').slice(0, 22);
 }
 
@@ -812,6 +837,13 @@ listaRouter.patch('/:id', async (req, res) => {
       // concretizar o item (ex.: escolher a variante "Iogurte Grego Natural")
       const n = String(req.body.nome || '').trim().slice(0, 160);
       if (n) { sets.push('nome = ?'); vals.push(n); }
+    }
+    if ('qtd_medida' in (req.body || {})) {
+      // PESO ABSOLUTO (stepper/editor) → FIXA o override do utilizador (qtd_medida + unidade). O cliente
+      // envia o valor já calculado (peso atual ± passo), por isso não precisa de delta race-safe aqui.
+      const q = Math.max(0.001, Math.min(99999, Number(req.body.qtd_medida) || 0));
+      const u = req.body.unidade ? String(req.body.unidade).slice(0, 4) : 'kg';
+      sets.push('qtd_medida = ?', 'unidade = ?'); vals.push(q, u);
     }
     if ('marcado' in (req.body || {})) {
       if (req.body.marcado) {
