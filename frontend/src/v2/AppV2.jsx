@@ -359,6 +359,9 @@ const MEMBRO_CORES = ['#3f7a3f', '#5a6fb0', '#e0734f', '#c8851f', '#8a5fb0', '#3
 // "sem preço". O backend dá preco_mercado/melhor_preco (FACTO, €/base) e preco_ref
 // (referência de catálogo). Mesma cadeia da v1.
 function precoLista(it) {
+  // produto com EAN (específico, embalado) → mostra o PREÇO PAGO por embalagem (facto do talão),
+  // NÃO o €/kg — comparar por base só faz sentido p/ genéricos vendidos a peso (sem EAN).
+  if (it.ean && it.preco_pago != null) return eur(it.preco_pago);
   const p = it.preco_mercado ?? it.melhor_preco;
   if (p != null) return `${eur(p)}${it.unidade_base ? `/${it.unidade_base}` : ''}`;
   if (it.preco_ref != null) return `~${eur(it.preco_ref)}`;
@@ -367,7 +370,7 @@ function precoLista(it) {
 
 // Linha da lista com SWIPE-PARA-APAGAR (faltava na v2; só existia na v1/App.jsx).
 // Arrasta para a direita > 90px → remove. Estado de gesto por item (refs próprios).
-function ItemLista({ it, cor, onApanhar, onRemover, onInfo, onDelta, qtd }) {
+function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd }) {
   const [dx, setDx] = useState(0);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
   const start = (e) => { const t = e.touches[0]; g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 }; };
@@ -388,9 +391,7 @@ function ItemLista({ it, cor, onApanhar, onRemover, onInfo, onDelta, qtd }) {
           <div className="iname">{nomeTalao(it.nome)}</div>
           <div className="isub">{it.marca ? `${limparMarca(it.marca)} · ` : ''}{precoLista(it)}</div>
         </div>
-        <span className="qval">{qtd(it)}</span>
-        <div className="qty"><button onClick={() => onDelta(it, -1)}>−</button><button onClick={() => onDelta(it, 1)}>+</button></div>
-        <button className="li-info" title="Ver ficha" onClick={() => onInfo(it)}>›</button>
+        <div className="qty"><button onClick={() => onDelta(it, -1)}>−</button><span className="qn">{qtd(it)}</span><button onClick={() => onDelta(it, 1)}>+</button></div>
       </div>
     </div>
   );
@@ -411,6 +412,7 @@ function Lista({ go, back }) {
   const [sugCad, setSugCad] = useState([]);         // [{nome, quantidade, urgencia, ...}]
   const [refeicoes, setRefeicoes] = useState([]);   // [{nome, usa[], falta[]}]
   const [habAberto, setHabAberto] = useState(false);
+  const [acabarFechado, setAcabarFechado] = useState(false); // X fecha o card "talvez a acabar"
   const carregar = useCallback(() => { obterLista().then((d) => setItens(d.itens || [])).catch(() => setItens([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
   // descoberta carrega ao abrir a tela (as receitas chegam quando chegarem — não bloqueia).
@@ -520,17 +522,16 @@ function Lista({ go, back }) {
       <Ctop title="A minha lista" sub="compartilhada<br>com a família" back onBack={back} />
       {total > 0 && <div className="pricetag"><span className="pt-hole" /><div className="pt-v"><b>{eur(total)}</b><small>estimado</small></div></div>}
       <div className="scrollarea">
-        {/* DESCOBERTA (restaurada da v1): habituais · "talvez esteja a acabar" (cadência) · receitas */}
+        {/* DESCOBERTA (restaurada da v1): "talvez esteja a acabar" (cadência) · receitas.
+            Habituais saiu daqui → ícone de lista na barra de baixo (junto ao microfone). */}
         <div className="descob">
-          <button className="hab-open" onClick={() => setHabAberto(true)}>
-            <span className="ho-ic"><Ico name="usual" size={20} stroke={2} color="var(--leaf-d)" /></span>
-            <span className="ho-t"><b>Habituais</b><small>os produtos que costuma comprar</small></span>
-            <Ico name="plus" size={18} stroke={2.4} color="var(--leaf-d)" />
-          </button>
-          {sugCad.length > 0 && (
+          {sugCad.length > 0 && !acabarFechado && (
             <div className="disc-card">
               <div className="disc-h"><span><Ico name="spark" size={14} color="var(--amber-d)" /> Talvez esteja a acabar</span>
-                {sugCad.length > 1 && <button className="disc-all" onClick={addTodasSug}>+ todos</button>}</div>
+                <span className="disc-hr">
+                  {sugCad.length > 1 && <button className="disc-all" onClick={addTodasSug}>+ todos</button>}
+                  <button className="disc-x" title="Fechar" onClick={() => setAcabarFechado(true)}><Ico name="close" size={15} /></button>
+                </span></div>
               <div className="disc-chips">
                 {sugCad.map((s) => (
                   <button className="disc-chip" key={s.nome} onClick={() => addSug(s)} title={s.dias ? `há ${s.dias} dias` : ''}>
@@ -562,12 +563,11 @@ function Lista({ go, back }) {
             {grupos.map((g) => (
               <React.Fragment key={g.s}>
                 <div className="sec">{g.s}</div>
-                {/* borda direita = cor de QUEM ADICIONOU. Tocar no nome APANHA; "›" abre
-                    a ficha; ARRASTAR para a direita apaga (swipe-to-delete). */}
+                {/* borda direita = cor de QUEM ADICIONOU. Tocar no nome APANHA;
+                    ARRASTAR para a direita apaga (swipe-to-delete). */}
                 {g.itens.map((it) => (
                   <ItemLista key={it.id} it={it} cor={corDe(it.adicionado_por)} qtd={qtdTxt}
-                    onApanhar={apanhar} onRemover={remover} onDelta={delta}
-                    onInfo={(x) => go('ficha', { ean: x.ean, sku_id: x.sku_id, nome: x.nome })} />
+                    onApanhar={apanhar} onRemover={remover} onDelta={delta} />
                 ))}
               </React.Fragment>
             ))}
@@ -607,7 +607,8 @@ function Lista({ go, back }) {
         )}
         {aviso && <div className="addlegend" style={{ justifyContent: 'center', color: 'var(--ink-2)' }}>{aviso}</div>}
         <div className="addbar">
-          {/* o scan da lista vem agora do botão central da régua (Nav → paraLista) — sem ícone próprio aqui */}
+          {/* o scan da lista vem do botão central da régua (Nav → paraLista) — sem ícone próprio aqui */}
+          <button className="addfab hab" title="Habituais — produtos que costuma comprar" onClick={() => setHabAberto(true)}><Ico name="list" size={23} stroke={2} color="#3f7a3f" /></button>
           <button className={`addfab mic ${gravando ? 'rec' : ''}`} title="Ditar para a lista" onClick={alternarVoz} disabled={proc}>
             <Ico name="mic" size={24} stroke={2} color="#f4fff0" />
           </button>

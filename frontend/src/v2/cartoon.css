@@ -149,13 +149,11 @@
 
 /* quantidade */
 .v2 .qty{display:flex;align-items:center;gap:6px;flex:0 0 auto}
-.v2 .qval{font:800 13px var(--disp);color:var(--ink);background:var(--cream-2);border-radius:var(--r-pill);padding:5px 10px;flex:0 0 auto;margin-right:8px;min-width:46px;text-align:center}
+.v2 .qn{font:800 14px var(--disp);color:var(--ink);min-width:34px;text-align:center;flex:0 0 auto}
 .v2 .qty button{width:30px;height:30px;border-radius:50%;border:2px solid var(--line);background:var(--card);color:var(--leaf-d);font:800 17px var(--disp);display:grid;place-items:center;cursor:pointer;line-height:1;padding:0}
 .v2 .qty button:active{transform:scale(.9)}
 .v2 .pickav{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;font:800 12px var(--disp);color:#fff;flex:0 0 auto}
 .v2 .pickcart{font:700 11px var(--font);color:var(--ink-3);display:block;margin-top:1px}
-.v2 .li-info{flex:0 0 auto;width:26px;height:26px;border:0;background:0;color:var(--ink-3);font:700 22px var(--disp);line-height:1;cursor:pointer;display:grid;place-items:center;margin-left:2px}
-.v2 .li-info:active{transform:scale(.9)}
 
 /* histórico — seleção p/ comparar */
 .v2 .hist-cmp{margin-left:auto;flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:2px solid #fff;background:var(--card);color:var(--leaf-d);display:grid;place-items:center;box-shadow:var(--sh-sm);cursor:pointer}
@@ -182,6 +180,7 @@
 .v2 .addfab.scan{background:var(--leaf-soft);box-shadow:var(--sh-sm)}
 .v2 .addfab.mic{background:linear-gradient(180deg,#67b262,#46863f);box-shadow:0 8px 18px rgba(63,140,80,.4);width:58px;height:58px}
 .v2 .addfab.plus{background:var(--cream-2);box-shadow:var(--sh-sm)}
+.v2 .addfab.hab{background:var(--cream-2);box-shadow:var(--sh-sm)}
 .v2 .addfab.plus.on{background:var(--leaf-soft)}
 .v2 .addfab.amber{background:var(--amber-soft);box-shadow:var(--sh-sm)}
 .v2 .addfab.rec{background:linear-gradient(180deg,#e0734f,#c2553a);box-shadow:0 0 0 4px rgba(224,115,79,.35),0 8px 18px rgba(194,85,58,.4)}
@@ -211,6 +210,9 @@
 .v2 .disc-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
 .v2 .disc-h span{display:inline-flex;align-items:center;gap:6px;font:800 13px var(--disp);color:var(--ink)}
 .v2 .disc-all{background:var(--leaf-soft);color:var(--leaf-d);border:0;border-radius:var(--r-pill);padding:5px 11px;font:800 12px var(--disp);cursor:pointer}
+.v2 .disc-hr{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}
+.v2 .disc-x{background:0;border:0;color:var(--ink-3);cursor:pointer;display:grid;place-items:center;padding:2px;line-height:1}
+.v2 .disc-x:active{transform:scale(.88)}
 .v2 .disc-chips{display:flex;flex-wrap:wrap;gap:7px}
 .v2 .disc-chip{display:inline-flex;align-items:center;gap:4px;background:var(--cream-2);border:0;border-radius:var(--r-pill);padding:7px 12px 7px 9px;font:700 13px var(--font);color:var(--ink);cursor:pointer}
 .v2 .disc-chip:active{transform:scale(.95)}

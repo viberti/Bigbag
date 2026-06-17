@@ -111,6 +111,7 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
     // grupoDeTexto pegava o 'ovo' do meio e mandava p/ lacticínios).
     it.grupo = matched.find((s) => s.grupo && s.grupo !== 'outros')?.grupo || grupoDeNome(it.nome);
     it.melhor_preco = null; it.melhor_loja = null; it.preco_mercado = null; it.unidade_base = null;
+    it.preco_pago = null; // preço PAGO por embalagem (facto do talão) — p/ produtos com EAN a lista mostra isto, não €/base
     it.preco_ref = null; it.preco_ref_loja = null; // referência de catálogo (sem talão)
     it.tamanho = null; // peso/volume da embalagem (linha de baixo, antes do preço)
     it.produto_sugerido = null; it.variantes_n = 0; it.qtd_habitual = null;
@@ -211,14 +212,15 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
   for (const it of itens) {
     let base = null, emb = null;  // {v, loja, unidade}
     const considera = (r, loja) => {
-      if (r.ppb != null) { if (!base || num(r.ppb) < base.v) base = { v: num(r.ppb), loja, unidade: r.unidade }; }
-      else if (r.pu != null) { if (!emb || num(r.pu) < emb.v) emb = { v: num(r.pu), loja, unidade: null }; }
+      // `pago` = preço por EMBALAGEM (preco_unitario/qtd) da mesma linha — o que se pagou por 1 item.
+      if (r.ppb != null) { if (!base || num(r.ppb) < base.v) base = { v: num(r.ppb), loja, unidade: r.unidade, pago: r.pu != null ? num(r.pu) : null }; }
+      else if (r.pu != null) { if (!emb || num(r.pu) < emb.v) emb = { v: num(r.pu), loja, unidade: null, pago: num(r.pu) }; }
     };
     for (const sid of skuIdsPorItem.get(it.id) || []) {
       for (const r of recentePorSku.get(sid) || []) considera(r, r.loja);
     }
     const esc = base || emb;
-    if (esc) { it.melhor_preco = esc.v; it.melhor_loja = esc.loja; it.unidade_base = esc.unidade; }
+    if (esc) { it.melhor_preco = esc.v; it.melhor_loja = esc.loja; it.unidade_base = esc.unidade; it.preco_pago = esc.pago ?? null; }
     // produto sugerido = a variante MAIS comprada entre os SKUs casados (idas);
     // qtd habitual = unidades/ida dessa variante. Só variantes com compras contam.
     const compr = [...(skuIdsPorItem.get(it.id) || [])]
@@ -235,7 +237,7 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
       if (!m) continue;
       const mv = m.ppb != null ? num(m.ppb) : (m.pu != null ? num(m.pu) : null);
       const mu = m.ppb != null ? m.unidade : null;
-      if (mv != null && (it.preco_mercado == null || mv < it.preco_mercado)) { it.preco_mercado = mv; it.unidade_base = mu; }
+      if (mv != null && (it.preco_mercado == null || mv < it.preco_mercado)) { it.preco_mercado = mv; it.unidade_base = mu; if (m.pu != null) it.preco_pago = num(m.pu); }
     }
   }
 }
@@ -537,7 +539,7 @@ listaRouter.get('/refeicoes', async (req, res) => {
     const pool = getPool();
     const [ativos] = await pool.query("SELECT nome FROM lista_item WHERE estado IN ('ativo','carrinho')");
     const nomes = ativos.map((a) => a.nome).filter((n) => grupoDeNome(n) !== 'higiene');
-    if (nomes.length < 4) return res.json({ refeicoes: [] });
+    if (nomes.length < 3) return res.json({ refeicoes: [] });
     const hash = nomes.map(chaveItemLista).sort().join('|');
     if (_refeicoesCache.has(hash)) return res.json({ refeicoes: _refeicoesCache.get(hash), cacheada: true });
     const r = await chatCompletion({
