@@ -146,6 +146,9 @@
 @keyframes riscaSweep{from{background-size:0 2px}to{background-size:100% 2px}}
 .v2 .risca-tick{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--risca-cor);display:grid;place-items:center;animation:tickPop .34s cubic-bezier(.2,1.5,.45,1)}
 @keyframes tickPop{0%{transform:scale(0);opacity:0}55%{transform:scale(1.25);opacity:1}100%{transform:scale(1)}}
+/* item RECÉM-INCLUÍDO: realce (anel verde + fundo) que esmaece — para saber que a inclusão foi feita */
+.v2 .item.novo{animation:novoItem 2.6s ease}
+@keyframes novoItem{0%,25%{box-shadow:0 0 0 3px var(--leaf-d),var(--sh-sm);background:var(--leaf-soft)}100%{box-shadow:var(--sh-sm);background:var(--card)}}
 .v2 .ib{flex:1;min-width:0}.v2 .iname{font:700 15px var(--font);color:var(--ink)}.v2 .isub{font:500 12px var(--font);color:var(--ink-3);margin-top:1px;display:flex;align-items:center;gap:5px}
 .v2 .fits{display:inline-flex}
 .v2 .profav{width:18px;height:18px;border-radius:50%;color:#fff;font:800 9.5px var(--disp);display:inline-grid;place-items:center;flex:0 0 auto;border:1.5px solid var(--card);margin-left:-6px}
@@ -212,6 +215,7 @@
 .v2 .hab-open .ho-t b{font:800 15px var(--disp);color:var(--ink)}
 .v2 .hab-open .ho-t small{font:600 11.5px var(--font);color:var(--ink-3)}
 .v2 .disc-card{background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:11px 13px}
+.v2 .disc-card.recfim{margin-top:14px} /* "dá para cozinhar" no fim da lista, separado dos itens */
 .v2 .disc-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
 .v2 .disc-h span{display:inline-flex;align-items:center;gap:6px;font:800 13px var(--disp);color:var(--ink)}
 .v2 .disc-all{background:var(--leaf-soft);color:var(--leaf-d);border:0;border-radius:var(--r-pill);padding:5px 11px;font:800 12px var(--disp);cursor:pointer}

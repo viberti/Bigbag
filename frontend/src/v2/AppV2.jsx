@@ -370,7 +370,7 @@ function precoLista(it) {
 
 // Linha da lista com SWIPE-PARA-APAGAR (faltava na v2; só existia na v1/App.jsx).
 // Arrasta para a direita > 90px → remove. Estado de gesto por item (refs próprios).
-function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLevar, onFormas }) {
+function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLevar, onFormas, destaque, innerRef }) {
   // tamanho da embalagem = FACTO (da ficha) → vai na linha. "levar N" = qtd habitual da casa (SUGESTÃO
   // gentil, 1 toque). "N formas" = variante habitual (SUGESTÃO falível) → atrás de seletor, nunca como facto.
   const levar = it.qtd_habitual > 1 && (it.quantidade || 1) === 1;
@@ -386,9 +386,9 @@ function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLe
   };
   const end = () => { const r = g.current; r.mov = false; if (r.horiz && r.dx > 90) onRemover(it); setDx(0); };
   return (
-    <div className="swrow">
+    <div className="swrow" ref={innerRef}>
       <div className="swrow-bg"><Ico name="close" size={18} /></div>
-      <div className={`item ${riscaCor ? 'risca' : ''}`} style={{ borderRight: `6px solid ${cor}`, transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s', '--risca-cor': riscaCor || 'transparent' }}
+      <div className={`item ${riscaCor ? 'risca' : ''} ${destaque ? 'novo' : ''}`} style={{ borderRight: `6px solid ${cor}`, transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s', '--risca-cor': riscaCor || 'transparent' }}
         onTouchStart={start} onTouchMove={move} onTouchEnd={end}
         title={it.adicionado_por ? `adicionado por ${it.adicionado_por}` : undefined}>
         <div className="ib" onClick={() => { if (g.current.horiz || riscaCor) return; onApanhar(it, true); }}>
@@ -409,7 +409,7 @@ function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLe
   );
 }
 
-function Lista({ go, back }) {
+function Lista({ go, back, destaque }) {
   const [itens, setItens] = useState(null);
   const [gravando, setGravando] = useState(false);
   const [proc, setProc] = useState(false);          // a processar a voz
@@ -427,6 +427,11 @@ function Lista({ go, back }) {
   const [acabarFechado, setAcabarFechado] = useState(false); // X fecha o card "talvez a acabar"
   const [picando, setPicando] = useState({}); // {id: nomeDeQuemApanha} — risca-no-lugar em curso
   const [variantesItem, setVariantesItem] = useState(null); // item cujo seletor de variantes está aberto
+  // DESTAQUE do item recém-incluído: o scan passa o EAN pela navegação (destaque prop); os adds na
+  // tela marcam por nome. Ao carregar, achamos o item, fazemos scroll e damos um realce que esmaece.
+  const [destaqueAlvo, setDestaqueAlvo] = useState(destaque ? { ean: String(destaque) } : null);
+  const [destaqueId, setDestaqueId] = useState(null);
+  const destRef = useRef(null);
   const carregar = useCallback(() => { obterLista().then((d) => setItens(d.itens || [])).catch(() => setItens([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
   // descoberta carrega ao abrir a tela (as receitas chegam quando chegarem — não bloqueia).
@@ -435,6 +440,16 @@ function Lista({ go, back }) {
     refeicoesLista().then((r) => setRefeicoes(r || [])).catch(() => setRefeicoes([]));
   }, []);
   useEffect(() => { carregarDescoberta(); }, [carregarDescoberta]);
+  useEffect(() => { // item recém-incluído chegou à lista → acha-o (por EAN ou nome), scroll + realce
+    if (!destaqueAlvo || !itens?.length) return undefined;
+    const alvo = itens.find((i) => (destaqueAlvo.ean && String(i.ean) === destaqueAlvo.ean)
+      || (destaqueAlvo.nome && nomeTalao(i.nome).toLowerCase() === destaqueAlvo.nome));
+    if (!alvo) return undefined;
+    setDestaqueAlvo(null); setDestaqueId(alvo.id);
+    requestAnimationFrame(() => destRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    const t = setTimeout(() => setDestaqueId(null), 2600);
+    return () => clearTimeout(t);
+  }, [itens, destaqueAlvo]);
   useEffect(() => () => { // limpeza: pára gravação/microfone ao sair
     try { if (mrRef.current?.state === 'recording') mrRef.current.stop(); } catch { /* noop */ }
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -502,18 +517,18 @@ function Lista({ go, back }) {
   }
   async function escolherSug(s) { // tocar numa sugestão (genérico ou específico)
     setTxt(''); setSug([]); setAviso('');
-    try { await adicionarListaItem({ nome: s.nome, ...(s.ean ? { ean: s.ean } : {}) }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
+    try { await adicionarListaItem({ nome: s.nome, ...(s.ean ? { ean: s.ean } : {}) }); setDestaqueAlvo(s.ean ? { ean: String(s.ean) } : { nome: nomeTalao(s.nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
   async function enviarTexto(e) {
     e?.preventDefault(); const nome = txt.trim(); if (!nome) return;
     setTxt(''); setSug([]); setAviso('');
-    try { await adicionarListaItem({ nome }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
+    try { await adicionarListaItem({ nome }); setDestaqueAlvo({ nome: nomeTalao(nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
   // DESCOBERTA → adicionar: uma sugestão de cadência, todas de uma vez, ou um nome solto
   // (item em falta de uma receita / produto habitual).
   async function addSug(sg) {
     setSugCad((xs) => xs.filter((x) => x.nome !== sg.nome));
-    try { await adicionarListaItem({ nome: sg.nome, quantidade: sg.quantidade || 1 }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
+    try { await adicionarListaItem({ nome: sg.nome, quantidade: sg.quantidade || 1 }); setDestaqueAlvo({ nome: nomeTalao(sg.nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
   async function addTodasSug() {
     const lote = sugCad.map((s) => ({ nome: s.nome, quantidade: s.quantidade || 1 }));
@@ -521,7 +536,7 @@ function Lista({ go, back }) {
     try { const r = await adicionarListaLote(lote); if (r?.itens) setItens(r.itens); else carregar(); } catch { carregar(); }
   }
   async function addNome(nome) {
-    try { await adicionarListaItem({ nome }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
+    try { await adicionarListaItem({ nome }); setDestaqueAlvo({ nome: nomeTalao(nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
   // MEMBROS (perfis) → cor estável por membro; o ativo é "quem apanha".
   const [perfis, setPerfis] = useState([]);
@@ -576,22 +591,6 @@ function Lista({ go, back }) {
               </div>
             </div>
           )}
-          {refeicoes.length > 0 && (
-            <div className="disc-card">
-              <div className="disc-h"><span><Ico name="recipe" size={14} color="var(--coral)" /> Dá para cozinhar</span></div>
-              {refeicoes.map((r) => (
-                <div className="disc-rec" key={r.nome}>
-                  <div className="dr-nome">{r.nome}</div>
-                  {r.usa?.length > 0 && <div className="dr-usa">usa {r.usa.map(nomeTalao).join(', ')}</div>}
-                  {r.falta?.length > 0 && (
-                    <div className="dr-falta">falta {r.falta.map((f) => (
-                      <button className="dr-add" key={f} onClick={() => addNome(f)}><Ico name="plus" size={11} stroke={2.8} color="var(--leaf-d)" />{nomeTalao(f)}</button>
-                    ))}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
         {itens == null ? <p className="empty">…</p> : ativos.length === 0 && carrinho.length === 0 ? <p className="empty">Lista vazia. Toque em + para adicionar.</p>
           : (<>
@@ -603,6 +602,7 @@ function Lista({ go, back }) {
                 {g.itens.map((it) => (
                   <ItemLista key={it.id} it={it} cor={corDe(it.adicionado_por)} qtd={qtdTxt}
                     riscaCor={picando[it.id] ? corDe(picando[it.id]) : null}
+                    destaque={it.id === destaqueId} innerRef={it.id === destaqueId ? destRef : null}
                     onApanhar={apanhar} onRemover={remover} onDelta={delta}
                     onLevar={levar} onFormas={setVariantesItem} />
                 ))}
@@ -621,6 +621,23 @@ function Lista({ go, back }) {
               ))}
             </>)}
           </>)}
+        {/* "Dá para cozinhar" vive no FIM da lista — não rouba espaço aos itens no topo */}
+        {refeicoes.length > 0 && (
+          <div className="disc-card recfim">
+            <div className="disc-h"><span><Ico name="recipe" size={14} color="var(--coral)" /> Dá para cozinhar</span></div>
+            {refeicoes.map((r) => (
+              <div className="disc-rec" key={r.nome}>
+                <div className="dr-nome">{r.nome}</div>
+                {r.usa?.length > 0 && <div className="dr-usa">usa {r.usa.map(nomeTalao).join(', ')}</div>}
+                {r.falta?.length > 0 && (
+                  <div className="dr-falta">falta {r.falta.map((f) => (
+                    <button className="dr-add" key={f} onClick={() => addNome(f)}><Ico name="plus" size={11} stroke={2.8} color="var(--leaf-d)" />{nomeTalao(f)}</button>
+                  ))}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="actfoot">
         {escrever && (
@@ -1745,7 +1762,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
         if (ptOk) {
           if (paraComparar) { addCmp({ ean: cod, nome: fl.nome }); back(); return; }
           try { await adicionarListaItem({ nome: fl.nome, ean: cod }); } catch { /* outbox/sync apanha */ }
-          back(); return; // adicionado → volta JÁ à lista (sem ecrã de confirmação)
+          go('lista', { destaque: cod }); return; // adicionado → volta à lista, com o item EM DESTAQUE
         }
       }
       // MODO LISTA: montar a lista tem de ser RÁPIDO. Só precisa de NOME+EAN → UMA chamada
@@ -1755,7 +1772,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
       if (paraLista) {
         let nmL = null;
         try { const c = await consultarProdutoEan(cod, { pt: true }); nmL = c?.nome || null; } catch { /* offline → foto */ }
-        if (nmL) { try { await adicionarListaItem({ nome: nmL, ean: cod }); } catch { /* outbox apanha */ } back(); return; } // adicionado → volta JÁ à lista
+        if (nmL) { try { await adicionarListaItem({ nome: nmL, ean: cod }); } catch { /* outbox apanha */ } go('lista', { destaque: cod }); return; } // adicionado → volta à lista, item EM DESTAQUE
         setRegisto({ ean: cod, fotos: [], naoLido: true }); return;
       }
       const info = await infoProduto({ ean: cod });
@@ -1820,7 +1837,7 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
       const r = await identificarProduto({ ean: registo.ean, fotos: registo.fotos });
       const nm = r?.vlm?.nome || r?.off?.nome || 'Produto';
       if (paraComparar) { addCmp({ ean: registo.ean, nome: nm }); back(); } // junta e volta já à Comparar
-      else if (paraLista) { try { await adicionarListaItem({ nome: nm, ean: registo.ean }); } catch { /* outbox/sync apanha */ } setRegisto(null); back(); } // adicionado → volta JÁ à lista
+      else if (paraLista) { try { await adicionarListaItem({ nome: nm, ean: registo.ean }); } catch { /* outbox/sync apanha */ } setRegisto(null); go('lista', { destaque: registo.ean }); } // adicionado → volta à lista, item EM DESTAQUE
       else go('ficha', { ean: registo.ean, nome: nm }, { replace: true }); // passa o nome → a ficha não pisca "sem nome"
     } catch { setRegBusy(false); setRegisto((r) => r && { ...r, erro: true }); }
   }
