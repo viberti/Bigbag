@@ -22,9 +22,9 @@ export function tokensTaco(texto) {
 }
 
 // Devolve { nutricao_100g, descricao, fonte } se houver alimento de CONFIANÇA p/ o nome; senão null.
-// Consulta a TACO (BR, PRIORITÁRIA) E a FAO (peixes/leguminosas globais) — a TACO ganha nos empates
-// (mais fiel às variedades BR). Cada tabela tem o seu try (FAO ausente não derruba a TACO). O chamador
-// fica com a estimativa do LLM se devolver null.
+// Consulta 3 níveis: TACO (BR, PRIORITÁRIA) > FAO (peixes/leguminosas) > USDA (genéricos, cauda longa) —
+// a TACO ganha empates (mais fiel ao BR), depois a FAO. Cada tabela tem o seu try (uma ausente não
+// derruba as outras). O chamador fica com a estimativa do LLM se devolver null.
 export async function nutricaoGenerica(pool, nome) {
   const tq = tokensTaco(nome);
   if (!tq.length) return null;
@@ -37,7 +37,8 @@ export async function nutricaoGenerica(pool, nome) {
       return r.map((x) => ({ ...x, fonte }));
     } catch { return []; }
   };
-  const rows = [...await consultar('nutricao_taco', 'taco'), ...await consultar('nutricao_fao', 'fao')];
+  const rows = [...await consultar('nutricao_taco', 'taco'), ...await consultar('nutricao_fao', 'fao'),
+    ...await consultar('nutricao_usda', 'usda')];
   if (!rows.length) return null;
 
   const headQ = tq[0];
@@ -65,8 +66,8 @@ export async function nutricaoGenerica(pool, nome) {
     const headMatch = arr[0] === headQ ? 5 : 0;              // preferir a ficha liderada pela 1.ª palavra
     const proto = extra.reduce((s, t) => s + (freq.get(t) || 0), 0); // variedade prototípica
     const base = /\b(cru|crua|natural)\b/.test(normAlfa(r.descricao)) ? 0.5 : 0; // forma "como vendido"
-    const priorBR = r.fonte === 'taco' ? 0.3 : 0;            // TACO ganha empates (mais fiel ao BR)
-    const score = headMatch + cobertura * 10 - extra.length * 2 + proto * 0.5 + base + priorBR;
+    const prioridade = r.fonte === 'taco' ? 0.3 : r.fonte === 'fao' ? 0.1 : 0; // TACO(BR) > FAO > USDA nos empates
+    const score = headMatch + cobertura * 10 - extra.length * 2 + proto * 0.5 + base + prioridade;
     if (score > bestScore) { bestScore = score; best = r; }
   }
   return best ? { nutricao_100g: parseJsonCol(best.nutricao), descricao: best.descricao, fonte: best.fonte } : null;
