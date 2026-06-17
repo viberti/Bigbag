@@ -368,28 +368,33 @@ function precoLista(it) {
   return 'sem preço';
 }
 
-// Linha da lista com SWIPE-PARA-APAGAR (faltava na v2; só existia na v1/App.jsx).
-// Arrasta para a direita > 90px → remove. Estado de gesto por item (refs próprios).
-function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLevar, onFormas, destaque, innerRef }) {
-  // tamanho da embalagem = FACTO (da ficha) → vai na linha. "levar N" = qtd habitual da casa (SUGESTÃO
-  // gentil, 1 toque). "N formas" = variante habitual (SUGESTÃO falível) → atrás de seletor, nunca como facto.
-  const levar = it.qtd_habitual > 1 && (it.quantidade || 1) === 1;
-  const formas = it.variantes_n > 1;
+// Gesto SWIPE-PARA-APAGAR (arrasta p/ a direita > 90px → remove). PARTILHADO pela linha activa e pela
+// do carrinho. Devolve dx (translação), g (ref do gesto, p/ o onClick saber se está a arrastar) e os
+// handlers de toque para espalhar no card.
+function useSwipeDelete(onRemover) {
   const [dx, setDx] = useState(0);
   const g = useRef({ x0: 0, y0: 0, horiz: false, mov: false, dx: 0 });
-  const start = (e) => { const t = e.touches[0]; g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 }; };
-  const move = (e) => {
+  const onTouchStart = (e) => { const t = e.touches[0]; g.current = { x0: t.clientX, y0: t.clientY, horiz: false, mov: true, dx: 0 }; };
+  const onTouchMove = (e) => {
     const r = g.current; if (!r.mov) return;
     const t = e.touches[0]; const dX = t.clientX - r.x0; const dY = t.clientY - r.y0;
     if (!r.horiz && Math.abs(dX) > Math.abs(dY) + 6) r.horiz = true;
     if (r.horiz) { r.dx = Math.max(0, dX); setDx(r.dx); }
   };
-  const end = () => { const r = g.current; r.mov = false; if (r.horiz && r.dx > 90) onRemover(it); setDx(0); };
+  const onTouchEnd = () => { const r = g.current; r.mov = false; if (r.horiz && r.dx > 90) onRemover(); setDx(0); };
+  return { dx, g, touch: { onTouchStart, onTouchMove, onTouchEnd } };
+}
+
+// Linha ACTIVA da lista (swipe-apagar + apanhar + qty + chips).
+function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLevar, onFormas, destaque, innerRef }) {
+  const levar = it.qtd_habitual > 1 && (it.quantidade || 1) === 1; // qtd habitual da casa (sugestão, 1 toque)
+  const formas = it.variantes_n > 1; // variante habitual (sugestão falível) → atrás de seletor "N formas"
+  const { dx, g, touch } = useSwipeDelete(() => onRemover(it));
   return (
     <div className="swrow" ref={innerRef}>
       <div className="swrow-bg"><Ico name="close" size={18} /></div>
       <div className={`item ${riscaCor ? 'risca' : ''} ${destaque ? 'novo' : ''}`} style={{ borderRight: `6px solid ${cor}`, transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s', '--risca-cor': riscaCor || 'transparent' }}
-        onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+        {...touch}
         title={it.adicionado_por ? `adicionado por ${it.adicionado_por}` : undefined}>
         <div className="ib" onClick={() => { if (g.current.horiz || riscaCor) return; onApanhar(it, true); }}>
           <div className="iname">{nomeTalao(it.nome)}</div>
@@ -404,6 +409,24 @@ function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLe
         {riscaCor
           ? <span className="risca-tick"><Ico name="check" size={19} stroke={3} color="#fff" /></span>
           : <div className="qty"><button onClick={() => onDelta(it, -1)}>−</button><span className="qn">{qtd(it)}</span><button onClick={() => onDelta(it, 1)}>+</button></div>}
+      </div>
+    </div>
+  );
+}
+
+// Linha do CARRINHO (já apanhado): riscada, tocar des-marca (volta a ativo), ARRASTAR p/ a direita
+// apaga (mesmo swipe da linha activa) — para tirar da lista algo que afinal não se vai levar.
+function ItemCarrinho({ it, cor, riscoCor, onApanhar, onRemover, qtd }) {
+  const { dx, g, touch } = useSwipeDelete(() => onRemover(it));
+  return (
+    <div className="swrow">
+      <div className="swrow-bg"><Ico name="close" size={18} /></div>
+      <div className="item done" style={{ borderRight: `6px solid ${cor}`, transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }}
+        {...touch} onClick={() => { if (g.current.horiz) return; onApanhar(it, false); }}>
+        <div className="ib">
+          <div className="iname" style={{ textDecorationColor: riscoCor }}>{nomeTalao(it.nome)}</div>
+          <span className="pickcart">{qtd(it)} · no carrinho de {it.marcado_por || '—'}</span>
+        </div>
       </div>
     </div>
   );
@@ -617,12 +640,8 @@ function Lista({ go, back, destaque }) {
             {carrinho.length > 0 && (<>
               <div className="sec boughtsec"><Ico name="check" size={13} stroke={2.6} /> No carrinho · {carrinho.length}</div>
               {carrinho.map((it) => (
-                <div className="item done" key={it.id} style={{ borderRight: `6px solid ${corDe(it.adicionado_por)}` }} onClick={() => apanhar(it, false)}>
-                  <div className="ib">
-                    <div className="iname" style={{ textDecorationColor: corDe(it.marcado_por) }}>{nomeTalao(it.nome)}</div>
-                    <span className="pickcart">{qtdTxt(it)} · no carrinho de {it.marcado_por || '—'}</span>
-                  </div>
-                </div>
+                <ItemCarrinho key={it.id} it={it} cor={corDe(it.adicionado_por)} riscoCor={corDe(it.marcado_por)}
+                  qtd={qtdTxt} onApanhar={apanhar} onRemover={remover} />
               ))}
             </>)}
           </>)}
