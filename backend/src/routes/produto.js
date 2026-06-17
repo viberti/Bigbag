@@ -979,12 +979,17 @@ produtoRouter.get('/autocomplete', requireAuth, async (req, res) => {
     const last = toks[toks.length - 1];
     const wb = `\\b${last}\\b`; // palavra inteira (REGEXP, word boundary)
     const food = modo === 'lista' ? "+ (product_type='food')*30" : '';
+    // Só GENÉRICOS + ESPECÍFICOS que a casa já comprou/listou (popularidade>0). Sem isto, o
+    // autocomplete despejava ~milhares de específicos do catálogo que a casa nunca teve
+    // (decisão do dono 2026-06-17). `popularidade` dos específicos = histórico da casa
+    // (lista + compras + EANs identificados; ver construir_produto_busca.mjs).
     const [rows] = await getPool().query(
       `SELECT generico, nome, marca, tamanho, ean, tem_nutricao,
               ( (nome REGEXP ?)*100 + (LOWER(nome) LIKE CONCAT(?, '%'))*40
                 + generico*1000 ${food} + LEAST(popularidade, 50) ) AS score
          FROM produto_busca
         WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE)
+          AND (generico = 1 OR popularidade > 0)
         ORDER BY score DESC, MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) DESC
         LIMIT 8`,
       [wb, last, bool, bool]);

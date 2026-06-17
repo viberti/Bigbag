@@ -55,11 +55,27 @@ for (const { nome, pop } of gen.values()) {
 }
 console.log('genéricos:', gen.size);
 
-// 4) popularidade dos ESPECÍFICOS pelo histórico da casa (match por nome normalizado)
+// 4) popularidade dos ESPECÍFICOS pelo histórico da casa. `popularidade>0` é o gate do
+//    autocomplete: só genéricos + específicos que a casa CONHECE entram (dono 2026-06-17).
+//    4a) listados (lista_item):
 await pool.query(
   `UPDATE produto_busca pb JOIN (
      SELECT LOWER(nome) k, COUNT(*) c FROM lista_item GROUP BY LOWER(nome)
    ) h ON LOWER(pb.nome)=h.k SET pb.popularidade = pb.popularidade + h.c WHERE pb.generico=0`);
+//    4b) COMPRADOS (talão): match por nome do item comprado (sku resolvido > descrição), peso ×2.
+await pool.query(
+  `UPDATE produto_busca pb JOIN (
+     SELECT LOWER(COALESCE(NULLIF(s.nome_simplificado,''), s.nome_canonico, i.descricao_original)) k,
+            COUNT(DISTINCT i.fatura_id) c
+       FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+      WHERE COALESCE(i.is_non_product,0)=0
+        AND COALESCE(NULLIF(s.nome_simplificado,''), s.nome_canonico, i.descricao_original) IS NOT NULL
+      GROUP BY k
+   ) b ON LOWER(pb.nome)=b.k SET pb.popularidade = pb.popularidade + b.c*2 WHERE pb.generico=0`);
+//    4c) EAN IDENTIFICADO pela casa (scan/foto ligado a um item do talão) — join limpo por EAN.
+await pool.query(
+  `UPDATE produto_busca pb JOIN produto_ean pe ON pe.ean = pb.ean
+      SET pb.popularidade = pb.popularidade + 3 WHERE pb.generico=0 AND pe.item_id IS NOT NULL`);
 
 // 5) tem_nutricao por EAN (off_full + produto_ean) — JOIN (a colação no lado indexado
 // numa EXISTS correlacionada matava o índice → full-scan).

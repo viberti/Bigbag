@@ -13,7 +13,7 @@ import {
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome, consultarProdutoEan,
   listarPerfis, ativarPerfil, carregarPerfil, salvarSaude, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
-  adotarPorNome, definirPais,
+  adotarPorNome, definirPais, sugestoesLista, refeicoesLista, carregarHabituais,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLocal.js';
@@ -406,8 +406,19 @@ function Lista({ go, back }) {
   const [sug, setSug] = useState([]);               // sugestões de autocomplete (genéricos primeiro)
   const sugTimer = useRef(null);
   const mrRef = useRef(null); const streamRef = useRef(null);
+  // DESCOBERTA (restaurado da v1): sugestões "talvez esteja a acabar" (cadência, zero LLM),
+  // receitas possíveis com a lista (LLM cacheado) e o catálogo de HABITUAIS (histórico da casa).
+  const [sugCad, setSugCad] = useState([]);         // [{nome, quantidade, urgencia, ...}]
+  const [refeicoes, setRefeicoes] = useState([]);   // [{nome, usa[], falta[]}]
+  const [habAberto, setHabAberto] = useState(false);
   const carregar = useCallback(() => { obterLista().then((d) => setItens(d.itens || [])).catch(() => setItens([])); }, []);
   useEffect(() => { carregar(); }, [carregar]);
+  // descoberta carrega ao abrir a tela (as receitas chegam quando chegarem — não bloqueia).
+  const carregarDescoberta = useCallback(() => {
+    sugestoesLista().then((s) => setSugCad(s || [])).catch(() => setSugCad([]));
+    refeicoesLista().then((r) => setRefeicoes(r || [])).catch(() => setRefeicoes([]));
+  }, []);
+  useEffect(() => { carregarDescoberta(); }, [carregarDescoberta]);
   useEffect(() => () => { // limpeza: pára gravação/microfone ao sair
     try { if (mrRef.current?.state === 'recording') mrRef.current.stop(); } catch { /* noop */ }
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -472,6 +483,20 @@ function Lista({ go, back }) {
     setTxt(''); setSug([]); setAviso('');
     try { await adicionarListaItem({ nome }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
   }
+  // DESCOBERTA → adicionar: uma sugestão de cadência, todas de uma vez, ou um nome solto
+  // (item em falta de uma receita / produto habitual).
+  async function addSug(sg) {
+    setSugCad((xs) => xs.filter((x) => x.nome !== sg.nome));
+    try { await adicionarListaItem({ nome: sg.nome, quantidade: sg.quantidade || 1 }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
+  }
+  async function addTodasSug() {
+    const lote = sugCad.map((s) => ({ nome: s.nome, quantidade: s.quantidade || 1 }));
+    if (!lote.length) return; setSugCad([]);
+    try { const r = await adicionarListaLote(lote); if (r?.itens) setItens(r.itens); else carregar(); } catch { carregar(); }
+  }
+  async function addNome(nome) {
+    try { await adicionarListaItem({ nome }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
+  }
   // MEMBROS (perfis) → cor estável por membro; o ativo é "quem apanha".
   const [perfis, setPerfis] = useState([]);
   useEffect(() => { listarPerfis().then((ps) => setPerfis(ps || [])).catch(() => setPerfis([])); }, []);
@@ -495,6 +520,43 @@ function Lista({ go, back }) {
       <Ctop title="A minha lista" sub="compartilhada<br>com a família" back onBack={back} />
       {total > 0 && <div className="pricetag"><span className="pt-hole" /><div className="pt-v"><b>{eur(total)}</b><small>estimado</small></div></div>}
       <div className="scrollarea">
+        {/* DESCOBERTA (restaurada da v1): habituais · "talvez esteja a acabar" (cadência) · receitas */}
+        <div className="descob">
+          <button className="hab-open" onClick={() => setHabAberto(true)}>
+            <span className="ho-ic"><Ico name="usual" size={20} stroke={2} color="var(--leaf-d)" /></span>
+            <span className="ho-t"><b>Habituais</b><small>os produtos que costuma comprar</small></span>
+            <Ico name="plus" size={18} stroke={2.4} color="var(--leaf-d)" />
+          </button>
+          {sugCad.length > 0 && (
+            <div className="disc-card">
+              <div className="disc-h"><span><Ico name="spark" size={14} color="var(--amber-d)" /> Talvez esteja a acabar</span>
+                {sugCad.length > 1 && <button className="disc-all" onClick={addTodasSug}>+ todos</button>}</div>
+              <div className="disc-chips">
+                {sugCad.map((s) => (
+                  <button className="disc-chip" key={s.nome} onClick={() => addSug(s)} title={s.dias ? `há ${s.dias} dias` : ''}>
+                    <Ico name="plus" size={12} stroke={2.8} color="var(--leaf-d)" />{nomeTalao(s.nome)}{s.quantidade > 1 ? ` ×${s.quantidade}` : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {refeicoes.length > 0 && (
+            <div className="disc-card">
+              <div className="disc-h"><span><Ico name="recipe" size={14} color="var(--coral)" /> Dá para cozinhar</span></div>
+              {refeicoes.map((r) => (
+                <div className="disc-rec" key={r.nome}>
+                  <div className="dr-nome">{r.nome}</div>
+                  {r.usa?.length > 0 && <div className="dr-usa">usa {r.usa.map(nomeTalao).join(', ')}</div>}
+                  {r.falta?.length > 0 && (
+                    <div className="dr-falta">falta {r.falta.map((f) => (
+                      <button className="dr-add" key={f} onClick={() => addNome(f)}><Ico name="plus" size={11} stroke={2.8} color="var(--leaf-d)" />{nomeTalao(f)}</button>
+                    ))}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         {itens == null ? <p className="empty">…</p> : ativos.length === 0 && carrinho.length === 0 ? <p className="empty">Lista vazia. Toque em + para adicionar.</p>
           : (<>
             {grupos.map((g) => (
@@ -552,7 +614,42 @@ function Lista({ go, back }) {
           <button className={`addfab plus ${escrever ? 'on' : ''}`} title="Escrever" onClick={() => setEscrever((v) => !v)}><Ico name="plus" size={24} stroke={2.4} color="#3f7a3f" /></button>
         </div>
       </div>
+      {habAberto && <HabituaisSheet onFechar={() => setHabAberto(false)} onAdd={addNome} />}
     </>
+  );
+}
+
+// SHEET de HABITUAIS (restaurado da v1): produtos que a casa costuma comprar (histórico,
+// ≥2 idas em 60 dias). Toca-se em + para adicionar à lista; carrega lazy ao abrir.
+function HabituaisSheet({ onFechar, onAdd }) {
+  const [prods, setProds] = useState(null);
+  const [feitos, setFeitos] = useState(() => new Set());
+  useEffect(() => { carregarHabituais().then((p) => setProds(p || [])).catch(() => setProds([])); }, []);
+  const add = (p) => { setFeitos((s) => new Set(s).add(p.produto)); onAdd(p.produto); };
+  return (
+    <div className="sheet-bg" onClick={onFechar}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-h"><b>Habituais</b><button className="sheet-x" onClick={onFechar}><Ico name="close" size={18} /></button></div>
+        <div className="sheet-sub">Os produtos que costuma comprar. Toque em + para juntar à lista.</div>
+        <div className="sheet-body">
+          {prods == null ? <p className="empty">…</p> : prods.length === 0 ? <p className="empty">Ainda sem histórico de compras.</p>
+            : prods.map((p) => {
+              const ok = feitos.has(p.produto);
+              return (
+                <div className="hab-row" key={p.produto}>
+                  <div className="hr-b">
+                    <div className="hr-n">{nomeTalao(p.produto)}</div>
+                    <div className="hr-s">{p.idas}× comprado{p.ultimo_preco != null ? ` · ${eur(p.ultimo_preco)}` : ''}</div>
+                  </div>
+                  <button className={`hr-add ${ok ? 'done' : ''}`} onClick={() => !ok && add(p)} disabled={ok}>
+                    <Ico name={ok ? 'check' : 'plus'} size={16} stroke={2.6} color={ok ? '#fff' : 'var(--leaf-d)'} />
+                  </button>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+    </div>
   );
 }
 
