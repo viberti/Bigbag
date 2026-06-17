@@ -28,16 +28,18 @@ export async function nutricaoTaco(pool, nome) {
       [tq.map((t) => `${t}*`).join(' ')]);
   } catch { return null; }
   if (!rows?.length) return null;
-  // ranking: a MAIORIA dos tokens do nome tem de estar na ficha (cobertura ≥0.6);
-  // desempate por cobertura > forma "crua" (base) > descrição mais curta (mais genérica).
+  // ranking: a MAIORIA dos tokens do nome tem de estar na ficha (cobertura ≥0.6); + BOOST forte
+  // se o alimento PRIMÁRIO da ficha (1.ª palavra) é a cabeça do nome — evita casar com um prato
+  // que só CONTÉM o ingrediente ("Ovo" ≠ "Macarrão com ovos"; "Leite Integral" ≠ "Canjica com leite").
+  const headQ = tq[0];
   let best = null; let bestScore = -1;
   for (const r of rows) {
-    const te = new Set(String(r.busca).split(' '));
-    const cobertura = tq.filter((t) => te.has(t)).length / tq.length;
+    const teArr = String(r.busca).split(' ');
+    const cobertura = tq.filter((t) => teArr.includes(t)).length / tq.length;
     if (cobertura < 0.6) continue;
-    const crua = /\bcru[ao]?s?\b/.test(normAlfa(r.descricao)) ? 0.15 : 0;
-    const curta = -String(r.descricao).split(',').length * 0.05;
-    const score = cobertura + crua + curta;
+    const headMatch = teArr[0] === headQ ? 1.0 : 0;       // ficha LIDERADA pelo alimento do nome
+    const curta = -teArr.length * 0.04;                    // preferir a descrição mais genérica
+    const score = cobertura + headMatch + curta;
     if (score > bestScore) { bestScore = score; best = r; }
   }
   return best ? { nutricao_100g: parseJsonCol(best.nutricao), descricao: best.descricao, categoria: best.categoria } : null;
