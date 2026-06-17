@@ -1,59 +1,87 @@
-/* Dashboard de gestão (/dash) — BI denso, desktop. Reusa .adm-* de styles.css. */
-.adm.dash { background: #eef1ec; min-height: 100vh; color: #2b3b2b; } /* fundo CLARO de BI (o .adm é escuro) */
-.dash .adm-top { gap: 14px; align-items: center; }
-.dash-meta { font-size: 12px; color: #8a958a; }
-.dash-refresh { font-size: 12px; padding: 5px 10px; border: 1px solid #cdd6cc; border-radius: 6px; background: #fff; cursor: pointer; margin-left: auto; }
-.dash-refresh:disabled { opacity: .5; cursor: default; }
-.dash-body { padding: 14px 18px 64px; max-width: 1460px; margin: 0 auto; }
-.dash-h { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: #5a6b5a; margin: 26px 0 10px; font-weight: 800; }
-.dash-body > .dash-h:first-child { margin-top: 4px; }
-.dash-h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #7a8a7a; margin: 16px 0 6px; font-weight: 700; }
-.dash-filtro { font-size: 12px; background: #eef4ea; color: #3f7a3f; border-radius: 20px; padding: 2px 4px 2px 9px; font-weight: 700; text-transform: none; letter-spacing: 0; }
-.dash-filtro button { border: 0; background: 0; cursor: pointer; color: #3f7a3f; font-weight: 800; padding: 0 6px; }
+/* Dashboard de gestão (/dash) — layout BI: sidebar escura + conteúdo claro. Denso, desktop. */
+.dash-shell { display: flex; min-height: 100vh; background: #eef1ec; color: #2b3b2b; font: 400 14px/1.4 system-ui, -apple-system, sans-serif; }
+
+/* sidebar */
+.dash-side { width: 218px; flex: 0 0 218px; background: #233029; color: #c8dcc4; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+.dash-brand { padding: 18px 16px 15px; font: 700 18px system-ui; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.09); }
+.dash-brand b { color: #fff; }
+.dash-brand span { font: 600 10px system-ui; letter-spacing: .12em; text-transform: uppercase; color: #7fa379; margin-left: auto; }
+.dash-nav { display: flex; flex-direction: column; padding: 12px 9px; gap: 2px; flex: 1; }
+.dash-nav button { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border: 0; background: 0; color: #c8dcc4; font: 600 14px system-ui; border-radius: 8px; cursor: pointer; text-align: left; transition: .12s; }
+.dash-nav button:hover { background: rgba(255,255,255,.07); }
+.dash-nav button.on { background: #3f7a3f; color: #fff; }
+.dn-ic { font-size: 16px; width: 20px; text-align: center; }
+.dash-side-foot { padding: 13px; border-top: 1px solid rgba(255,255,255,.09); display: flex; flex-direction: column; gap: 9px; }
+.dash-side-foot a { color: #8fb089; text-decoration: none; font: 600 12px system-ui; }
+.dash-side-foot a:hover { color: #c8dcc4; }
+.dash-refresh2 { background: rgba(255,255,255,.08); color: #c8dcc4; border: 0; border-radius: 7px; padding: 8px; cursor: pointer; font: 600 12px system-ui; }
+.dash-refresh2:hover:not(:disabled) { background: rgba(255,255,255,.14); }
+.dash-refresh2:disabled { opacity: .5; cursor: default; }
+.dash-ts { color: #6f8a6a; font-size: 10.5px; }
+
+/* conteúdo */
+.dash-main { flex: 1; min-width: 0; padding: 24px 30px 64px; }
+.dash-main-h { margin-bottom: 18px; }
+.dash-main-h h1 { font: 800 23px system-ui; color: #2b3b2b; margin: 0; }
+.dash-sub { color: #6b7b6b; font-size: 13px; margin: -6px 0 16px; }
+.dash-h3 { font: 700 12px system-ui; text-transform: uppercase; letter-spacing: .05em; color: #7a8a7a; margin: 26px 0 8px; }
 
 /* KPIs */
-.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(195px, 1fr)); gap: 12px; }
-.dash-kpi { background: #fff; border: 1px solid #e3e8e0; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 3px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
-.dk-n { font-size: 26px; font-weight: 800; color: #2b3b2b; line-height: 1; }
-.dk-l { font-size: 12px; color: #6b7b6b; }
-.dk-s { font-size: 11px; color: #9aa89a; margin-top: 2px; }
+.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 13px; }
+.dash-kpi { background: #fff; border: 1px solid #e1e7de; border-radius: 11px; padding: 16px 18px; display: flex; flex-direction: column; gap: 3px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+.dk-n { font: 800 28px system-ui; color: #243029; line-height: 1; }
+.dk-l { font-size: 12.5px; color: #6b7b6b; }
+.dk-s { font-size: 11px; color: #9aa89a; margin-top: 3px; }
 
-/* Países (cards clicáveis = filtro) */
-.dash-paises { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.dash-pais { background: #fff; border: 1px solid #e3e8e0; border-radius: 10px; padding: 12px 13px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; cursor: pointer; text-align: left; transition: .12s; }
-.dash-pais:hover { border-color: #bcd2b8; }
-.dash-pais.on { border-color: #3f7a3f; box-shadow: 0 0 0 2px #cfe6cb; }
-.dp-flag { font-size: 22px; line-height: 1; }
-.dp-nome { font-weight: 800; font-size: 15px; color: #2b3b2b; margin-top: 2px; }
-.dp-m { font-size: 12px; color: #6b7b6b; }
-.dp-m b { color: #2b3b2b; }
+/* Países (cards clicáveis) */
+.dash-paises { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 13px; }
+.dash-pais { background: #fff; border: 1px solid #e1e7de; border-radius: 11px; padding: 15px 16px; display: flex; flex-direction: column; gap: 5px; cursor: pointer; text-align: left; transition: .12s; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+.dash-pais:hover { border-color: #9cc497; box-shadow: 0 3px 10px rgba(63,122,63,.12); transform: translateY(-1px); }
+.dp-top { display: flex; align-items: center; gap: 9px; }
+.dp-flag { font-size: 24px; line-height: 1; }
+.dp-nome { font: 800 16px system-ui; color: #243029; }
+.dp-num { font-size: 13px; color: #6b7b6b; }
+.dp-num b { color: #243029; font-weight: 800; }
+.dp-bar { height: 6px; background: #eef2ec; border-radius: 4px; overflow: hidden; margin-top: 5px; }
+.dp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #67b262, #3f7a3f); }
 
-/* barra acima das tabelas */
-.dash-bar-top { display: flex; align-items: center; gap: 12px; margin: 26px 0 8px; flex-wrap: wrap; }
-.dash-bar-top .dash-h { margin: 0; }
-.dash-busca { margin-left: auto; padding: 7px 12px; border: 1px solid #cdd6cc; border-radius: 7px; font-size: 13px; min-width: 220px; }
-.dash-csv { padding: 7px 12px; border: 1px solid #cdd6cc; border-radius: 7px; background: #fff; cursor: pointer; font-size: 13px; }
-.dash-periodo { margin-left: auto; display: flex; gap: 4px; }
-.dash-periodo button { padding: 5px 11px; border: 1px solid #cdd6cc; border-radius: 6px; background: #fff; cursor: pointer; font-size: 12px; }
+/* toolbar (filtros por página) */
+.dash-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.dash-tb-l { font: 600 13px system-ui; color: #6b7b6b; }
+.dash-sel, .dash-busca { padding: 8px 12px; border: 1px solid #cdd6cc; border-radius: 8px; font-size: 13px; background: #fff; color: #2b3b2b; }
+.dash-busca { min-width: 230px; }
+.dash-count { font-size: 13px; color: #6b7b6b; margin-left: auto; }
+.dash-csv { padding: 8px 13px; border: 1px solid #cdd6cc; border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; color: #3f7a3f; font-weight: 700; }
+.dash-csv:hover { background: #f0f5ee; }
+.dash-periodo { display: flex; gap: 5px; }
+.dash-periodo button { padding: 7px 13px; border: 1px solid #cdd6cc; border-radius: 7px; background: #fff; cursor: pointer; font-size: 13px; }
 .dash-periodo button.on { background: #3f7a3f; color: #fff; border-color: #3f7a3f; }
 
-/* tabela de fontes (densa) */
-.dash-tabela-wrap { overflow-x: auto; }
-.dash-tabela { width: 100%; font-size: 13px; }
-.dash-tabela th.dash-th { cursor: pointer; user-select: none; white-space: nowrap; }
+/* tabelas */
+.dash-tabela-wrap { overflow-x: auto; background: #fff; border: 1px solid #e1e7de; border-radius: 11px; }
+.dash-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dash-tabela th, .dash-tabela td { padding: 9px 13px; text-align: left; border-bottom: 1px solid #eef1ec; white-space: nowrap; }
+.dash-tabela thead th { background: #f6f8f4; color: #5a6b5a; font-weight: 700; font-size: 12px; position: sticky; top: 0; }
+.dash-tabela tbody tr:hover { background: #f7faf6; }
+.dash-tabela th.dash-th { cursor: pointer; user-select: none; }
+.dash-tabela th.dash-th:hover { color: #3f7a3f; }
 .dash-tabela th.dash-th.on { color: #3f7a3f; }
 .dash-tabela th.num, .dash-tabela td.num { text-align: right; }
-.dash-tabela td small { color: #9aa89a; font-size: 11px; margin-left: 3px; }
-.dash-plat { color: #6b7b6b; font-size: 12px; white-space: nowrap; }
-.dash-foot td { font-weight: 800; background: #f4f7f2; border-top: 2px solid #d6e0d2; }
+.dash-tabela td small { color: #9aa89a; font-size: 11px; margin-left: 4px; }
+.dash-fn { font-weight: 700; color: #243029; }
+.dash-plat { color: #6b7b6b; font-size: 12px; }
+.dash-usd { color: #c2553a; font-weight: 700; }
+.dash-foot td { font-weight: 800; background: #f4f7f2; border-top: 2px solid #d6e0d2; border-bottom: 0; }
 
 /* custos */
-.dash-custos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
-.dash-bars { display: flex; flex-direction: column; gap: 3px; }
-.dash-bar { display: grid; grid-template-columns: 42px 1fr 58px 46px; align-items: center; gap: 8px; font-size: 12px; }
+.dash-custos-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 26px; align-items: start; }
+.dash-custos-grid .dash-tabela-wrap { margin-top: 4px; }
+.dash-custos-grid > div > .dash-tabela-wrap + .dash-h3 { margin-top: 22px; }
+.dash-bars { display: flex; flex-direction: column; gap: 4px; background: #fff; border: 1px solid #e1e7de; border-radius: 11px; padding: 14px 16px; }
+.dash-bar { display: grid; grid-template-columns: 42px 1fr 60px 46px; align-items: center; gap: 9px; font-size: 12px; }
 .db-d { color: #8a958a; }
-.db-track { background: #eef2ec; border-radius: 4px; height: 14px; overflow: hidden; }
+.db-track { background: #eef2ec; border-radius: 4px; height: 15px; overflow: hidden; }
 .db-track i { display: block; height: 100%; background: linear-gradient(90deg, #67b262, #3f7a3f); }
-.db-v { text-align: right; font-weight: 700; color: #2b3b2b; }
+.db-v { text-align: right; font-weight: 700; color: #243029; }
 .db-n { text-align: right; color: #9aa89a; }
-@media (max-width: 900px) { .dash-custos-grid { grid-template-columns: 1fr; } }
+@media (max-width: 980px) { .dash-custos-grid { grid-template-columns: 1fr; } }
