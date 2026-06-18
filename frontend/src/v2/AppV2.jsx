@@ -503,12 +503,16 @@ function Lista({ go, back, destaque }) {
     setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, quantidade: Math.max(1, (x.quantidade || 1) + d) } : x)));
     try { await atualizarListaItem(it.id, { inc: d }); } catch { carregar(); }
   }
-  async function deltaMedida(it, dir) { // stepper de PESO: passo 50 g (<1 kg) ou 250 g, grava o override
-    const atual = Number(it.qtd_medida) || 0.5;
-    const passo = atual < 1 ? 0.05 : 0.25;
-    const nv = Math.max(0.05, Math.round((atual + passo * dir) * 1000) / 1000);
-    setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, qtd_medida: nv, medida_derivada: false } : x)));
-    try { await atualizarListaItem(it.id, { qtd_medida: nv, unidade: it.unidade || 'kg' }); } catch { carregar(); }
+  async function deltaMedida(it, dir) { // stepper de PESO: passo de 500 g, alinhado à grelha de meio-quilo (mín. 500 g)
+    const STEP = 0.5;
+    const atual = Number(it.qtd_medida) || STEP;
+    // sobe/desce para o próximo múltiplo de 500 g (limpa habituais "tortos": 1,377 → 1,5 ou 1,0)
+    const nv = dir > 0
+      ? (Math.floor(atual / STEP + 1e-9) + 1) * STEP
+      : Math.max(STEP, (Math.ceil(atual / STEP - 1e-9) - 1) * STEP);
+    const v = Math.round(nv * 1000) / 1000;
+    setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, qtd_medida: v, medida_derivada: false } : x)));
+    try { await atualizarListaItem(it.id, { qtd_medida: v, unidade: it.unidade || 'kg' }); } catch { carregar(); }
   }
   async function levar(it) { // chip "levar N": põe a quantidade habitual da casa num toque
     const q = Math.max(1, Number(it.qtd_habitual) || 1);
