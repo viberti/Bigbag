@@ -379,10 +379,10 @@ function ehOvoDuzia(nome) {
 function precoLista(it) {
   // OVOS → preço por DÚZIA (o pack é a dúzia): mostra o preço pago/de mercado por pack, rotulado /dúzia.
   if (ehOvoDuzia(it.nome)) { const p = it.preco_pago ?? it.melhor_preco ?? it.preco_mercado; return p != null ? `${eur(p)}/dúzia` : 'sem preço'; }
-  // produto EMBALADO (EAN na linha, ou o resolver marcou it.embalado por EAN de fabricante) → mostra o
-  // PREÇO PAGO por embalagem (facto do talão), NÃO o €/kg — comparar por base só faz sentido p/ genéricos
-  // vendidos a peso (sem EAN de fabricante).
-  if ((it.ean || it.embalado) && it.preco_pago != null) return eur(it.preco_pago);
+  // €/base (€/kg) SÓ para itens vendidos a PESO (it.unidade = modo peso). Tudo o resto — EAN, embalado, OU
+  // um kg-genérico em PACOTE FIXO (rúcula "EMB.100GR") — mostra o PREÇO DO PACOTE pago (facto do talão),
+  // nunca €/kg. O €/kg de um pacote de 100 g ("9,9/kg") era enganador; o utilizador compra o pacote.
+  if (!it.unidade && it.preco_pago != null) return eur(it.preco_pago);
   const p = it.preco_mercado ?? it.melhor_preco;
   if (p != null) return `${eur(p)}${it.unidade_base ? `/${it.unidade_base}` : ''}`;
   if (it.preco_ref != null) return `~${eur(it.preco_ref)}`;
@@ -508,7 +508,8 @@ function Lista({ go, back, destaque }) {
       const base = Number(b.preco_mercado ?? b.melhor_preco);
       return Number.isFinite(base) && b.unidade_base ? a + base * (Number(b.qtd_medida) || 0) : a; // sem €/base → não inventa
     }
-    return a + (Number(b.preco_mercado ?? b.melhor_preco ?? b.preco_ref) || 0) * (b.quantidade || 1);
+    // não-peso → PREÇO DO PACOTE pago (preco_pago) × quantidade; €/base só p/ peso (coerente c/ precoLista)
+    return a + (Number(b.preco_pago ?? b.preco_mercado ?? b.melhor_preco ?? b.preco_ref) || 0) * (b.quantidade || 1);
   }, 0);
   async function delta(it, d) {
     setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, quantidade: Math.max(1, (x.quantidade || 1) + d) } : x)));
