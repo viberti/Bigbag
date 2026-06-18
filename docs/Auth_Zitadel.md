@@ -37,6 +37,11 @@ Objetivo do dono (2026-06-14): um serviço de autenticação **próprio, reutili
 ## Operações
 - **Adicionar utilizador à allowlist:** criar o user no Zitadel (console Users→New, ou API) **e** acrescentar o email a `AUTH_ALLOWLIST` no `.env` do BigBag (`/home/dev/bigbag/.env`) + restart `bigbag-backend`.
 - **Adicionar um app novo:** criar um client OIDC no projeto certo (API `/management/v1/projects/{id}/apps/oidc` com o PAT) + o app valida o JWT e tem a sua própria allowlist.
+- **Org real do PAT/projetos:** org **ZITADEL** `377442061785300995` (domínio `zitadel.auth.hal9klabs.com`) — é AQUI que vivem os projetos (BigBag e novos). O id `377532243414876163` do doc é o **IdP Google**, ligado à *login policy* desta org → qualquer projeto novo nesta org herda o botão "Sign in with Google" sem tocar no Google (o OAuth client do Google é partilhado; o redirect do Google é o do login do Zitadel, não o do app).
+
+### Apps registados (multi-app)
+- **BigBag** — projeto `377443447096737795`, client `377443508467859459`, `https://bigbag.hal9klabs.com`.
+- **Anotai** (2026-06-18) — projeto `378001634904506371`, app "Anotai Web" `378001635122610179`, **clientId `378001635139387395`**, USER_AGENT+PKCE (público), access token JWT, redirect `https://anotai.hal9klabs.com/callback`, post-logout `https://anotai.hal9klabs.com/`. Falta (no lado do Anotai): wiring front/back (copiar `oidc.js`+`auth.js`), `AUTH_ALLOWLIST` própria, e os emails como Test users no consent do Google enquanto está em Testing.
 - **Rotacionar o PAT:** console → `bigbag-iac` → Personal Access Tokens → apagar+novo → atualizar `/home/dev/auth/.env`.
 
 ## Google login — FEITO (2026-06-15)
