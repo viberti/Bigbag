@@ -68,6 +68,41 @@ test('conservas_vegetais estendidas: azeitonas, pickles, fruta em calda', () => 
   assert.equal(familiaPorNome('Pêssego em Calda'), 'conservas_vegetais');
 });
 
+// ── FASE 2: famílias fora da mercearia (laticínios, doces, bebidas) ───────────
+test('laticínios: iogurte / queijo / leite / manteiga / natas / requeijão', () => {
+  for (const n of ['Iogurte Grego Natural', 'Skyr Proteico', 'Iogurte Líquido Morango']) assert.equal(familiaPorNome(n), 'iogurte', n);
+  for (const n of ['Queijo Flamengo Fatias', 'Mozzarella Ralada', 'Queijo Gouda']) assert.equal(familiaPorNome(n), 'queijo', n);
+  assert.equal(familiaPorNome('Leite Meio Gordo'), 'leite');
+  for (const n of ['Manteiga com Sal', 'Margarina Vegetal']) assert.equal(familiaPorNome(n), 'manteiga', n);
+  for (const n of ['Natas para Cozinhar', 'Creme de Leite']) assert.equal(familiaPorNome(n), 'natas', n);
+  for (const n of ['Requeijão Light', 'Ricotta']) assert.equal(familiaPorNome(n), 'requeijao', n);
+});
+
+test('doces: chocolate / bolacha / cacau / gelado / compota — leftmost desambigua', () => {
+  for (const n of ['Chocolate Negro 70%', 'Tablete Chocolate Leite', 'Bombons Sortidos']) assert.equal(familiaPorNome(n), 'chocolate', n);
+  // bolacha/biscoito DE chocolate → bolacha (cabeça vence o chocolate)
+  for (const n of ['Bolacha Maria', 'Biscoito de Chocolate', 'Cookies de Aveia']) assert.equal(familiaPorNome(n), 'bolacha', n);
+  // achocolatado / Nesquik → cacau, não chocolate
+  for (const n of ['Achocolatado em Pó', 'Bebida de Chocolate Solúvel Nesquik', 'Cacau em Pó', 'Nescau']) assert.equal(familiaPorNome(n), 'cacau', n);
+  for (const n of ['Gelado de Baunilha', 'Gelado de Chocolate']) assert.equal(familiaPorNome(n), 'gelado', n);
+  for (const n of ['Compota de Morango', 'Marmelada']) assert.equal(familiaPorNome(n), 'doce_compota', n);
+});
+
+test('bebidas: cerveja / vinho / sumo / refrigerante / água', () => {
+  for (const n of ['Cerveja Super Bock', 'Cerveja IPA Artesanal']) assert.equal(familiaPorNome(n), 'cerveja', n);
+  for (const n of ['Vinho Tinto Reserva', 'Vinho do Porto Tawny']) assert.equal(familiaPorNome(n), 'vinho', n);
+  for (const n of ['Sumo de Laranja', 'Néctar de Pêssego']) assert.equal(familiaPorNome(n), 'sumo', n);
+  for (const n of ['Coca-Cola Zero', 'Ice Tea Limão']) assert.equal(familiaPorNome(n), 'refrigerante', n);
+  assert.equal(familiaPorNome('Água Mineral com Gás'), 'agua');
+});
+
+test('COLISÕES leftmost: ingrediente no meio do nome NÃO rouba a cabeça', () => {
+  assert.equal(familiaPorNome('Bolacha de Água e Sal'), 'bolacha');     // não 'especiarias'
+  assert.equal(familiaPorNome('Queijo com Azeite e Sal'), 'queijo');    // não 'azeite_oleo'/'especiarias'
+  assert.equal(familiaPorNome('Molho de Tomate Frito'), 'molhos_condimentos'); // 'molho' é a cabeça
+  assert.equal(familiaPorNome('Atum em Óleo Vegetal'), 'conservas_peixe');     // 'atum' é a cabeça
+});
+
 test('fora do ramo / desconhecido → null', () => {
   assert.equal(familiaPorNome('Produto Misterioso XYZ'), null);
   assert.equal(familiaPorNome(''), null);
