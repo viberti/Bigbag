@@ -1,2 +1,3 @@
-backend/data/fao/
+data/fao/
 data/usda/
+nutripedia.ndjson

@@ -1071,6 +1071,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const num = (...ks) => { for (const k of ks) { const v = nut[k]; if (v != null && !Number.isNaN(Number(v))) return Number(v); } return null; };
   const nomeProd = nomeTalao(info?.nome || info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto');
   const grau = analise?.nutriscore?.grau ? String(analise.nutriscore.grau).toUpperCase() : null;
+  const nsCalc = info?.nutriscore_calc || null; // Nutri-Score calculado por nós (numérico, p/ testar)
   // o parecer personalizado (avaliarParaPerfil) devolve { veredicto, resumo, a_favor, contra } —
   // o TEXTO está em `resumo` (não `texto`/`parecer`, que não existem); o selo deriva do veredicto.
   const verd = aval?.avaliacao?.veredicto || '';
@@ -1132,6 +1133,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
             )}
           </div>
           {grau && <span className="ns-pill" style={{ background: NS_COR[grau] || '#9ec93f' }}>{grau}</span>}
+          {nsCalc && <span className="ns-calc" title="Nutri-Score calculado por nós (algoritmo 2017, escala geral)" style={{ background: NS_COR[nsCalc.grau] || '#9ec93f' }}>{nsCalc.grau} {nsCalc.pontos >= 0 ? '+' : ''}{nsCalc.pontos}</span>}
         </div>
 
         {sug && !temNut && (
@@ -1178,7 +1180,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
                 const preco = a.eur_base ?? a.preco_por_base;
                 return (
                   <div className="altx" key={a.sku_id ?? a.ean ?? i} onClick={() => go('ficha', { ean: a.ean, sku_id: a.sku_id, nome: a.nome })}>
-                    <div className="alt-top"><span className="alt-n">{nomeTalao(a.nome)}</span>{preco != null && <span className="alt-p">{eur(preco)}/{a.unidade_base || 'kg'}</span>}</div>
+                    <div className="alt-top"><span className="alt-n">{nomeTalao(a.nome)}{a.nutriscore && <span className="ns-calc sm" style={{ background: NS_COR[a.nutriscore.grau] || '#9ec93f' }}>{a.nutriscore.grau} {a.nutriscore.pontos >= 0 ? '+' : ''}{a.nutriscore.pontos}</span>}</span>{preco != null && <span className="alt-p">{eur(preco)}/{a.unidade_base || 'kg'}</span>}</div>
                     <Pills prot={v('proteina')} sat={v('gordura_saturada', 'saturados')} acu={v('acucares', 'acucar')} />
                   </div>
                 );

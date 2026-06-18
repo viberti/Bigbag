@@ -28,6 +28,7 @@ import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
 import { nutricaoContinenteLive } from '../ingest/nutricaoContinente.js';
 import { tipoProduto, decidirTipo } from '../normaliza/tipoProduto.js';
 import { familiaDe, familiaPorNome, familiasQueCasam, FAMILIAS } from '../normaliza/familia.js';
+import { nutriScore } from '../normaliza/nutriscore.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -458,7 +459,8 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
     // ficha MAGRA = nem nutrição nem imagem: não temos como mostrar nada útil. Mesmo que haja um
     // nome/marca (talvez só DECODIFICADO do EAN), o scan deve pedir FOTOS (VLM) em vez de abrir
     // uma ficha inútil. (sugestão de gémeo já passa pelo gate de precisão `nomeCondizGemeo`.)
-    ficha_magra: !temNutFinal && !imagemCatalogo };
+    ficha_magra: !temNutFinal && !imagemCatalogo,
+    nutriscore_calc: nutriScore(off?.nutricao_100g || vlm?.nutricao_100g || base?.nutricao_100g || generico?.nutricao_100g || null) };
 }
 
 const MAX_FOTOS = 10;
@@ -982,8 +984,8 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       .filter(naoPior)
       .sort((a, b) => (a._s ?? 99) - (b._s ?? 99) || (b.eur_base != null) - (a.eur_base != null))
       .slice(0, 6)
-      .map(({ _s, ...a }) => ({ ...a, mais_saudavel: scoreAtual != null && _s != null && _s < scoreAtual }));
-    res.json({ grupo, nivel, categoria: mestreCat, produto: { nome: info.nome, nutricao: nutAtual, score_saude: scoreAtual }, alternativas: ord });
+      .map(({ _s, ...a }) => ({ ...a, mais_saudavel: scoreAtual != null && _s != null && _s < scoreAtual, nutriscore: nutriScore(a.nutricao) }));
+    res.json({ grupo, nivel, categoria: mestreCat, produto: { nome: info.nome, nutricao: nutAtual, score_saude: scoreAtual, nutriscore: nutriScore(nutAtual) }, alternativas: ord });
   } catch (e) {
     console.error('[produto/alternativas] erro:', e.message);
     res.status(500).json({ erro: 'Falha a obter alternativas' });
