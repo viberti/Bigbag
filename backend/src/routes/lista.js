@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { createHash } from 'crypto';
 import { requireAuth } from '../auth.js';
 import { getPool } from '../db.js';
-import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista, norm, tipoConsumidor, TIPOS_NOME, nomeSemMarca } from '../normaliza/categoria.js';
+import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista, norm, tipoConsumidor, TIPOS_NOME, nomeSemMarca, marcaEhTipo } from '../normaliza/categoria.js';
 import { classificarPorCatalogo } from '../normaliza/classificarCatalogo.js';
 import { marcaDeterministica } from '../normaliza/marca.js';
 import { pesoPelaImagem, versaoPesoImg } from '../ingest/pesoImagem.js';
@@ -118,7 +118,10 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
     it.unidade_venda = unidadeVenda(it.nome);
     // MARCA detetada no nome (gazetteer determinístico) → o cliente mostra-a à
     // parte, noutra cor (formato do talão: nome sem marca + marca destacada).
-    it.marca = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
+    // GUARD marcaEhTipo: rejeita um TIPO/genérico apanhado como marca (ex.: "Fiambre da perna" →
+    // "Fiambre" NÃO é marca, é o produto; sem isto o nome virava "da perna" e a marca "Fiambre").
+    const md = (await marcaDeterministica(pool, it.nome).catch(() => null))?.marca || null;
+    it.marca = (md && !marcaEhTipo(md)) ? md : null;
   }
   mark('loop+marca');
   // PREÇO-FACTO POR EAN (dono, 2026-06-14, caso Picles do Aldi): o nome da lista
@@ -689,7 +692,7 @@ async function montarLista(pool, mercado) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 10; // 10: EAN fabricante→embalado (nunca peso) + peso à grelha de 500g; 9: modo PESO derivado; 8: preço-FACTO por EAN
+const RESOLVER_V = 11; // 11: guard marcaEhTipo (Fiambre não é marca); 10: EAN fabricante→embalado + peso à grelha 500g; 9: modo PESO derivado
 function listaSig(itens, mercado, maxItemId) {
   const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.unidade || ''}:${i.qtd_medida || ''}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
