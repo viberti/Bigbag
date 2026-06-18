@@ -1992,15 +1992,15 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
               <div className="sc-frame" />
             </div>
             {registo.fotos.length > 0 && (
-              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '0 0 10px' }}>
-                {registo.fotos.map((f, i) => <img key={i} src={fotoUrls[i]} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 10, border: '2px solid #fff', flex: '0 0 auto' }} />)}
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '0 0 10px', flexShrink: 0 }}>
+                {registo.fotos.map((f, i) => <img key={i} src={fotoUrls[i]} alt="" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 10, border: '2px solid #fff', flex: '0 0 auto' }} />)}
               </div>
             )}
-            <button className="cbtn cbtn-amber" style={{ width: '100%', marginBottom: 10 }} onClick={capturarRegisto} disabled={registo.semcam}>
+            <button className="cbtn cbtn-amber" style={{ width: '100%', marginBottom: 10, flexShrink: 0 }} onClick={capturarRegisto} disabled={registo.semcam}>
               <Ico name="camera" size={18} color="#3a2606" /> Tirar foto {registo.fotos.length ? `(${registo.fotos.length})` : ''}
             </button>
             {registo.fotos.length > 0 && (
-              <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={registar}>{paraLista ? 'Identificar e adicionar' : 'Cadastrar produto'}</button>
+              <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12, flexShrink: 0 }} onClick={registar}>{paraLista ? 'Identificar e adicionar' : 'Cadastrar produto'}</button>
             )}
             <div className="sc-hint">{
               registo.semcam ? 'Sem acesso à câmera — verifique a permissão.'
@@ -2037,9 +2037,9 @@ function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar,
               <div className="sc-frame">{code && <><i className="tr" /><i className="bl" /></>}</div>
               <span style={{ position: 'absolute', bottom: 12 }}><Mk size={34} /></span>
             </div>
-            {previewFoto && <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={capturar}><Ico name="camera" size={18} color="#f7fff2" /> Tirar foto</button>}
+            {previewFoto && <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12, flexShrink: 0 }} onClick={capturar}><Ico name="camera" size={18} color="#f7fff2" /> Tirar foto</button>}
             {!code && (foto?.fase === 'nada' || foto?.fase === 'erro' || foto?.fase === 'semcam') &&
-              <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12 }} onClick={() => setFoto(null)}><Ico name="camera" size={18} color="#f7fff2" /> Tentar de novo</button>}
+              <button className="cbtn cbtn-leaf" style={{ width: '100%', marginBottom: 12, flexShrink: 0 }} onClick={() => setFoto(null)}><Ico name="camera" size={18} color="#f7fff2" /> Tentar de novo</button>}
             <div className="sc-hint">{
               foto?.fase === 'procurando' ? 'Reconhecendo o produto…'
                 : foto?.fase === 'nada' ? 'Não reconheci. Tente outra foto, mais perto e com boa luz.'
