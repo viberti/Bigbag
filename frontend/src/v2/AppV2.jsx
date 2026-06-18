@@ -369,9 +369,10 @@ function fmtMedida(qtd, unidade) {
 }
 
 function precoLista(it) {
-  // produto com EAN (específico, embalado) → mostra o PREÇO PAGO por embalagem (facto do talão),
-  // NÃO o €/kg — comparar por base só faz sentido p/ genéricos vendidos a peso (sem EAN).
-  if (it.ean && it.preco_pago != null) return eur(it.preco_pago);
+  // produto EMBALADO (EAN na linha, ou o resolver marcou it.embalado por EAN de fabricante) → mostra o
+  // PREÇO PAGO por embalagem (facto do talão), NÃO o €/kg — comparar por base só faz sentido p/ genéricos
+  // vendidos a peso (sem EAN de fabricante).
+  if ((it.ean || it.embalado) && it.preco_pago != null) return eur(it.preco_pago);
   const p = it.preco_mercado ?? it.melhor_preco;
   if (p != null) return `${eur(p)}${it.unidade_base ? `/${it.unidade_base}` : ''}`;
   if (it.preco_ref != null) return `~${eur(it.preco_ref)}`;
