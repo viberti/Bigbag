@@ -1458,6 +1458,14 @@ produtoRouter.post('/comparar', requireAuth, async (req, res) => {
     const demografiaCmp = p ? parseJsonCol(p.saude_estado)?.demografia : null;
     if (resumo && demografiaCmp) resumo.demografia = demografiaCmp;
 
+    // NOME PT-FIRST antes de comparar: garante a linha produto_ean (fusão das fontes) e TRADUZ o nome
+    // estrangeiro (o LLM JULGA — apanha o que a heurística `pareceEstrangeiro` deixa passar, p.ex. nomes
+    // Lidl/off multilíngue; PT fica igual). Persiste em produto_ean.nome → consolidarProduto lê o PT.
+    // Em paralelo p/ não somar as latências de tradução dos vários produtos.
+    await Promise.all(eans.map((ean) =>
+      consultarOuGuardar(ean).catch(() => {}).then(() => garantirFichaPT(getPool(), ean).catch(() => {})),
+    ));
+
     const produtos = [];
     for (const ean of eans) {
       const info = await consolidarProduto({ eanQ: ean });
