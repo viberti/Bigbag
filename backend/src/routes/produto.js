@@ -840,11 +840,6 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       if (g && g !== 'outros') grupo = g;
     }
     if (!grupo || grupo === 'outros') return res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
-    // 'bebidas' é um grupo HETEROGÉNEO demais (água, cerveja, vinho, sumo, achocolatado EM PÓ…) e o
-    // tipoConsumidor não o sub-divide. Sem FAMÍLIA que estreite, alternativas ao nível do grupo são
-    // absurdas (caso real: Nesquik — "Bebida de Chocolate em pó" — a sugerir cerveja/vinho/água). Honesto:
-    // sem família p/ bebidas → sem alternativas. (Quando houver família p/ cacau/refrigerante, volta a haver.)
-    if (grupo === 'bebidas' && !info.familia) return res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
 
     // GRANULARIDADE: frescos cruzam pelo GRUPO (carne de porco → outras carnes;
     // banana → outras frutas — a categoria do fresco É o item, o útil é variar);
@@ -857,6 +852,15 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       mestreCat = m?.categoria || null;
     }
     const processado = info.generico?.tipo !== 'fresco';
+    // GATE de honestidade (Fase 1, 2026-06-18): os grupos-SACO de PROCESSADOS (bebidas, laticínios, doces
+    // misturam tudo — água↔cerveja, iogurte↔manteiga, chocolate↔bolacha) SEM nenhum sinal fino — nem
+    // FAMÍLIA (cobre só mercearia hoje) nem mestre.categoria DO PRÓPRIO produto — dariam alternativas ao
+    // nível do grupo = lixo. Honesto: vazio. (Frescos — fruta/carne/peixe — cruzam pelo GRUPO DE PROPÓSITO:
+    // banana→maçã é alternativa útil; por isso NÃO entram aqui.) Fase 2 = estender a família a estes grupos.
+    const GRUPOS_SACO = new Set(['bebidas', 'laticinios', 'doces']);
+    if (GRUPOS_SACO.has(grupo) && !info.familia && !mestreCat) {
+      return res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
+    }
     const QUERY = (porCategoria) => getPool().query(
       `SELECT s.id, s.nome_canonico AS nome, m.corte, m.variedade, m.sabor, m.teor,
               COALESCE(pg.nutricao, (SELECT pe.nutricao FROM item i JOIN produto_ean pe ON pe.ean = i.ean
