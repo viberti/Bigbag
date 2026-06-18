@@ -27,7 +27,7 @@ import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
 import { nutricaoContinenteLive } from '../ingest/nutricaoContinente.js';
 import { tipoProduto, decidirTipo } from '../normaliza/tipoProduto.js';
-import { familiaDe, familiaPorNome, FAMILIAS } from '../normaliza/familia.js';
+import { familiaDe, familiaPorNome, familiasQueCasam, FAMILIAS } from '../normaliza/familia.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
 const DIR_FOTOS = path.join(path.dirname(config.uploads.faturas), 'produtos');
@@ -921,7 +921,7 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     // 'catalogo' (referência, nunca facto — regra do preço de catálogo).
     if (alternativas.length < 2) {
       const [catCands] = await getPool().query(
-        `SELECT nome, marca, fonte, categoria, preco_por_base, unidade_base, formato, nutricao
+        `SELECT nome, marca, fonte, categoria, categoria_path, preco_por_base, unidade_base, formato, nutricao
            FROM catalogo_produto
           WHERE nome IS NOT NULL AND nome <> '' AND nutricao IS NOT NULL
           LIMIT 20000`);
@@ -929,10 +929,15 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       const doCatalogo = [];
       for (const c of catCands) {
         if (!mesmaDieta(c.nome)) continue;
-        // família do candidato pela CATEGORIA do catálogo + nome (não só nome): "Torta…Cacau" tem
-        // categoria "Bolos/Tortas" → família 'bolo', não 'cacau' (o "cacau" no nome é só o sabor).
-        if (famAtual) { if (familiaDe({ nome: c.nome, marca: c.marca, categoria: c.categoria || '' }).familia !== famAtual) continue; }
-        else if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) { if (tipoConsumidor(grupo, c.nome, c.marca) !== tipoAtual) continue; }
+        // o NOME tem de casar a família-alvo, E a CATEGORIA-PATH do catálogo não pode indicar
+        // CLARAMENTE outra família (veto): "Petit Nesquik" tem path 'iogurtes/…' (sobremesa láctea) e
+        // "Rolinhos …Cacau" tem path '…preparado-para-bolos/…' — o "cacau"/"nesquik" no nome é só
+        // sabor/marca. A categoria-path é o sinal fiável que temos do catálogo.
+        if (famAtual) {
+          if (familiaPorNome(c.nome, c.marca) !== famAtual) continue;
+          const fc = familiasQueCasam(`${c.categoria_path || ''} ${c.categoria || ''}`.replace(/[/_-]+/g, ' '));
+          if (fc.length && !fc.includes(famAtual)) continue;
+        } else if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) { if (tipoConsumidor(grupo, c.nome, c.marca) !== tipoAtual) continue; }
         else if (grupoDeNome(c.nome) !== grupo) continue;
         const k = c.nome.toLowerCase();
         if (vistosCat.has(k) || k === String(nomeFacetas).toLowerCase()) continue;
