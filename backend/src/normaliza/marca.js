@@ -32,7 +32,10 @@ export const MARCADORES_CADEIA = [
 // nunca são evidência de marca num talão (medido: falsos positivos reais).
 const BLOQUEADAS = new Set(['fresco', 'fresca', 'natural', 'integral', 'premium', 'pato', 'rainha', 'grainha', 'brasil', 'lisa', 'bio', 'gourmet', 'tradicional', 'caseiro', 'extra', 'fino', 'fina', 'real', 'nacional', 'original', 'classico', 'classica', 'seleccao', 'selecao',
   // cores e descritores comuns que existem como "marca" no catálogo
-  'branca', 'branco', 'preta', 'preto', 'negra', 'negro', 'verde', 'vermelha', 'vermelho', 'amarela', 'amarelo', 'doce', 'suave', 'forte', 'leve', 'grande']);
+  'branca', 'branco', 'preta', 'preto', 'negra', 'negro', 'verde', 'vermelha', 'vermelho', 'amarela', 'amarelo', 'doce', 'suave', 'forte', 'leve', 'grande',
+  // estilos/variedades de produto (lácteos, dieta) apanhados como "marca" — ex.: "Iogurte Grego Oikos"
+  // tinha "Grego" por marca (é estilo; a marca é Oikos). NÃO são marcas em PT/ES.
+  'grego', 'grega', 'magro', 'magra', 'light', 'ligeiro', 'ligeira', 'desnatado', 'desnatada', 'semidesnatado', 'cremoso', 'cremosa', 'zero', 'biologico', 'biologica', 'batido']);
 
 let _gaz = null;
 // Gazetteer: marca normalizada → display. Cache por processo.

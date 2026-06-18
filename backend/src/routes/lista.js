@@ -542,16 +542,24 @@ listaRouter.get('/variantes', async (req, res) => {
           WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0
        ) t WHERE rn = 1`, ids);
     const precoPorSku = new Map(prec.map((r) => [r.sku_id, r]));
-    // foto de catálogo por SKU (via EAN das compras desse SKU) — escolher com os
-    // olhos. COLLATE: item.ean (0900_ai_ci) vs catalogo (unicode_ci) não comparam
-    // diretamente; força a colação do lado do item.
-    const [imgs] = await pool.query(
-      `SELECT i.sku_id, MAX(c.imagem_url) AS img
-         FROM item i JOIN catalogo_produto c
-           ON (c.ean = i.ean COLLATE utf8mb4_unicode_ci OR c.ean_inferido = i.ean COLLATE utf8mb4_unicode_ci)
-        WHERE i.sku_id IN (${ph}) AND i.ean IS NOT NULL AND c.imagem_url IS NOT NULL AND c.imagem_url <> ''
-        GROUP BY i.sku_id`, ids);
-    const imgPorSku = new Map(imgs.map((r) => [r.sku_id, r.img]));
+    // foto de catálogo por SKU (via EAN das compras) — escolher com os olhos. Em DOIS passos INDEXADOS
+    // (idx_ean) em vez de um JOIN com OR+COLLATE sobre 506k linhas (era ~2,3 s → ~10 ms): 1) os EANs
+    // comprados por SKU; 2) a imagem por `ean IN (literais)` (sem conflito de colação — são literais, não
+    // coluna vs coluna). `ean_inferido` largado de propósito (só 0,5% do catálogo e não trazia fotos aqui).
+    const imgPorSku = new Map();
+    const [paresSE] = await pool.query(
+      `SELECT DISTINCT sku_id, ean FROM item WHERE sku_id IN (${ph}) AND ean IS NOT NULL AND ean <> ''`, ids);
+    const eansV = [...new Set(paresSE.map((r) => String(r.ean)))];
+    if (eansV.length) {
+      const phe = eansV.map(() => '?').join(',');
+      const [imgs] = await pool.query(
+        `SELECT ean, MAX(imagem_url) AS img FROM catalogo_produto
+          WHERE ean IN (${phe}) AND imagem_url IS NOT NULL AND imagem_url <> '' GROUP BY ean`, eansV);
+      const imgPorEan = new Map(imgs.map((r) => [String(r.ean), r.img]));
+      for (const r of paresSE) { // 1.ª foto encontrada por SKU (a ordem dos pares não importa p/ a escolha)
+        if (!imgPorSku.has(r.sku_id)) { const im = imgPorEan.get(String(r.ean)); if (im) imgPorSku.set(r.sku_id, im); }
+      }
+    }
     const variantes = matched
       .map((s) => {
         const h = habito.get(s.id);
