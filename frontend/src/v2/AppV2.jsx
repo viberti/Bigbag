@@ -57,10 +57,10 @@ const lojaCor = (nome) => { const n = String(nome || '').toLowerCase();
   return ['#67b2c9', (nome || '?').slice(0, 2).toUpperCase()]; };
 // grupo (lente de loja) → rótulo de secção cartoon
 const SEC_LABEL = { frutas: 'Frutas e vegetais', carne: 'Talho e charcutaria', peixe: 'Peixe e marisco',
-  lacticinios: 'Laticínios', padaria: 'Padaria', congelados: 'Congelados', bebidas: 'Bebidas',
+  lacticinios: 'Laticínios e ovos', padaria: 'Padaria', congelados: 'Congelados', bebidas: 'Bebidas',
   doces: 'Doces e snacks', mercearia: 'Mercearia', higiene: 'Higiene e limpeza', outros: 'Outros' };
 const secDe = (it) => SEC_LABEL[it.grupo] || 'Outros';
-const SEC_ORDER = ['Frutas e vegetais', 'Talho e charcutaria', 'Peixe e marisco', 'Padaria', 'Laticínios', 'Congelados', 'Mercearia', 'Bebidas', 'Doces e snacks', 'Higiene e limpeza', 'Outros'];
+const SEC_ORDER = ['Frutas e vegetais', 'Talho e charcutaria', 'Peixe e marisco', 'Padaria', 'Laticínios e ovos', 'Congelados', 'Mercearia', 'Bebidas', 'Doces e snacks', 'Higiene e limpeza', 'Outros'];
 const ordSec = (s) => { const i = SEC_ORDER.indexOf(s); return i < 0 ? 99 : i; };
 // agrupa itens por secção, ordenando por SEC_ORDER (cada cabeçalho aparece 1×)
 function agruparSec(itens) {
@@ -1396,7 +1396,7 @@ function Notas({ go, back, partilhado, scanNotas }) {
 const mesCurto = (m) => { const s = MES[(Number(m) || 1) - 1] || ''; return s.charAt(0).toUpperCase() + s.slice(1); };
 // grupo (lente de loja) → categoria de exibição + cor (carne+peixe fundem em "Talho e peixe")
 const CAT_INFO = {
-  frutas: ['Frutas e vegetais', '#5a9f57'], lacticinios: ['Laticínios', '#67b2c9'], mercearia: ['Mercearia', '#e6a23c'],
+  frutas: ['Frutas e vegetais', '#5a9f57'], lacticinios: ['Laticínios e ovos', '#67b2c9'], mercearia: ['Mercearia', '#e6a23c'],
   carne: ['Talho e peixe', '#e0734f'], peixe: ['Talho e peixe', '#e0734f'], padaria: ['Padaria', '#d8a657'],
   congelados: ['Congelados', '#7fb0c9'], bebidas: ['Bebidas', '#8ab0e0'], doces: ['Doces e snacks', '#cf8db0'],
   higiene: ['Higiene e limpeza', '#9b8cc4'], outros: ['Outros', '#9b8cc4'],
