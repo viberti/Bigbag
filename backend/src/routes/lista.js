@@ -560,16 +560,24 @@ listaRouter.get('/variantes', async (req, res) => {
         if (!imgPorSku.has(r.sku_id)) { const im = imgPorEan.get(String(r.ean)); if (im) imgPorSku.set(r.sku_id, im); }
       }
     }
+    // EMBALADO por SKU: dominado por EAN de FABRICANTE (prefixo ≠ 2; o 2 é balança) → preço do PACOTE,
+    // nunca €/kg (mesma regra da lista — requeijão/iogurte têm EAN, não se vendem a peso).
+    const [eanStats] = await pool.query(
+      `SELECT sku_id, COUNT(*) n, SUM(ean IS NOT NULL AND LEFT(ean, 1) <> '2') n_real
+         FROM item WHERE sku_id IN (${ph}) AND is_non_product = 0 GROUP BY sku_id`, ids);
+    const embPorSku = new Map(eanStats.map((r) => [r.sku_id, Number(r.n) > 0 && Number(r.n_real) / Number(r.n) >= 0.5]));
     const variantes = matched
       .map((s) => {
         const h = habito.get(s.id);
         if (!h) return null; // só o que a casa já comprou
         const p = precoPorSku.get(s.id);
+        const emb = embPorSku.get(s.id);
         return {
           sku_id: s.id, nome: s.nome_canonico, idas: h.idas,
           qtd_habitual: Math.max(1, Math.round(h.soma / h.idas)),
-          preco: p ? num(p.ppb ?? p.pu) : null,
-          unidade: p?.ppb != null ? p.unidade : null,
+          // embalado → preço do PACOTE (pu, sem unidade); a peso (genérico sem EAN) → €/base (€/kg) com unidade
+          preco: p ? (emb ? num(p.pu ?? p.ppb) : num(p.ppb ?? p.pu)) : null,
+          unidade: (!emb && p?.ppb != null) ? p.unidade : null,
           loja: p?.loja || null,
           imagem: imgPorSku.get(s.id) || null,
         };
