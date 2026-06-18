@@ -86,6 +86,8 @@ test('doces: chocolate / bolacha / cacau / gelado / compota — leftmost desambi
   for (const n of ['Achocolatado em Pó', 'Bebida de Chocolate Solúvel Nesquik', 'Cacau em Pó', 'Nescau']) assert.equal(familiaPorNome(n), 'cacau', n);
   for (const n of ['Gelado de Baunilha', 'Gelado de Chocolate']) assert.equal(familiaPorNome(n), 'gelado', n);
   for (const n of ['Compota de Morango', 'Marmelada']) assert.equal(familiaPorNome(n), 'doce_compota', n);
+  // bolo/torta — a CABEÇA vence o "cacau" do sabor (caso real: alternativas do Nesquik)
+  for (const n of ['Torta Dancake com Cobertura Cacau e Leite', 'Bolo de Chocolate', 'Madalenas', 'Muffin de Chocolate']) assert.equal(familiaPorNome(n), 'bolo', n);
 });
 
 test('bebidas: cerveja / vinho / sumo / refrigerante / água', () => {

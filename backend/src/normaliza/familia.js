@@ -34,6 +34,7 @@ export const FAMILIAS = {
   cacau:              { label: 'Cacau e Achocolatados',      dep: 'food', grupo: 'doces',       seccao: 'doces',     unidade: 'kg' },
   gelado:             { label: 'Gelados',                    dep: 'food', grupo: 'doces',       seccao: 'doces',     unidade: 'l'  },
   doce_compota:       { label: 'Doces e Compotas',           dep: 'food', grupo: 'doces',       seccao: 'doces',     unidade: 'un' },
+  bolo:               { label: 'Bolos e Sobremesas',         dep: 'food', grupo: 'doces',       seccao: 'doces',     unidade: 'un' },
   // — BEBIDAS —
   sumo:               { label: 'Sumos e Néctares',           dep: 'food', grupo: 'bebidas',     seccao: 'bebidas',   unidade: 'l'  },
   refrigerante:       { label: 'Refrigerantes',              dep: 'food', grupo: 'bebidas',     seccao: 'bebidas',   unidade: 'l'  },
@@ -69,6 +70,7 @@ const FAM_RE = [
   ['natas',              /(^|[^a-z])(natas?|creme de leite|creme fresco|creme fraiche|creme para cozinhar|nata para)/],
   ['leite',              /(^|[^a-z])(leite|leche)([^a-z]|$)/],
   // — DOCES — gelado/bolacha/cacau antes de chocolate (bolacha/gelado/achocolatado DE chocolate → o tipo) —
+  ['bolo',               /(^|[^a-z])(bolos?|tortas?|queques?|madalenas?|muffins?|cupcakes?|brownies?|pastel de nata|pasteis de nata)/],
   ['gelado',             /(^|[^a-z])(gelados?|helados?|sorvetes?|gelato|ice ?cream)/],
   ['bolacha',            /(^|[^a-z])(bolachas?|biscoitos?|biscuits?|cookies?|galletas?|wafer|crackers?|tostas? )/],
   ['cacau',              /(^|[^a-z])(achocolatad[oa]|\bcacau\b|\bcacao\b|chocolate (em po|soluvel|instantaneo|granulado)|bebida de chocolate|nesquik|ovomaltine|nescau)/],

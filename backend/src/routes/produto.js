@@ -921,7 +921,7 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     // 'catalogo' (referência, nunca facto — regra do preço de catálogo).
     if (alternativas.length < 2) {
       const [catCands] = await getPool().query(
-        `SELECT nome, marca, fonte, preco_por_base, unidade_base, formato, nutricao
+        `SELECT nome, marca, fonte, categoria, preco_por_base, unidade_base, formato, nutricao
            FROM catalogo_produto
           WHERE nome IS NOT NULL AND nome <> '' AND nutricao IS NOT NULL
           LIMIT 20000`);
@@ -929,7 +929,9 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       const doCatalogo = [];
       for (const c of catCands) {
         if (!mesmaDieta(c.nome)) continue;
-        if (famAtual) { if (familiaPorNome(c.nome, c.marca) !== famAtual) continue; }
+        // família do candidato pela CATEGORIA do catálogo + nome (não só nome): "Torta…Cacau" tem
+        // categoria "Bolos/Tortas" → família 'bolo', não 'cacau' (o "cacau" no nome é só o sabor).
+        if (famAtual) { if (familiaDe({ nome: c.nome, marca: c.marca, categoria: c.categoria || '' }).familia !== famAtual) continue; }
         else if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) { if (tipoConsumidor(grupo, c.nome, c.marca) !== tipoAtual) continue; }
         else if (grupoDeNome(c.nome) !== grupo) continue;
         const k = c.nome.toLowerCase();
