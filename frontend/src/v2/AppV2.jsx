@@ -206,6 +206,7 @@ function MenuConta({ user, pais, onFechar, onSair }) {
             </button>
           ))}
         </div>
+        <div style={{ textAlign: 'center', font: '600 12px var(--font)', color: 'var(--ink-3)', margin: '6px 0 10px' }}>BigBag · versão {APP_VERSION}</div>
         <button className="conta-sair" onClick={onSair}><Ico name="logout" size={17} /> Sair do app</button>
       </div>
     </div>
