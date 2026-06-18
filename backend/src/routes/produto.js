@@ -815,6 +815,29 @@ produtoRouter.get('/info', requireAuth, async (req, res) => {
   }
 });
 
+// SAÚDE (FSA): pontuação determinística por 100 g — MENOR = mais saudável. Mesmos limiares do
+// semáforo `nivel()` do frontend: penaliza açúcar + gordura saturada + sal (níveis 0..3 cada);
+// premia fibra + proteína (1..2). Serve para ORDENAR as alternativas da mais saudável e NÃO mostrar
+// as que são PIORES que o produto pesquisado (regra do dono: alternativas têm de ser melhores).
+const _FSA = {
+  acucares:  [[0.5, 0], [5, 1], [22.5, 2], [Infinity, 3]],
+  saturados: [[0.1, 0], [1.5, 1], [5, 2], [Infinity, 3]],
+  sal:       [[0.1, 0], [0.3, 1], [1.5, 2], [Infinity, 3]],
+  fibra:     [[3, 1], [6, 2], [Infinity, 2]],
+  proteina:  [[12, 1], [20, 2], [Infinity, 2]],
+};
+function _nivelFsa(tipo, v) {
+  if (v == null || !Number.isFinite(Number(v))) return null;
+  for (const [lim, lvl] of _FSA[tipo]) if (Number(v) <= lim) return lvl;
+  return 3;
+}
+function pontuacaoSaude(n) {
+  if (!n || (n.acucares == null && n.gordura_saturada == null && n.sal == null && n.fibra == null && n.proteina == null)) return null;
+  const mau = (_nivelFsa('acucares', n.acucares) ?? 0) + (_nivelFsa('saturados', n.gordura_saturada) ?? 0) + (_nivelFsa('sal', n.sal) ?? 0);
+  const bom = (_nivelFsa('fibra', n.fibra) ?? 0) + (_nivelFsa('proteina', n.proteina) ?? 0);
+  return mau - bom; // -4 (ótimo) .. +9 (mau)
+}
+
 // ALTERNATIVAS SIMILARES (MVP determinístico, sem LLM): produtos do MESMO grupo
 // com nutrição, p/ comparar com o produto da ficha ("em vez de carne de vaca, o
 // frango: mais proteína, menos saturada"). A nutrição é uniforme por 100 g em
@@ -826,8 +849,12 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     const eanQ = String(req.query.ean || '').replace(/\D/g, '') || null;
     const skuId = Number(req.query.sku_id) || null;
     if (!itemId && !eanQ && !skuId) return res.status(400).json({ erro: 'item_id, sku_id ou ean em falta' });
-    const info = await consolidarProduto({ itemId, eanQ, skuId });
+    const info = await consolidarProduto({ itemId, eanQ, skuId, pais: req.user?.pais });
     const nutAtual = info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null;
+    // LOCALIZAÇÃO: só sugerir produtos vendidos no PAÍS do utilizador (fontes do catálogo desse país) —
+    // não faz sentido propor um produto só-BR a um user PT, e vice-versa. SAÚDE: score FSA do pesquisado.
+    const fontesPais = new Set(paisCfg(req.user?.pais).fontesPreco);
+    const scoreAtual = pontuacaoSaude(nutAtual);
     // grupo do produto: do SKU (B1) e, se não houver, derivado do OFF (categorias/
     // food_groups) — assim um produto scaneado nunca comprado ainda tem alternativas.
     let grupo = null;
@@ -903,23 +930,21 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     } else if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) {
       cands = cands.filter((c) => tipoConsumidor(grupo, c.nome, null) === tipoAtual);
     }
-    // parse + dedup por nome canónico; prioriza os que têm preço no histórico
+    // parse + dedup por nome canónico; pontua a SAÚDE (FSA) de cada candidato.
     const vistos = new Set();
-    const alternativas = cands.map((c) => ({
-      sku_id: c.id, nome: c.nome, corte: c.corte || null, variedade: c.variedade || null, teor: c.teor || null,
-      eur_base: c.eur_base != null ? Number(c.eur_base) : null, unidade_base: c.unidade_base || null,
-      nutricao: parseJson(c.nutricao),
-    })).filter((a) => {
+    const alternativas = cands.map((c) => {
+      const nut = parseJson(c.nutricao);
+      return { sku_id: c.id, nome: c.nome, corte: c.corte || null, variedade: c.variedade || null, teor: c.teor || null,
+        eur_base: c.eur_base != null ? Number(c.eur_base) : null, unidade_base: c.unidade_base || null, nutricao: nut, _s: pontuacaoSaude(nut) };
+    }).filter((a) => {
       const k = a.nome.toLowerCase();
       if (vistos.has(k) || !a.nutricao) return false; vistos.add(k); return true;
-    }).sort((a, b) => (b.eur_base != null) - (a.eur_base != null)).slice(0, 6);
+    });
 
-    // FALLBACK AO CATÁLOGO (dono, 2026-06-13 — caso Felicia): a casa pode não ter
-    // iguais (ex.: massas sem glúten), mas as LOJAS têm (55 no catálogo, muitas
-    // c/ nutrição oficial). Mesmos gates (dieta igual + tipo saliente); preferem-se
-    // linhas com nutrição; preço = preco_por_base de CATÁLOGO, marcado origem
-    // 'catalogo' (referência, nunca facto — regra do preço de catálogo).
-    if (alternativas.length < 2) {
+    // NÃO-PIOR que o pesquisado (regra do dono: alternativa tem de ser melhor/igual em saúde). Se
+    // poucas opções não-piores em casa, vamos ao CATÁLOGO — mas só do PAÍS do user e só não-piores.
+    const naoPior = (a) => scoreAtual == null || a._s == null || a._s <= scoreAtual;
+    if (alternativas.filter(naoPior).length < 2) {
       const [catCands] = await getPool().query(
         `SELECT nome, marca, fonte, categoria, categoria_path, preco_por_base, unidade_base, formato, nutricao
            FROM catalogo_produto
@@ -928,11 +953,10 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       const vistosCat = new Set(alternativas.map((a) => a.nome.toLowerCase()));
       const doCatalogo = [];
       for (const c of catCands) {
+        if (fontesPais.size && !fontesPais.has(c.fonte)) continue; // LOCALIZAÇÃO: só fontes do país do user
         if (!mesmaDieta(c.nome)) continue;
-        // o NOME tem de casar a família-alvo, E a CATEGORIA-PATH do catálogo não pode indicar
-        // CLARAMENTE outra família (veto): "Petit Nesquik" tem path 'iogurtes/…' (sobremesa láctea) e
-        // "Rolinhos …Cacau" tem path '…preparado-para-bolos/…' — o "cacau"/"nesquik" no nome é só
-        // sabor/marca. A categoria-path é o sinal fiável que temos do catálogo.
+        // o NOME tem de casar a família-alvo, E a CATEGORIA-PATH do catálogo não pode indicar CLARAMENTE
+        // outra família (veto): "Petit Nesquik" path 'iogurtes/…', "Rolinhos …Cacau" path '…bolos/…'.
         if (famAtual) {
           if (familiaPorNome(c.nome, c.marca) !== famAtual) continue;
           const fc = familiasQueCasam(`${c.categoria_path || ''} ${c.categoria || ''}`.replace(/[/_-]+/g, ' '));
@@ -941,17 +965,25 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
         else if (grupoDeNome(c.nome) !== grupo) continue;
         const k = c.nome.toLowerCase();
         if (vistosCat.has(k) || k === String(nomeFacetas).toLowerCase()) continue;
-        vistosCat.add(k);
-        doCatalogo.push({
-          sku_id: null, nome: c.nome, marca: c.marca || null, origem: 'catalogo', fonte: c.fonte,
+        const nut = parseJson(c.nutricao);
+        const cand = { sku_id: null, nome: c.nome, marca: c.marca || null, origem: 'catalogo', fonte: c.fonte,
           eur_base: c.preco_por_base != null ? Number(c.preco_por_base) : null,
-          unidade_base: c.unidade_base || null, formato: c.formato || null, nutricao: parseJson(c.nutricao),
-        });
-        if (alternativas.length + doCatalogo.length >= 6) break;
+          unidade_base: c.unidade_base || null, formato: c.formato || null, nutricao: nut, _s: pontuacaoSaude(nut) };
+        if (!naoPior(cand)) continue; // catálogo só traz não-piores
+        vistosCat.add(k); doCatalogo.push(cand);
+        if (doCatalogo.length >= 30) break; // pool p/ o ranking escolher os 6 mais saudáveis
       }
       alternativas.push(...doCatalogo);
     }
-    res.json({ grupo, nivel, categoria: mestreCat, produto: { nome: info.nome, nutricao: nutAtual }, alternativas });
+
+    // RANKING por SAÚDE: a mais saudável primeiro; fora as PIORES que o pesquisado; top 6.
+    // `mais_saudavel` = estritamente melhor (para o frontend destacar). Desempate: tem preço.
+    const ord = alternativas
+      .filter(naoPior)
+      .sort((a, b) => (a._s ?? 99) - (b._s ?? 99) || (b.eur_base != null) - (a.eur_base != null))
+      .slice(0, 6)
+      .map(({ _s, ...a }) => ({ ...a, mais_saudavel: scoreAtual != null && _s != null && _s < scoreAtual }));
+    res.json({ grupo, nivel, categoria: mestreCat, produto: { nome: info.nome, nutricao: nutAtual, score_saude: scoreAtual }, alternativas: ord });
   } catch (e) {
     console.error('[produto/alternativas] erro:', e.message);
     res.status(500).json({ erro: 'Falha a obter alternativas' });
