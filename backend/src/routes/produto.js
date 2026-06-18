@@ -857,7 +857,7 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     // FAMÍLIA (cobre só mercearia hoje) nem mestre.categoria DO PRÓPRIO produto — dariam alternativas ao
     // nível do grupo = lixo. Honesto: vazio. (Frescos — fruta/carne/peixe — cruzam pelo GRUPO DE PROPÓSITO:
     // banana→maçã é alternativa útil; por isso NÃO entram aqui.) Fase 2 = estender a família a estes grupos.
-    const GRUPOS_SACO = new Set(['bebidas', 'laticinios', 'doces']);
+    const GRUPOS_SACO = new Set(['bebidas', 'lacticinios', 'doces']); // GRUPO de lácteos é 'lacticinios' (c/ c — não confundir com a SECÇÃO 'laticinios')
     if (GRUPOS_SACO.has(grupo) && !info.familia && !mestreCat) {
       return res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
     }
