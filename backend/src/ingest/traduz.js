@@ -90,18 +90,22 @@ export async function garantirFichaPT(pool, ean) {
       traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios }),
       traduzirFichaPT({ nome: r.nome }),
     ]);
-    if (!t?.mudou) return r.nome || null;
-    let nomeTrad = t.nome ?? r.nome;
-    // os dois votos divergem no SIGNIFICADO do nome → 3.º voto desempata por consenso (a
-    // alucinação fica isolada). Custo do 3.º só no raro desacordo.
-    if (t.nome && t2?.nome && !traducoesConcordam(t.nome, t2.nome)) {
+    // GATE por QUALQUER voto: o voto-ficha (ingredientes no contexto) às vezes deixa passar um nome
+    // estrangeiro que o voto-nome (focado) apanha — caso "Lessive Liquide". Só fica IGUAL se AMBOS
+    // disserem que já é PT. Apanha falsos-negativos sem LLM extra (os 2 votos já corriam).
+    if (!t?.mudou && !t2?.mudou) return r.nome || null;
+    // nome: usa o voto-ficha quando ESSE traduziu; senão usa o voto-nome (o que apanhou o estrangeiro).
+    let nomeTrad = (t?.mudou && t.nome) ? t.nome : (t2?.nome || t.nome || r.nome);
+    // AMBOS traduziram mas DIVERGEM no significado → 3.º voto desempata por consenso (alucinação isolada).
+    if (t?.mudou && t2?.mudou && t.nome && t2.nome && !traducoesConcordam(t.nome, t2.nome)) {
       const t3 = await traduzirFichaPT({ nome: r.nome });
       const consenso = consensoTraducao([t.nome, t2.nome, t3?.nome]);
       if (consenso) { console.warn('[traduz] votos divergiram → consenso:', JSON.stringify({ original: r.nome, votos: [t.nome, t2.nome, t3?.nome], consenso })); nomeTrad = consenso; }
     }
     const nomePT = tituloProduto(nomeTrad);
+    // ingredientes/alergénios só do voto-ficha (o único que os traduz); se esse não mexeu, ficam os originais.
     await pool.query('UPDATE produto_ean SET nome = ?, ingredientes = ?, alergenios = ? WHERE ean = ?', [
-      nomePT, t.ingredientes ?? r.ingredientes, t.alergenios ?? r.alergenios, ean,
+      nomePT, t?.mudou ? (t.ingredientes ?? r.ingredientes) : r.ingredientes, t?.mudou ? (t.alergenios ?? r.alergenios) : r.alergenios, ean,
     ]);
     return nomePT;
   } catch (e) {
