@@ -358,6 +358,16 @@ const MEMBRO_CORES = ['#3f7a3f', '#5a6fb0', '#e0734f', '#c8851f', '#8a5fb0', '#3
 // it.preco_estimado/it.preco (campos que o backend NUNCA define) → mostrava sempre
 // "sem preço". O backend dá preco_mercado/melhor_preco (FACTO, €/base) e preco_ref
 // (referência de catálogo). Mesma cadeia da v1.
+// Rótulo legível de um peso/volume: qtd_medida vem sempre na unidade-base (kg/L); o display
+// escolhe g/kg (ou ml/L) pela grandeza: <1 kg → "200 g", senão "1,2 kg".
+function fmtMedida(qtd, unidade) {
+  const n = Number(qtd) || 0;
+  const v = (x) => String(x).replace('.', ',');
+  if (unidade === 'kg') return n < 1 ? `${Math.round(n * 1000)} g` : `${v(Math.round(n * 1000) / 1000)} kg`;
+  if (unidade === 'L') return n < 1 ? `${Math.round(n * 1000)} ml` : `${v(Math.round(n * 1000) / 1000)} L`;
+  return `${v(n)} ${unidade || ''}`.trim();
+}
+
 function precoLista(it) {
   // produto com EAN (específico, embalado) → mostra o PREÇO PAGO por embalagem (facto do talão),
   // NÃO o €/kg — comparar por base só faz sentido p/ genéricos vendidos a peso (sem EAN).
@@ -386,8 +396,8 @@ function useSwipeDelete(onRemover) {
 }
 
 // Linha ACTIVA da lista (swipe-apagar + apanhar + qty + chips).
-function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLevar, onFormas, destaque, innerRef }) {
-  const levar = it.qtd_habitual > 1 && (it.quantidade || 1) === 1; // qtd habitual da casa (sugestão, 1 toque)
+function ItemLista({ it, cor, onApanhar, onRemover, onDelta, onDeltaMedida, qtd, riscaCor, onLevar, onFormas, destaque, innerRef }) {
+  const levar = it.qtd_habitual > 1 && (it.quantidade || 1) === 1 && !it.unidade; // qtd habitual (contagem; escondido a peso)
   const formas = it.variantes_n > 1; // variante habitual (sugestão falível) → atrás de seletor "N formas"
   const { dx, g, touch } = useSwipeDelete(() => onRemover(it));
   return (
@@ -408,7 +418,9 @@ function ItemLista({ it, cor, onApanhar, onRemover, onDelta, qtd, riscaCor, onLe
         </div>
         {riscaCor
           ? <span className="risca-tick"><Ico name="check" size={19} stroke={3} color="#fff" /></span>
-          : <div className="qty"><button onClick={() => onDelta(it, -1)}>−</button><span className="qn">{qtd(it)}</span><button onClick={() => onDelta(it, 1)}>+</button></div>}
+          : it.unidade // item A PESO → stepper de peso (passo em kg/g); senão contagem inteira
+            ? <div className="qty peso"><button onClick={() => onDeltaMedida(it, -1)}>−</button><span className="qn">{qtd(it)}</span><button onClick={() => onDeltaMedida(it, 1)}>+</button></div>
+            : <div className="qty"><button onClick={() => onDelta(it, -1)}>−</button><span className="qn">{qtd(it)}</span><button onClick={() => onDelta(it, 1)}>+</button></div>}
       </div>
     </div>
   );
@@ -480,10 +492,23 @@ function Lista({ go, back, destaque }) {
     streamRef.current?.getTracks().forEach((t) => t.stop());
   }, []);
   const ativos = (itens || []).filter((i) => i.estado !== 'carrinho');
-  const total = ativos.reduce((a, b) => a + (Number(b.preco_mercado ?? b.melhor_preco ?? b.preco_ref) || 0) * (b.quantidade || 1), 0);
+  const total = ativos.reduce((a, b) => {
+    if (b.unidade) { // item A PESO: €/base × peso (kg) — SÓ quando o preço é €/base (unidade_base presente)
+      const base = Number(b.preco_mercado ?? b.melhor_preco);
+      return Number.isFinite(base) && b.unidade_base ? a + base * (Number(b.qtd_medida) || 0) : a; // sem €/base → não inventa
+    }
+    return a + (Number(b.preco_mercado ?? b.melhor_preco ?? b.preco_ref) || 0) * (b.quantidade || 1);
+  }, 0);
   async function delta(it, d) {
     setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, quantidade: Math.max(1, (x.quantidade || 1) + d) } : x)));
     try { await atualizarListaItem(it.id, { inc: d }); } catch { carregar(); }
+  }
+  async function deltaMedida(it, dir) { // stepper de PESO: passo 50 g (<1 kg) ou 250 g, grava o override
+    const atual = Number(it.qtd_medida) || 0.5;
+    const passo = atual < 1 ? 0.05 : 0.25;
+    const nv = Math.max(0.05, Math.round((atual + passo * dir) * 1000) / 1000);
+    setItens((xs) => xs.map((x) => (x.id === it.id ? { ...x, qtd_medida: nv, medida_derivada: false } : x)));
+    try { await atualizarListaItem(it.id, { qtd_medida: nv, unidade: it.unidade || 'kg' }); } catch { carregar(); }
   }
   async function levar(it) { // chip "levar N": põe a quantidade habitual da casa num toque
     const q = Math.max(1, Number(it.qtd_habitual) || 1);
@@ -588,7 +613,7 @@ function Lista({ go, back, destaque }) {
     }
   }
   const carrinho = (itens || []).filter((i) => i.estado === 'carrinho');
-  const qtdTxt = (it) => (it.unidade === 'kg' ? `${Number(it.quantidade || 1).toFixed(1).replace('.', ',')} kg` : `${it.quantidade || 1} un`);
+  const qtdTxt = (it) => (it.unidade ? fmtMedida(it.qtd_medida, it.unidade) : `${it.quantidade || 1} un`);
   const grupos = agruparSec(ativos);
   // "Será que você precisa de…": a CADÊNCIA (running low) primeiro + as TOP 6 habituais da casa,
   // sem repetir o que já está na lista nem entre si. Recalcula ao mudar a lista → o chip do item
@@ -637,7 +662,7 @@ function Lista({ go, back, destaque }) {
                   <ItemLista key={it.id} it={it} cor={corDe(it.adicionado_por)} qtd={qtdTxt}
                     riscaCor={picando[it.id] ? corDe(picando[it.id]) : null}
                     destaque={it.id === destaqueId} innerRef={it.id === destaqueId ? destRef : null}
-                    onApanhar={apanhar} onRemover={remover} onDelta={delta}
+                    onApanhar={apanhar} onRemover={remover} onDelta={delta} onDeltaMedida={deltaMedida}
                     onLevar={levar} onFormas={setVariantesItem} />
                 ))}
               </React.Fragment>
