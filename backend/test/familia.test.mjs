@@ -79,7 +79,7 @@ test('laticínios: iogurte / queijo / leite / manteiga / natas / requeijão', ()
 });
 
 test('doces: chocolate / bolacha / cacau / gelado / compota — leftmost desambigua', () => {
-  for (const n of ['Chocolate Negro 70%', 'Tablete Chocolate Leite', 'Bombons Sortidos']) assert.equal(familiaPorNome(n), 'chocolate', n);
+  for (const n of ['Chocolate Negro 70%', 'Tablete Chocolate Leite', 'Bombons Sortidos', 'Tablete Nestlé Extrafino 70% Cacau']) assert.equal(familiaPorNome(n), 'chocolate', n); // tablete (mesmo "…Cacau") é chocolate, não achocolatado
   // bolacha/biscoito DE chocolate → bolacha (cabeça vence o chocolate)
   for (const n of ['Bolacha Maria', 'Biscoito de Chocolate', 'Cookies de Aveia']) assert.equal(familiaPorNome(n), 'bolacha', n);
   // achocolatado / Nesquik → cacau, não chocolate

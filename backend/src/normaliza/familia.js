@@ -74,7 +74,7 @@ const FAM_RE = [
   ['gelado',             /(^|[^a-z])(gelados?|helados?|sorvetes?|gelato|ice ?cream)/],
   ['bolacha',            /(^|[^a-z])(bolachas?|biscoitos?|biscuits?|cookies?|galletas?|wafer|crackers?|tostas? )/],
   ['cacau',              /(^|[^a-z])(achocolatad[oa]|\bcacau\b|\bcacao\b|chocolate (em po|soluvel|instantaneo|granulado)|bebida de chocolate|nesquik|ovomaltine|nescau)/],
-  ['chocolate',          /(^|[^a-z])(chocolates?|tablet?e de chocolate|bombons?|\bchoco\b|pralines?|kitkat|snickers|m&ms?|nutella)/],
+  ['chocolate',          /(^|[^a-z])(chocolates?|tablet?es?|bombons?|\bchoco\b|pralines?|kitkat|snickers|m&ms?|nutella)/],
   ['doce_compota',       /(^|[^a-z])(compotas?|marmelada|geleias?|doce de (fruta|leite|tomate|abobora)|mermelada|confiture)/],
   // — BEBIDAS — cerveja/vinho antes de sumo/refrigerante/água —
   ['cerveja',            /(^|[^a-z])(cervejas?|cerveza|\bbeer\b|\blager\b|\bipa\b|pilsner|super bock|sagres|heineken|estrella)/],
