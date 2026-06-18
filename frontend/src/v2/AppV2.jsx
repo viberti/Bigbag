@@ -593,11 +593,13 @@ function Lista({ go, back, destaque }) {
   // (item em falta de uma receita / produto habitual).
   async function addRecomendado(r) { // chip do card de recomendação → aparece JÁ (OTIMISTA; o chip some sozinho)
     const nome = r.nome, q = r.quantidade || 1;
-    // insere local já — o card "Será que você precisa" recalcula e tira o chip; sem esperar o round-trip
-    // + resolver (que estava frio nos primeiros toques). O carregar() reconcilia em fundo.
+    // insere local já — o card "Será que você precisa" recalcula e tira o chip; sem esperar o round-trip.
     setItens((xs) => [...(xs || []), { id: -Date.now(), nome, quantidade: q, estado: 'ativo', adicionado_por: ativoNome, grupo: grupoDeNome(nome), _otimista: true }]);
     setDestaqueAlvo({ nome: nomeTalao(nome).toLowerCase() });
-    try { await adicionarListaItem({ nome, quantidade: q }); carregar(); } catch { setAviso('Falha ao adicionar.'); carregar(); }
+    // /lote DEVOLVE a lista RESOLVIDA (com o PREÇO-FACTO casado pelo histórico) num só round-trip →
+    // o item entra COM preço, sem depender de um GET separado (que deixava a recomendação sem preço).
+    try { const res = await adicionarListaLote([{ nome, quantidade: q }]); if (res?.itens) setItens(res.itens); else carregar(); }
+    catch { setAviso('Falha ao adicionar.'); carregar(); }
   }
   async function addNome(nome) {
     try { await adicionarListaItem({ nome }); setDestaqueAlvo({ nome: nomeTalao(nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
