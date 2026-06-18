@@ -250,30 +250,30 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
       it.qtd_habitual = Math.max(1, Math.round(compr[0].h.soma / compr[0].h.idas));
     }
     // EMBALADO vs PESO (regra do dono: tem EAN de fabricante → embalado, por unidade, preço do pacote).
-    // EAN de FABRICANTE = prefixo ≠ 2 (o 2 é código de balança = peso). É embalado se a LINHA da lista
-    // traz um EAN real, OU se algum SKU casado é DOMINADO (≥50%) por EANs reais (ex.: Queijo Minas 56…,
-    // marcado peso mas embalado). Nesse caso: nunca stepper de peso; o precoLista mostra o pacote.
+    // EAN de FABRICANTE = prefixo ≠ 2 (o 2 é código de balança = peso). Classifica pelo SKU MAIS comprado:
+    // percorre os candidatos por idas DESC e o PRIMEIRO com sinal claro decide (embalado se dominado por
+    // EAN real — ex.: Queijo Minas 56…; peso se kg + maioria fracionária sem EAN — ex.: banana, frango).
+    // (Antes um .some() sobre TODOS os candidatos marcava embalado por uma variante secundária rara — uma
+    // banana-embalada tornava a banana, que é pesada, "embalada". Agora ganha o representativo.)
     const eanFab = (e) => { const d = String(e || '').replace(/\D/g, ''); return d.length >= 8 && d[0] !== '2'; };
-    const dominadoPorEan = compr.some((x) => { const pr = pesoPorSku.get(x.sid); return pr && pr.n > 0 && pr.n_ean_real / pr.n >= 0.5; });
-    if (eanFab(it.ean) || dominadoPorEan) {
-      it.embalado = true; it.unidade = null; it.qtd_medida = null; // por unidade; descarta modo-peso herdado da BD
-    } else {
-      // MODO PESO derivado do histórico: entre os SKUs casados (compr, já por idas DESC), o MAIS comprado
-      // vendido a peso (kg, maioria fracionária e SEM EAN real) manda. Sem override do user (qtd_medida
-      // da BD = null) → exibe o PESO HABITUAL arredondado à grelha de 500 g (o stepper anda de 500 g).
-      let pesoSku = null;
-      for (const x of compr) {
-        const pr = pesoPorSku.get(x.sid); // compr já ordenado por idas DESC → o mais comprado manda
-        if (pr && pr.unidade === 'kg' && pr.n_peso >= 2 && pr.n_peso / pr.n >= 0.6 && pr.n_ean_real / pr.n < 0.5) { pesoSku = pr; break; }
+    let embalado = eanFab(it.ean), pesoSku = null;
+    if (!embalado) {
+      for (const x of compr) { // compr já ordenado por idas DESC → o mais comprado manda
+        const pr = pesoPorSku.get(x.sid); if (!pr) continue;
+        if (pr.n > 0 && pr.n_ean_real / pr.n >= 0.5) { embalado = true; break; }                    // embalado (EAN real domina)
+        if (pr.unidade === 'kg' && pr.n_peso >= 2 && pr.n_peso / pr.n >= 0.6) { pesoSku = pr; break; } // peso (balcão/sem EAN)
       }
-      if (pesoSku) {
-        it.med_habitual = pesoSku.med_peso != null ? Math.round(num(pesoSku.med_peso) * 1000) / 1000 : null;
-        if (it.qtd_medida == null) {
-          it.unidade = pesoSku.unidade; // sem recibos com peso (bovino, queijo de balcão) → arranca 0,5 kg
-          const hab = it.med_habitual != null ? it.med_habitual : 0.5;
-          it.qtd_medida = Math.max(0.5, Math.round(hab / 0.5) * 0.5); // já arredondado à grelha de 500 g
-          it.medida_derivada = true;
-        }
+    }
+    if (embalado) {
+      it.embalado = true; it.unidade = null; it.qtd_medida = null; // por unidade; descarta modo-peso herdado da BD
+    } else if (pesoSku) {
+      // sem override do user (qtd_medida da BD = null) → exibe o PESO HABITUAL arredondado à grelha de 500 g.
+      it.med_habitual = pesoSku.med_peso != null ? Math.round(num(pesoSku.med_peso) * 1000) / 1000 : null;
+      if (it.qtd_medida == null) {
+        it.unidade = pesoSku.unidade; // sem recibos com peso (bovino, queijo de balcão) → arranca 0,5 kg
+        const hab = it.med_habitual != null ? it.med_habitual : 0.5;
+        it.qtd_medida = Math.max(0.5, Math.round(hab / 0.5) * 0.5); // já arredondado à grelha de 500 g
+        it.medida_derivada = true;
       }
     }
     for (const sid of skuIdsPorItem.get(it.id) || []) {
