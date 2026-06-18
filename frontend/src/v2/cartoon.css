@@ -220,7 +220,7 @@
 .v2 .disc-h span{display:inline-flex;align-items:center;gap:6px;font:800 13px var(--disp);color:var(--ink)}
 .v2 .disc-all{background:var(--leaf-soft);color:var(--leaf-d);border:0;border-radius:var(--r-pill);padding:5px 11px;font:800 12px var(--disp);cursor:pointer}
 .v2 .disc-hr{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}
-.v2 .disc-x{background:0;border:0;color:var(--ink-3);cursor:pointer;display:grid;place-items:center;padding:2px;line-height:1}
+.v2 .disc-x{background:var(--cream-2);border:0;color:var(--ink-3);cursor:pointer;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;padding:0;line-height:1}
 .v2 .disc-x:active{transform:scale(.88)}
 .v2 .disc-chips{display:flex;flex-wrap:wrap;gap:7px}
 /* estado vazio que arranca pelos habituais */

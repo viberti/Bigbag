@@ -368,7 +368,16 @@ function fmtMedida(qtd, unidade) {
   return `${v(n)} ${unidade || ''}`.trim();
 }
 
+// Ovos contam-se por DÚZIA (convenção; produto popular — enriquecimento especial permitido). 1 pack = 1 dúzia.
+// Exclui o que não é ovo-de-galinha à dúzia (chocolate/líquido/pó/codorniz/páscoa).
+function ehOvoDuzia(nome) {
+  const n = String(nome || '').toLowerCase();
+  return /\bovos?\b/.test(n) && !/l[íi]quido|chocolate|p[áa]scoa|kinder|surpresa|\bp[óo]\b|codorn/.test(n);
+}
+
 function precoLista(it) {
+  // OVOS → preço por DÚZIA (o pack é a dúzia): mostra o preço pago/de mercado por pack, rotulado /dúzia.
+  if (ehOvoDuzia(it.nome)) { const p = it.preco_pago ?? it.melhor_preco ?? it.preco_mercado; return p != null ? `${eur(p)}/dúzia` : 'sem preço'; }
   // produto EMBALADO (EAN na linha, ou o resolver marcou it.embalado por EAN de fabricante) → mostra o
   // PREÇO PAGO por embalagem (facto do talão), NÃO o €/kg — comparar por base só faz sentido p/ genéricos
   // vendidos a peso (sem EAN de fabricante).
@@ -581,8 +590,13 @@ function Lista({ go, back, destaque }) {
   }
   // DESCOBERTA → adicionar: uma sugestão de cadência, todas de uma vez, ou um nome solto
   // (item em falta de uma receita / produto habitual).
-  async function addRecomendado(r) { // chip do card de recomendação (cadência OU habitual) → some sozinho ao entrar na lista
-    try { await adicionarListaItem({ nome: r.nome, quantidade: r.quantidade || 1 }); setDestaqueAlvo({ nome: nomeTalao(r.nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
+  async function addRecomendado(r) { // chip do card de recomendação → aparece JÁ (OTIMISTA; o chip some sozinho)
+    const nome = r.nome, q = r.quantidade || 1;
+    // insere local já — o card "Será que você precisa" recalcula e tira o chip; sem esperar o round-trip
+    // + resolver (que estava frio nos primeiros toques). O carregar() reconcilia em fundo.
+    setItens((xs) => [...(xs || []), { id: -Date.now(), nome, quantidade: q, estado: 'ativo', adicionado_por: ativoNome, grupo: grupoDeNome(nome), _otimista: true }]);
+    setDestaqueAlvo({ nome: nomeTalao(nome).toLowerCase() });
+    try { await adicionarListaItem({ nome, quantidade: q }); carregar(); } catch { setAviso('Falha ao adicionar.'); carregar(); }
   }
   async function addNome(nome) {
     try { await adicionarListaItem({ nome }); setDestaqueAlvo({ nome: nomeTalao(nome).toLowerCase() }); carregar(); } catch { setAviso('Falha ao adicionar.'); }
@@ -618,7 +632,12 @@ function Lista({ go, back, destaque }) {
     }
   }
   const carrinho = (itens || []).filter((i) => i.estado === 'carrinho');
-  const qtdTxt = (it) => (it.unidade ? fmtMedida(it.qtd_medida, it.unidade) : `${it.quantidade || 1} un`);
+  const qtdTxt = (it) => {
+    if (it.unidade) return fmtMedida(it.qtd_medida, it.unidade);
+    const q = it.quantidade || 1;
+    if (ehOvoDuzia(it.nome)) return `${q} dúzia${q > 1 ? 's' : ''}`; // ovos contam-se por dúzia
+    return `${q} un`;
+  };
   const grupos = agruparSec(ativos);
   // "Será que você precisa de…": a CADÊNCIA (running low) primeiro + as TOP 6 habituais da casa,
   // sem repetir o que já está na lista nem entre si. Recalcula ao mudar a lista → o chip do item
