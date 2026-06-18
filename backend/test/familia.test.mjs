@@ -84,6 +84,8 @@ test('doces: chocolate / bolacha / cacau / gelado / compota — leftmost desambi
   for (const n of ['Bolacha Maria', 'Biscoito de Chocolate', 'Cookies de Aveia']) assert.equal(familiaPorNome(n), 'bolacha', n);
   // achocolatado / Nesquik → cacau, não chocolate
   for (const n of ['Achocolatado em Pó', 'Bebida de Chocolate Solúvel Nesquik', 'Cacau em Pó', 'Nescau']) assert.equal(familiaPorNome(n), 'cacau', n);
+  // "Cação" (peixe) normaliza p/ "cacao" → NÃO pode virar cacau (era um falso-positivo nas alternativas)
+  assert.notEqual(familiaPorNome('Posta de Cação Congelado'), 'cacau');
   for (const n of ['Gelado de Baunilha', 'Gelado de Chocolate']) assert.equal(familiaPorNome(n), 'gelado', n);
   for (const n of ['Compota de Morango', 'Marmelada']) assert.equal(familiaPorNome(n), 'doce_compota', n);
   // bolo/torta — a CABEÇA vence o "cacau" do sabor (caso real: alternativas do Nesquik)

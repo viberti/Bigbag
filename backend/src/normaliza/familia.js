@@ -73,7 +73,7 @@ const FAM_RE = [
   ['bolo',               /(^|[^a-z])(bolos?|tortas?|queques?|madalenas?|muffins?|cupcakes?|brownies?|pastel de nata|pasteis de nata)/],
   ['gelado',             /(^|[^a-z])(gelados?|helados?|sorvetes?|gelato|ice ?cream)/],
   ['bolacha',            /(^|[^a-z])(bolachas?|biscoitos?|biscuits?|cookies?|galletas?|wafer|crackers?|tostas? )/],
-  ['cacau',              /(^|[^a-z])(achocolatad[oa]|\bcacau\b|\bcacao\b|chocolate (em po|soluvel|instantaneo|granulado)|bebida de chocolate|nesquik|ovomaltine|nescau)/],
+  ['cacau',              /(^|[^a-z])(achocolatad[oa]|\bcacau\b|cacau em po|chocolate (em po|soluvel|instantaneo|granulado)|bebida de chocolate|nesquik|ovomaltine|nescau)/], // NÃO \bcacao\b: "cação" (peixe) normaliza p/ "cacao"
   ['chocolate',          /(^|[^a-z])(chocolates?|tablet?es?|bombons?|\bchoco\b|pralines?|kitkat|snickers|m&ms?|nutella)/],
   ['doce_compota',       /(^|[^a-z])(compotas?|marmelada|geleias?|doce de (fruta|leite|tomate|abobora)|mermelada|confiture)/],
   // — BEBIDAS — cerveja/vinho antes de sumo/refrigerante/água —
