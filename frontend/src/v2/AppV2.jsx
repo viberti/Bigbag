@@ -1133,7 +1133,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
             )}
           </div>
           {grau && <span className="ns-pill" style={{ background: NS_COR[grau] || '#9ec93f' }}>{grau}</span>}
-          {nsCalc && <span className="ns-calc" title="Nutri-Score calculado por nós (algoritmo 2017, escala geral)" style={{ background: NS_COR[nsCalc.grau] || '#9ec93f' }}>{nsCalc.grau} {nsCalc.pontos >= 0 ? '+' : ''}{nsCalc.pontos}</span>}
+          {nsCalc && <span className="ns-calc" title="Nutri-Score calculado por nós (algoritmo 2023, escala de sólidos)" style={{ background: NS_COR[nsCalc.grau] || '#9ec93f' }}>{nsCalc.grau} {nsCalc.pontos >= 0 ? '+' : ''}{nsCalc.pontos}</span>}
         </div>
 
         {sug && !temNut && (
