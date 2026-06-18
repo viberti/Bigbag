@@ -41,7 +41,7 @@ Objetivo do dono (2026-06-14): um serviço de autenticação **próprio, reutili
 
 ### Apps registados (multi-app)
 - **BigBag** — projeto `377443447096737795`, client `377443508467859459`, `https://bigbag.hal9klabs.com`.
-- **Anotai** (2026-06-18) — projeto `378001634904506371`, app "Anotai Web" `378001635122610179`, **clientId `378001635139387395`**, USER_AGENT+PKCE (público), access token JWT, redirect `https://anotai.hal9klabs.com/callback`, post-logout `https://anotai.hal9klabs.com/`. Falta (no lado do Anotai): wiring front/back (copiar `oidc.js`+`auth.js`), `AUTH_ALLOWLIST` própria, e os emails como Test users no consent do Google enquanto está em Testing.
+- **Anotai** (2026-06-18) — projeto `378001634904506371`, app "Anotai Web" `378001635122610179`, **clientId `378001635139387395`**, USER_AGENT+PKCE (público), access token JWT, redirects `https://anotai.hal9klabs.com/callback` **+ `http://localhost:5173/callback` + `http://localhost:3000/callback`** (dev), post-logout idem. **`devMode=true`** (p/ permitir os redirects http de localhost) → o Zitadel marca o client "não-compliant", é só aviso; **antes de produção-público: remover as URIs de localhost + desligar devMode** (deixar só o https) ou separar um client de dev. Guia de integração autónomo p/ a outra conversa: `C:\ProjetosAI\Anotai_Auth_Integracao.md` (fora deste repo). Falta (lado do Anotai): wiring front/back (copiar `oidc.js`+`auth.js`), `AUTH_ALLOWLIST` própria, e os emails como Test users no consent do Google enquanto está em Testing.
 - **Rotacionar o PAT:** console → `bigbag-iac` → Personal Access Tokens → apagar+novo → atualizar `/home/dev/auth/.env`.
 
 ## Google login — FEITO (2026-06-15)
