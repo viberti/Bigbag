@@ -39,7 +39,10 @@ import { parseJsonCol } from '../db.js';
 // (VTEX) — nomes em PT-BR, idioma-base do app. (Multi-país: ver config.paises.)
 const FONTES_PT = ['continente', 'auchan', 'lidl', 'pingodoce', 'nutripedia',
   'savegnago', 'zaffari', 'supernosso', 'comper', 'atacadao', 'supermuffato', 'prezunic',
-  'zonasul', 'carone', 'giassi', 'mambo', 'condor', 'assai', 'dia-br', 'americanas'];
+  'zonasul', 'carone', 'giassi', 'mambo', 'condor', 'assai', 'dia-br', 'americanas',
+  'mundial', 'gbarbosa', 'covabra', 'bretas', 'paulistao', 'paodeacucar', 'extra', 'rissul',
+  'gigaatacado', 'apoio', 'festval', 'hiperideal', 'varanda', 'coopsupermercado', 'superprix',
+  'obahortifruti', 'hortifruti'];
 
 // ── helpers puros (exportados p/ testes) ─────────────────────────────────────
 
