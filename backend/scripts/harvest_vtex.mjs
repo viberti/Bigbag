@@ -59,14 +59,23 @@ async function detectar(hosts) {
 }
 
 const flattenCats = (tree, out = []) => { for (const c of tree || []) { out.push(c.id); if (c.hasChildren && c.children) flattenCats(c.children, out); } return out; };
+// ids a varrer: se rootIds dado, só as SUBÁRVORES dessas categorias-raiz (p/ marketplaces enormes
+// onde só interessam alguns ramos — ex.: Americanas, varrer só Alimentos/Higiene/Limpeza). Senão, tudo.
+function catsParaVarrer(tree, rootIds) {
+  if (!rootIds || !rootIds.size) return [...new Set(flattenCats(tree))];
+  const out = [];
+  const walk = (nodes, dentro) => { for (const c of nodes || []) { const hit = dentro || rootIds.has(c.id); if (hit) out.push(c.id); if (c.hasChildren && c.children) walk(c.children, hit); } };
+  walk(tree, false);
+  return [...new Set(out)];
+}
 const niveis = (path) => String(path || '').split('/').map((s) => s.trim()).filter(Boolean);
 
-async function harvest(host, fonte) {
+async function harvest(host, fonte, rootIds) {
   const pool = getPool();
   console.log(`[vtex:${fonte}] árvore de categorias…`);
   const tree = await getJson(`https://${host}/api/catalog_system/pub/category/tree/50`);
-  const cats = [...new Set(flattenCats(tree))];
-  console.log(`[vtex:${fonte}] ${cats.length} categorias. A varrer (delay ${DELAY}ms)…`);
+  const cats = catsParaVarrer(tree, rootIds);
+  console.log(`[vtex:${fonte}] ${cats.length} categorias${rootIds && rootIds.size ? ` (âmbito: raízes ${[...rootIds].join(',')})` : ' (árvore toda)'}. A varrer (delay ${DELAY}ms)…`);
 
   const prods = new Map(); // productId -> produto (dedup entre categorias)
   let topo = 0;
@@ -121,11 +130,14 @@ async function harvest(host, fonte) {
 }
 
 async function main() {
-  const a = process.argv[2];
-  if (!a) { console.log('uso: harvest_vtex.mjs <host> [fonte]  |  --detect host1,host2,…'); process.exit(1); }
-  if (a === '--detect') { await detectar((process.argv[3] || '').split(',')); process.exit(0); }
+  const args = process.argv.slice(2);
+  const a = args[0];
+  if (!a) { console.log('uso: harvest_vtex.mjs <host> [fonte] [--cats=id1,id2,…]  |  --detect host1,host2,…'); process.exit(1); }
+  if (a === '--detect') { await detectar((args[1] || '').split(',')); process.exit(0); }
+  const catsArg = args.find((x) => x.startsWith('--cats='));
+  const rootIds = catsArg ? new Set(catsArg.slice(7).split(',').map(Number).filter(Boolean)) : null;
   const host = a.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-  const fonte = (process.argv[3] || host.replace(/^www\./, '').split('.')[0]).slice(0, 16);
-  await harvest(host, fonte);
+  const fonte = (args.slice(1).find((x) => !x.startsWith('--')) || host.replace(/^www\./, '').split('.')[0]).slice(0, 16);
+  await harvest(host, fonte, rootIds);
 }
 main().catch((e) => { console.error('FATAL:', e); process.exit(1); });
