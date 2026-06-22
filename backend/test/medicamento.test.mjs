@@ -33,6 +33,21 @@ test('combinação de princípios ativos preserva a dosagem inteira', () => {
   assert.equal(r.qtd_embalagem, 30);
 });
 
+test('combo entre parênteses (Neosaldina): 1.ª força + forma + qtd', () => {
+  const r = parseApresentacao('(600 + 60 + 60) MG COM REV CT BL AL PLAS X 100');
+  assert.equal(r.dose_valor, 600);
+  assert.equal(r.dose_unidade, 'MG');
+  assert.equal(r.forma, 'comprimido');
+  assert.equal(r.qtd_embalagem, 100);
+});
+
+test('combo líquido entre parênteses preserva MG/ML', () => {
+  const r = parseApresentacao('(0,4 + 1) MG/ML XPE CT FR VD AMB X 50 ML');
+  assert.equal(r.dose_valor, 0.4);
+  assert.equal(r.dose_unidade, 'MG/ML');
+  assert.equal(r.forma, 'xarope');
+});
+
 test('xarope com volume', () => {
   const r = parseApresentacao('100 MG/ML XPE CT FR PLAS AMB X 120 ML');
   assert.equal(r.forma, 'xarope');

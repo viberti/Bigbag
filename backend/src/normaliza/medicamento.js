@@ -21,8 +21,11 @@ const FORMAS = {
   COL: 'colírio', PAS: 'pasta', FILM: 'filme', IMPL: 'implante', VER: 'verniz',
 };
 
-// Unidades de força reconhecidas (a 1.ª que aparecer define dose_valor/dose_unidade).
-const RE_DOSE = /(\d+(?:[.,]\d+)?)\s*(MCG|MG\/ML|MG\/G|MG\/DOSE|UI\/ML|MG|UI|G\/ML|G|%|ML)\b/;
+// Unidade de força: a 1.ª que aparecer. As compostas (MG/ML) vêm antes das simples
+// (a alternância do regex é leftmost). O número da dose é capturado à parte (1.º
+// número da parte da dose) para apanhar também combos "(600 + 60 + 60) MG".
+const RE_UNIDADE = /(MG\/ML|MG\/G|MG\/DOSE|UI\/ML|G\/ML|MCG|MG|UI|G|%|ML)\b/;
+const RE_NUM = /(\d+(?:[.,]\d+)?)/;
 
 const num = (s) => {
   if (s == null) return null;
@@ -44,14 +47,16 @@ export function parseApresentacao(apresentacao) {
     if (FORMAS[t]) { out.forma = FORMAS[t]; formaIdx = i; break; }
   }
 
-  // 2) DOSAGEM: tudo ANTES da forma (capta combinações "500 MG + 200 MG").
-  const parteDose = (formaIdx > 0 ? toks.slice(0, formaIdx) : toks).join(' ');
-  const mDose = parteDose.match(RE_DOSE) || s.match(RE_DOSE);
-  if (mDose) {
-    out.dose_valor = num(mDose[1]);
-    out.dose_unidade = mDose[2];
-    // dosagem = string até ao fim da última força na parte da dose (preserva combos)
-    out.dosagem = (formaIdx > 0 ? parteDose : mDose[0]).replace(/\s+/g, ' ').trim() || mDose[0];
+  // 2) DOSAGEM: tudo ANTES da forma. dose_valor = 1.º número, dose_unidade = 1.ª
+  //    unidade — assim capta tanto "500 MG" como combos "(600 + 60 + 60) MG" ou
+  //    "(0,4 + 1) MG/ML" (a 1.ª força ordena; a string inteira fica em dosagem).
+  const parteDose = (formaIdx > 0 ? toks.slice(0, formaIdx).join(' ') : s);
+  const mUni = parteDose.match(RE_UNIDADE);
+  const mNum = parteDose.match(RE_NUM);
+  if (mUni && mNum) {
+    out.dose_valor = num(mNum[1]);
+    out.dose_unidade = mUni[1];
+    out.dosagem = (formaIdx > 0 ? parteDose : `${mNum[1]} ${mUni[1]}`).replace(/\s+/g, ' ').trim();
   }
 
   // 3) QUANTIDADE na embalagem: número após o ÚLTIMO "X". Multiplica por um
