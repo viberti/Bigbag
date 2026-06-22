@@ -580,3 +580,8 @@
 .v2 .med-hreg{font:600 10.5px var(--font);color:var(--ink-3);margin-top:4px;letter-spacing:.01em}
 .v2 .med-img{display:flex;justify-content:center;align-items:center;background:#fff;border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:12px;margin:4px 0 12px;max-height:200px}
 .v2 .med-img img{max-height:176px;max-width:100%;object-fit:contain}
+.v2 .med-back{display:inline-flex;align-items:center;gap:5px;background:none;border:0;color:var(--leaf-d);font:700 13px var(--font);padding:4px 2px 10px;cursor:pointer}
+.v2 .med-var-h{margin:2px 2px 8px}
+.v2 .med-var-t{display:flex;align-items:center;gap:8px;font:800 19px var(--disp);color:var(--ink)}
+.v2 .med-var-s{font:600 13px var(--font);color:var(--leaf-d);margin-top:2px}
+.v2 .med-apartir{display:block;font:600 9.5px var(--font);color:var(--ink-3);text-align:right}

@@ -177,15 +177,29 @@ medicamentoRouter.get('/buscar', async (req, res) => {
           : Number(r.menor_preco) < Number(ex.menor_preco);
       if (melhor) grupos.set(key, { ...r, ppd, nf: ex.nf });
     }
-    const resultados = [...grupos.values()]
-      .sort((a, b) => b.nf - a.nf || Number(a.menor_preco) - Number(b.menor_preco))
-      .slice(0, 30)
-      .map((r) => ({
-        ean: r.ean, produto: r.produto, substancia: r.substancia, laboratorio: r.laboratorio,
-        generico: !!r.generico, dosagem: r.dosagem, forma: r.forma, qtd_embalagem: r.qtd_embalagem,
-        menor_preco: r.menor_preco == null ? null : Number(r.menor_preco),
-        preco_por_dose: r.ppd, n_farmacias: r.nf,
-      }));
+    // as apresentações (1 por dosagem/forma do produto-registo)
+    const apres = [...grupos.values()].map((r) => ({
+      ean: r.ean, produto: r.produto, substancia: r.substancia, laboratorio: r.laboratorio,
+      generico: !!r.generico, dosagem: r.dosagem, forma: r.forma, qtd_embalagem: r.qtd_embalagem,
+      menor_preco: r.menor_preco == null ? null : Number(r.menor_preco),
+      preco_por_dose: r.ppd, n_farmacias: r.nf,
+    }));
+    // 2.º nível — agrupa as apresentações por MARCA (produto) → UMA entrada por remédio na
+    // busca; as variantes (forma/dosagem) ficam dentro, para a tela de "escolher apresentação".
+    const marcas = new Map();
+    for (const a of apres) {
+      const k = String(a.produto || '').toUpperCase().trim();
+      const m = marcas.get(k);
+      if (!m) { marcas.set(k, { produto: a.produto, substancia: a.substancia, generico: a.generico, menor_preco: a.menor_preco, n_farmacias: a.n_farmacias, apresentacoes: [a] }); continue; }
+      m.apresentacoes.push(a);
+      if (a.menor_preco != null && (m.menor_preco == null || a.menor_preco < m.menor_preco)) m.menor_preco = a.menor_preco;
+      m.n_farmacias = Math.max(m.n_farmacias, a.n_farmacias);
+      m.generico = m.generico || a.generico;
+    }
+    const resultados = [...marcas.values()]
+      .map((m) => ({ ...m, n_apresentacoes: m.apresentacoes.length, apresentacoes: m.apresentacoes.sort((x, y) => (x.preco_por_dose ?? 9e9) - (y.preco_por_dose ?? 9e9)) }))
+      .sort((a, b) => b.n_farmacias - a.n_farmacias || Number(a.menor_preco) - Number(b.menor_preco))
+      .slice(0, 25);
     res.json({ q, resultados });
   } catch (e) { console.error('[medicamento/buscar]', e); res.status(500).json({ erro: 'erro interno' }); }
 });

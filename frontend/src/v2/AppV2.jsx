@@ -1831,11 +1831,15 @@ const FARM_NOME = {
   drogasil: 'Drogasil', pacheco: 'Pacheco', drogariasaopaulo: 'Drogaria São Paulo',
 };
 const nomeFarm = (f) => FARM_NOME[f] || (f ? f.charAt(0).toUpperCase() + f.slice(1) : '—');
+// rótulo da apresentação (forma + dosagem) e unidade da embalagem (un/ml/g).
+const varLabel = (a) => { const f = a.forma ? a.forma.charAt(0).toUpperCase() + a.forma.slice(1) : ''; return [f, a.dosagem].filter(Boolean).join(' · ') || 'Apresentação'; };
+const unidEmb = (forma) => (/solu|xarope|susp|gota|elixir|colir|spray|aeros/i.test(forma || '') ? 'ml' : /creme|pomada|gel|pasta|po\b|granulad/i.test(forma || '') ? 'g' : 'un');
 
 function Remedios({ back, standalone }) {
   const [q, setQ] = useState('');
-  const [sug, setSug] = useState([]);
-  const [info, setInfo] = useState(null);
+  const [sug, setSug] = useState([]);        // marcas (1 por remédio)
+  const [marca, setMarca] = useState(null);  // marca escolhida → mostra as apresentações
+  const [info, setInfo] = useState(null);    // apresentação escolhida → ficha de preço
   const [busy, setBusy] = useState(false);
   const [erro, setErro] = useState('');
   const [scan, setScan] = useState(false);
@@ -1843,7 +1847,7 @@ function Remedios({ back, standalone }) {
   const tmr = useRef(null);
 
   function onTxt(v) {
-    setQ(v); setInfo(null); setErro('');
+    setQ(v); setInfo(null); setMarca(null); setErro('');
     clearTimeout(tmr.current);
     const t = v.trim();
     if (t.length < 3) { setSug([]); return; }
@@ -1877,29 +1881,51 @@ function Remedios({ back, standalone }) {
         <div className="med-search">
           <span className="med-si"><Ico name="search" size={18} stroke={2.2} /></span>
           <input className="med-inp" value={q} placeholder="Nome do remédio (ex.: dipirona)" onChange={(e) => onTxt(e.target.value)} autoFocus />
-          {q && <button className="med-x" onClick={() => { setQ(''); setSug([]); setInfo(null); setErro(''); }} aria-label="limpar">×</button>}
+          {q && <button className="med-x" onClick={() => { setQ(''); setSug([]); setMarca(null); setInfo(null); setErro(''); }} aria-label="limpar">×</button>}
         </div>
-        <button className={`med-scan ${scan ? 'on' : ''}`} onClick={() => { setInfo(null); setScan((s) => !s); }}>
+        <button className={`med-scan ${scan ? 'on' : ''}`} onClick={() => { setInfo(null); setMarca(null); setScan((s) => !s); }}>
           <Ico name="scan" size={20} stroke={2.2} /> {scan ? 'Fechar câmara' : 'Escanear código de barras'}
         </button>
 
         {scan && <div className="med-cam"><video ref={videoRef} playsInline muted /><div className="med-cam-h">Aponte ao código de barras</div></div>}
 
-        {!info && !busy && sug.length > 0 && (
+        {/* NÍVEL 3 — ficha de preço de uma apresentação */}
+        {info ? (
+          <>
+            <button className="med-back" onClick={() => setInfo(null)}><Ico name="back" size={15} stroke={2.4} /> {marca?.produto || 'voltar'}</button>
+            <FichaRemedio info={info} abrir={abrir} />
+          </>
+        /* NÍVEL 2 — apresentações da marca escolhida */
+        ) : marca ? (
+          <>
+            <button className="med-back" onClick={() => setMarca(null)}><Ico name="back" size={15} stroke={2.4} /> voltar à busca</button>
+            <div className="med-var-h"><div className="med-var-t">{marca.produto}{marca.generico ? <span className="med-gen">genérico</span> : null}</div>{marca.substancia && <div className="med-var-s">{marca.substancia}</div>}</div>
+            <div className="med-lbl">Escolha a apresentação</div>
+            <div className="med-sug">
+              {(marca.apresentacoes || []).map((a) => (
+                <button key={a.ean} className="med-row" onClick={() => abrir(a.ean)}>
+                  <div className="med-rt">{varLabel(a)}</div>
+                  <div className="med-rs">{a.qtd_embalagem ? `${a.qtd_embalagem} ${unidEmb(a.forma)}` : ''}</div>
+                  <div className="med-rp">{fmtPreco(a.menor_preco, 'BRL')}{a.preco_por_dose != null && <span className="med-rpd">{fmtPreco(a.preco_por_dose, 'BRL')}/un</span>}</div>
+                </button>
+              ))}
+            </div>
+          </>
+        /* NÍVEL 1 — uma entrada por remédio (marca) */
+        ) : !busy && sug.length > 0 ? (
           <div className="med-sug">
-            {sug.map((s) => (
-              <button key={s.ean} className="med-row" onClick={() => abrir(s.ean)}>
-                <div className="med-rt">{s.produto}{s.generico ? <span className="med-gen">genérico</span> : null}</div>
-                <div className="med-rs">{[s.substancia, s.dosagem, s.n_farmacias ? `${s.n_farmacias} farmácia${s.n_farmacias > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')}</div>
-                <div className="med-rp">{fmtPreco(s.menor_preco, 'BRL')}{s.preco_por_dose != null && <span className="med-rpd">{fmtPreco(s.preco_por_dose, 'BRL')}/un</span>}</div>
+            {sug.map((b) => (
+              <button key={b.produto} className="med-row" onClick={() => { setMarca(b); setInfo(null); }}>
+                <div className="med-rt">{b.produto}{b.generico ? <span className="med-gen">genérico</span> : null}</div>
+                <div className="med-rs">{[b.substancia, `${b.n_apresentacoes} apresentaç${b.n_apresentacoes > 1 ? 'ões' : 'ão'}`].filter(Boolean).join(' · ')}</div>
+                <div className="med-rp"><span className="med-apartir">a partir de</span>{fmtPreco(b.menor_preco, 'BRL')}</div>
               </button>
             ))}
           </div>
-        )}
+        ) : null}
 
         {busy && <p className="empty">A consultar…</p>}
         {erro && <p className="empty">{erro}</p>}
-        {info && <FichaRemedio info={info} abrir={abrir} />}
       </div>
     </>
   );
