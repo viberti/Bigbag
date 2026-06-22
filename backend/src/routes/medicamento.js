@@ -11,15 +11,18 @@
 //
 // NÃO é aconselhamento médico — só informação e preço (igual ao módulo de saúde).
 import { Router } from 'express';
+import { readFileSync } from 'node:fs';
 import { requireAuth } from '../auth.js';
 import { getPool, parseJsonCol } from '../db.js';
 import { precoPorDose } from '../normaliza/medicamento.js';
 
 export const medicamentoRouter = Router();
 
-// Farmácias online colhidas (fonte em catalogo_produto). Mantém o foco em
-// "farmácia": evita que um supermercado a vender um OTC entre como oferta.
-const FARMACIAS = ['paguemenos', 'saojoaofarmacias', 'extrafarma', 'drogariavenancio'];
+// Farmácias online colhidas (fonte em catalogo_produto). Lê o MESMO manifesto que o
+// harvester (fonte única) → acrescentar farmácia = editar o JSON + colher, sem mexer
+// aqui. Mantém o foco em "farmácia": evita que um supermercado a vender um OTC entre
+// como oferta.
+const FARMACIAS = JSON.parse(readFileSync(new URL('../../scripts/fontes_farmacia.json', import.meta.url), 'utf8')).map((f) => f.fonte);
 const inFarmacias = '(' + FARMACIAS.map(() => '?').join(',') + ')';
 
 const eanLimpo = (e) => { const d = String(e || '').replace(/\D/g, ''); return d.length >= 12 && d.length <= 14 ? d : null; };

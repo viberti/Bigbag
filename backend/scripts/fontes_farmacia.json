@@ -1,6 +1,12 @@
 [
-  { "fonte": "paguemenos", "host": "www.paguemenos.com.br", "nota": "VTEX, EAN por SKU — confirmado" },
-  { "fonte": "saojoaofarmacias", "host": "www.saojoaofarmacias.com.br", "nota": "VTEX, EAN — confirmado" },
-  { "fonte": "extrafarma", "host": "www.extrafarma.com.br", "nota": "VTEX (grupo Pague Menos), EAN — confirmado" },
-  { "fonte": "drogariavenancio", "host": "www.drogariavenancio.com.br", "nota": "VTEX, EAN — confirmado" }
+  { "fonte": "paguemenos", "host": "www.paguemenos.com.br", "cats": "100", "nota": "VTEX, EAN — Pague Menos (nacional)" },
+  { "fonte": "saojoaofarmacias", "host": "www.saojoaofarmacias.com.br", "cats": "2001", "nota": "VTEX, EAN — São João (Sul)" },
+  { "fonte": "extrafarma", "host": "www.extrafarma.com.br", "cats": "100", "nota": "VTEX, EAN — Extrafarma (grupo Pague Menos, Norte)" },
+  { "fonte": "drogariavenancio", "host": "www.drogariavenancio.com.br", "cats": "2", "nota": "VTEX, EAN — Venâncio (RJ)" },
+  { "fonte": "drogal", "host": "www.drogal.com.br", "cats": "208", "nota": "VTEX, EAN — Drogal (SP interior)" },
+  { "fonte": "drogasmil", "host": "www.drogasmil.com.br", "cats": "1", "nota": "VTEX, EAN — Drogasmil (RJ)" },
+  { "fonte": "drogariaglobo", "host": "www.drogariaglobo.com.br", "cats": "3", "nota": "VTEX, EAN — Drogaria Globo" },
+  { "fonte": "drogariarosario", "host": "www.drogariarosario.com.br", "cats": "1", "nota": "VTEX, EAN — Rosário (DF/Centro-Oeste)" },
+  { "fonte": "farmaciaindiana", "host": "www.farmaciaindiana.com.br", "cats": "11", "nota": "VTEX, EAN — Indiana (MG)" },
+  { "fonte": "catarinense", "host": "www.drogariacatarinense.com.br", "cats": "1", "nota": "VTEX, EAN — Drogaria Catarinense (SC)" }
 ]
