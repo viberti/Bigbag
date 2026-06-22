@@ -12,7 +12,16 @@ import { ProxyAgent, setGlobalDispatcher } from 'undici';
 
 export function aplicarProxy(url = process.env.PROXY_URL) {
   if (!url) { console.log('[rede] --proxy pedido mas PROXY_URL não está no .env — a sair DIRETO.'); return false; }
-  setGlobalDispatcher(new ProxyAgent(url));
+  let opts = url;
+  try {
+    const u = new URL(url);
+    if (u.username || u.password) {
+      // proxy autenticado (Basic): o undici ProxyAgent quer o cabeçalho à parte.
+      const token = 'Basic ' + Buffer.from(`${decodeURIComponent(u.username)}:${decodeURIComponent(u.password)}`).toString('base64');
+      opts = { uri: `${u.protocol}//${u.host}`, token };
+    }
+  } catch { /* URL malformada → deixa o ProxyAgent reclamar */ }
+  setGlobalDispatcher(new ProxyAgent(opts));
   const masc = String(url).replace(/(\/\/[^:@/]+:)[^@/]*@/, '$1***@'); // não revela a password
   console.log('[rede] saída via proxy:', masc);
   return true;
