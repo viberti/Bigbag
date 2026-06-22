@@ -1,0 +1,6 @@
+[
+  { "fonte": "paguemenos", "host": "www.paguemenos.com.br", "nota": "VTEX, EAN por SKU — confirmado" },
+  { "fonte": "saojoaofarmacias", "host": "www.saojoaofarmacias.com.br", "nota": "VTEX, EAN — confirmado" },
+  { "fonte": "extrafarma", "host": "www.extrafarma.com.br", "nota": "VTEX (grupo Pague Menos), EAN — confirmado" },
+  { "fonte": "drogariavenancio", "host": "www.drogariavenancio.com.br", "nota": "VTEX, EAN — confirmado" }
+]
