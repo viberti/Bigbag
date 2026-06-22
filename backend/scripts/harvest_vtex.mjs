@@ -71,26 +71,46 @@ function catsParaVarrer(tree, rootIds) {
 }
 const niveis = (path) => String(path || '').split('/').map((s) => s.trim()).filter(Boolean);
 
-async function harvest(host, fonte, rootIds) {
+async function harvest(host, fonte, rootIds, deep = false) {
   const pool = getPool();
   console.log(`[vtex:${fonte}] árvore de categorias…`);
   const tree = await getJson(`https://${host}/api/catalog_system/pub/category/tree/50`);
   const cats = catsParaVarrer(tree, rootIds);
-  console.log(`[vtex:${fonte}] ${cats.length} categorias${rootIds && rootIds.size ? ` (âmbito: raízes ${[...rootIds].join(',')})` : ' (árvore toda)'}. A varrer (delay ${DELAY}ms)…`);
+  console.log(`[vtex:${fonte}] ${cats.length} categorias${rootIds && rootIds.size ? ` (âmbito: raízes ${[...rootIds].join(',')})` : ' (árvore toda)'}${deep ? ' · modo FUNDO (sub-paginação por preço)' : ''}. A varrer (delay ${DELAY}ms)…`);
 
-  const prods = new Map(); // productId -> produto (dedup entre categorias)
+  const prods = new Map(); // productId -> produto (dedup entre categorias/faixas)
   let topo = 0;
-  for (const cat of cats) {
+  // Pagina UMA query (filtros fq) até ao teto de 2500 do VTEX. Devolve se truncou.
+  async function paginar(fqs) {
+    const q = fqs.map((f) => `fq=${f}`).join('&').replace(/ /g, '%20');
+    let truncou = false;
     for (let from = 0; from <= 2450; from += 50) {
-      let arr; try { arr = await getJson(`https://${host}/api/catalog_system/pub/products/search?fq=C:${cat}&_from=${from}&_to=${from + 49}`); } catch { break; }
+      let arr; try { arr = await getJson(`https://${host}/api/catalog_system/pub/products/search?${q}&_from=${from}&_to=${from + 49}`); } catch { break; }
       await sleep(DELAY);
       if (!Array.isArray(arr) || !arr.length) break;
       for (const p of arr) if (!prods.has(p.productId)) prods.set(p.productId, p);
-      if (from === 2450) topo++; // categoria que bateu no teto (possível truncagem)
+      if (from === 2450 && arr.length === 50) truncou = true; // encheu as 2500 → há mais
       if (arr.length < 50) break;
     }
+    return truncou;
   }
-  if (topo) console.log(`[vtex:${fonte}] AVISO: ${topo} categorias atingiram o teto de 2500 (possível truncagem — sub-paginar por marca/preço se preciso).`);
+  // Modo FUNDO: o offset do VTEX bate num teto de 2500; quebra-o por FAIXAS DE PREÇO,
+  // partindo ao meio (recursivo) qualquer faixa que ainda sature. O dedup por
+  // productId trata as sobreposições nas fronteiras. Resolve cats com >2500 produtos.
+  async function varrerPreco(cat, lo, hi, prof = 0) {
+    const truncou = await paginar([`C:${cat}`, `P:[${lo} TO ${hi}]`]);
+    if (truncou && hi - lo > 0.5 && prof < 24) {
+      const mid = Math.round(((lo + hi) / 2) * 100) / 100;
+      await varrerPreco(cat, lo, mid, prof + 1);
+      await varrerPreco(cat, mid, hi, prof + 1);
+    }
+  }
+  for (const cat of cats) {
+    if (deep) await varrerPreco(cat, 0, 100000);
+    else if (await paginar([`C:${cat}`])) topo++;
+  }
+  if (!deep && topo) console.log(`[vtex:${fonte}] AVISO: ${topo} categorias no teto de 2500 (corre com --fundo p/ sub-paginar por preço).`);
+  if (deep) console.log(`[vtex:${fonte}] modo FUNDO: ${prods.size} produtos após sub-paginação por preço.`);
 
   // montar linhas: 1 por (produto, item-com-EAN)
   const vals = []; const vistos = new Set(); let comEan = 0, comImg = 0;
@@ -161,13 +181,14 @@ async function harvest(host, fonte, rootIds) {
 async function main() {
   const args = process.argv.slice(2);
   const a = args[0];
-  if (!a) { console.log('uso: harvest_vtex.mjs <host> [fonte] [--cats=id1,id2,…] [--proxy]  |  --detect host1,host2,… [--proxy]'); process.exit(1); }
+  if (!a) { console.log('uso: harvest_vtex.mjs <host> [fonte] [--cats=id1,id2,…] [--fundo] [--proxy]  |  --detect host1,host2,… [--proxy]'); process.exit(1); }
   if (args.includes('--proxy')) aplicarProxy(); // fontes geo-bloqueadas (ex.: DPSP) → saída BR
   if (a === '--detect') { await detectar((args[1] || '').split(',')); process.exit(0); }
   const catsArg = args.find((x) => x.startsWith('--cats='));
   const rootIds = catsArg ? new Set(catsArg.slice(7).split(',').map(Number).filter(Boolean)) : null;
+  const deep = args.includes('--fundo'); // quebra o teto de 2500 sub-paginando por preço
   const host = a.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   const fonte = (args.slice(1).find((x) => !x.startsWith('--')) || host.replace(/^www\./, '').split('.')[0]).slice(0, 16);
-  await harvest(host, fonte, rootIds);
+  await harvest(host, fonte, rootIds, deep);
 }
 main().catch((e) => { console.error('FATAL:', e); process.exit(1); });
