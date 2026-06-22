@@ -8,5 +8,6 @@
   { "fonte": "drogariaglobo", "host": "www.drogariaglobo.com.br", "cats": "3", "nota": "VTEX, EAN — Drogaria Globo" },
   { "fonte": "drogariarosario", "host": "www.drogariarosario.com.br", "cats": "1", "nota": "VTEX, EAN — Rosário (DF/Centro-Oeste)" },
   { "fonte": "farmaciaindiana", "host": "www.farmaciaindiana.com.br", "cats": "11", "nota": "VTEX, EAN — Indiana (MG)" },
-  { "fonte": "catarinense", "host": "www.drogariacatarinense.com.br", "cats": "1", "nota": "VTEX, EAN — Drogaria Catarinense (SC)" }
+  { "fonte": "catarinense", "host": "www.drogariacatarinense.com.br", "cats": "1", "nota": "VTEX, EAN — Drogaria Catarinense (SC)" },
+  { "fonte": "drogasil", "host": "www.drogasil.com.br", "motor": "raiadrogasil", "nota": "RaiaDrogasil (gigante, líder de mercado) — NÃO-VTEX; colhe por EAN via JSON-LD (scripts/harvest_raiadrogasil.mjs)" }
 ]
