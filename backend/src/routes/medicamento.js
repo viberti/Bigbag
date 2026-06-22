@@ -65,6 +65,21 @@ async function ofertasDoEan(pool, ean) {
 // por pontuação — ficheiro nomeado pelo EAN (`7898074617612-Fluimucil.jpg`) = foto real
 // daquele produto; depois a imagem do próprio EAN; depois um nome descritivo. Os
 // placeholders (palavra-chave OU reutilizados em ≥15 EANs) são sempre excluídos.
+// Tamanho (bytes) de uma imagem por HEAD — cacheado. Placeholders são otimizados
+// (pequenos); fotos reais são maiores → o peso é um sinal forte para desempatar.
+const _sz = new Map();
+async function tamanhoImagem(url) {
+  if (_sz.has(url)) return _sz.get(url);
+  let bytes = null;
+  try {
+    const r = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(2500), headers: { 'user-agent': 'Mozilla/5.0 (compatible; BigBag/1.0)' } });
+    const cl = Number(r.headers.get('content-length'));
+    if (r.ok && Number.isFinite(cl) && cl > 0) bytes = cl;
+  } catch { /* CDN lento/geo/sem HEAD → desconhecido */ }
+  if (_sz.size > 8000) _sz.clear();
+  _sz.set(url, bytes);
+  return bytes;
+}
 async function escolherImagem(pool, med, eanConsultado, ph) {
   const reg = String(med.registro || '');
   const [rows] = await pool.query(
@@ -73,17 +88,29 @@ async function escolherImagem(pool, med, eanConsultado, ph) {
         AND cp.imagem_url IS NOT NULL AND cp.imagem_url <> '' AND cp.fonte IN ${inFarmacias} LIMIT 150`,
     [eanConsultado, reg, reg.slice(0, 9), med.forma, ...FARMACIAS],
   );
-  let best = null, bestScore = 0;
+  const cands = [];
+  const vistos = new Set();
   for (const r of rows) {
-    if (ehPlaceholder(r.url, ph)) continue;
+    if (ehPlaceholder(r.url, ph) || vistos.has(r.url)) continue;
+    vistos.add(r.url);
     const fn = fnameImg(r.url);
     const own = String(r.ean) === String(eanConsultado);
     const temEan = fn.includes(String(r.ean));               // ficheiro nomeado pelo EAN → foto certa
     const descritivo = fn.replace(/[^a-z]/gi, '').length >= 6; // tem letras (não é só números genéricos)
-    const s = own && temEan ? 5 : own ? 4 : temEan ? 3 : descritivo ? 1 : 0.2;
-    if (s > bestScore) { bestScore = s; best = r.url; }
+    cands.push({ url: r.url, s: own && temEan ? 5 : own ? 4 : temEan ? 3 : descritivo ? 1 : 0.2 });
   }
-  return best;
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.s - a.s);
+  const top = cands.slice(0, 6); // só os melhores vão a HEAD (limita latência)
+  const sizes = await Promise.all(top.map((c) => tamanhoImagem(c.url)));
+  top.forEach((c, i) => { c.bytes = sizes[i]; });
+  // ranking final: penaliza minúsculos (<8 KB, provável placeholder); desempate pelo MAIOR peso.
+  top.sort((a, b) => {
+    const pa = a.s + (a.bytes != null && a.bytes < 8000 ? -2 : a.bytes >= 25000 ? 0.5 : 0);
+    const pb = b.s + (b.bytes != null && b.bytes < 8000 ? -2 : b.bytes >= 25000 ? 0.5 : 0);
+    return pb - pa || (b.bytes || 0) - (a.bytes || 0);
+  });
+  return top[0].url;
 }
 
 // Equivalentes terapêuticos (mesmo princípio ativo + força + forma) QUE TÊM oferta,
