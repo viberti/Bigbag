@@ -256,6 +256,19 @@ export async function buscarProduto(q) {
   return r.json(); // { produtos:[{ean?,sku_id?,nome,marca,grupo,fresco?}], total }
 }
 
+// Medicamentos (Brasil) — comparação de preço entre farmácias.
+export async function buscarMedicamento(q) {
+  const r = await call(`/api/medicamento/buscar?q=${encodeURIComponent(q)}`);
+  if (!r.ok) throw new Error(`med-buscar ${r.status}`);
+  return r.json(); // { q, resultados:[{ean,produto,substancia,laboratorio,generico,dosagem,forma,menor_preco,preco_por_dose,n_farmacias}] }
+}
+export async function infoMedicamento(ean) {
+  const r = await call(`/api/medicamento/info?ean=${encodeURIComponent(ean)}`);
+  if (r.status === 404) return null; // EAN não está na base CMED
+  if (!r.ok) throw new Error(`med-info ${r.status}`);
+  return r.json(); // { ean, identidade, tetos, ofertas, melhor, comparacao, equivalentes, mais_barato_equivalente }
+}
+
 export async function listarDespensa() {
   const r = await call('/api/produto/despensa');
   if (!r.ok) throw new Error(`despensa ${r.status}`);

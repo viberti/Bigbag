@@ -526,3 +526,44 @@
 .v2 .psw .impbox .imp-acts{display:flex;gap:9px;align-items:center}
 .v2 .psw .impbox .imp-acts .cbtn{flex:1}
 .v2 .psw .impbox .imp-cancel{background:0;border:0;color:var(--ink-3);font:800 13px var(--disp);cursor:pointer;padding:10px 6px}
+
+/* ── Consultar remédio (Brasil) — preço nas farmácias ────────────────────── */
+.v2 .med-search{display:flex;align-items:center;gap:8px;background:var(--card);border:2px solid #fff;border-radius:var(--r-pill);box-shadow:var(--sh-sm);padding:4px 8px 4px 14px;margin:4px 0 10px}
+.v2 .med-si{color:var(--ink-3);display:flex}
+.v2 .med-inp{flex:1;border:0;background:none;font:600 15px var(--font);color:var(--ink);padding:10px 0;outline:none}
+.v2 .med-x{border:0;background:var(--cream-2);color:var(--ink-2);width:28px;height:28px;border-radius:50%;font-size:18px;line-height:1;cursor:pointer}
+.v2 .med-scan{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:2px dashed var(--line);background:var(--card);color:var(--leaf-d);font:700 14px var(--font);border-radius:var(--r-sm);padding:12px;cursor:pointer;margin-bottom:10px}
+.v2 .med-scan.on{border-style:solid;border-color:var(--coral);color:var(--coral)}
+.v2 .med-cam{position:relative;border-radius:var(--r-sm);overflow:hidden;margin-bottom:12px;background:#000}
+.v2 .med-cam video{width:100%;max-height:280px;object-fit:cover;display:block}
+.v2 .med-cam-h{position:absolute;left:0;right:0;bottom:0;text-align:center;color:#fff;font:600 13px var(--font);background:linear-gradient(transparent,rgba(0,0,0,.6));padding:18px 8px 10px}
+.v2 .med-sug{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.v2 .med-row{text-align:left;display:grid;grid-template-columns:1fr auto;grid-template-areas:"t p" "s p";gap:0 10px;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:11px 14px;cursor:pointer}
+.v2 .med-rt{grid-area:t;font:700 14.5px var(--font);color:var(--ink);display:flex;align-items:center;gap:6px}
+.v2 .med-rs{grid-area:s;font:500 12px var(--font);color:var(--ink-2);margin-top:2px}
+.v2 .med-rp{grid-area:p;align-self:center;font:800 15px var(--disp);color:var(--leaf-d);white-space:nowrap}
+.v2 .med-gen{font:800 9.5px var(--font);text-transform:uppercase;letter-spacing:.04em;color:var(--leaf-ink);background:var(--leaf-soft);border-radius:var(--r-pill);padding:2px 7px}
+.v2 .med-tipo{font:700 10px var(--font);color:var(--ink-2);background:var(--cream-2);border-radius:var(--r-pill);padding:2px 8px}
+.v2 .med-atual{font:700 9.5px var(--font);text-transform:uppercase;color:var(--amber-d);background:var(--amber-soft);border-radius:var(--r-pill);padding:2px 7px}
+.v2 .med-head{margin:4px 0 12px}
+.v2 .med-htop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.v2 .med-htt{font:800 19px var(--disp);color:var(--ink)}
+.v2 .med-hsub{font:600 13.5px var(--font);color:var(--leaf-d);margin-top:3px}
+.v2 .med-hap{font:500 12px var(--font);color:var(--ink-3);margin-top:3px}
+.v2 .med-best{background:var(--leaf-soft);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:14px 16px;text-align:center;margin-bottom:14px}
+.v2 .med-best-k{font:800 10px var(--font);text-transform:uppercase;letter-spacing:.06em;color:var(--leaf-d)}
+.v2 .med-best-p{font:900 30px var(--disp);color:var(--leaf-ink);line-height:1.1;margin:2px 0}
+.v2 .med-best-f{font:600 13px var(--font);color:var(--ink)}
+.v2 .med-best-pmc{font:700 12px var(--font);color:var(--leaf-d);margin-top:6px}
+.v2 .med-lbl{font:800 11px var(--font);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);margin:14px 2px 8px}
+.v2 .med-of{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:11px 15px;margin-bottom:7px;text-decoration:none}
+.v2 .med-of-f{font:600 14px var(--font);color:var(--ink)}
+.v2 .med-of-p{font:800 14.5px var(--disp);color:var(--ink)}
+.v2 .med-of:first-of-type .med-of-p{color:var(--leaf-d)}
+.v2 .med-eq{width:100%;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:11px 14px;margin-bottom:7px;cursor:pointer}
+.v2 .med-eq.ref{background:var(--cream-2);cursor:default}
+.v2 .med-eq-n{font:700 13.5px var(--font);color:var(--ink);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.v2 .med-eq-r{text-align:right;white-space:nowrap}
+.v2 .med-eq-p{display:block;font:800 14px var(--disp);color:var(--ink)}
+.v2 .med-eq-d{font:600 11px var(--font);color:var(--leaf-d)}
+.v2 .med-note{font:500 11px var(--font);color:var(--ink-3);margin:10px 2px 4px;line-height:1.45}

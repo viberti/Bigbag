@@ -14,6 +14,7 @@ import {
   listarPerfis, ativarPerfil, carregarPerfil, salvarSaude, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
   adotarPorNome, definirPais, sugestoesLista, refeicoesLista, carregarHabituais, variantesLista,
+  buscarMedicamento, infoMedicamento,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLocal.js';
@@ -263,7 +264,7 @@ function Shell({ nome, onSair, pais }) {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
     notas: Notas, gastos: Gastos, gastoscat: GastosCat, ficha: Ficha, comparar: Comparar,
     texto: Texto, despensa: Despensa, recibo: Recibo, receitas: Receitas, perfilsaude: PerfilSaude,
-    scanner: Scanner, voz: Voz,
+    scanner: Scanner, voz: Voz, remedios: Remedios,
   }[view.id] || Home;
   return (
     <div className="v2"><Motif />
@@ -300,6 +301,7 @@ function Home({ go, user, abrirConta }) {
         <div className="quick">
           {[['recipe', 'Receitas', () => go('receitas'), 'var(--coral)'],
             ['compare', 'Comparar', () => go('comparar'), undefined],
+            ['heart', 'Remédios', () => go('remedios'), '#2f9e8f'],
             ['talao', 'Despensa', () => go('despensa'), 'var(--amber-d)'],
             ['chart', 'Gastos', () => go('gastos'), '#3b86c4']].map(([ic, lb, on, col]) => (
             <button key={lb} className="round-act" onClick={on}>
@@ -1813,6 +1815,142 @@ function Receitas({ back }) {
 }
 
 /* ── CONSULTAR PRODUTO: Código (barras) · Produto (foto ao vivo) ─────────── */
+/* ── CONSULTAR REMÉDIO (Brasil) — preço nas farmácias ────────────────────── */
+const FARM_NOME = {
+  paguemenos: 'Pague Menos', saojoaofarmacias: 'São João', extrafarma: 'Extrafarma', drogariavenancio: 'Venâncio',
+  drogal: 'Drogal', drogasmil: 'Drogasmil', drogariaglobo: 'Drogaria Globo', drogariarosario: 'Rosário',
+  farmaciaindiana: 'Indiana', catarinense: 'Catarinense', farmais: 'Farmais', farmaconde: 'Farma Conde',
+  drogariamoderna: 'Drogaria Moderna', farmagora: 'Farmagora', precopopular: 'Preço Popular',
+  drogasil: 'Drogasil', pacheco: 'Pacheco', drogariasaopaulo: 'Drogaria São Paulo',
+};
+const nomeFarm = (f) => FARM_NOME[f] || (f ? f.charAt(0).toUpperCase() + f.slice(1) : '—');
+
+function Remedios({ go, back }) {
+  const [q, setQ] = useState('');
+  const [sug, setSug] = useState([]);
+  const [info, setInfo] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState('');
+  const [scan, setScan] = useState(false);
+  const videoRef = useRef(null);
+  const tmr = useRef(null);
+
+  function onTxt(v) {
+    setQ(v); setInfo(null); setErro('');
+    clearTimeout(tmr.current);
+    const t = v.trim();
+    if (t.length < 3) { setSug([]); return; }
+    tmr.current = setTimeout(() => {
+      buscarMedicamento(t).then((d) => setSug(d.resultados || [])).catch(() => setSug([]));
+    }, 220);
+  }
+  async function abrir(ean) {
+    setScan(false); setSug([]); setBusy(true); setErro('');
+    try {
+      const d = await infoMedicamento(ean);
+      if (!d) setErro('Esse código não está na nossa base de medicamentos (CMED).');
+      else { setInfo(d); setQ(d.identidade?.produto || ''); }
+    } catch { setErro('Não consegui consultar agora. Tente de novo.'); }
+    finally { setBusy(false); }
+  }
+  // câmara: lê o código de barras → abre a ficha do remédio
+  useEffect(() => {
+    if (!scan) return undefined;
+    let leitor; setErro('');
+    (async () => { leitor = await lerCodigoBarras(videoRef.current, (cod) => abrir(cod), () => setErro('Câmara indisponível.')); })();
+    return () => leitor?.stop?.();
+  }, [scan]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      <Ctop title="Consultar remédio" sub="preço nas farmácias" back onBack={back} />
+      <div className="scrollarea">
+        <div className="med-search">
+          <span className="med-si"><Ico name="search" size={18} stroke={2.2} /></span>
+          <input className="med-inp" value={q} placeholder="Nome do remédio (ex.: dipirona)" onChange={(e) => onTxt(e.target.value)} autoFocus />
+          {q && <button className="med-x" onClick={() => { setQ(''); setSug([]); setInfo(null); setErro(''); }} aria-label="limpar">×</button>}
+        </div>
+        <button className={`med-scan ${scan ? 'on' : ''}`} onClick={() => { setInfo(null); setScan((s) => !s); }}>
+          <Ico name="scan" size={20} stroke={2.2} /> {scan ? 'Fechar câmara' : 'Escanear código de barras'}
+        </button>
+
+        {scan && <div className="med-cam"><video ref={videoRef} playsInline muted /><div className="med-cam-h">Aponte ao código de barras</div></div>}
+
+        {!info && !busy && sug.length > 0 && (
+          <div className="med-sug">
+            {sug.map((s) => (
+              <button key={s.ean} className="med-row" onClick={() => abrir(s.ean)}>
+                <div className="med-rt">{s.produto}{s.generico ? <span className="med-gen">genérico</span> : null}</div>
+                <div className="med-rs">{[s.substancia, s.dosagem, s.n_farmacias ? `${s.n_farmacias} farmácia${s.n_farmacias > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')}</div>
+                <div className="med-rp">{fmtPreco(s.menor_preco, 'BRL')}</div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {busy && <p className="empty">A consultar…</p>}
+        {erro && <p className="empty">{erro}</p>}
+        {info && <FichaRemedio info={info} abrir={abrir} />}
+      </div>
+    </>
+  );
+}
+
+function FichaRemedio({ info, abrir }) {
+  const id = info.identidade || {};
+  const m = info.melhor, cmp = info.comparacao;
+  return (
+    <div className="med-ficha">
+      <div className="med-head">
+        <div className="med-htop">
+          <span className="med-htt">{id.produto}</span>
+          {id.generico ? <span className="med-gen">genérico</span> : id.tipo ? <span className="med-tipo">{id.tipo}</span> : null}
+        </div>
+        {id.substancia && <div className="med-hsub">{id.substancia}</div>}
+        <div className="med-hap">{[id.apresentacao, id.laboratorio].filter(Boolean).join(' · ')}</div>
+      </div>
+
+      {m ? (
+        <div className="med-best">
+          <div className="med-best-k">Mais barato</div>
+          <div className="med-best-p">{fmtPreco(m.preco, 'BRL')}</div>
+          <div className="med-best-f">em <b>{nomeFarm(m.fonte)}</b></div>
+          {cmp && cmp.pct_vs_pmc != null && cmp.pct_vs_pmc > 0 && (
+            <div className="med-best-pmc">{cmp.pct_vs_pmc}% abaixo do teto legal (PMC {fmtPreco(cmp.pmc, 'BRL')})</div>
+          )}
+        </div>
+      ) : <p className="empty">Sem preço nas farmácias que colhemos.</p>}
+
+      {info.ofertas && info.ofertas.length > 1 && (
+        <>
+          <div className="med-lbl">Preço por farmácia</div>
+          {info.ofertas.map((o) => (
+            o.url
+              ? <a className="med-of" key={o.fonte} href={o.url} target="_blank" rel="noreferrer"><span className="med-of-f">{nomeFarm(o.fonte)}</span><span className="med-of-p">{fmtPreco(o.preco, 'BRL')}</span></a>
+              : <div className="med-of" key={o.fonte}><span className="med-of-f">{nomeFarm(o.fonte)}</span><span className="med-of-p">{fmtPreco(o.preco, 'BRL')}</span></div>
+          ))}
+        </>
+      )}
+
+      {info.equivalentes && info.equivalentes.length > 1 && (
+        <>
+          <div className="med-lbl">Equivalentes (mesma substância)</div>
+          {info.equivalentes.map((e) => (
+            <button key={e.ean} className={`med-eq ${e.referencia ? 'ref' : ''}`} onClick={() => !e.referencia && abrir(e.ean)} disabled={e.referencia}>
+              <div className="med-eq-n">{e.produto}{e.generico ? <span className="med-gen">genérico</span> : null}{e.referencia ? <span className="med-atual">este</span> : null}</div>
+              <div className="med-eq-r">
+                <span className="med-eq-p">{fmtPreco(e.menor_preco, 'BRL')}</span>
+                {e.preco_por_dose != null && <span className="med-eq-d">{fmtPreco(e.preco_por_dose, 'BRL')}/un</span>}
+              </div>
+            </button>
+          ))}
+          <p className="med-note">Comparação por preço/unidade (comprimido, cápsula ou ml). Só informação e preço — não é aconselhamento médico.</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Scanner({ go, back, somente, itemId, nomeItem, paraLista, paraComparar, addCmp, k }) { // itemId: identificar linha do talão; paraLista: ADICIONAR à lista; paraComparar: ADICIONAR ao cesto de comparação
   const [modo, setModo] = useState('codigo');
   // CONSULTA default (sem fluxo de tarefa) → mostra a régua de navegação; o scan vem da régua,
