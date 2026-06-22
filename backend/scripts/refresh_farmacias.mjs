@@ -29,7 +29,7 @@ for (const f of M) {
     args = ['--env-file=.env', 'scripts/harvest_vtex.mjs', f.host, f.fonte, `--cats=${f.cats}`, ...(fundo ? ['--fundo'] : []), ...(f.geo ? ['--proxy'] : [])];
   }
   console.log(`\n===== ${f.fonte} (${motor}${f.geo ? ' · proxy' : ''}) ${ts()} =====`);
-  const r = spawnSync('node', args, { stdio: 'inherit' });
+  const r = spawnSync(process.execPath, args, { stdio: 'inherit' }); // process.execPath = mesmo node (cron tem PATH mínimo)
   if (r.status === 0) ok++; else { falhas++; console.log(`⚠️ ${f.fonte} saiu com código ${r.status}`); }
   spawnSync('sleep', [String(pausa)]);
 }
