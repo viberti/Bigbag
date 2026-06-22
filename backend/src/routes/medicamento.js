@@ -27,11 +27,28 @@ const inFarmacias = '(' + FARMACIAS.map(() => '?').join(',') + ')';
 const eanLimpo = (e) => { const d = String(e || '').replace(/\D/g, ''); return d.length >= 12 && d.length <= 14 ? d : null; };
 // Registo ANVISA: 13 dígitos → "1.YYYY.WWWW.XXX-Z" (produto = 9 primeiros; apresentação = XXX).
 const fmtRegistro = (s) => { const d = String(s || '').replace(/\D/g, ''); return d.length === 13 ? `${d[0]}.${d.slice(1, 5)}.${d.slice(5, 9)}.${d.slice(9, 12)}-${d[12]}` : (s || null); };
-// Placeholder genérico das farmácias (ex.: "Tarja Vermelha", "rotulo_pp_generico") — a evitar.
-const imgPlaceholder = (u) => !u || /generic|tarja|sem.?imagem|sem.?foto|rotulo|placeholder|default|no.?image|indispon/i.test(String(u));
-// Melhor imagem entre as ofertas de um EAN: só FOTO REAL (null se todas forem
-// placeholder genérico — preferível a mostrar uma "Tarja Vermelha" repetida).
-const melhorImagem = (ofertas) => ofertas.find((o) => !imgPlaceholder(o.imagem_url))?.imagem_url || null;
+// Nome de ficheiro da imagem (último segmento, sem query), minúsculo.
+const fnameImg = (u) => { const s = String(u || '').split('?')[0]; const f = s.slice(s.lastIndexOf('/') + 1); try { return decodeURIComponent(f).toLowerCase(); } catch { return f.toLowerCase(); } };
+// Placeholder por PALAVRA-CHAVE no URL (rápido; apanha os óbvios).
+const imgPlaceholderUrl = (u) => !u || /generic|tarja|sem.?imagem|sem.?foto|sem_imagem|rotulo|placeholder|default|no.?image|indispon|controlad|rx.?n[aã]o|medicamento\.jpg|de.?refer[eê]ncia|comprimido_vermelha|consulte/i.test(String(u));
+// Placeholders por FREQUÊNCIA: um ficheiro reutilizado em ≥15 EANs é genérico de farmácia
+// (apanha os que não têm palavra-chave, ex.: "medicamento.jpg.jpg", "rx-nao-controlado.jpg").
+// Calculado 1× e cacheado 6h (as colheitas mudam as imagens devagar).
+let _ph = null, _phAt = 0;
+async function placeholders(pool) {
+  if (_ph && Date.now() - _phAt < 6 * 3600 * 1000) return _ph;
+  try {
+    const [rows] = await pool.query(
+      `SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(imagem_url, '?', 1), '/', -1) f, COUNT(DISTINCT ean) n
+         FROM catalogo_produto WHERE imagem_url IS NOT NULL AND imagem_url <> '' AND fonte IN ${inFarmacias}
+        GROUP BY f HAVING n >= 15`, FARMACIAS);
+    _ph = new Set(rows.map((r) => String(r.f).toLowerCase())); _phAt = Date.now();
+  } catch { _ph = _ph || new Set(); }
+  return _ph;
+}
+const ehPlaceholder = (u, ph) => imgPlaceholderUrl(u) || (!!ph && ph.has(fnameImg(u)));
+// Melhor imagem entre as ofertas de um EAN: só FOTO REAL (null se todas forem placeholder).
+const melhorImagem = (ofertas, ph) => ofertas.find((o) => !ehPlaceholder(o.imagem_url, ph))?.imagem_url || null;
 
 // Ofertas (farmácias) para um EAN, da mais barata para a mais cara.
 async function ofertasDoEan(pool, ean) {
@@ -48,16 +65,16 @@ async function ofertasDoEan(pool, ean) {
 // Foto do PRODUTO via registro ANVISA: quando o EAN consultado só tem placeholders,
 // procura uma foto REAL entre os EANs IRMÃOS do mesmo produto-registo (LEFT 9) + forma
 // — a caixa é a mesma; muda só o tamanho/código. Resolve o caso dos injetáveis de tarja.
-async function imagemDoProduto(pool, med) {
+async function imagemDoProduto(pool, med, ph) {
   const reg = String(med.registro || '');
   if (reg.length < 13) return null;
   const [rows] = await pool.query(
     `SELECT cp.imagem_url FROM catalogo_produto cp JOIN medicamento m ON m.ean = cp.ean
       WHERE LEFT(m.registro, 9) = ? AND m.forma <=> ? AND cp.imagem_url IS NOT NULL
-        AND cp.imagem_url <> '' AND cp.fonte IN ${inFarmacias} LIMIT 40`,
+        AND cp.imagem_url <> '' AND cp.fonte IN ${inFarmacias} LIMIT 60`,
     [reg.slice(0, 9), med.forma, ...FARMACIAS],
   );
-  return rows.map((r) => r.imagem_url).find((u) => !imgPlaceholder(u)) || null;
+  return rows.map((r) => r.imagem_url).find((u) => !ehPlaceholder(u, ph)) || null;
 }
 
 // Equivalentes terapêuticos (mesmo princípio ativo + força + forma) QUE TÊM oferta,
@@ -97,6 +114,7 @@ medicamentoRouter.get('/info', async (req, res) => {
     med.pf_por_icms = parseJsonCol(med.pf_por_icms);
 
     const ofertas = await ofertasDoEan(pool, ean);
+    const ph = await placeholders(pool); // conjunto de imagens-placeholder (por frequência)
     const melhor = ofertas[0] || null;
     const pmc = med.pmc_18 == null ? null : Number(med.pmc_18);
     const comparacao = melhor && pmc != null ? {
@@ -117,7 +135,7 @@ medicamentoRouter.get('/info', async (req, res) => {
         registro: med.registro || null, registro_fmt: fmtRegistro(med.registro), cmed_versao: med.cmed_versao,
       },
       tetos: { pf: med.pf == null ? null : Number(med.pf), pmc_18: pmc, pmc_por_icms: med.pmc_por_icms },
-      imagem: melhorImagem(ofertas) || await imagemDoProduto(pool, med),
+      imagem: (() => melhorImagem(ofertas, ph))() || await imagemDoProduto(pool, med, ph),
       ofertas, melhor, comparacao, equivalentes, mais_barato_equivalente: maisBaratoEquivalente,
     });
   } catch (e) { console.error('[medicamento/info]', e); res.status(500).json({ erro: 'erro interno' }); }
