@@ -15,6 +15,7 @@
   { "fonte": "farmagora", "host": "www.farmagora.com.br", "cats": "1", "nota": "VTEX, EAN — Farmagora" },
   { "fonte": "precopopular", "host": "www.precopopular.com.br", "cats": "1", "nota": "VTEX, EAN — Preço Popular" },
   { "fonte": "drogasil", "host": "www.drogasil.com.br", "motor": "raiadrogasil", "nota": "RaiaDrogasil (gigante, líder de mercado) — NÃO-VTEX; colhe por EAN via JSON-LD (scripts/harvest_raiadrogasil.mjs)" },
+  { "fonte": "drogaraia", "host": "www.drogaraia.com.br", "motor": "raiadrogasil", "nota": "Droga Raia — mesma plataforma RD que drogasil (preços podem coincidir); JSON-LD por EAN" },
   { "fonte": "pacheco", "host": "www.drogariaspacheco.com.br", "motor": "vtex", "geo": "BR", "cats": "800", "nota": "DPSP Pacheco — VTEX, mas CloudFront GEO-bloqueia fora do BR → colher com --proxy (PROXY_URL saída BR)." },
   { "fonte": "drogariasaopaulo", "host": "www.drogariasaopaulo.com.br", "motor": "vtex", "geo": "BR", "cats": "800", "nota": "DPSP Drogaria São Paulo — VTEX, geo-bloqueada → --proxy." }
 ]
