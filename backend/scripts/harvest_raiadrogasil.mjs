@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { getPool, closePool } from '../src/db.js';
 import { tituloProduto } from '../src/normaliza/titulo.js';
+import { aplicarProxy } from '../src/rede.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const H = { 'user-agent': UA, accept: 'text/html,application/xhtml+xml,*/*', 'accept-language': 'pt-BR,pt;q=0.9' };
@@ -91,6 +92,7 @@ async function main() {
   const fonte = arg('fonte', 'drogasil');
   const limite = Number(arg('limite', '200'));
   const atualizar = args.includes('--atualizar');
+  if (args.includes('--proxy')) aplicarProxy();
 
   const pool = getPool();
   const lista = await alvos(pool, { limite, atualizar });

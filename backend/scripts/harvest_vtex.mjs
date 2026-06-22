@@ -22,6 +22,7 @@
 import { getPool, closePool } from '../src/db.js';
 import { extrairFormato, precoPorBase } from '../src/normaliza/formato.js';
 import { tituloProduto } from '../src/normaliza/titulo.js';
+import { aplicarProxy } from '../src/rede.js';
 
 const UA = 'Mozilla/5.0 (compatible; BigBag-catalog-probe/1.0)';
 const DELAY = Number(process.env.DELAY || 150);
@@ -160,7 +161,8 @@ async function harvest(host, fonte, rootIds) {
 async function main() {
   const args = process.argv.slice(2);
   const a = args[0];
-  if (!a) { console.log('uso: harvest_vtex.mjs <host> [fonte] [--cats=id1,id2,…]  |  --detect host1,host2,…'); process.exit(1); }
+  if (!a) { console.log('uso: harvest_vtex.mjs <host> [fonte] [--cats=id1,id2,…] [--proxy]  |  --detect host1,host2,… [--proxy]'); process.exit(1); }
+  if (args.includes('--proxy')) aplicarProxy(); // fontes geo-bloqueadas (ex.: DPSP) → saída BR
   if (a === '--detect') { await detectar((args[1] || '').split(',')); process.exit(0); }
   const catsArg = args.find((x) => x.startsWith('--cats='));
   const rootIds = catsArg ? new Set(catsArg.slice(7).split(',').map(Number).filter(Boolean)) : null;
