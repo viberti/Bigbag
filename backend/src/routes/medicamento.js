@@ -111,7 +111,7 @@ medicamentoRouter.get('/info', async (req, res) => {
     res.json({
       ean, identidade: {
         produto: med.produto, substancia: med.substancia, apresentacao: med.apresentacao,
-        laboratorio: med.laboratorio, tipo: med.tipo, generico: !!med.generico, tarja: med.tarja,
+        laboratorio: med.laboratorio, tipo: med.categoria_anvisa || med.tipo, generico: !!med.generico, tarja: med.tarja,
         classe_terapeutica: med.classe_terapeutica, dosagem: med.dosagem, forma: med.forma,
         qtd_embalagem: med.qtd_embalagem, restricao_hospitalar: !!med.restricao_hospitalar,
         registro: med.registro || null, registro_fmt: fmtRegistro(med.registro), cmed_versao: med.cmed_versao,
