@@ -1910,6 +1910,7 @@ function FichaRemedio({ info, abrir }) {
   const m = info.melhor, cmp = info.comparacao;
   return (
     <div className="med-ficha">
+      {info.imagem && <div className="med-img"><img src={info.imagem} alt={id.produto || 'remédio'} loading="lazy" onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }} /></div>}
       <div className="med-head">
         <div className="med-htop">
           <span className="med-htt">{id.produto}</span>
