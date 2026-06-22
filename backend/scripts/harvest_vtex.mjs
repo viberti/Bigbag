@@ -115,17 +115,45 @@ async function harvest(host, fonte, rootIds) {
     }
   }
   console.log(`[vtex:${fonte}] produtos:${prods.size} | linhas c/ EAN:${comEan} (${comImg} c/ imagem). A gravar…`);
-  await pool.query('DELETE FROM catalogo_produto WHERE fonte = ?', [fonte]);
+  // GUARD: 0 linhas = host bloqueado/mudou → NÃO apagar os dados bons (o DELETE+INSERT só
+  // substitui quando a colheita trouxe algo). Crítico no cron (re-colheitas automáticas).
+  if (!vals.length) { console.log(`⚠️ [vtex:${fonte}] 0 linhas c/ EAN — ABORTADO, dados existentes MANTIDOS (host bloqueado/mudou?).`); await closePool(); return; }
+  // preços atuais p/ detetar MUDANÇA (histórico só quando o preço muda ou é sku novo).
+  const [cur] = await pool.query('SELECT sku_fonte, preco FROM catalogo_produto WHERE fonte = ?', [fonte]);
+  const precoAtual = new Map(cur.map((r) => [r.sku_fonte, r.preco == null ? null : Number(r.preco)]));
+  const hist = []; // índices em `vals`: sku=1, ean=2, preco=14, moeda=15, ppb=16
+  for (const v of vals) {
+    const preco = v[14]; if (preco == null) continue;
+    const ant = precoAtual.has(v[1]) ? precoAtual.get(v[1]) : undefined;
+    if (ant === undefined || ant === null || Number(ant) !== Number(preco)) hist.push([fonte, v[1], v[2], preco, v[15], v[16]]);
+  }
+  // UPSERT — NUNCA apaga. Novos entram; existentes atualizam os campos do CATÁLOGO (nome/marca/
+  // categoria/imagem/url/preço) + scraped_at. Os campos ENRIQUECIDOS (nutrição, product_type,
+  // nome_pt, vetor_em…) NÃO estão no INSERT → são PRESERVADOS. Produtos que saíram da loja ficam.
   for (let i = 0; i < vals.length; i += 500) {
     await pool.query(
       `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, marca, categoria_path, categoria, cat_n1, cat_n2, cat_n3, cat_n4,
          formato, unidade_base, formato_valor, preco, moeda, preco_por_base, url, imagem_url, scraped_at)
-       VALUES ` + vals.slice(i, i + 500).map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())').join(','),
+       VALUES ` + vals.slice(i, i + 500).map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())').join(',') +
+      ` ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome=VALUES(nome), marca=VALUES(marca),
+         categoria_path=VALUES(categoria_path), categoria=VALUES(categoria), cat_n1=VALUES(cat_n1),
+         cat_n2=VALUES(cat_n2), cat_n3=VALUES(cat_n3), cat_n4=VALUES(cat_n4), formato=VALUES(formato),
+         unidade_base=VALUES(unidade_base), formato_valor=VALUES(formato_valor), preco=VALUES(preco),
+         moeda=VALUES(moeda), preco_por_base=VALUES(preco_por_base), url=VALUES(url),
+         imagem_url=VALUES(imagem_url), scraped_at=NOW()`,
       vals.slice(i, i + 500).flat(),
     );
   }
+  // histórico de preço (append-only): só as mudanças/novos (o anterior não se perde).
+  for (let i = 0; i < hist.length; i += 500) {
+    await pool.query(
+      `INSERT INTO catalogo_preco_hist (fonte, sku_fonte, ean, preco, moeda, preco_por_base, visto_em)
+       VALUES ` + hist.slice(i, i + 500).map(() => '(?,?,?,?,?,?,NOW())').join(','),
+      hist.slice(i, i + 500).flat(),
+    );
+  }
   const [[c]] = await pool.query('SELECT COUNT(*) n, COUNT(DISTINCT ean) eans FROM catalogo_produto WHERE fonte = ?', [fonte]);
-  console.log(`✅ [vtex:${fonte}] no catálogo: ${c.n} linhas | ${c.eans} EANs distintos.`);
+  console.log(`✅ [vtex:${fonte}] catálogo: ${c.n} linhas | ${c.eans} EANs | preços mudados/novos: +${hist.length} no histórico.`);
   await closePool();
 }
 
