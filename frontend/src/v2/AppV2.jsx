@@ -1917,6 +1917,7 @@ function FichaRemedio({ info, abrir }) {
         </div>
         {id.substancia && <div className="med-hsub">{id.substancia}</div>}
         <div className="med-hap">{[id.apresentacao, id.laboratorio].filter(Boolean).join(' · ')}</div>
+        {id.registro_fmt && <div className="med-hreg">Registro ANVISA {id.registro_fmt}</div>}
       </div>
 
       {m ? (

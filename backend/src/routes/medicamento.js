@@ -25,6 +25,8 @@ const FARMACIAS = JSON.parse(readFileSync(new URL('../../scripts/fontes_farmacia
 const inFarmacias = '(' + FARMACIAS.map(() => '?').join(',') + ')';
 
 const eanLimpo = (e) => { const d = String(e || '').replace(/\D/g, ''); return d.length >= 12 && d.length <= 14 ? d : null; };
+// Registo ANVISA: 13 dígitos → "1.YYYY.WWWW.XXX-Z" (produto = 9 primeiros; apresentação = XXX).
+const fmtRegistro = (s) => { const d = String(s || '').replace(/\D/g, ''); return d.length === 13 ? `${d[0]}.${d.slice(1, 5)}.${d.slice(5, 9)}.${d.slice(9, 12)}-${d[12]}` : (s || null); };
 
 // Ofertas (farmácias) para um EAN, da mais barata para a mais cara.
 async function ofertasDoEan(pool, ean) {
@@ -92,7 +94,7 @@ medicamentoRouter.get('/info', async (req, res) => {
         laboratorio: med.laboratorio, tipo: med.tipo, generico: !!med.generico, tarja: med.tarja,
         classe_terapeutica: med.classe_terapeutica, dosagem: med.dosagem, forma: med.forma,
         qtd_embalagem: med.qtd_embalagem, restricao_hospitalar: !!med.restricao_hospitalar,
-        cmed_versao: med.cmed_versao,
+        registro: med.registro || null, registro_fmt: fmtRegistro(med.registro), cmed_versao: med.cmed_versao,
       },
       tetos: { pf: med.pf == null ? null : Number(med.pf), pmc_18: pmc, pmc_por_icms: med.pmc_por_icms },
       ofertas, melhor, comparacao, equivalentes, mais_barato_equivalente: maisBaratoEquivalente,
@@ -122,7 +124,7 @@ medicamentoRouter.get('/buscar', async (req, res) => {
     const toks = q.split(/\s+/).filter(Boolean);
     const expr = toks.map((t, i) => '+' + t.replace(/[+\-><()~*"@]/g, '') + (i === toks.length - 1 ? '*' : '')).join(' ');
     const [rows] = await pool.query(
-      `SELECT m.ean, m.produto, m.substancia, m.laboratorio, m.generico, m.dosagem, m.forma, m.qtd_embalagem,
+      `SELECT m.ean, m.registro, m.produto, m.substancia, m.laboratorio, m.generico, m.dosagem, m.forma, m.qtd_embalagem,
               MIN(cp.preco) menor_preco, COUNT(DISTINCT cp.fonte) n_farmacias
          FROM medicamento m
          JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco IS NOT NULL
@@ -133,12 +135,18 @@ medicamentoRouter.get('/buscar', async (req, res) => {
         LIMIT 150`,
       [...FARMACIAS, expr],
     );
-    // DEDUP: o MESMO remédio aparece com vários EANs (tamanhos de embalagem) → uma só
-    // entrada por (produto+dosagem+forma). Representante = melhor PREÇO POR DOSE (R$/un),
-    // a comparação justa (um pack pequeno barato não é "mais barato" que um grande).
+    // DEDUP pelo REGISTRO ANVISA — a certeza oficial. O nº tem a forma 1.YYYY.WWWW.XXX-Z:
+    // os 9 primeiros dígitos = o PRODUTO registado, os 3 seguintes = a apresentação (pack).
+    // Logo o MESMO remédio (vários tamanhos de embalagem) partilha LEFT(registro,9). Junta-se
+    // +dosagem+forma porque um produto-registo pode cobrir várias forças (50/100 mg) → mantê-las
+    // separadas. Representante = melhor PREÇO POR DOSE (R$/un — comparação justa entre tamanhos).
+    const reg9 = (s) => (s && String(s).length >= 13 ? String(s).slice(0, 9) : null);
     const grupos = new Map();
     for (const r of rows) {
-      const key = `${String(r.produto || '').toUpperCase().trim()}|${r.dosagem || ''}|${r.forma || ''}`;
+      const p9 = reg9(r.registro);
+      const key = p9
+        ? `R:${p9}|${r.dosagem || ''}|${r.forma || ''}`
+        : `N:${String(r.produto || '').toUpperCase().trim()}|${r.dosagem || ''}|${r.forma || ''}`; // sem registro → cai no match por nome
       const ppd = precoPorDose(r.menor_preco, r.qtd_embalagem);
       const ex = grupos.get(key);
       if (!ex) { grupos.set(key, { ...r, ppd, nf: r.n_farmacias }); continue; }
