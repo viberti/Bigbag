@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
-import AppV2 from './v2/AppV2.jsx';
+import AppV2, { RemediosApp } from './v2/AppV2.jsx';
 import Admin from './Admin.jsx';
 import Dashboard from './Dashboard.jsx';
 import Explorar from './Explorar.jsx';
@@ -25,6 +25,7 @@ if (caminho === '/callback') {
   const Pagina = caminho === '/admin' ? Admin
     : caminho === '/dash' ? Dashboard
     : caminho === '/explorar' ? Explorar
+    : caminho === '/remedios' ? RemediosApp // utilidade pública, sem login
     : caminho === '/diag' ? DiagScanner
     : caminho === '/v1' ? App
     : AppV2;

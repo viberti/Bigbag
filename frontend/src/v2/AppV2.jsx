@@ -127,6 +127,14 @@ export default function AppV2() {
   return <Shell nome={nome} onSair={sair} pais={sessao.user?.pais || 'PT'} />;
 }
 
+// Superfície PÚBLICA "BigBag Remédios" (rota /remedios) — utilidade pública, SEM
+// login: qualquer pessoa consulta o preço de um remédio nas farmácias do Brasil.
+// Reusa a tela Remedios (standalone); os endpoints /api/medicamento/* são públicos.
+export function RemediosApp() {
+  useEffect(() => { setMoeda('BRL'); }, []); // BR → preços em R$
+  return <div className="v2 v2-rx"><Motif /><Remedios standalone /></div>;
+}
+
 // Autenticado no IdP mas o email não está na allowlist do BigBag (camada 2).
 function SemAcesso({ onSair }) {
   return (
@@ -264,7 +272,7 @@ function Shell({ nome, onSair, pais }) {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
     notas: Notas, gastos: Gastos, gastoscat: GastosCat, ficha: Ficha, comparar: Comparar,
     texto: Texto, despensa: Despensa, recibo: Recibo, receitas: Receitas, perfilsaude: PerfilSaude,
-    scanner: Scanner, voz: Voz, remedios: Remedios,
+    scanner: Scanner, voz: Voz,
   }[view.id] || Home;
   return (
     <div className="v2"><Motif />
@@ -301,7 +309,6 @@ function Home({ go, user, abrirConta }) {
         <div className="quick">
           {[['recipe', 'Receitas', () => go('receitas'), 'var(--coral)'],
             ['compare', 'Comparar', () => go('comparar'), undefined],
-            ['heart', 'Remédios', () => go('remedios'), '#2f9e8f'],
             ['talao', 'Despensa', () => go('despensa'), 'var(--amber-d)'],
             ['chart', 'Gastos', () => go('gastos'), '#3b86c4']].map(([ic, lb, on, col]) => (
             <button key={lb} className="round-act" onClick={on}>
@@ -1825,7 +1832,7 @@ const FARM_NOME = {
 };
 const nomeFarm = (f) => FARM_NOME[f] || (f ? f.charAt(0).toUpperCase() + f.slice(1) : '—');
 
-function Remedios({ go, back }) {
+function Remedios({ back, standalone }) {
   const [q, setQ] = useState('');
   const [sug, setSug] = useState([]);
   const [info, setInfo] = useState(null);
@@ -1863,7 +1870,9 @@ function Remedios({ go, back }) {
 
   return (
     <>
-      <Ctop title="Consultar remédio" sub="preço nas farmácias" back onBack={back} />
+      {standalone
+        ? <header className="rx-top"><span className="rx-mk"><Mk size={30} /></span><div className="rx-tt"><span><b>BigBag</b> Remédios</span><span className="rx-sub">compare o preço nas farmácias do Brasil</span></div></header>
+        : <Ctop title="Consultar remédio" sub="preço nas farmácias" back onBack={back} />}
       <div className="scrollarea">
         <div className="med-search">
           <span className="med-si"><Ico name="search" size={18} stroke={2.2} /></span>
@@ -1882,7 +1891,7 @@ function Remedios({ go, back }) {
               <button key={s.ean} className="med-row" onClick={() => abrir(s.ean)}>
                 <div className="med-rt">{s.produto}{s.generico ? <span className="med-gen">genérico</span> : null}</div>
                 <div className="med-rs">{[s.substancia, s.dosagem, s.n_farmacias ? `${s.n_farmacias} farmácia${s.n_farmacias > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')}</div>
-                <div className="med-rp">{fmtPreco(s.menor_preco, 'BRL')}</div>
+                <div className="med-rp">{fmtPreco(s.menor_preco, 'BRL')}{s.preco_por_dose != null && <span className="med-rpd">{fmtPreco(s.preco_por_dose, 'BRL')}/un</span>}</div>
               </button>
             ))}
           </div>

@@ -12,7 +12,6 @@
 // NÃO é aconselhamento médico — só informação e preço (igual ao módulo de saúde).
 import { Router } from 'express';
 import { readFileSync } from 'node:fs';
-import { requireAuth } from '../auth.js';
 import { getPool, parseJsonCol } from '../db.js';
 import { precoPorDose } from '../normaliza/medicamento.js';
 
@@ -63,7 +62,9 @@ async function equivalentesComOferta(pool, med) {
 }
 
 // GET /api/medicamento/info?ean=  → ficha + ofertas + comparação + equivalentes.
-medicamentoRouter.get('/info', requireAuth, async (req, res) => {
+// PÚBLICO (utilidade pública, sem login): só preço e informação de medicamentos —
+// dados públicos, sem PII nem nada por-utilizador. Serve a superfície /remedios.
+medicamentoRouter.get('/info', async (req, res) => {
   try {
     const ean = eanLimpo(req.query.ean);
     if (!ean) return res.status(400).json({ erro: 'EAN inválido' });
@@ -100,7 +101,7 @@ medicamentoRouter.get('/info', requireAuth, async (req, res) => {
 });
 
 // GET /api/medicamento/equivalentes?ean=  → só a lista de equivalentes (genérico vs referência).
-medicamentoRouter.get('/equivalentes', requireAuth, async (req, res) => {
+medicamentoRouter.get('/equivalentes', async (req, res) => {
   try {
     const ean = eanLimpo(req.query.ean);
     if (!ean) return res.status(400).json({ erro: 'EAN inválido' });
@@ -112,7 +113,7 @@ medicamentoRouter.get('/equivalentes', requireAuth, async (req, res) => {
 });
 
 // GET /api/medicamento/buscar?q=  → busca por nome/substância (FULLTEXT), só com oferta.
-medicamentoRouter.get('/buscar', requireAuth, async (req, res) => {
+medicamentoRouter.get('/buscar', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
     if (q.length < 3) return res.json({ q, resultados: [] });
@@ -129,16 +130,33 @@ medicamentoRouter.get('/buscar', requireAuth, async (req, res) => {
         WHERE MATCH(m.produto, m.substancia) AGAINST (? IN BOOLEAN MODE)
         GROUP BY m.ean
         ORDER BY n_farmacias DESC, menor_preco ASC
-        LIMIT 40`,
+        LIMIT 150`,
       [...FARMACIAS, expr],
     );
-    res.json({
-      q, resultados: rows.map((r) => ({
+    // DEDUP: o MESMO remédio aparece com vários EANs (tamanhos de embalagem) → uma só
+    // entrada por (produto+dosagem+forma). Representante = melhor PREÇO POR DOSE (R$/un),
+    // a comparação justa (um pack pequeno barato não é "mais barato" que um grande).
+    const grupos = new Map();
+    for (const r of rows) {
+      const key = `${String(r.produto || '').toUpperCase().trim()}|${r.dosagem || ''}|${r.forma || ''}`;
+      const ppd = precoPorDose(r.menor_preco, r.qtd_embalagem);
+      const ex = grupos.get(key);
+      if (!ex) { grupos.set(key, { ...r, ppd, nf: r.n_farmacias }); continue; }
+      ex.nf = Math.max(ex.nf, r.n_farmacias);
+      const melhor = ppd != null && ex.ppd != null ? ppd < ex.ppd
+        : ppd != null && ex.ppd == null ? true
+          : Number(r.menor_preco) < Number(ex.menor_preco);
+      if (melhor) grupos.set(key, { ...r, ppd, nf: ex.nf });
+    }
+    const resultados = [...grupos.values()]
+      .sort((a, b) => b.nf - a.nf || Number(a.menor_preco) - Number(b.menor_preco))
+      .slice(0, 30)
+      .map((r) => ({
         ean: r.ean, produto: r.produto, substancia: r.substancia, laboratorio: r.laboratorio,
-        generico: !!r.generico, dosagem: r.dosagem, forma: r.forma,
+        generico: !!r.generico, dosagem: r.dosagem, forma: r.forma, qtd_embalagem: r.qtd_embalagem,
         menor_preco: r.menor_preco == null ? null : Number(r.menor_preco),
-        preco_por_dose: precoPorDose(r.menor_preco, r.qtd_embalagem), n_farmacias: r.n_farmacias,
-      })),
-    });
+        preco_por_dose: r.ppd, n_farmacias: r.nf,
+      }));
+    res.json({ q, resultados });
   } catch (e) { console.error('[medicamento/buscar]', e); res.status(500).json({ erro: 'erro interno' }); }
 });
