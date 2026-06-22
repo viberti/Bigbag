@@ -9,6 +9,11 @@
   { "fonte": "drogariarosario", "host": "www.drogariarosario.com.br", "cats": "1", "nota": "VTEX, EAN — Rosário (DF/Centro-Oeste)" },
   { "fonte": "farmaciaindiana", "host": "www.farmaciaindiana.com.br", "cats": "11", "nota": "VTEX, EAN — Indiana (MG)" },
   { "fonte": "catarinense", "host": "www.drogariacatarinense.com.br", "cats": "1", "nota": "VTEX, EAN — Drogaria Catarinense (SC)" },
+  { "fonte": "farmais", "host": "www.farmais.com.br", "cats": "1", "nota": "VTEX, EAN — Farmais (franquia nacional)" },
+  { "fonte": "farmaconde", "host": "www.farmaconde.com.br", "cats": "7", "nota": "VTEX, EAN — Farma Conde (SP)" },
+  { "fonte": "drogariamoderna", "host": "www.drogariamoderna.com.br", "cats": "5", "nota": "VTEX, EAN — Drogaria Moderna" },
+  { "fonte": "farmagora", "host": "www.farmagora.com.br", "cats": "1", "nota": "VTEX, EAN — Farmagora" },
+  { "fonte": "precopopular", "host": "www.precopopular.com.br", "cats": "1", "nota": "VTEX, EAN — Preço Popular" },
   { "fonte": "drogasil", "host": "www.drogasil.com.br", "motor": "raiadrogasil", "nota": "RaiaDrogasil (gigante, líder de mercado) — NÃO-VTEX; colhe por EAN via JSON-LD (scripts/harvest_raiadrogasil.mjs)" },
   { "fonte": "pacheco", "host": "www.drogariaspacheco.com.br", "motor": "vtex", "geo": "BR", "nota": "DPSP Pacheco — VTEX, mas CloudFront GEO-bloqueia fora do BR → colher com --proxy (PROXY_URL saída BR). cats a confirmar." },
   { "fonte": "drogariasaopaulo", "host": "www.drogariasaopaulo.com.br", "motor": "vtex", "geo": "BR", "nota": "DPSP Drogaria São Paulo — VTEX, geo-bloqueada → --proxy. cats a confirmar." }
