@@ -53,6 +53,7 @@ Objetivo do dono (2026-06-14): um serviço de autenticação **próprio, reutili
 ## Google login — FEITO (2026-06-15)
 - **Google Cloud:** OAuth client (Web), redirect URI = **Login V1** `https://auth.hal9klabs.com/ui/login/login/externalidp/callback` (NÃO o V2 `…/idps/callback` — usamos a login legacy). Consent screen em Testing → emails como **Test users**. Client ID `467921416677-…apps.googleusercontent.com`.
 - **Zitadel:** IdP Google na **org BigBag** (id `377532243414876163`), **Activate** liga-o à política de login (botão "Sign in with Google"). Segredo só no Console (nunca no chat/git). PAT do `bigbag-iac` gere a ORG via Management API (`/management/v1/...`) mas **não a instância** (`/admin/v1` dá "No matching permissions").
+- **LIÇÃO — login policy é da ORG PARTILHADA (2026-06-22):** o BigBag usa a login HOSPEDADA, que mostra TODOS os IdP ligados à login policy da org. Só o IdP do BigBag deve estar ligado. O Noteca tem Google PRÓPRIO (`378093835420434435`); quando foi ligado à mesma policy apareceu um **2.º botão Google** no login do BigBag. Corrigido com `DELETE /management/v1/policies/login/idps/378093835420434435` (desliga da policy, NÃO apaga o IdP). O Noteca usa login próprio (idp_intent por ID) → não precisa da policy. **Manter o IdP do Noteca fora da login policy.** Listar os ligados: `POST /management/v1/policies/login/idps/_search`.
 - **Bug destravado:** `auth.js` deixou de mandar `WWW-Authenticate: Basic` no 401 — o browser abria o diálogo nativo de Basic e tapava o ecrã de login OIDC.
 
 ## Falta / próximos
