@@ -29,8 +29,9 @@ const eanLimpo = (e) => { const d = String(e || '').replace(/\D/g, ''); return d
 const fmtRegistro = (s) => { const d = String(s || '').replace(/\D/g, ''); return d.length === 13 ? `${d[0]}.${d.slice(1, 5)}.${d.slice(5, 9)}.${d.slice(9, 12)}-${d[12]}` : (s || null); };
 // Placeholder genérico das farmácias (ex.: "Tarja Vermelha", "rotulo_pp_generico") — a evitar.
 const imgPlaceholder = (u) => !u || /generic|tarja|sem.?imagem|sem.?foto|rotulo|placeholder|default|no.?image|indispon/i.test(String(u));
-// Melhor imagem entre as ofertas de um EAN: preferir foto REAL a placeholder.
-const melhorImagem = (ofertas) => ofertas.find((o) => !imgPlaceholder(o.imagem_url))?.imagem_url || ofertas.find((o) => o.imagem_url)?.imagem_url || null;
+// Melhor imagem entre as ofertas de um EAN: só FOTO REAL (null se todas forem
+// placeholder genérico — preferível a mostrar uma "Tarja Vermelha" repetida).
+const melhorImagem = (ofertas) => ofertas.find((o) => !imgPlaceholder(o.imagem_url))?.imagem_url || null;
 
 // Ofertas (farmácias) para um EAN, da mais barata para a mais cara.
 async function ofertasDoEan(pool, ean) {
