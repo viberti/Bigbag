@@ -45,6 +45,21 @@ async function ofertasDoEan(pool, ean) {
   return rows.map((r) => ({ ...r, preco: Number(r.preco) }));
 }
 
+// Foto do PRODUTO via registro ANVISA: quando o EAN consultado só tem placeholders,
+// procura uma foto REAL entre os EANs IRMÃOS do mesmo produto-registo (LEFT 9) + forma
+// — a caixa é a mesma; muda só o tamanho/código. Resolve o caso dos injetáveis de tarja.
+async function imagemDoProduto(pool, med) {
+  const reg = String(med.registro || '');
+  if (reg.length < 13) return null;
+  const [rows] = await pool.query(
+    `SELECT cp.imagem_url FROM catalogo_produto cp JOIN medicamento m ON m.ean = cp.ean
+      WHERE LEFT(m.registro, 9) = ? AND m.forma <=> ? AND cp.imagem_url IS NOT NULL
+        AND cp.imagem_url <> '' AND cp.fonte IN ${inFarmacias} LIMIT 40`,
+    [reg.slice(0, 9), med.forma, ...FARMACIAS],
+  );
+  return rows.map((r) => r.imagem_url).find((u) => !imgPlaceholder(u)) || null;
+}
+
 // Equivalentes terapêuticos (mesmo princípio ativo + força + forma) QUE TÊM oferta,
 // com o menor preço e o preço por dose. O remédio `ean` de referência fica marcado.
 async function equivalentesComOferta(pool, med) {
@@ -102,7 +117,7 @@ medicamentoRouter.get('/info', async (req, res) => {
         registro: med.registro || null, registro_fmt: fmtRegistro(med.registro), cmed_versao: med.cmed_versao,
       },
       tetos: { pf: med.pf == null ? null : Number(med.pf), pmc_18: pmc, pmc_por_icms: med.pmc_por_icms },
-      imagem: melhorImagem(ofertas),
+      imagem: melhorImagem(ofertas) || await imagemDoProduto(pool, med),
       ofertas, melhor, comparacao, equivalentes, mais_barato_equivalente: maisBaratoEquivalente,
     });
   } catch (e) { console.error('[medicamento/info]', e); res.status(500).json({ erro: 'erro interno' }); }
