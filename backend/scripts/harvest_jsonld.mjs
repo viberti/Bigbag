@@ -50,15 +50,14 @@ async function enumerar(host, sitemapArg, max) {
       for (const s of (prod.length ? prod : subs)) fila.push(s);
     } else {
       for (const u of locs(r.text)) {
-        // heurística de URL de produto; se nenhum casar, aceita tudo (filtra-se no JSON-LD)
-        if (/\/(produto|product|p)\/|\.html?(\?|$)|\/dp\//i.test(u)) urls.add(u);
+        // aceita tudo MENOS páginas claramente não-produto; o JSON-LD filtra o resto
+        // (em Magento/Woo os URLs de produto são "limpos", sem /produto/ nem .html).
+        if (/\/(blog|institucional|sobre|nossas-lojas|lojas|conta|minha-conta|login|checkout|carrinho|sacola|politica|privacidade|termos|contato|fale-conosco|atendimento|ajuda|faq|trabalhe|busca|search)\b/i.test(u)) continue;
+        if (u.replace(/^https?:\/\/[^/]+\/?/, '').length < 2) continue; // a própria home
+        urls.add(u);
         if (urls.size >= max * 4) break;
       }
     }
-  }
-  // se a heurística não apanhou nada, volta a varrer aceitando todas as URLs de página
-  if (!urls.size) {
-    for (const sm of seen) { const r = await get(sm); if (r.status === 200 && !/<sitemapindex/i.test(r.text)) for (const u of locs(r.text)) urls.add(u); if (urls.size >= max * 4) break; }
   }
   return [...urls];
 }
