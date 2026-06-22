@@ -47,8 +47,6 @@ async function placeholders(pool) {
   return _ph;
 }
 const ehPlaceholder = (u, ph) => imgPlaceholderUrl(u) || (!!ph && ph.has(fnameImg(u)));
-// Melhor imagem entre as ofertas de um EAN: só FOTO REAL (null se todas forem placeholder).
-const melhorImagem = (ofertas, ph) => ofertas.find((o) => !ehPlaceholder(o.imagem_url, ph))?.imagem_url || null;
 
 // Ofertas (farmácias) para um EAN, da mais barata para a mais cara.
 async function ofertasDoEan(pool, ean) {
@@ -62,19 +60,30 @@ async function ofertasDoEan(pool, ean) {
   return rows.map((r) => ({ ...r, preco: Number(r.preco) }));
 }
 
-// Foto do PRODUTO via registro ANVISA: quando o EAN consultado só tem placeholders,
-// procura uma foto REAL entre os EANs IRMÃOS do mesmo produto-registo (LEFT 9) + forma
-// — a caixa é a mesma; muda só o tamanho/código. Resolve o caso dos injetáveis de tarja.
-async function imagemDoProduto(pool, med, ph) {
+// Escolhe a MELHOR foto entre TODAS as imagens do produto: o EAN consultado + os EANs
+// IRMÃOS do mesmo registro ANVISA + forma, em todas as farmácias. GARANTE a foto certa
+// por pontuação — ficheiro nomeado pelo EAN (`7898074617612-Fluimucil.jpg`) = foto real
+// daquele produto; depois a imagem do próprio EAN; depois um nome descritivo. Os
+// placeholders (palavra-chave OU reutilizados em ≥15 EANs) são sempre excluídos.
+async function escolherImagem(pool, med, eanConsultado, ph) {
   const reg = String(med.registro || '');
-  if (reg.length < 13) return null;
   const [rows] = await pool.query(
-    `SELECT cp.imagem_url FROM catalogo_produto cp JOIN medicamento m ON m.ean = cp.ean
-      WHERE LEFT(m.registro, 9) = ? AND m.forma <=> ? AND cp.imagem_url IS NOT NULL
-        AND cp.imagem_url <> '' AND cp.fonte IN ${inFarmacias} LIMIT 60`,
-    [reg.slice(0, 9), med.forma, ...FARMACIAS],
+    `SELECT cp.ean, cp.imagem_url url FROM catalogo_produto cp JOIN medicamento m ON m.ean = cp.ean
+      WHERE (cp.ean = ? OR (LENGTH(?) = 13 AND LEFT(m.registro, 9) = ? AND m.forma <=> ?))
+        AND cp.imagem_url IS NOT NULL AND cp.imagem_url <> '' AND cp.fonte IN ${inFarmacias} LIMIT 150`,
+    [eanConsultado, reg, reg.slice(0, 9), med.forma, ...FARMACIAS],
   );
-  return rows.map((r) => r.imagem_url).find((u) => !ehPlaceholder(u, ph)) || null;
+  let best = null, bestScore = 0;
+  for (const r of rows) {
+    if (ehPlaceholder(r.url, ph)) continue;
+    const fn = fnameImg(r.url);
+    const own = String(r.ean) === String(eanConsultado);
+    const temEan = fn.includes(String(r.ean));               // ficheiro nomeado pelo EAN → foto certa
+    const descritivo = fn.replace(/[^a-z]/gi, '').length >= 6; // tem letras (não é só números genéricos)
+    const s = own && temEan ? 5 : own ? 4 : temEan ? 3 : descritivo ? 1 : 0.2;
+    if (s > bestScore) { bestScore = s; best = r.url; }
+  }
+  return best;
 }
 
 // Equivalentes terapêuticos (mesmo princípio ativo + força + forma) QUE TÊM oferta,
@@ -135,7 +144,7 @@ medicamentoRouter.get('/info', async (req, res) => {
         registro: med.registro || null, registro_fmt: fmtRegistro(med.registro), cmed_versao: med.cmed_versao,
       },
       tetos: { pf: med.pf == null ? null : Number(med.pf), pmc_18: pmc, pmc_por_icms: med.pmc_por_icms },
-      imagem: (() => melhorImagem(ofertas, ph))() || await imagemDoProduto(pool, med, ph),
+      imagem: await escolherImagem(pool, med, ean, ph),
       ofertas, melhor, comparacao, equivalentes, mais_barato_equivalente: maisBaratoEquivalente,
     });
   } catch (e) { console.error('[medicamento/info]', e); res.status(500).json({ erro: 'erro interno' }); }
