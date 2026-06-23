@@ -1983,6 +1983,7 @@ function FichaRemedio({ info, abrir }) {
                 <span className="med-of-f">{nomeFarm(o.fonte)}</span>
                 {vivo ? (o.entrega ? <span className="med-of2-sub">+ frete {fmtPreco(o.frete, 'BRL')}{o.prazo ? ` · ${o.prazo}` : ''}</span>
                   : o.retira ? <span className="med-of2-na">só retirada na loja</span> : <span className="med-of2-na">não entrega aqui</span>) : null}
+                {vivo && o.frete_gratis_maiores ? <span className="med-of2-fg">🚚 frete grátis acima de ~{fmtPreco(o.frete_gratis_sub, 'BRL')}</span> : null}
               </div>
               <div className="med-of2-r">
                 {vivo && o.entrega && o.total != null

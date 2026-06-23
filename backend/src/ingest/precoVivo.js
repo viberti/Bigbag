@@ -18,6 +18,25 @@ function proxyDispatcher() {
   return _disp;
 }
 
+// Simula o checkout p/ uma quantidade e devolve a opção de ENTREGA mais barata (ignora
+// retirada). { frete, prazo, retira } — frete null se não houver entrega a este CEP.
+async function simular(host, sku, seller, qty, cep, dispatcher, timeout) {
+  try {
+    const sr = await fetch(`https://${host}/api/checkout/pub/orderForms/simulation?sc=1`, {
+      method: 'POST', headers: { ...H, 'content-type': 'application/json' }, signal: AbortSignal.timeout(timeout), dispatcher,
+      body: JSON.stringify({ items: [{ id: sku, quantity: qty, seller }], postalCode: cep, country: 'BRA' }),
+    });
+    const sim = await sr.json();
+    const slas = (sim && sim.logisticsInfo && sim.logisticsInfo[0] && sim.logisticsInfo[0].slas) || [];
+    const retira = slas.some(ehRetira);
+    const ent = slas.filter((s) => !ehRetira(s))
+      .map((s) => ({ frete: num(s.price) != null ? num(s.price) / 100 : null, prazo: s.shippingEstimate || null }))
+      .filter((s) => s.frete != null && s.frete < 500) // > R$500 = sentinela "não entrega"
+      .sort((a, b) => a.frete - b.frete);
+    return ent.length ? { frete: ent[0].frete, prazo: ent[0].prazo, retira } : { frete: null, prazo: null, retira };
+  } catch { return { frete: null, prazo: null, retira: false }; }
+}
+
 export async function precoVivoVtex(host, ean, cep, { timeout = 4500, proxy = false } = {}) {
   const dispatcher = proxy ? proxyDispatcher() : undefined;
   let it;
@@ -31,21 +50,21 @@ export async function precoVivoVtex(host, ean, cep, { timeout = 4500, proxy = fa
   const seller = (it.sellers && it.sellers[0] && it.sellers[0].sellerId) || '1';
   const preco = num(it.sellers && it.sellers[0] && it.sellers[0].commertialOffer && it.sellers[0].commertialOffer.Price);
 
-  let frete = null, prazo = null, entrega = false, retira = false;
-  try {
-    const sr = await fetch(`https://${host}/api/checkout/pub/orderForms/simulation?sc=1`, {
-      method: 'POST', headers: { ...H, 'content-type': 'application/json' }, signal: AbortSignal.timeout(timeout), dispatcher,
-      body: JSON.stringify({ items: [{ id: sku, quantity: 1, seller }], postalCode: cep, country: 'BRA' }),
-    });
-    const sim = await sr.json();
-    const slas = (sim && sim.logisticsInfo && sim.logisticsInfo[0] && sim.logisticsInfo[0].slas) || [];
-    retira = slas.some(ehRetira);
-    const ent = slas.filter((s) => !ehRetira(s))
-      .map((s) => ({ frete: num(s.price) != null ? num(s.price) / 100 : null, prazo: s.shippingEstimate || null }))
-      .filter((s) => s.frete != null && s.frete < 500) // > R$500 = sentinela "não entrega"
-      .sort((a, b) => a.frete - b.frete);
-    if (ent.length) { frete = ent[0].frete; prazo = ent[0].prazo; entrega = true; }
-  } catch { /* sem frete (mostra só o preço) */ }
+  // Em PARALELO: frete deste 1 item + frete de um carrinho MAIOR (~R$250) p/ detetar
+  // "frete grátis acima de um valor" (política comum). qty limitada (stock).
+  const qtyAlto = preco && preco > 0 ? Math.min(40, Math.max(2, Math.ceil(250 / preco))) : 10;
+  const [s1, sAlto] = await Promise.all([
+    simular(host, sku, seller, 1, cep, dispatcher, timeout),
+    simular(host, sku, seller, qtyAlto, cep, dispatcher, timeout),
+  ]);
+  const subAlto = preco != null ? Math.round(preco * qtyAlto) : null;
+  // frete grátis em pedido maior = a opção de entrega cai a ~0 num carrinho grande.
+  const freteGratisMaiores = sAlto.frete != null && sAlto.frete < 0.5;
 
-  return { existe: true, sku, preco, frete, prazo, entrega, retira, total: preco != null && frete != null ? Math.round((preco + frete) * 100) / 100 : null };
+  return {
+    existe: true, sku, preco,
+    frete: s1.frete, prazo: s1.prazo, entrega: s1.frete != null, retira: s1.retira || sAlto.retira,
+    total: preco != null && s1.frete != null ? Math.round((preco + s1.frete) * 100) / 100 : null,
+    frete_gratis_maiores: freteGratisMaiores, frete_gratis_sub: freteGratisMaiores ? subAlto : null,
+  };
 }
