@@ -38,27 +38,29 @@ export async function monitorarMonitorados({ log = console.log } = {}) {
       const r = await precoEstoqueVtex(f.host, ean, { proxy: !!f.geo, timeout: 9000 }).catch(() => null);
       return { fonte: f.fonte, r };
     }));
+    // colunas: ean, fonte, preco (normal), preco_cond (PBM, quando público), disponivel, qtd_estoque
     const vals = [];
     for (const { fonte, r } of res) {
       if (!r || !r.existe) continue;                  // farmácia não carrega este EAN → sem linha
-      vals.push([ean, fonte, r.preco, r.disponivel ? 1 : 0, r.qtd]);
+      vals.push([ean, fonte, r.preco, null, r.disponivel ? 1 : 0, r.qtd]); // VTEX não expõe PBM
       if (!r.disponivel) esgotados += 1;
     }
-    // Panvel/Nissei (não-VTEX): só preço, sem sinal de estoque (disponivel=NULL = desconhecido).
+    // Panvel/Araújo: preço normal + CONDICIONAL (Desconto do laboratório/PBM) quando público.
+    // Nissei: só normal (o valor do PBM é gated por CPF). Nenhum expõe estoque (disponivel=NULL).
     if (TEM_PANVEL) {
       const pv = await precoPanvelEan(ean).catch(() => null);
-      if (pv && pv.existe && pv.preco != null) vals.push([ean, 'panvel', pv.preco, null, null]);
+      if (pv && pv.existe && pv.preco != null) vals.push([ean, 'panvel', pv.preco, pv.preco_cond, null, null]);
     }
     if (TEM_NISSEI) {
       const ns = await precoNisseiEan(ean).catch(() => null);
-      if (ns && ns.existe && ns.preco != null) vals.push([ean, 'nissei', ns.preco, null, null]);
+      if (ns && ns.existe && ns.preco != null) vals.push([ean, 'nissei', ns.preco, null, null, null]);
     }
     if (TEM_ARAUJO) {
       const ar = await precoAraujoEan(ean).catch(() => null);
-      if (ar && ar.existe && ar.preco != null) vals.push([ean, 'araujo', ar.preco, null, null]);
+      if (ar && ar.existe && ar.preco != null) vals.push([ean, 'araujo', ar.preco, ar.preco_cond, null, null]);
     }
     if (vals.length) {
-      await pool.query('INSERT INTO medicamento_monitor_hist (ean, fonte, preco, disponivel, qtd_estoque) VALUES ?', [vals]);
+      await pool.query('INSERT INTO medicamento_monitor_hist (ean, fonte, preco, preco_cond, disponivel, qtd_estoque) VALUES ?', [vals]);
       linhas += vals.length;
     }
     log(`[monitor] ${produto} ${ean} → ${vals.length} farmácias`);

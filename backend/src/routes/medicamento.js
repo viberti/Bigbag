@@ -408,17 +408,19 @@ medicamentoRouter.get('/monitor', async (req, res) => {
     const dias = Math.min(180, Math.max(1, Number(req.query.dias) || 30));
     const pool = getPool();
     const [rows] = await pool.query(
-      `SELECT fonte, preco, disponivel, capturado_em FROM medicamento_monitor_hist
+      `SELECT fonte, preco, preco_cond, disponivel, capturado_em FROM medicamento_monitor_hist
         WHERE ean = ? AND capturado_em >= (NOW() - INTERVAL ? DAY)
         ORDER BY capturado_em ASC`, [ean, dias]);
     const precos = rows.filter((r) => r.preco != null).map((r) => Number(r.preco));
+    const conds = rows.filter((r) => r.preco_cond != null).map((r) => Number(r.preco_cond));
     res.json({
       ean, dias, pontos: rows.length,
       ultimo: rows.length ? rows[rows.length - 1].capturado_em : null,
       preco_min: precos.length ? Math.min(...precos) : null,
       preco_max: precos.length ? Math.max(...precos) : null,
+      preco_cond_min: conds.length ? Math.min(...conds) : null, // menor com desconto de laboratório (PBM)
       pct_em_estoque: rows.length ? Math.round((rows.filter((r) => r.disponivel).length / rows.length) * 1000) / 10 : null,
-      historico: rows.map((r) => ({ fonte: r.fonte, preco: r.preco == null ? null : Number(r.preco), disponivel: !!r.disponivel, em: r.capturado_em })),
+      historico: rows.map((r) => ({ fonte: r.fonte, preco: r.preco == null ? null : Number(r.preco), preco_cond: r.preco_cond == null ? null : Number(r.preco_cond), disponivel: !!r.disponivel, em: r.capturado_em })),
     });
   } catch (e) { console.error('[medicamento/monitor]', e); res.status(500).json({ erro: 'erro interno' }); }
 });
