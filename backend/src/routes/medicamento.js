@@ -14,6 +14,7 @@ import { Router } from 'express';
 import { readFileSync } from 'node:fs';
 import { getPool, parseJsonCol } from '../db.js';
 import { precoPorDose } from '../normaliza/medicamento.js';
+import { precoVivoVtex } from '../ingest/precoVivo.js';
 
 export const medicamentoRouter = Router();
 
@@ -21,7 +22,8 @@ export const medicamentoRouter = Router();
 // harvester (fonte única) → acrescentar farmácia = editar o JSON + colher, sem mexer
 // aqui. Mantém o foco em "farmácia": evita que um supermercado a vender um OTC entre
 // como oferta.
-const FARMACIAS = JSON.parse(readFileSync(new URL('../../scripts/fontes_farmacia.json', import.meta.url), 'utf8')).map((f) => f.fonte);
+const MANIFESTO = JSON.parse(readFileSync(new URL('../../scripts/fontes_farmacia.json', import.meta.url), 'utf8'));
+const FARMACIAS = MANIFESTO.map((f) => f.fonte);
 const inFarmacias = '(' + FARMACIAS.map(() => '?').join(',') + ')';
 
 const eanLimpo = (e) => { const d = String(e || '').replace(/\D/g, ''); return d.length >= 12 && d.length <= 14 ? d : null; };
@@ -256,4 +258,44 @@ medicamentoRouter.get('/buscar', async (req, res) => {
       .slice(0, 25);
     res.json({ q, resultados });
   } catch (e) { console.error('[medicamento/buscar]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
+
+// GET /api/medicamento/precos-ao-vivo?ean=&cep=  → preço + FRETE AO VIVO de um remédio
+// (só no clique deliberado). Consulta TODAS as farmácias VTEX em paralelo (proxy nas geo),
+// com timeout curto; quem não responde fica com a cache. Debounce 5 min por (ean,cep).
+// Alimenta o histórico: cada mudança de preço entra em catalogo_preco_hist.
+const _vivo = new Map(); // `${ean}|${cep}` → { at, data }
+medicamentoRouter.get('/precos-ao-vivo', async (req, res) => {
+  try {
+    const ean = eanLimpo(req.query.ean);
+    if (!ean) return res.status(400).json({ erro: 'EAN inválido' });
+    const cep = String(req.query.cep || '22241040').replace(/\D/g, '').slice(0, 8) || '22241040';
+    const key = `${ean}|${cep}`;
+    const ja = _vivo.get(key);
+    if (ja && Date.now() - ja.at < 5 * 60 * 1000) return res.json({ ...ja.data, cache_ms: Date.now() - ja.at });
+
+    const vtex = MANIFESTO.filter((f) => (f.motor || 'vtex') === 'vtex');
+    const got = await Promise.allSettled(vtex.map((f) => precoVivoVtex(f.host, ean, cep, { proxy: !!f.geo }).then((r) => (r && r.existe ? { fonte: f.fonte, ...r } : null))));
+    const fontes = got.filter((x) => x.status === 'fulfilled' && x.value).map((x) => x.value)
+      .sort((a, b) => (a.total ?? a.preco ?? 9e9) - (b.total ?? b.preco ?? 9e9));
+
+    // write-back: preço mudou → atualiza catalogo_produto + histórico append-only.
+    const pool = getPool();
+    for (const f of fontes) {
+      if (f.preco == null || !f.sku) continue;
+      try {
+        const [[cur]] = await pool.query('SELECT preco FROM catalogo_produto WHERE fonte=? AND ean=? LIMIT 1', [f.fonte, ean]);
+        const ant = cur && cur.preco != null ? Number(cur.preco) : null;
+        if (ant === null || ant !== Number(f.preco)) {
+          await pool.query('UPDATE catalogo_produto SET preco=?, scraped_at=NOW() WHERE fonte=? AND ean=?', [f.preco, f.fonte, ean]);
+          await pool.query('INSERT INTO catalogo_preco_hist (fonte, sku_fonte, ean, preco, moeda, visto_em) VALUES (?,?,?,?,?,NOW())', [f.fonte, f.sku, ean, f.preco, 'BRL']);
+        }
+      } catch { /* write-back é best-effort */ }
+    }
+    const melhor = fontes.find((f) => f.entrega && f.total != null) || fontes[0] || null;
+    const data = { ean, cep, agora: new Date().toISOString(), fontes, melhor_entrega: melhor };
+    _vivo.set(key, { at: Date.now(), data });
+    if (_vivo.size > 3000) _vivo.clear();
+    res.json(data);
+  } catch (e) { console.error('[medicamento/precos-ao-vivo]', e); res.status(500).json({ erro: 'erro interno' }); }
 });
