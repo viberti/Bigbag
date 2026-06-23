@@ -1,0 +1,48 @@
+// Preço de uma farmácia ARAÚJO (araujo.com.br) por EAN. Grande rede mineira (MG). Não-VTEX,
+// mas SERVER-RENDERED e limpa: a busca `/busca?q=<EAN>` devolve os produtos (com link da PDP
+// `/<slug>/<id>.html`) e a PDP traz um bloco **schema.org Product/Drug VÁLIDO** com
+// `gtin13`+`offers.price`. Fluxo: busca por EAN → 1.º link → PDP → gtin (confirma o EAN) +
+// preço. 2 requests/EAN. Partilhado por harvester + monitor.
+const HOST = 'www.araujo.com.br';
+const H = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', accept: 'text/html,application/xhtml+xml,*/*', 'accept-language': 'pt-BR,pt;q=0.9' };
+const getHtml = async (url, timeout = 14000) => { const r = await fetch(url, { headers: H, redirect: 'follow', signal: AbortSignal.timeout(timeout) }); return { status: r.status, txt: r.status === 200 ? await r.text() : '' }; };
+
+// 1.º bloco JSON-LD cujo @type inclui Product ou Drug.
+function jsonldProduto(html) {
+  for (const m of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const j = JSON.parse(m[1].trim());
+      const arr = Array.isArray(j) ? j : (j['@graph'] || [j]);
+      for (const o of arr) { const ty = [].concat(o['@type'] || ''); if (ty.some((t) => /Product|Drug/i.test(t))) return o; }
+    } catch { /* bloco inválido — ignora */ }
+  }
+  return null;
+}
+
+// { existe, preco, nome, marca, sku, gtin, url, imagem }. `null` = não respondeu;
+// { existe:false } = a Araújo não tem o EAN (ou o 1.º resultado não confirma o gtin).
+export async function precoAraujoEan(ean, { timeout = 14000 } = {}) {
+  const alvo = String(ean).replace(/\D/g, '');
+  let s;
+  try { s = await getHtml(`https://${HOST}/busca?q=${alvo}`, timeout); } catch { return null; }
+  if (s.status !== 200) return s.status >= 500 ? null : { existe: false };
+  const link = [...s.txt.matchAll(/href="(\/[a-z0-9][a-z0-9-]{8,}\/\d+\.html)"/gi)].map((m) => m[1])[0];
+  if (!link) return { existe: false };
+  let p;
+  try { p = await getHtml(`https://${HOST}${link}`, timeout); } catch { return null; }
+  if (p.status !== 200) return null;
+  const ld = jsonldProduto(p.txt);
+  if (!ld) return { existe: false };
+  const gtin = String(ld.gtin13 || ld.gtin || ld.gtin14 || '').replace(/\D/g, '');
+  if (!gtin || !(gtin === alvo || gtin.endsWith(alvo) || alvo.endsWith(gtin.replace(/^0+/, '')))) return { existe: false };
+  const of = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
+  const preco = of ? Number(of.price) : null;
+  return {
+    existe: true,
+    preco: Number.isFinite(preco) && preco > 0 ? preco : null,
+    nome: ld.name || null, marca: (ld.brand && (ld.brand.name || ld.brand)) || null,
+    sku: String(ld.sku || (link.match(/\/(\d+)\.html/) || [])[1] || alvo).slice(0, 24), gtin,
+    imagem: (ld.image && (Array.isArray(ld.image) ? ld.image[0] : ld.image)) || null,
+    url: `https://${HOST}${link}`,
+  };
+}

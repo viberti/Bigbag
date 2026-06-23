@@ -27,6 +27,8 @@ for (const f of M) {
     args = ['--env-file=.env', 'scripts/harvest_panvel.mjs', '--atualizar', `--limite=${maxJ}`];
   } else if (motor === 'nissei') {
     args = ['--env-file=.env', 'scripts/harvest_nissei.mjs', '--atualizar', `--limite=${maxJ}`];
+  } else if (motor === 'araujo') {
+    args = ['--env-file=.env', 'scripts/harvest_araujo.mjs', '--atualizar', `--limite=${maxJ}`];
   } else if (motor === 'jsonld') {
     args = ['--env-file=.env', 'scripts/harvest_jsonld.mjs', f.host, f.fonte, `--max=${maxJ}`, ...(f.geo ? ['--proxy'] : [])];
   } else { // vtex (default)
