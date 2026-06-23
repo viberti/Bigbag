@@ -24,6 +24,15 @@ export const medicamentoRouter = Router();
 // como oferta.
 const MANIFESTO = JSON.parse(readFileSync(new URL('../../scripts/fontes_farmacia.json', import.meta.url), 'utf8'));
 const FARMACIAS = MANIFESTO.map((f) => f.fonte);
+// Limiares de FRETE GRÁTIS publicados nas homepages (gerados por scripts/fretes_gratis.mjs).
+// Lido com cache de 30 min; tolerante à ausência do ficheiro.
+let _fg = null, _fgAt = 0;
+function fretesGratisPub() {
+  if (_fg && Date.now() - _fgAt < 30 * 60 * 1000) return _fg;
+  try { _fg = JSON.parse(readFileSync(new URL('../../scripts/fretes_gratis.json', import.meta.url), 'utf8')); } catch { _fg = {}; }
+  _fgAt = Date.now();
+  return _fg;
+}
 const inFarmacias = '(' + FARMACIAS.map(() => '?').join(',') + ')';
 
 const eanLimpo = (e) => { const d = String(e || '').replace(/\D/g, ''); return d.length >= 12 && d.length <= 14 ? d : null; };
@@ -278,6 +287,9 @@ medicamentoRouter.get('/precos-ao-vivo', async (req, res) => {
     const got = await Promise.allSettled(vtex.map((f) => precoVivoVtex(f.host, ean, cep, { proxy: !!f.geo }).then((r) => (r && r.existe ? { fonte: f.fonte, ...r } : null))));
     const fontes = got.filter((x) => x.status === 'fulfilled' && x.value).map((x) => x.value)
       .sort((a, b) => (a.total ?? a.preco ?? 9e9) - (b.total ?? b.preco ?? 9e9));
+    // limiar de frete grátis: o PUBLICADO (exato) tem prioridade sobre a estimativa por simulação.
+    const fgPub = fretesGratisPub();
+    for (const f of fontes) { const p = fgPub[f.fonte]; if (p && p.acima) { f.frete_gratis_acima = p.acima; f.frete_gratis_maiores = true; } }
 
     // write-back: preço mudou → atualiza catalogo_produto + histórico append-only.
     const pool = getPool();

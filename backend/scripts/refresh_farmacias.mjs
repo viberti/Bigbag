@@ -33,4 +33,7 @@ for (const f of M) {
   if (r.status === 0) ok++; else { falhas++; console.log(`⚠️ ${f.fonte} saiu com código ${r.status}`); }
   spawnSync('sleep', [String(pausa)]);
 }
+// limiares de FRETE GRÁTIS publicados (homepages) → fretes_gratis.json
+console.log(`\n===== frete grátis (homepages) ${ts()} =====`);
+spawnSync(process.execPath, ['scripts/fretes_gratis.mjs'], { stdio: 'inherit' });
 console.log(`\n===== refresh_farmacias CONCLUÍDO ${ts()} · ${ok} ok · ${falhas} falhas =====`);
