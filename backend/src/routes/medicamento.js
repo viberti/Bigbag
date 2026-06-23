@@ -187,7 +187,21 @@ medicamentoRouter.get('/info', async (req, res) => {
     const normNome = (s) => String(s || '').toUpperCase().trim();
     const mesmoProduto = (e) => (r9 ? reg9(e.registro) === r9 : normNome(e.produto) === normNome(med.produto));
     const outrasEmbalagens = todosEquiv.filter(mesmoProduto);            // inclui a referência (ESTE)
-    const equivalentes = todosEquiv.filter((e) => !mesmoProduto(e));     // só outras marcas/genéricos
+    // EQUIVALENTES = outras marcas/genéricos, DEDUPADOS por produto registado (registro9;
+    // fallback nome) → 1 entrada por marca, a de melhor preço/un (senão a mesma marca repete
+    // uma linha por embalagem, ex.: OZIVY 3×).
+    const porProduto = new Map();
+    for (const e of todosEquiv) {
+      if (mesmoProduto(e)) continue;
+      const k = reg9(e.registro) || normNome(e.produto);
+      const ex = porProduto.get(k);
+      if (!ex) { porProduto.set(k, e); continue; }
+      const ppd = e.preco_por_dose, exp = ex.preco_por_dose;
+      const melhor = ppd != null && exp != null ? ppd < exp : ppd != null ? true : Number(e.menor_preco) < Number(ex.menor_preco);
+      if (melhor) porProduto.set(k, e);
+    }
+    const equivalentes = [...porProduto.values()]
+      .sort((a, b) => (a.preco_por_dose ?? 9e9) - (b.preco_por_dose ?? 9e9)).slice(0, 12);
     const maisBaratoEquivalente = equivalentes.find((e) => e.preco_por_dose != null) || null;
 
     res.json({
