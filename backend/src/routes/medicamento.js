@@ -15,6 +15,8 @@ import { readFileSync } from 'node:fs';
 import { getPool, parseJsonCol } from '../db.js';
 import { precoPorDose } from '../normaliza/medicamento.js';
 import { precoVivoVtex } from '../ingest/precoVivo.js';
+import { chatCompletion } from '../openrouter.js';
+import { config } from '../config.js';
 
 export const medicamentoRouter = Router();
 
@@ -312,4 +314,48 @@ medicamentoRouter.get('/precos-ao-vivo', async (req, res) => {
     if (_vivo.size > 3000) _vivo.clear();
     res.json(data);
   } catch (e) { console.error('[medicamento/precos-ao-vivo]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
+
+// GET /api/medicamento/explicacao?ean=  → "Para que serve" em LINGUAGEM SIMPLES, gerado
+// por LLM e FUNDAMENTADO no princípio ativo + classe (NÃO no texto da bula). Cacheado por
+// substância (mesma explicação p/ todas as marcas/genéricos do ativo). INFORMAÇÃO, não
+// aconselhamento médico — o prompt é conservador e os disclaimers vão no texto/UI.
+const PROMPT_EXPL = (sub, classe, forma, nome) => `Você é um farmacêutico que explica remédios em linguagem MUITO SIMPLES e CLARA para leigos no Brasil (PT-BR, trate por "você"). Com base APENAS no princípio ativo e na classe abaixo, devolva um JSON:
+{"para_que_serve":"1 a 2 frases curtas: para que serve este remédio, no dia a dia","como_usar":"1 frase GERAL (ex.: via oral; siga a bula e o médico) — SEM dose, quantidade ou horários","cuidados":"1 a 2 frases: cuidados gerais e quando procurar ajuda (alergia, gravidez/amamentação, álcool, etc.)"}
+Regras: seja conciso e em linguagem do dia a dia; NÃO invente; se NÃO tiver certeza do princípio ativo, escreva em "para_que_serve" para consultar a bula; NUNCA dê posologia (quantidade/horário) nem recomendação personalizada. Responda SÓ o JSON.
+Princípio ativo: ${sub}
+Classe terapêutica: ${classe || '(não informada)'}
+Forma: ${forma || '(não informada)'}
+Nome comercial: ${nome || '(não informado)'}`;
+
+medicamentoRouter.get('/explicacao', async (req, res) => {
+  try {
+    const ean = eanLimpo(req.query.ean);
+    if (!ean) return res.status(400).json({ erro: 'EAN inválido' });
+    const pool = getPool();
+    const [[med]] = await pool.query('SELECT substancia, principio_ativo, classe_terapeutica, produto, forma FROM medicamento WHERE ean = ?', [ean]);
+    if (!med) return res.status(404).json({ erro: 'medicamento não encontrado' });
+    const sub = String(med.principio_ativo || med.substancia || '').trim();
+    if (!sub) return res.json({ explicacao: null });
+    const chave = sub.toUpperCase().replace(/\s+/g, ' ').slice(0, 190);
+    const [[cache]] = await pool.query('SELECT para_que_serve, como_usar, cuidados FROM medicamento_explicacao WHERE chave = ?', [chave]);
+    if (cache) return res.json({ substancia: sub, ...cache, cache: true });
+    let out;
+    try {
+      const txt = await chatCompletion({
+        messages: [{ role: 'user', content: PROMPT_EXPL(sub, med.classe_terapeutica, med.forma, med.produto) }],
+        model: config.openrouter.modelConsulta, responseFormat: { type: 'json_object' },
+        timeoutMs: 20000, contexto: 'explicacao_medicamento',
+      });
+      out = JSON.parse(txt);
+    } catch (e) { console.error('[explicacao] LLM:', e.message); return res.json({ explicacao: null }); }
+    const v = (s) => (s ? String(s).slice(0, 600) : null);
+    await pool.query(
+      `INSERT INTO medicamento_explicacao (chave, substancia, para_que_serve, como_usar, cuidados, modelo)
+       VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE para_que_serve=VALUES(para_que_serve),
+         como_usar=VALUES(como_usar), cuidados=VALUES(cuidados), modelo=VALUES(modelo)`,
+      [chave, sub, v(out.para_que_serve), v(out.como_usar), v(out.cuidados), config.openrouter.modelConsulta],
+    );
+    res.json({ substancia: sub, para_que_serve: v(out.para_que_serve), como_usar: v(out.como_usar), cuidados: v(out.cuidados) });
+  } catch (e) { console.error('[medicamento/explicacao]', e); res.status(500).json({ erro: 'erro interno' }); }
 });

@@ -14,7 +14,7 @@ import {
   listarPerfis, ativarPerfil, carregarPerfil, salvarSaude, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
   adotarPorNome, definirPais, sugestoesLista, refeicoesLista, carregarHabituais, variantesLista,
-  buscarMedicamento, infoMedicamento, precosAoVivo,
+  buscarMedicamento, infoMedicamento, precosAoVivo, explicacaoMedicamento,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLocal.js';
@@ -1945,11 +1945,18 @@ function FichaRemedio({ info, abrir }) {
     const d = v.replace(/\D/g, '').slice(0, 8);
     if (d.length === 8 && d !== cep) { setCep(d); try { localStorage.setItem('bigbag_cep', d); } catch { /* noop */ } }
   }
+  const [expl, setExpl] = useState(null);
   useEffect(() => {
     let on = true; setVivo(null); setCarregVivo(true);
     precosAoVivo(info.ean, cep).then((d) => { if (on) setVivo(d); }).catch(() => {}).finally(() => { if (on) setCarregVivo(false); });
     return () => { on = false; };
   }, [info.ean, cep]);
+  useEffect(() => {
+    let on = true; setExpl(null);
+    explicacaoMedicamento(info.ean).then((d) => { if (on && d && d.para_que_serve) setExpl(d); }).catch(() => {});
+    return () => { on = false; };
+  }, [info.ean]);
+  const bulaUrl = `https://consultas.anvisa.gov.br/#/bulario/q/?nomeProduto=${encodeURIComponent(id.produto || '')}`;
   const best = vivo && vivo.melhor_entrega && vivo.melhor_entrega.entrega ? vivo.melhor_entrega : null;
   const listaAll = vivo && vivo.fontes && vivo.fontes.length ? vivo.fontes : (info.ofertas || []);
   // com CEP, esconde quem NÃO entrega ali (mantém quem entrega p/ pedidos maiores).
@@ -1967,6 +1974,16 @@ function FichaRemedio({ info, abrir }) {
         <div className="med-hap">{[id.apresentacao, id.laboratorio].filter(Boolean).join(' · ')}</div>
         {id.registro_fmt && <div className="med-hreg">Registro ANVISA {id.registro_fmt}</div>}
       </div>
+
+      {expl && (
+        <div className="med-expl">
+          <div className="med-expl-h">💡 Para que serve <span className="med-expl-t">em linguagem simples</span></div>
+          <p className="med-expl-p">{expl.para_que_serve}</p>
+          {expl.como_usar && <p className="med-expl-l"><b>Como se usa:</b> {expl.como_usar}</p>}
+          {expl.cuidados && <p className="med-expl-l"><b>Cuidados:</b> {expl.cuidados}</p>}
+          <p className="med-expl-d">Resumo automático com base no princípio ativo — <b>não substitui a bula nem o seu médico</b>. <a href={bulaUrl} target="_blank" rel="noreferrer">Ver bula oficial (ANVISA) ↗</a></p>
+        </div>
+      )}
 
       {best ? (
         <div className="med-best">

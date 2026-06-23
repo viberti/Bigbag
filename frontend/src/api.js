@@ -268,6 +268,12 @@ export async function infoMedicamento(ean) {
   if (!r.ok) throw new Error(`med-info ${r.status}`);
   return r.json(); // { ean, identidade, tetos, ofertas, melhor, comparacao, equivalentes, mais_barato_equivalente }
 }
+// "Para que serve" em linguagem simples (LLM, cacheado por princípio ativo).
+export async function explicacaoMedicamento(ean) {
+  const r = await call(`/api/medicamento/explicacao?ean=${encodeURIComponent(ean)}`);
+  if (!r.ok) throw new Error(`med-explicacao ${r.status}`);
+  return r.json(); // { substancia, para_que_serve, como_usar, cuidados }
+}
 // Preço + frete AO VIVO (no clique): consulta todas as farmácias em paralelo p/ o CEP.
 export async function precosAoVivo(ean, cep) {
   const r = await call(`/api/medicamento/precos-ao-vivo?ean=${encodeURIComponent(ean)}${cep ? `&cep=${encodeURIComponent(cep)}` : ''}`);
