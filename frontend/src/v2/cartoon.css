@@ -585,3 +585,15 @@
 .v2 .med-var-t{display:flex;align-items:center;gap:8px;font:800 19px var(--disp);color:var(--ink)}
 .v2 .med-var-s{font:600 13px var(--font);color:var(--leaf-d);margin-top:2px}
 .v2 .med-apartir{display:block;font:600 9.5px var(--font);color:var(--ink-3);text-align:right}
+/* preço + frete ao vivo */
+.v2 .med-vivo{font:700 10px var(--font);color:var(--ink-3);background:var(--cream-2);border-radius:var(--r-pill);padding:2px 8px;margin-left:6px;text-transform:none;letter-spacing:0}
+.v2 .med-vivo.on{color:var(--leaf-d);background:var(--leaf-soft)}
+.v2 .med-of2{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:10px 15px;margin-bottom:7px}
+.v2 .med-of2-l{min-width:0}
+.v2 .med-of2-l .med-of-f{font:600 14px var(--font);color:var(--ink);display:block}
+.v2 .med-of2-sub{font:500 11px var(--font);color:var(--ink-3)}
+.v2 .med-of2-na{font:600 11px var(--font);color:var(--coral)}
+.v2 .med-of2-r{text-align:right;white-space:nowrap}
+.v2 .med-of2-total{display:block;font:800 15px var(--disp);color:var(--leaf-d)}
+.v2 .med-of2-prod{font:500 10.5px var(--font);color:var(--ink-3)}
+.v2 .med-of2:first-of-type{border-color:var(--leaf)}

@@ -14,7 +14,7 @@ import {
   listarPerfis, ativarPerfil, carregarPerfil, salvarSaude, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
   adotarPorNome, definirPais, sugestoesLista, refeicoesLista, carregarHabituais, variantesLista,
-  buscarMedicamento, infoMedicamento,
+  buscarMedicamento, infoMedicamento, precosAoVivo,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLocal.js';
@@ -1931,9 +1931,20 @@ function Remedios({ back, standalone }) {
   );
 }
 
+const CEP_REF = '22241040'; // CEP de referência (Rio) p/ o frete; trocável depois
+const cepFmt = (c) => { const d = String(c || '').replace(/\D/g, ''); return d.length === 8 ? `${d.slice(0, 5)}-${d.slice(5)}` : c; };
 function FichaRemedio({ info, abrir }) {
   const id = info.identidade || {};
   const m = info.melhor, cmp = info.comparacao;
+  const [vivo, setVivo] = useState(null);
+  const [carregVivo, setCarregVivo] = useState(true);
+  useEffect(() => {
+    let on = true; setVivo(null); setCarregVivo(true);
+    precosAoVivo(info.ean, CEP_REF).then((d) => { if (on) setVivo(d); }).catch(() => {}).finally(() => { if (on) setCarregVivo(false); });
+    return () => { on = false; };
+  }, [info.ean]);
+  const best = vivo && vivo.melhor_entrega && vivo.melhor_entrega.entrega ? vivo.melhor_entrega : null;
+  const lista = vivo && vivo.fontes && vivo.fontes.length ? vivo.fontes : (info.ofertas || []);
   return (
     <div className="med-ficha">
       {info.imagem && <div className="med-img"><img src={info.imagem} alt={id.produto || 'remédio'} loading="lazy" onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }} /></div>}
@@ -1947,24 +1958,38 @@ function FichaRemedio({ info, abrir }) {
         {id.registro_fmt && <div className="med-hreg">Registro ANVISA {id.registro_fmt}</div>}
       </div>
 
-      {m ? (
+      {best ? (
         <div className="med-best">
-          <div className="med-best-k">Mais barato</div>
+          <div className="med-best-k">Mais barato com entrega · agora</div>
+          <div className="med-best-p">{fmtPreco(best.total, 'BRL')}</div>
+          <div className="med-best-f">em <b>{nomeFarm(best.fonte)}</b> · produto {fmtPreco(best.preco, 'BRL')} + frete {fmtPreco(best.frete, 'BRL')}{best.prazo ? ` (${best.prazo})` : ''}</div>
+          {cmp && cmp.pct_vs_pmc != null && cmp.pct_vs_pmc > 0 && <div className="med-best-pmc">{cmp.pct_vs_pmc}% abaixo do teto legal (PMC {fmtPreco(cmp.pmc, 'BRL')})</div>}
+        </div>
+      ) : m ? (
+        <div className="med-best">
+          <div className="med-best-k">Mais barato {carregVivo ? '(atualizando…)' : ''}</div>
           <div className="med-best-p">{fmtPreco(m.preco, 'BRL')}</div>
           <div className="med-best-f">em <b>{nomeFarm(m.fonte)}</b></div>
-          {cmp && cmp.pct_vs_pmc != null && cmp.pct_vs_pmc > 0 && (
-            <div className="med-best-pmc">{cmp.pct_vs_pmc}% abaixo do teto legal (PMC {fmtPreco(cmp.pmc, 'BRL')})</div>
-          )}
+          {cmp && cmp.pct_vs_pmc != null && cmp.pct_vs_pmc > 0 && <div className="med-best-pmc">{cmp.pct_vs_pmc}% abaixo do teto legal (PMC {fmtPreco(cmp.pmc, 'BRL')})</div>}
         </div>
       ) : <p className="empty">Sem preço nas farmácias que colhemos.</p>}
 
-      {info.ofertas && info.ofertas.length > 1 && (
+      {lista.length > 0 && (
         <>
-          <div className="med-lbl">Preço por farmácia</div>
-          {info.ofertas.map((o) => (
-            o.url
-              ? <a className="med-of" key={o.fonte} href={o.url} target="_blank" rel="noreferrer"><span className="med-of-f">{nomeFarm(o.fonte)}</span><span className="med-of-p">{fmtPreco(o.preco, 'BRL')}</span></a>
-              : <div className="med-of" key={o.fonte}><span className="med-of-f">{nomeFarm(o.fonte)}</span><span className="med-of-p">{fmtPreco(o.preco, 'BRL')}</span></div>
+          <div className="med-lbl">Preço por farmácia {vivo ? <span className="med-vivo on">agora · entrega no CEP {cepFmt(vivo.cep)}</span> : carregVivo ? <span className="med-vivo">atualizando preço e frete…</span> : null}</div>
+          {lista.map((o) => (
+            <div className="med-of2" key={o.fonte}>
+              <div className="med-of2-l">
+                <span className="med-of-f">{nomeFarm(o.fonte)}</span>
+                {vivo ? (o.entrega ? <span className="med-of2-sub">+ frete {fmtPreco(o.frete, 'BRL')}{o.prazo ? ` · ${o.prazo}` : ''}</span>
+                  : o.retira ? <span className="med-of2-na">só retirada na loja</span> : <span className="med-of2-na">não entrega aqui</span>) : null}
+              </div>
+              <div className="med-of2-r">
+                {vivo && o.entrega && o.total != null
+                  ? <><span className="med-of2-total">{fmtPreco(o.total, 'BRL')}</span><span className="med-of2-prod">prod. {fmtPreco(o.preco, 'BRL')}</span></>
+                  : <span className="med-of-p">{fmtPreco(o.preco, 'BRL')}</span>}
+              </div>
+            </div>
           ))}
         </>
       )}

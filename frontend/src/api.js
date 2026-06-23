@@ -268,6 +268,12 @@ export async function infoMedicamento(ean) {
   if (!r.ok) throw new Error(`med-info ${r.status}`);
   return r.json(); // { ean, identidade, tetos, ofertas, melhor, comparacao, equivalentes, mais_barato_equivalente }
 }
+// Preço + frete AO VIVO (no clique): consulta todas as farmácias em paralelo p/ o CEP.
+export async function precosAoVivo(ean, cep) {
+  const r = await call(`/api/medicamento/precos-ao-vivo?ean=${encodeURIComponent(ean)}${cep ? `&cep=${encodeURIComponent(cep)}` : ''}`);
+  if (!r.ok) throw new Error(`med-vivo ${r.status}`);
+  return r.json(); // { ean, cep, agora, fontes:[{fonte,preco,frete,prazo,total,entrega,retira}], melhor_entrega }
+}
 
 export async function listarDespensa() {
   const r = await call('/api/produto/despensa');
