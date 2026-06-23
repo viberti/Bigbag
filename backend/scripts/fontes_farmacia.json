@@ -18,5 +18,6 @@
   { "fonte": "drogaraia", "host": "www.drogaraia.com.br", "motor": "raiadrogasil", "nota": "Droga Raia — mesma plataforma RD que drogasil (preços podem coincidir); JSON-LD por EAN" },
   { "fonte": "pacheco", "host": "www.drogariaspacheco.com.br", "motor": "vtex", "geo": "BR", "cats": "800", "nota": "DPSP Pacheco — VTEX, mas CloudFront GEO-bloqueia fora do BR → colher com --proxy (PROXY_URL saída BR)." },
   { "fonte": "drogariasaopaulo", "host": "www.drogariasaopaulo.com.br", "motor": "vtex", "geo": "BR", "cats": "800", "nota": "DPSP Drogaria São Paulo — VTEX, geo-bloqueada → --proxy." },
-  { "fonte": "minasbrasil", "host": "www.drogariaminasbrasil.com.br", "motor": "jsonld", "nota": "Drogaria Minas Brasil (MG) — Magento; sitemap + schema.org JSON-LD (harvest_jsonld.mjs)" }
+  { "fonte": "minasbrasil", "host": "www.drogariaminasbrasil.com.br", "motor": "jsonld", "nota": "Drogaria Minas Brasil (MG) — Magento; sitemap + schema.org JSON-LD (harvest_jsonld.mjs)" },
+  { "fonte": "panvel", "host": "www.panvel.com", "motor": "panvel", "nota": "Panvel (RS/Sul, #5 nacional, grupo Dimed) — Angular SSR; API pública POST /api/v2/search por EAN (harvest_panvel.mjs)" }
 ]
