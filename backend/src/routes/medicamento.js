@@ -126,30 +126,42 @@ async function escolherImagem(pool, med, eanConsultado, ph) {
   return top[0].url;
 }
 
-// Equivalentes QUE TÊM oferta, com o menor preço e o preço por dose. O remédio `ean` de
-// referência fica marcado. O preço/dose (R$ por comprimido / ml / g) SÓ é comparável entre
-// embalagens EXATAMENTE da MESMA apresentação — mesmo princípio ativo + MESMA força + MESMA
-// forma — diferindo só na QUANTIDADE. Por isso forma/dose têm de bater por IGUALDADE EXATA
-// (não `<=>`, que casaria NULL com NULL e misturaria, ex., um xarope com um comprimido cuja
-// forma não foi parseada). Se a referência não tem forma/dose, não há comparação possível.
+// Equivalentes QUE TÊM oferta, com o menor preço e o preço por dose. Classe de equivalência =
+// substancia × forma × FORÇA_EFETIVA × forca_valor_max (Cluster 2). FORÇA_EFETIVA =
+// COALESCE(medicamento_curado.forca_valor, m.dose_valor) — curada (força clínica real) p/ os
+// injetáveis GLP-1 cuja CMED só traz a CONCENTRAÇÃO; estrutural p/ os orais (Rybelsus já certo).
+// ISOLAMENTO ESTRUTURAL por `forca_valor_max <=>` (NULL-safe): uma FAIXA de início (caneta dual
+// 0,25/0,5, max não-nulo) nunca se mistura com força exata (max=NULL). `papel` é só rótulo. QTD
+// EFETIVA = COALESCE(qtd_embalagem_corr, m.qtd_embalagem) no denominador (resolve o ÷0 do Mounjaro).
 async function equivalentesComOferta(pool, med) {
-  if (med.forma == null || med.dose_valor == null || med.dose_unidade == null) return [];
+  const [[cur]] = await pool.query('SELECT forca_valor, forca_valor_max, forca_unidade FROM medicamento_curado WHERE ean=?', [med.ean]);
+  const forcaValor = cur && cur.forca_valor != null ? Number(cur.forca_valor) : (med.dose_valor == null ? null : Number(med.dose_valor));
+  const forcaUnidade = cur && cur.forca_unidade != null ? cur.forca_unidade : med.dose_unidade;
+  const forcaMax = cur && cur.forca_valor_max != null ? Number(cur.forca_valor_max) : null;
+  if (med.forma == null || forcaValor == null || forcaUnidade == null) return [];
   const [rows] = await pool.query(
-    `SELECT m.ean, m.registro, m.produto, m.laboratorio, m.tipo, m.generico, m.forma, m.qtd_embalagem, m.pmc_18,
+    `SELECT m.ean, m.registro, m.produto, m.laboratorio, m.tipo, m.generico, m.forma, m.pmc_18,
+            COALESCE(mc.qtd_embalagem_corr, m.qtd_embalagem) AS qtd_ef,
+            COALESCE(mc.forca_valor, m.dose_valor) AS forca_ef, COALESCE(mc.forca_unidade, m.dose_unidade) AS forca_un,
+            COALESCE(mc.papel, 'manutencao') AS papel,
             MIN(cp.preco) menor_preco, COUNT(DISTINCT cp.fonte) n_farmacias
        FROM medicamento m
-       JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco > 0
-        AND cp.moeda = 'BRL' AND cp.fonte IN ${inFarmacias}
-      WHERE m.substancia <=> ? AND m.dose_valor = ? AND m.dose_unidade = ? AND m.forma = ?
+       LEFT JOIN medicamento_curado mc ON mc.ean = m.ean
+       JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco > 0 AND cp.moeda = 'BRL' AND cp.fonte IN ${inFarmacias}
+      WHERE m.substancia <=> ? AND m.forma = ?
+        AND COALESCE(mc.forca_valor, m.dose_valor) = ?
+        AND COALESCE(mc.forca_unidade, m.dose_unidade) = ?
+        AND mc.forca_valor_max <=> ?
       GROUP BY m.ean
-      ORDER BY (MIN(cp.preco) / NULLIF(m.qtd_embalagem, 0)) ASC, menor_preco ASC`,
-    [...FARMACIAS, med.substancia, med.dose_valor, med.dose_unidade, med.forma],
+      ORDER BY (MIN(cp.preco) / NULLIF(COALESCE(mc.qtd_embalagem_corr, m.qtd_embalagem), 0)) ASC, menor_preco ASC`,
+    [...FARMACIAS, med.substancia, med.forma, forcaValor, forcaUnidade, forcaMax],
   );
   return rows.map((r) => ({
     ean: r.ean, registro: r.registro, produto: r.produto, laboratorio: r.laboratorio, tipo: r.tipo,
-    generico: !!r.generico, forma: r.forma, qtd_embalagem: r.qtd_embalagem,
+    generico: !!r.generico, forma: r.forma, qtd_embalagem: r.qtd_ef,
+    forca_valor: r.forca_ef == null ? null : Number(r.forca_ef), forca_unidade: r.forca_un, papel: r.papel,
     menor_preco: r.menor_preco == null ? null : Number(r.menor_preco),
-    preco_por_dose: precoPorDose(r.menor_preco, r.qtd_embalagem),
+    preco_por_dose: precoPorDose(r.menor_preco, r.qtd_ef),
     n_farmacias: r.n_farmacias, referencia: r.ean === med.ean,
   }));
 }
