@@ -14,6 +14,7 @@
 import { readFileSync } from 'node:fs';
 import { getPool, closePool } from '../src/db.js';
 import { tituloProduto } from '../src/normaliza/titulo.js';
+import { precoPanvelEan } from '../src/ingest/precoPanvel.js';
 
 const FONTE = 'panvel';
 const UF = process.env.PANVEL_UF || '03';              // UF de referência (preço varia por estado)
@@ -21,32 +22,15 @@ const DELAY = Number(process.env.DELAY || 600);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const FARMACIAS = JSON.parse(readFileSync(new URL('./fontes_farmacia.json', import.meta.url), 'utf8')).map((f) => f.fonte);
 
-// Headers da API pública do BFF (valores genéricos — sem sessão real, sem cookies de WAF).
-const PH = {
-  accept: 'application/json, text/plain, */*', 'app-token': 'ZYkPuDaVJEiD', 'client-ip': '1',
-  'content-type': 'application/json', 'search-new': 'A', source: 'mobile', 'user-id': '0',
-  sessionid: '00000000-0000-4000-8000-000000000000', origin: 'https://www.panvel.com',
-  'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
-};
-
 async function precoDoEan(ean) {
-  const r = await fetch(`https://www.panvel.com/api/v2/search?type=CSR&uf=${UF}`, {
-    method: 'POST', headers: PH, signal: AbortSignal.timeout(12000),
-    body: JSON.stringify({ term: String(ean), itemsPerPage: 5, currentPage: 1, assortment: 'mais relevantes', filters: [], searchOffers: false, searchType: 'term' }),
-  });
-  if (r.status !== 200) return { status: r.status };
-  const j = await r.json();
-  // busca por código de barras: exigimos match EXATO (1 item) — senão é texto fuzzy, não confiar.
-  if (!j || j.totalItems !== 1 || !Array.isArray(j.items) || !j.items[0]) return { naoEncontrado: true };
-  const it = j.items[0];
-  const preco = Number(it.discount && it.discount.dealPrice != null ? it.discount.dealPrice : it.originalPrice);
+  const r = await precoPanvelEan(ean, { uf: UF });
+  if (r === null) return { status: 0 };          // não respondeu
+  if (!r.existe) return { naoEncontrado: true };  // Panvel não carrega
   return {
-    preco: Number.isFinite(preco) && preco > 0 ? preco : null,
-    nome: it.name ? tituloProduto(String(it.name).slice(0, 255)) : null,
-    marca: it.brandName ? tituloProduto(String(it.brandName).slice(0, 140)) : null,
-    sku: String(it.panvelCode || ean).slice(0, 24),
-    imagem: it.image ? String(it.image).split('?')[0] : null,
-    url: it.link || null,
+    preco: r.preco,
+    nome: r.nome ? tituloProduto(String(r.nome).slice(0, 255)) : null,
+    marca: r.marca ? tituloProduto(String(r.marca).slice(0, 140)) : null,
+    sku: r.sku, imagem: r.imagem, url: r.url,
   };
 }
 
