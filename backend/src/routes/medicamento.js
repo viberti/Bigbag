@@ -288,8 +288,10 @@ medicamentoRouter.get('/precos-ao-vivo', async (req, res) => {
     const fontes = got.filter((x) => x.status === 'fulfilled' && x.value).map((x) => x.value)
       .sort((a, b) => (a.total ?? a.preco ?? 9e9) - (b.total ?? b.preco ?? 9e9));
     // limiar de frete grátis: o PUBLICADO (exato) tem prioridade sobre a estimativa por simulação.
+    // só o VALOR do limiar (publicado é geral, não por CEP) — NÃO marca entrega/frete_gratis_maiores,
+    // que são os sinais ESPECÍFICOS do CEP (da simulação) usados para decidir se entrega ali.
     const fgPub = fretesGratisPub();
-    for (const f of fontes) { const p = fgPub[f.fonte]; if (p && p.acima) { f.frete_gratis_acima = p.acima; f.frete_gratis_maiores = true; } }
+    for (const f of fontes) { const p = fgPub[f.fonte]; if (p && p.acima) f.frete_gratis_acima = p.acima; }
 
     // write-back: preço mudou → atualiza catalogo_produto + histórico append-only.
     const pool = getPool();

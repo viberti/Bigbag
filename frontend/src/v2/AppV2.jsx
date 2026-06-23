@@ -1953,7 +1953,7 @@ function FichaRemedio({ info, abrir }) {
   const best = vivo && vivo.melhor_entrega && vivo.melhor_entrega.entrega ? vivo.melhor_entrega : null;
   const listaAll = vivo && vivo.fontes && vivo.fontes.length ? vivo.fontes : (info.ofertas || []);
   // com CEP, esconde quem NÃO entrega ali (mantém quem entrega p/ pedidos maiores).
-  const lista = vivo ? listaAll.filter((o) => o.entrega || o.frete_gratis_maiores || o.frete_gratis_acima) : listaAll;
+  const lista = vivo ? listaAll.filter((o) => o.entrega || o.frete_gratis_maiores) : listaAll;
   const ocultas = vivo ? listaAll.length - lista.length : 0;
   return (
     <div className="med-ficha">
