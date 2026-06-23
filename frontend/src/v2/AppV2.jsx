@@ -1884,7 +1884,7 @@ function Remedios({ back, standalone }) {
           {q && <button className="med-x" onClick={() => { setQ(''); setSug([]); setMarca(null); setInfo(null); setErro(''); }} aria-label="limpar">×</button>}
         </div>
         <button className={`med-scan ${scan ? 'on' : ''}`} onClick={() => { setInfo(null); setMarca(null); setScan((s) => !s); }}>
-          <Ico name="scan" size={20} stroke={2.2} /> {scan ? 'Fechar câmara' : 'Escanear código de barras'}
+          <Ico name="scan" size={20} stroke={2.2} /> {scan ? 'Fechar câmara' : 'Ler código de barras'}
         </button>
 
         {scan && <div className="med-cam"><video ref={videoRef} playsInline muted /><div className="med-cam-h">Aponte ao código de barras</div></div>}
