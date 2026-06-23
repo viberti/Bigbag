@@ -1951,7 +1951,10 @@ function FichaRemedio({ info, abrir }) {
     return () => { on = false; };
   }, [info.ean, cep]);
   const best = vivo && vivo.melhor_entrega && vivo.melhor_entrega.entrega ? vivo.melhor_entrega : null;
-  const lista = vivo && vivo.fontes && vivo.fontes.length ? vivo.fontes : (info.ofertas || []);
+  const listaAll = vivo && vivo.fontes && vivo.fontes.length ? vivo.fontes : (info.ofertas || []);
+  // com CEP, esconde quem NÃO entrega ali (mantém quem entrega p/ pedidos maiores).
+  const lista = vivo ? listaAll.filter((o) => o.entrega || o.frete_gratis_maiores || o.frete_gratis_acima) : listaAll;
+  const ocultas = vivo ? listaAll.length - lista.length : 0;
   return (
     <div className="med-ficha">
       {info.imagem && <div className="med-img"><img src={info.imagem} alt={id.produto || 'remédio'} loading="lazy" onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }} /></div>}
@@ -1981,7 +1984,7 @@ function FichaRemedio({ info, abrir }) {
         </div>
       ) : <p className="empty">Sem preço nas farmácias que colhemos.</p>}
 
-      {lista.length > 0 && (
+      {(lista.length > 0 || vivo || carregVivo) && (
         <>
           <div className="med-lbl">Preço por farmácia (com frete)</div>
           <div className="med-cep">
@@ -2004,6 +2007,8 @@ function FichaRemedio({ info, abrir }) {
               </div>
             </div>
           ))}
+          {vivo && lista.length === 0 && <p className="empty">Nenhuma farmácia entrega neste CEP — tente outro CEP.</p>}
+          {ocultas > 0 && <p className="med-obs2">{ocultas} {ocultas > 1 ? 'farmácias não entregam' : 'farmácia não entrega'} neste CEP (ocultada{ocultas > 1 ? 's' : ''}).</p>}
           <p className="med-obs">Preço e frete capturados <b>agora</b> nas farmácias, para entrega no CEP acima. Os valores podem mudar a qualquer momento — confirme no site da farmácia antes de comprar. Só informação e preço, <b>não é aconselhamento médico</b>.</p>
         </>
       )}
