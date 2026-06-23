@@ -36,7 +36,14 @@ export async function precoAraujoEan(ean, { timeout = 14000 } = {}) {
   const gtin = String(ld.gtin13 || ld.gtin || ld.gtin14 || '').replace(/\D/g, '');
   if (!gtin || !(gtin === alvo || gtin.endsWith(alvo) || alvo.endsWith(gtin.replace(/^0+/, '')))) return { existe: false };
   const of = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
-  const preco = of ? Number(of.price) : null;
+  const precoLd = of ? Number(of.price) : null;                                // o JSON-LD traz o PBM (mais baixo)
+  const dec = Number((p.txt.match(/"decimalPrice":"([0-9.]+)"/) || [])[1]);    // preço NORMAL (sales, SFCC)
+  const regular = Number.isFinite(dec) && dec > 0 ? dec : precoLd;
+  // condicional = o PBM/desconto do laboratório, SE for mesmo mais baixo que o normal.
+  let precoCond = null, precoCondObs = null;
+  if (Number.isFinite(precoLd) && precoLd > 0 && Number.isFinite(regular) && precoLd < regular - 0.001) {
+    precoCond = precoLd; precoCondObs = 'Desconto do laboratório (PBM) · pode exigir CPF';
+  }
   // sku = o id do produto no URL (/<slug>/<id>.html) — único. O `ld.sku` da Araújo às vezes
   // é um OBJETO (vira "[object Object]" e colidiria na chave (fonte, sku_fonte)) → não usar.
   const idUrl = (link.match(/\/(\d+)\.html/) || [])[1];
@@ -44,7 +51,8 @@ export async function precoAraujoEan(ean, { timeout = 14000 } = {}) {
   const marcaTxt = typeof ld.brand === 'string' ? ld.brand : (ld.brand && typeof ld.brand.name === 'string' ? ld.brand.name : null);
   return {
     existe: true,
-    preco: Number.isFinite(preco) && preco > 0 ? preco : null,
+    preco: Number.isFinite(regular) && regular > 0 ? regular : null,
+    preco_cond: precoCond, preco_cond_obs: precoCondObs,
     nome: typeof ld.name === 'string' ? ld.name : null, marca: marcaTxt,
     sku: String(idUrl || skuLd || alvo).slice(0, 24), gtin,
     imagem: (ld.image && (Array.isArray(ld.image) ? ld.image[0] : ld.image)) || null,

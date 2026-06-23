@@ -2001,6 +2001,13 @@ function FichaRemedio({ info, abrir }) {
         </div>
       ) : <p className="empty">Sem preço nas farmácias que colhemos.</p>}
 
+      {info.melhor_cond && (
+        <div className="med-cond">
+          <div className="med-cond-h">💊 Pode chegar a <b>{fmtPreco(info.melhor_cond.preco_cond, 'BRL')}</b> na {nomeFarm(info.melhor_cond.fonte)}</div>
+          <div className="med-cond-o">{info.melhor_cond.preco_cond_obs} — preço normal {fmtPreco(info.melhor_cond.preco, 'BRL')}. Este desconto é <b>condicional</b> e pode não valer para todos.</div>
+        </div>
+      )}
+
       {(lista.length > 0 || vivo || carregVivo) && (
         <>
           <div className="med-lbl">Preço por farmácia (com frete)</div>

@@ -27,7 +27,7 @@ async function precoDoEan(ean) {
   if (r === null) return { status: 0 };          // não respondeu
   if (!r.existe) return { naoEncontrado: true };  // Panvel não carrega
   return {
-    preco: r.preco,
+    preco: r.preco, preco_cond: r.preco_cond, preco_cond_obs: r.preco_cond_obs,
     nome: r.nome ? tituloProduto(String(r.nome).slice(0, 255)) : null,
     marca: r.marca ? tituloProduto(String(r.marca).slice(0, 140)) : null,
     sku: r.sku, imagem: r.imagem, url: r.url,
@@ -78,7 +78,7 @@ async function main() {
     else if (r.preco == null) semPreco++;
     else {
       ok++;
-      upserts.push([FONTE, r.sku, ean, r.nome, r.marca, r.preco, 'BRL', r.url, r.imagem]);
+      upserts.push([FONTE, r.sku, ean, r.nome, r.marca, r.preco, r.preco_cond, r.preco_cond_obs, 'BRL', r.url, r.imagem]);
       const ant = precoAtual.has(ean) ? precoAtual.get(ean) : undefined;
       if (ant === undefined || ant === null || Number(ant) !== Number(r.preco)) hist.push([FONTE, r.sku, ean, r.preco, 'BRL']);
     }
@@ -89,9 +89,10 @@ async function main() {
   for (let i = 0; i < upserts.length; i += 300) {
     const lote = upserts.slice(i, i + 300);
     await pool.query(
-      `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, marca, preco, moeda, url, imagem_url, scraped_at)
-       VALUES ${lote.map(() => '(?,?,?,?,?,?,?,?,?,NOW())').join(',')}
+      `INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, marca, preco, preco_cond, preco_cond_obs, moeda, url, imagem_url, scraped_at)
+       VALUES ${lote.map(() => '(?,?,?,?,?,?,?,?,?,?,?,NOW())').join(',')}
        ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome=VALUES(nome), marca=VALUES(marca), preco=VALUES(preco),
+         preco_cond=VALUES(preco_cond), preco_cond_obs=VALUES(preco_cond_obs),
          moeda=VALUES(moeda), url=VALUES(url), imagem_url=VALUES(imagem_url), scraped_at=NOW()`,
       lote.flat(),
     );

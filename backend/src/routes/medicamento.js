@@ -64,13 +64,13 @@ const ehPlaceholder = (u, ph) => imgPlaceholderUrl(u) || (!!ph && ph.has(fnameIm
 // Ofertas (farmácias) para um EAN, da mais barata para a mais cara.
 async function ofertasDoEan(pool, ean) {
   const [rows] = await pool.query(
-    `SELECT fonte, preco, url, imagem_url, nome, scraped_at
+    `SELECT fonte, preco, preco_cond, preco_cond_obs, url, imagem_url, nome, scraped_at
        FROM catalogo_produto
       WHERE ean = ? AND moeda = 'BRL' AND preco > 0 AND fonte IN ${inFarmacias}
       ORDER BY preco ASC`,
     [ean, ...FARMACIAS],
   );
-  return rows.map((r) => ({ ...r, preco: Number(r.preco) }));
+  return rows.map((r) => ({ ...r, preco: Number(r.preco), preco_cond: r.preco_cond == null ? null : Number(r.preco_cond) }));
 }
 
 // Escolhe a MELHOR foto entre TODAS as imagens do produto: o EAN consultado + os EANs
@@ -169,7 +169,11 @@ medicamentoRouter.get('/info', async (req, res) => {
 
     const ofertas = await ofertasDoEan(pool, ean);
     const ph = await placeholders(pool); // conjunto de imagens-placeholder (por frequência)
-    const melhor = ofertas[0] || null;
+    const melhor = ofertas[0] || null; // mais barato NORMAL (base honesta — todos pagam)
+    // menor preço ACHIEVABLE com desconto CONDICIONAL (ex.: PBM/laboratório, exige cadastro),
+    // só se for abaixo do melhor normal — p/ deixar claro "pode chegar a R$X com desconto".
+    const comCond = ofertas.filter((o) => o.preco_cond != null && o.preco_cond > 0 && o.preco_cond < (melhor ? melhor.preco : Infinity));
+    const melhorCond = comCond.length ? comCond.reduce((a, b) => (b.preco_cond < a.preco_cond ? b : a)) : null;
     const pmc = med.pmc_18 == null ? null : Number(med.pmc_18);
     const comparacao = melhor && pmc != null ? {
       pmc, melhor_preco: melhor.preco, melhor_fonte: melhor.fonte,
@@ -214,7 +218,7 @@ medicamentoRouter.get('/info', async (req, res) => {
       },
       tetos: { pf: med.pf == null ? null : Number(med.pf), pmc_18: pmc, pmc_por_icms: med.pmc_por_icms },
       imagem: await escolherImagem(pool, med, ean, ph),
-      ofertas, melhor, comparacao, outras_embalagens: outrasEmbalagens, equivalentes, mais_barato_equivalente: maisBaratoEquivalente,
+      ofertas, melhor, melhor_cond: melhorCond, comparacao, outras_embalagens: outrasEmbalagens, equivalentes, mais_barato_equivalente: maisBaratoEquivalente,
     });
   } catch (e) { console.error('[medicamento/info]', e); res.status(500).json({ erro: 'erro interno' }); }
 });
