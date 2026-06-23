@@ -23,6 +23,7 @@ import { getPool, closePool } from '../src/db.js';
 import { extrairFormato, precoPorBase } from '../src/normaliza/formato.js';
 import { tituloProduto } from '../src/normaliza/titulo.js';
 import { aplicarProxy } from '../src/rede.js';
+import { precoValido } from '../src/normaliza/precoValido.js';
 
 const UA = 'Mozilla/5.0 (compatible; BigBag-catalog-probe/1.0)';
 const DELAY = Number(process.env.DELAY || 150);
@@ -126,7 +127,11 @@ async function harvest(host, fonte, rootIds, deep = false) {
       if (vistos.has(sku)) continue; vistos.add(sku); comEan++;
       const img = (it.images && it.images[0] && it.images[0].imageUrl) ? String(it.images[0].imageUrl).slice(0, 600) : null;
       if (img) comImg++;
-      const preco = num(((it.sellers || [])[0]?.commertialOffer || {}).Price);
+      // GUARD na fonte (Cluster 1): descarta sentinela/centavo/esgotado → preco=null (mantém
+      // a IDENTIDADE; o histórico só loga preço válido; não regrava lixo amanhã).
+      const co = (it.sellers || [])[0]?.commertialOffer || {};
+      const dispOk = !((num(co.AvailableQuantity) != null && num(co.AvailableQuantity) <= 0) || co.IsAvailable === false);
+      const preco = precoValido(num(co.Price), { disponivel: dispOk }) ? num(co.Price) : null;
       const fmt = extrairFormato(nome);
       const ppb = preco != null && fmt ? precoPorBase({ preco_liquido: preco, quantidade: 1 }, fmt) : null;
       vals.push([fonte, sku, ean, nome, marca,

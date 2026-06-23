@@ -2,6 +2,7 @@
 // (POST /api/v2/search) que NÃO exige cookies de WAF (a v3 exige Azion). Headers genéricos
 // (sem sessão real). Busca por código de barras → exigimos match EXATO (totalItems===1).
 // Partilhado pelo harvester (harvest_panvel.mjs) e pelo monitor (monitorarPrecos.js).
+import { precoValido } from '../normaliza/precoValido.js';
 const UF_DEFAULT = process.env.PANVEL_UF || '03';
 const PH = {
   accept: 'application/json, text/plain, */*', 'app-token': 'ZYkPuDaVJEiD', 'client-ip': '1',
@@ -36,7 +37,7 @@ export async function precoPanvelEan(ean, { uf = UF_DEFAULT, timeout = 12000 } =
   }
   return {
     existe: true,
-    preco: Number.isFinite(preco) && preco > 0 ? preco : null,
+    preco: precoValido(preco) ? preco : null,
     preco_cond: precoCond, preco_cond_obs: precoCondObs,
     nome: it.name || null, marca: it.brandName || null,
     sku: String(it.panvelCode || ean).slice(0, 24),

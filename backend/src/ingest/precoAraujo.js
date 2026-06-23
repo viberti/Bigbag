@@ -5,6 +5,7 @@
 // preço. 2 requests/EAN. Partilhado por harvester + monitor.
 const HOST = 'www.araujo.com.br';
 const H = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', accept: 'text/html,application/xhtml+xml,*/*', 'accept-language': 'pt-BR,pt;q=0.9' };
+import { precoValido } from '../normaliza/precoValido.js';
 const getHtml = async (url, timeout = 14000) => { const r = await fetch(url, { headers: H, redirect: 'follow', signal: AbortSignal.timeout(timeout) }); return { status: r.status, txt: r.status === 200 ? await r.text() : '' }; };
 
 // 1.º bloco JSON-LD cujo @type inclui Product ou Drug.
@@ -51,7 +52,7 @@ export async function precoAraujoEan(ean, { timeout = 14000 } = {}) {
   const marcaTxt = typeof ld.brand === 'string' ? ld.brand : (ld.brand && typeof ld.brand.name === 'string' ? ld.brand.name : null);
   return {
     existe: true,
-    preco: Number.isFinite(regular) && regular > 0 ? regular : null,
+    preco: precoValido(regular) ? regular : null,
     preco_cond: precoCond, preco_cond_obs: precoCondObs,
     nome: typeof ld.name === 'string' ? ld.name : null, marca: marcaTxt,
     sku: String(idUrl || skuLd || alvo).slice(0, 24), gtin,

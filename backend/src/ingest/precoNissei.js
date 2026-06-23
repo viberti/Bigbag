@@ -8,6 +8,7 @@ const HOST = 'www.farmaciasnissei.com.br';
 const H = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', accept: 'text/html,application/xhtml+xml,*/*', 'accept-language': 'pt-BR,pt;q=0.9' };
 const NAV = /^\/(?:pesquisa|categoria|categorias|marca|marcas|institucional|conta|carrinho|club|farmacia-|blog|sitemap|politica|favoritos|pedido)/i;
 
+import { precoValido } from '../normaliza/precoValido.js';
 const getHtml = async (url, timeout = 14000) => { const r = await fetch(url, { headers: H, redirect: 'follow', signal: AbortSignal.timeout(timeout) }); return { status: r.status, txt: r.status === 200 ? await r.text() : '' }; };
 const campo = (html, k, num = false) => { const m = html.match(new RegExp(`"${k}"\\s*:\\s*"?(${num ? '[0-9]+\\.[0-9]{2}' : '[^"]{2,120}'})`, 'i')); return m ? m[1] : null; };
 
@@ -30,7 +31,7 @@ export async function precoNisseiEan(ean, { timeout = 14000 } = {}) {
   const preco = Number(campo(p.txt, 'price', true));
   return {
     existe: true,
-    preco: Number.isFinite(preco) && preco > 0 ? preco : null,
+    preco: precoValido(preco) ? preco : null,
     nome: campo(p.txt, 'name'), marca: (p.txt.match(/"brand"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/i) || [])[1] || null,
     sku: String(campo(p.txt, 'sku') || alvo).slice(0, 24), gtin,
     imagem: (campo(p.txt, 'image') || null), url: `https://${HOST}${slug}`,

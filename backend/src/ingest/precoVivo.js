@@ -4,6 +4,7 @@
 // alto / prazo enorme). Para fontes geo-bloqueadas (DPSP), roteia por um ProxyAgent
 // POR PEDIDO (não mexe no dispatcher global da app).
 import { ProxyAgent } from 'undici';
+import { precoValido } from '../normaliza/precoValido.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const H = { 'user-agent': UA, accept: 'application/json' };
@@ -51,9 +52,9 @@ export async function precoEstoqueVtex(host, ean, { timeout = 9000, proxy = fals
   if (!it) return { existe: false };
   const offer = (it.sellers && it.sellers[0] && it.sellers[0].commertialOffer) || null;
   const precoRaw = num(offer && offer.Price);
-  const preco = precoRaw != null && precoRaw > 0 && precoRaw < 1e6 ? precoRaw : null;
   const qtd = num(offer && offer.AvailableQuantity);
-  const disponivel = preco != null && !((qtd != null && qtd <= 0) || (offer && offer.IsAvailable === false));
+  const disponivel = !((qtd != null && qtd <= 0) || (offer && offer.IsAvailable === false));
+  const preco = precoValido(precoRaw, { disponivel }) ? precoRaw : null; // descarta sentinela/centavo/esgotado
   return { existe: true, preco, disponivel, qtd };
 }
 
@@ -70,13 +71,12 @@ export async function precoVivoVtex(host, ean, cep, { timeout = 4500, proxy = fa
   const seller = (it.sellers && it.sellers[0] && it.sellers[0].sellerId) || '1';
   const offer = (it.sellers && it.sellers[0] && it.sellers[0].commertialOffer) || null;
   const precoRaw = num(offer && offer.Price);
-  // 0 ou valor-sentinela (ex.: 9999999 = "indisponível" no VTEX) → sem preço real.
-  const preco = precoRaw != null && precoRaw > 0 && precoRaw < 1e6 ? precoRaw : null;
-  if (preco == null) return { existe: false }; // não tem oferta real → fica a cache
-  // ESTOQUE: o VTEX expõe AvailableQuantity (0 = esgotado) e IsAvailable. Sem estoque, não
-  // adianta indicar a farmácia (preço que não dá para comprar) → trata como sem oferta.
-  const disp = num(offer.AvailableQuantity);
-  if ((disp != null && disp <= 0) || offer.IsAvailable === false) return { existe: false };
+  // ESTOQUE: o VTEX expõe AvailableQuantity (0 = esgotado) e IsAvailable. Guard único
+  // precoValido descarta sentinela (99999/999999/9999999), centavo (<0,50) e esgotado.
+  const disp = num(offer && offer.AvailableQuantity);
+  const disponivel = !((disp != null && disp <= 0) || (offer && offer.IsAvailable === false));
+  const preco = precoValido(precoRaw, { disponivel }) ? precoRaw : null;
+  if (preco == null) return { existe: false }; // sem oferta real (sentinela/centavo/esgotado) → fica a cache
 
   // Em PARALELO: frete deste 1 item + frete de um carrinho MAIOR (~R$250) p/ detetar
   // "frete grátis acima de um valor" (política comum). qty limitada (stock).
