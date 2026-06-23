@@ -37,7 +37,8 @@ let MOEDA = 'EUR';
 const setMoeda = (m) => { if (m) MOEDA = m; };
 const fmtPreco = (v, moeda = MOEDA) => {
   if (v == null || Number.isNaN(Number(v))) return '—';
-  const s = Number(v).toFixed(2).replace('.', ',');
+  // ponto de milhar + vírgula decimal (R$ 2.234,99 / 2.234,99 €) — pt-BR e pt-PT partilham a convenção
+  const s = Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return moeda === 'BRL' ? `R$ ${s}` : `${s} €`;
 };
 const eur = (v) => fmtPreco(v);
