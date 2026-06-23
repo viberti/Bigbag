@@ -48,7 +48,10 @@ export async function precoVivoVtex(host, ean, cep, { timeout = 4500, proxy = fa
   if (!it) return { existe: false };
   const sku = String(it.itemId || '');
   const seller = (it.sellers && it.sellers[0] && it.sellers[0].sellerId) || '1';
-  const preco = num(it.sellers && it.sellers[0] && it.sellers[0].commertialOffer && it.sellers[0].commertialOffer.Price);
+  const precoRaw = num(it.sellers && it.sellers[0] && it.sellers[0].commertialOffer && it.sellers[0].commertialOffer.Price);
+  // 0 ou valor-sentinela (ex.: 9999999 = "indisponível" no VTEX) → sem preço real.
+  const preco = precoRaw != null && precoRaw > 0 && precoRaw < 1e6 ? precoRaw : null;
+  if (preco == null) return { existe: false }; // não tem oferta real → fica a cache
 
   // Em PARALELO: frete deste 1 item + frete de um carrinho MAIOR (~R$250) p/ detetar
   // "frete grátis acima de um valor" (política comum). qty limitada (stock).

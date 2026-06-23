@@ -64,7 +64,7 @@ async function ofertasDoEan(pool, ean) {
   const [rows] = await pool.query(
     `SELECT fonte, preco, url, imagem_url, nome, scraped_at
        FROM catalogo_produto
-      WHERE ean = ? AND moeda = 'BRL' AND preco IS NOT NULL AND fonte IN ${inFarmacias}
+      WHERE ean = ? AND moeda = 'BRL' AND preco > 0 AND fonte IN ${inFarmacias}
       ORDER BY preco ASC`,
     [ean, ...FARMACIAS],
   );
@@ -131,7 +131,7 @@ async function equivalentesComOferta(pool, med) {
     `SELECT m.ean, m.produto, m.laboratorio, m.tipo, m.generico, m.qtd_embalagem, m.pmc_18,
             MIN(cp.preco) menor_preco, COUNT(DISTINCT cp.fonte) n_farmacias
        FROM medicamento m
-       JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco IS NOT NULL
+       JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco > 0
         AND cp.moeda = 'BRL' AND cp.fonte IN ${inFarmacias}
       WHERE m.substancia <=> ? AND m.dose_valor <=> ? AND m.dose_unidade <=> ? AND m.forma <=> ?
       GROUP BY m.ean
@@ -213,7 +213,7 @@ medicamentoRouter.get('/buscar', async (req, res) => {
       `SELECT m.ean, m.registro, m.produto, m.substancia, m.laboratorio, m.generico, m.dosagem, m.forma, m.qtd_embalagem,
               MIN(cp.preco) menor_preco, COUNT(DISTINCT cp.fonte) n_farmacias
          FROM medicamento m
-         JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco IS NOT NULL
+         JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco > 0
           AND cp.moeda = 'BRL' AND cp.fonte IN ${inFarmacias}
         WHERE MATCH(m.produto, m.substancia) AGAINST (? IN BOOLEAN MODE)
         GROUP BY m.ean

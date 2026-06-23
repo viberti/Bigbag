@@ -598,3 +598,10 @@
 .v2 .med-of2-prod{font:500 10.5px var(--font);color:var(--ink-3)}
 .v2 .med-of2:first-of-type{border-color:var(--leaf)}
 .v2 .med-of2-fg{display:block;font:700 10.5px var(--font);color:var(--leaf-d);margin-top:1px}
+.v2 .med-cep{display:flex;align-items:center;gap:8px;background:var(--cream-2);border-radius:var(--r-sm);padding:8px 12px;margin-bottom:10px}
+.v2 .med-cep-l{font:600 12.5px var(--font);color:var(--ink-2);white-space:nowrap}
+.v2 .med-cep-i{flex:0 0 96px;width:96px;border:2px solid var(--line);background:#fff;border-radius:10px;font:700 14px var(--font);color:var(--ink);padding:6px 9px;outline:none;text-align:center}
+.v2 .med-cep-i:focus{border-color:var(--leaf)}
+.v2 .med-cep-s{font:600 11px var(--font);color:var(--ink-3)}
+.v2 .med-cep-s.ok{color:var(--leaf-d)}
+.v2 .med-obs{font:500 11px var(--font);color:var(--ink-3);line-height:1.5;margin:10px 2px 4px}

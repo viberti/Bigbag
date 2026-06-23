@@ -1938,11 +1938,18 @@ function FichaRemedio({ info, abrir }) {
   const m = info.melhor, cmp = info.comparacao;
   const [vivo, setVivo] = useState(null);
   const [carregVivo, setCarregVivo] = useState(true);
+  const [cep, setCep] = useState(() => { try { return localStorage.getItem('bigbag_cep') || CEP_REF; } catch { return CEP_REF; } });
+  const [cepEdit, setCepEdit] = useState(cepFmt(cep));
+  function onCep(v) {
+    setCepEdit(v);
+    const d = v.replace(/\D/g, '').slice(0, 8);
+    if (d.length === 8 && d !== cep) { setCep(d); try { localStorage.setItem('bigbag_cep', d); } catch { /* noop */ } }
+  }
   useEffect(() => {
     let on = true; setVivo(null); setCarregVivo(true);
-    precosAoVivo(info.ean, CEP_REF).then((d) => { if (on) setVivo(d); }).catch(() => {}).finally(() => { if (on) setCarregVivo(false); });
+    precosAoVivo(info.ean, cep).then((d) => { if (on) setVivo(d); }).catch(() => {}).finally(() => { if (on) setCarregVivo(false); });
     return () => { on = false; };
-  }, [info.ean]);
+  }, [info.ean, cep]);
   const best = vivo && vivo.melhor_entrega && vivo.melhor_entrega.entrega ? vivo.melhor_entrega : null;
   const lista = vivo && vivo.fontes && vivo.fontes.length ? vivo.fontes : (info.ofertas || []);
   return (
@@ -1976,7 +1983,12 @@ function FichaRemedio({ info, abrir }) {
 
       {lista.length > 0 && (
         <>
-          <div className="med-lbl">Preço por farmácia {vivo ? <span className="med-vivo on">agora · entrega no CEP {cepFmt(vivo.cep)}</span> : carregVivo ? <span className="med-vivo">atualizando preço e frete…</span> : null}</div>
+          <div className="med-lbl">Preço por farmácia (com frete)</div>
+          <div className="med-cep">
+            <span className="med-cep-l">📍 Entrega no CEP</span>
+            <input className="med-cep-i" value={cepEdit} onChange={(e) => onCep(e.target.value)} placeholder="00000-000" inputMode="numeric" maxLength={9} aria-label="CEP de entrega" />
+            {carregVivo ? <span className="med-cep-s">a calcular…</span> : vivo ? <span className="med-cep-s ok">agora</span> : null}
+          </div>
           {lista.map((o) => (
             <div className="med-of2" key={o.fonte}>
               <div className="med-of2-l">
@@ -1992,6 +2004,7 @@ function FichaRemedio({ info, abrir }) {
               </div>
             </div>
           ))}
+          <p className="med-obs">Preço e frete capturados <b>agora</b> nas farmácias, para entrega no CEP acima. Os valores podem mudar a qualquer momento — confirme no site da farmácia antes de comprar. Só informação e preço, <b>não é aconselhamento médico</b>.</p>
         </>
       )}
 
