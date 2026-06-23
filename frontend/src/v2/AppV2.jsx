@@ -2030,19 +2030,35 @@ function FichaRemedio({ info, abrir }) {
         </>
       )}
 
-      {info.equivalentes && info.equivalentes.length > 1 && (
+      {info.outras_embalagens && info.outras_embalagens.length > 1 && (
         <>
-          <div className="med-lbl">Equivalentes — mesma substância e apresentação{id.forma ? ` (${id.forma}${id.dosagem ? ` ${id.dosagem}` : ''})` : ''}</div>
-          {info.equivalentes.map((e) => (
+          <div className="med-lbl">Outras embalagens <span className="med-lbl-s">mesmo remédio, tamanhos diferentes</span></div>
+          {info.outras_embalagens.map((e) => (
             <button key={e.ean} className={`med-eq ${e.referencia ? 'ref' : ''}`} onClick={() => !e.referencia && abrir(e.ean)} disabled={e.referencia}>
-              <div className="med-eq-n">{e.produto}{e.generico ? <span className="med-gen">genérico</span> : null}{e.referencia ? <span className="med-atual">este</span> : null}</div>
+              <div className="med-eq-n">{e.qtd_embalagem ? `${e.qtd_embalagem} ${unidEmb(e.forma)}` : e.produto}{e.referencia ? <span className="med-atual">este</span> : null}</div>
               <div className="med-eq-r">
                 <span className="med-eq-p">{fmtPreco(e.menor_preco, 'BRL')}</span>
-                {e.preco_por_dose != null && <span className="med-eq-d">{fmtPreco(e.preco_por_dose, 'BRL')}/{unidEmb(id.forma)}</span>}
+                {e.preco_por_dose != null && <span className="med-eq-d">{fmtPreco(e.preco_por_dose, 'BRL')}/{unidEmb(e.forma)}</span>}
               </div>
             </button>
           ))}
-          <p className="med-note">Preço por {unidEmb(id.forma)} comparável só entre embalagens da <b>mesma apresentação</b> ({id.forma || 'mesma forma'}{id.dosagem ? ` ${id.dosagem}` : ''}), em quantidades diferentes. Só informação e preço — não é aconselhamento médico.</p>
+          <p className="med-note">Preço por {unidEmb(id.forma)} para comparar os tamanhos. Só informação e preço — não é aconselhamento médico.</p>
+        </>
+      )}
+
+      {info.equivalentes && info.equivalentes.length > 0 && (
+        <>
+          <div className="med-lbl">Equivalentes <span className="med-lbl-s">outras marcas, mesma substância e apresentação</span></div>
+          {info.equivalentes.map((e) => (
+            <button key={e.ean} className="med-eq" onClick={() => abrir(e.ean)}>
+              <div className="med-eq-n">{e.produto}{e.generico ? <span className="med-gen">genérico</span> : null}</div>
+              <div className="med-eq-r">
+                <span className="med-eq-p">{fmtPreco(e.menor_preco, 'BRL')}</span>
+                {e.preco_por_dose != null && <span className="med-eq-d">{fmtPreco(e.preco_por_dose, 'BRL')}/{unidEmb(e.forma)}</span>}
+              </div>
+            </button>
+          ))}
+          <p className="med-note">Mesma substância, força e forma ({id.forma || 'mesma forma'}{id.dosagem ? ` ${id.dosagem}` : ''}) — preço por {unidEmb(id.forma)} comparável. Confirme a troca com o farmacêutico. Só informação e preço — não é aconselhamento médico.</p>
         </>
       )}
     </div>

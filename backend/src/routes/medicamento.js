@@ -135,7 +135,7 @@ async function escolherImagem(pool, med, eanConsultado, ph) {
 async function equivalentesComOferta(pool, med) {
   if (med.forma == null || med.dose_valor == null || med.dose_unidade == null) return [];
   const [rows] = await pool.query(
-    `SELECT m.ean, m.produto, m.laboratorio, m.tipo, m.generico, m.forma, m.qtd_embalagem, m.pmc_18,
+    `SELECT m.ean, m.registro, m.produto, m.laboratorio, m.tipo, m.generico, m.forma, m.qtd_embalagem, m.pmc_18,
             MIN(cp.preco) menor_preco, COUNT(DISTINCT cp.fonte) n_farmacias
        FROM medicamento m
        JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco > 0
@@ -146,7 +146,7 @@ async function equivalentesComOferta(pool, med) {
     [...FARMACIAS, med.substancia, med.dose_valor, med.dose_unidade, med.forma],
   );
   return rows.map((r) => ({
-    ean: r.ean, produto: r.produto, laboratorio: r.laboratorio, tipo: r.tipo,
+    ean: r.ean, registro: r.registro, produto: r.produto, laboratorio: r.laboratorio, tipo: r.tipo,
     generico: !!r.generico, forma: r.forma, qtd_embalagem: r.qtd_embalagem,
     menor_preco: r.menor_preco == null ? null : Number(r.menor_preco),
     preco_por_dose: precoPorDose(r.menor_preco, r.qtd_embalagem),
@@ -177,7 +177,17 @@ medicamentoRouter.get('/info', async (req, res) => {
       pct_vs_pmc: pmc > 0 ? Math.round((1 - melhor.preco / pmc) * 1000) / 10 : null, // % abaixo do teto
     } : null;
 
-    const equivalentes = await equivalentesComOferta(pool, med);
+    // Mesma substância+dose+forma. Separa o MESMO produto registado (outras embalagens =
+    // outros tamanhos do próprio remédio, pelo registro ANVISA dos 9 dígitos) dos
+    // EQUIVALENTES de outras marcas/genéricos — não faz sentido listar o próprio produto
+    // como "equivalente". Sem registro na referência, cai no nome da marca.
+    const todosEquiv = await equivalentesComOferta(pool, med);
+    const reg9 = (s) => (s && String(s).length >= 13 ? String(s).slice(0, 9) : null);
+    const r9 = reg9(med.registro);
+    const normNome = (s) => String(s || '').toUpperCase().trim();
+    const mesmoProduto = (e) => (r9 ? reg9(e.registro) === r9 : normNome(e.produto) === normNome(med.produto));
+    const outrasEmbalagens = todosEquiv.filter(mesmoProduto);            // inclui a referência (ESTE)
+    const equivalentes = todosEquiv.filter((e) => !mesmoProduto(e));     // só outras marcas/genéricos
     const maisBaratoEquivalente = equivalentes.find((e) => e.preco_por_dose != null) || null;
 
     res.json({
@@ -190,7 +200,7 @@ medicamentoRouter.get('/info', async (req, res) => {
       },
       tetos: { pf: med.pf == null ? null : Number(med.pf), pmc_18: pmc, pmc_por_icms: med.pmc_por_icms },
       imagem: await escolherImagem(pool, med, ean, ph),
-      ofertas, melhor, comparacao, equivalentes, mais_barato_equivalente: maisBaratoEquivalente,
+      ofertas, melhor, comparacao, outras_embalagens: outrasEmbalagens, equivalentes, mais_barato_equivalente: maisBaratoEquivalente,
     });
   } catch (e) { console.error('[medicamento/info]', e); res.status(500).json({ erro: 'erro interno' }); }
 });
