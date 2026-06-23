@@ -436,3 +436,99 @@ medicamentoRouter.get('/monitor', async (req, res) => {
     });
   } catch (e) { console.error('[medicamento/monitor]', e); res.status(500).json({ erro: 'erro interno' }); }
 });
+
+// Rótulo HUMANO de força a partir da CURADA (nunca a concentração crua "1,34 mg/ml").
+function rotuloForca(r) {
+  const fmt = (n) => (n == null ? '' : String(Number(n)).replace('.', ','));
+  const per = r.forca_periodicidade ? `/${r.forca_periodicidade}` : '';
+  if (r.forca_valor != null) {
+    const un = r.forca_unidade || 'mg';
+    if (r.papel === 'inicio' && r.forca_valor_max != null) return `dose de início ${fmt(r.forca_valor)}–${fmt(r.forca_valor_max)} ${un}${per}`;
+    if (r.papel === 'inicio') return `dose de início ${fmt(r.forca_valor)} ${un}${per}`;
+    return `${fmt(r.forca_valor)} ${un}${per}`;
+  }
+  if (r.dose_unidade && /\//.test(r.dose_unidade)) return 'força a curar'; // injetável sem curar → não expor concentração
+  return r.dose_valor != null ? `${fmt(r.dose_valor)} ${String(r.dose_unidade || '').toLowerCase()}`.trim() : '—';
+}
+
+// GET /api/medicamento/catalogo?marca=Ozempic | ?registro=1176600360 — CATÁLOGO HIERÁRQUICO
+// (read-only). Parte da IDENTIDADE CMED (todas as apresentações da marca, COM e SEM oferta) →
+// apresentações (rótulo de força CURADA, ordem clínica crescente, com-oferta primeiro / sem-oferta
+// rebaixada) → farmácias por apresentação (ordenadas por preço). Comparação de preço SÓ no nível 3
+// (dentro de uma apresentação). Só fontes FARMÁCIA. Guard do Cluster 1 respeitado (preco>0).
+medicamentoRouter.get('/catalogo', async (req, res) => {
+  try {
+    const marca = String(req.query.marca || '').trim();
+    const reg9 = String(req.query.registro || '').replace(/\D/g, '').slice(0, 9);
+    if (!marca && !reg9) return res.status(400).json({ erro: 'informe ?marca= ou ?registro=' });
+    const pool = getPool();
+    const cond = marca ? 'UPPER(m.produto) = ?' : 'LEFT(m.registro,9) = ?';
+    const arg = marca ? marca.toUpperCase() : reg9;
+    // NÍVEL 1+2: apresentações (identity-first; LEFT JOIN curado + agregado de ofertas p/ COM/SEM_OFERTA)
+    const [apres] = await pool.query(
+      `SELECT m.ean, m.produto, m.substancia, m.forma, m.dose_valor, m.dose_unidade, m.registro, m.tarja,
+              mc.forca_valor, mc.forca_valor_max, mc.forca_unidade, mc.forca_periodicidade, mc.papel,
+              COALESCE(mc.qtd_embalagem_corr, m.qtd_embalagem) AS qtd_ef,
+              COALESCE(mc.forca_valor, m.dose_valor) AS forca_ef, COALESCE(mc.forca_unidade, m.dose_unidade) AS forca_un,
+              COUNT(DISTINCT cp.fonte) AS n_ofertas
+         FROM medicamento m
+         LEFT JOIN medicamento_curado mc ON mc.ean = m.ean
+         LEFT JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco > 0 AND cp.moeda = 'BRL' AND cp.fonte IN ${inFarmacias}
+        WHERE ${cond}
+        GROUP BY m.ean`, [...FARMACIAS, arg]);
+    if (!apres.length) return res.status(404).json({ erro: 'marca/registro sem apresentações na CMED' });
+    const eans = apres.map((a) => a.ean);
+    const inEans = '(' + eans.map(() => '?').join(',') + ')';
+    // NÍVEL 3: ofertas por farmácia (todas as apresentações de uma vez; ordem por preço)
+    const [ofertas] = await pool.query(
+      `SELECT ean, fonte, preco, preco_cond, preco_cond_obs, url, TIMESTAMPDIFF(HOUR, scraped_at, NOW()) frescor_h
+         FROM catalogo_produto WHERE ean IN ${inEans} AND preco > 0 AND moeda = 'BRL' AND fonte IN ${inFarmacias}
+        ORDER BY preco ASC`, [...eans, ...FARMACIAS]);
+    // estoque: último snapshot do monitor por (ean,fonte)
+    const [stk] = await pool.query(
+      `SELECT t.ean, t.fonte, t.disponivel, t.qtd_estoque FROM medicamento_monitor_hist t
+         JOIN (SELECT ean, fonte, MAX(capturado_em) mx FROM medicamento_monitor_hist WHERE ean IN ${inEans} GROUP BY ean, fonte) g
+           ON g.ean = t.ean AND g.fonte = t.fonte AND g.mx = t.capturado_em`, eans);
+    const stkMap = new Map(stk.map((s) => [`${s.ean}|${s.fonte}`, s]));
+    // alternativas mesma força: toda a substancia+forma de uma vez (agrupado depois em JS)
+    const sub = apres[0].substancia, forma = apres[0].forma;
+    const [alt] = await pool.query(
+      `SELECT m.produto, m.ean, COALESCE(mc.forca_valor, m.dose_valor) fv, COALESCE(mc.forca_unidade, m.dose_unidade) fu,
+              mc.forca_valor_max fmax, MIN(cp.preco) menor, COUNT(DISTINCT cp.fonte) nf
+         FROM medicamento m LEFT JOIN medicamento_curado mc ON mc.ean = m.ean
+         JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco > 0 AND cp.moeda = 'BRL' AND cp.fonte IN ${inFarmacias}
+        WHERE m.substancia <=> ? AND m.forma = ? GROUP BY m.ean`, [...FARMACIAS, sub, forma]);
+
+    const ofPorEan = new Map();
+    for (const o of ofertas) { if (!ofPorEan.has(o.ean)) ofPorEan.set(o.ean, []); ofPorEan.get(o.ean).push(o); }
+    const lista = apres.map((a) => {
+      const fef = a.forca_ef == null ? null : Number(a.forca_ef);
+      const fmax = a.forca_valor_max == null ? null : Number(a.forca_valor_max);
+      const farmacias = (ofPorEan.get(a.ean) || []).map((o) => {
+        const s = stkMap.get(`${a.ean}|${o.fonte}`);
+        return { fonte: o.fonte, preco: Number(o.preco),
+          preco_cond: o.preco_cond == null ? null : Number(o.preco_cond), preco_cond_obs: o.preco_cond_obs,
+          disponivel: s && s.disponivel != null ? !!s.disponivel : null, qtd_estoque: s ? s.qtd_estoque : null,
+          frescor_h: o.frescor_h, url: o.url };
+      });
+      const alternativas = alt.filter((x) => x.produto !== a.produto && Number(x.fv) === fef
+          && (x.fmax == null ? null : Number(x.fmax)) === fmax && String(x.fu) === String(a.forca_un))
+        .map((x) => ({ marca: x.produto, ean: x.ean, menor_preco: Number(x.menor), n_farmacias: x.nf }))
+        .sort((p, q) => p.menor_preco - q.menor_preco);
+      return {
+        ean: a.ean, registro: fmtRegistro(a.registro),
+        rotulo_forca: rotuloForca(a),
+        forca_valor: fef, forca_valor_max: fmax, forca_unidade: a.forca_un, papel: a.papel || (a.forca_valor != null ? 'manutencao' : null),
+        qtd_efetiva: a.qtd_ef,
+        estado: a.n_ofertas > 0 ? 'COM_OFERTA' : 'SEM_OFERTA',
+        farmacias,
+        alternativas_mesma_forca: alternativas,
+        nota_alternativas: alternativas.length ? 'Mesma substância e força — NÃO é genérico oficial; troca exige decisão médica. Não substitui a marca pedida.' : null,
+      };
+    });
+    // ordena: COM_OFERTA primeiro, depois FORÇA CLÍNICA crescente (ordem clínica, não preço)
+    lista.sort((a, b) => (a.estado === b.estado ? 0 : a.estado === 'COM_OFERTA' ? -1 : 1) || (a.forca_valor ?? 9e9) - (b.forca_valor ?? 9e9));
+    res.json({ marca: apres[0].produto, substancia: sub, forma, tarja: apres[0].tarja,
+      n_apresentacoes: lista.length, com_oferta: lista.filter((x) => x.estado === 'COM_OFERTA').length, apresentacoes: lista });
+  } catch (e) { console.error('[medicamento/catalogo]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
