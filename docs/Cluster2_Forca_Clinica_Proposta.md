@@ -130,6 +130,30 @@ orais usam `dose_valor` como antes. `medicamento` não foi editada.
 
 ---
 
+## ✅ ETAPA 2 — Catálogo hierárquico read-only (2026-06-23)
+
+**2A — hoje:** `/buscar` e `/equivalentes` partem da identidade mas com `medicamento JOIN
+catalogo_produto` (**INNER, offer-gated**) → apresentação sem oferta nunca aparece. `/info` é
+identity-first mas por-EAN. Não havia vista marca→todas-as-apresentações (com SEM_OFERTA).
+
+**2B+2C — `GET /api/medicamento/catalogo?marca=|registro=`** (público, read-only): parte de
+`medicamento` (todas as apresentações da marca) com **LEFT JOIN** nas ofertas (só fontes FARMÁCIA,
+`preco>0` → guard Cluster 1). Hierarquia **marca → apresentações → farmácias**:
+- rótulo de força pela **CURADA** (`rotuloForca`; nunca "1,34 mg/ml" cru; início → "dose de início 0,25–0,5 mg/semana");
+- **COM_OFERTA primeiro**, SEM_OFERTA num bloco rebaixado; apresentações **ordenadas por força clínica crescente** (não por preço);
+- farmácias por apresentação **ordenadas por preço** (+ `preco_cond`/obs, `disponivel`/estoque do monitor, `frescor_h`);
+- **`alternativas_mesma_forca`** anexado por apresentação (outras marcas mesmo balde, ordenadas por preço) + `nota_alternativas` ("não é genérico oficial; troca exige decisão médica; não substitui a marca pedida") — camada opcional que **não reorganiza** a tela.
+
+**2D — provado:**
+- **Ozempic** (4 apres, 2 c/ oferta): "dose de início 0,25–0,5 mg/semana" → alternativas Ozivy/Extensior (baldes início); "1 mg/semana" → alternativas Ozivy×2/Poviztra/Extensior/Wegovy (classe 1mg fechada); 2 SEM_OFERTA rebaixadas.
+- **Mounjaro** (24 apres, 6 c/ oferta): 2,5→15 mg/semana c/ qtd_ef=4 (preço/dose finito), farmácias por preço, estoque=True; alternativas vazias (tirzepatida só Mounjaro); **18 SEM_OFERTA rebaixadas — os EANs CMED suspeitos 7906…/7916…/7926…/7936…/7946… aparecem NATURALMENTE como SEM_OFERTA, sem tratamento especial.** ✅
+
+**Nota cosmética (não-bloqueante):** apresentações SEM_OFERTA não-curadas com `dose_unidade='MG/ML'`
+mostram "força a curar" (não expõem a concentração crua, por design); curá-las é dispensável (sem
+preço a comparar). Read-only confirmado: o endpoint não escreve nada.
+
+---
+
 ## ⏸️ Histórico — gate das Fases 1–3 (já aprovado)
 1. **DDL** da `medicamento_curado` — aprovado?
 2. **Valores curados** — aprovados? E o **starter**: `forca_valor=0,25` ou `0,5`?
