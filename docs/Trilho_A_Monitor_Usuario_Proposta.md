@@ -200,5 +200,34 @@ EAN ficam públicos (sem PII).
 
 ---
 
-## ⏸️ PARE — aguarda OK
-Nada criado/escrito. Com a aprovação: migração das 2 tabelas + (na tarefa do motor) a UNIÃO da ponte.
+## ✅ MOTOR DE GATILHO IMPLEMENTADO (DRY-RUN) — 2026-06-23
+
+- **Schema:** migr. 082 (usuario_monitor + alerta_log) **APLICADA**; migr. 083 (alerta_log `preco_cond`/
+  `preco_cond_fonte`/`preco_cond_obs` — PBM informativo) **APLICADA**.
+- **Ponte (`ingest/monitorarPrecos.js`):** a seleção do job denso ganhou `OR m.ean IN (SELECT ean FROM
+  usuario_monitor WHERE ativo=1)` → o EAN do usuário entra na coleta 4/4h (cobre liraglutida/futuras).
+  `idx_ativo_ean(ativo,ean)` serve a subquery.
+- **Motor (`ingest/motorAlertas.js`, `avaliarAlertas`):** por monitor ativo, ordem barato-primeiro →
+  último snapshot denso → filtra estoque (`sem_estoque`) → menor preço de TABELA → gatilho **limiar 8%
+  E piso R$80 simultâneos** (`acima_do_limiar`) → `cooldown` → grava `alerta_log` **entregue=0** +
+  atualiza `ultimo_alerta_em`. **NÃO envia nada.** `preco_cond` (PBM) capturado p/ informar, **nunca
+  dispara**; bônus loga `dispararia_cond`. **Cadência:** roda LOGO APÓS a colheita densa (o cron
+  `monitorar_precos.mjs` chama os dois; `0 */4`).
+- **6 endpoints** (`routes/medicamento.js`, todos `requireAuth` + filtro `req.user.id`): `GET
+  /monitor-usuario/sugestao`, `POST /monitor-usuario`, `GET /meus-monitores`, `PATCH`/`DELETE
+  /monitor-usuario/:id` (soft), `GET /meus-alertas`. Isolamento por usuário.
+- **Calibração:** `scripts/relatorio_alertas.mjs` (read-only) lista cada disparo do dry-run com
+  contexto p/ julgar à mão + contagem; o motor loga por execução `avaliados/disparos/razões/
+  dispararia_cond`. *(Opção futura: endpoint admin; o script basta p/ o single-user.)*
+- **PROVA e2e (dry-run, monitores de teste, limpos por cascata):** run #1 → **1 disparo** (Ozivy 1mg
+  R$597,62, −14,6% vs R$700, estoque=1, entregue=0) + `acima_do_limiar=1` + `sem_estoque=1` +
+  `cooldown=1`; run #2 imediato → o disparo virou **cooldown** (disparos=0). `DELETE usuario` →
+  cascata limpou monitores+alertas (0/0): **exclusão LGPD genuína provada**.
+
+**Fora (próxima tarefa):** entrega/push (FCM) — lê `alerta_log` `entregue=0`, envia, marca `entregue=1`.
+Calibrar 8%/R$80 com o relatório ANTES de ligar a entrega. PBM curado fora de escopo.
+
+---
+
+## ⏸️ Histórico — gate do schema (aprovado e aplicado)
+Nada criado/escrito nesta fase de proposta. (Migração aplicada na fase seguinte.)
