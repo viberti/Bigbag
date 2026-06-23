@@ -1963,6 +1963,9 @@ function FichaRemedio({ info, abrir }) {
   // com CEP, esconde quem NÃO entrega ali (mantém quem entrega p/ pedidos maiores).
   const lista = vivo ? listaAll.filter((o) => o.entrega || o.frete_gratis_maiores) : listaAll;
   const ocultas = vivo ? listaAll.length - lista.length : 0;
+  // URL do produto por farmácia (do cache /info; o caminho ao-vivo não a traz) → card clicável p/ o site.
+  const urlPorFonte = {};
+  (info.ofertas || []).forEach((o) => { if (o.url) urlPorFonte[o.fonte] = o.url; });
   return (
     <div className="med-ficha">
       {info.imagem && <div className="med-img"><img src={info.imagem} alt={id.produto || 'remédio'} loading="lazy" onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }} /></div>}
@@ -2017,21 +2020,27 @@ function FichaRemedio({ info, abrir }) {
             <input className="med-cep-i" value={cepEdit} onChange={(e) => onCep(e.target.value)} placeholder="00000-000" inputMode="numeric" maxLength={9} aria-label="CEP de entrega" />
             {carregVivo ? <span className="med-cep-s">calculando…</span> : vivo ? <span className="med-cep-s ok">agora</span> : null}
           </div>
-          {lista.map((o) => (
-            <div className="med-of2" key={o.fonte}>
-              <div className="med-of2-l">
-                <span className="med-of-f">{nomeFarm(o.fonte)}</span>
-                {vivo ? (o.entrega ? <span className="med-of2-sub">+ frete {fmtPreco(o.frete, 'BRL')}{o.prazo ? ` · ${o.prazo}` : ''}</span>
-                  : o.retira ? <span className="med-of2-na">só retirada na loja</span> : <span className="med-of2-na">não entrega aqui</span>) : null}
-                {vivo && (o.frete_gratis_acima || o.frete_gratis_maiores) ? <span className="med-of2-fg">🚚 frete grátis acima de {o.frete_gratis_acima ? fmtPreco(o.frete_gratis_acima, 'BRL') : `~${fmtPreco(o.frete_gratis_sub, 'BRL')}`}</span> : null}
-              </div>
-              <div className="med-of2-r">
-                {vivo && o.entrega && o.total != null
-                  ? <><span className="med-of2-total">{fmtPreco(o.total, 'BRL')}</span><span className="med-of2-prod">prod. {fmtPreco(o.preco, 'BRL')}</span></>
-                  : <span className="med-of-p">{fmtPreco(o.preco, 'BRL')}</span>}
-              </div>
-            </div>
-          ))}
+          {lista.map((o) => {
+            const href = o.url || urlPorFonte[o.fonte]; // ao-vivo não traz url → fallback do cache (mesma fonte)
+            const inner = (
+              <>
+                <div className="med-of2-l">
+                  <span className="med-of-f">{nomeFarm(o.fonte)}{href ? <span className="med-of2-go" aria-hidden="true">↗</span> : null}</span>
+                  {vivo ? (o.entrega ? <span className="med-of2-sub">+ frete {fmtPreco(o.frete, 'BRL')}{o.prazo ? ` · ${o.prazo}` : ''}</span>
+                    : o.retira ? <span className="med-of2-na">só retirada na loja</span> : <span className="med-of2-na">não entrega aqui</span>) : null}
+                  {vivo && (o.frete_gratis_acima || o.frete_gratis_maiores) ? <span className="med-of2-fg">🚚 frete grátis acima de {o.frete_gratis_acima ? fmtPreco(o.frete_gratis_acima, 'BRL') : `~${fmtPreco(o.frete_gratis_sub, 'BRL')}`}</span> : null}
+                </div>
+                <div className="med-of2-r">
+                  {vivo && o.entrega && o.total != null
+                    ? <><span className="med-of2-total">{fmtPreco(o.total, 'BRL')}</span><span className="med-of2-prod">prod. {fmtPreco(o.preco, 'BRL')}</span></>
+                    : <span className="med-of-p">{fmtPreco(o.preco, 'BRL')}</span>}
+                </div>
+              </>
+            );
+            return href
+              ? <a className="med-of2 med-of2-link" key={o.fonte} href={href} target="_blank" rel="noopener noreferrer" title={`Abrir ${nomeFarm(o.fonte)}`}>{inner}</a>
+              : <div className="med-of2" key={o.fonte}>{inner}</div>;
+          })}
           {vivo && lista.length === 0 && <p className="empty">Nenhuma farmácia entrega neste CEP — tente outro CEP.</p>}
           {ocultas > 0 && <p className="med-obs2">{ocultas} {ocultas > 1 ? 'farmácias não entregam' : 'farmácia não entrega'} neste CEP (ocultada{ocultas > 1 ? 's' : ''}).</p>}
           <p className="med-obs">Preço e frete capturados <b>agora</b> nas farmácias, para entrega no CEP acima. Os valores podem mudar a qualquer momento — confirme no site da farmácia antes de comprar. Só informação e preço, <b>não é aconselhamento médico</b>.</p>

@@ -589,6 +589,9 @@
 .v2 .med-vivo{font:700 10px var(--font);color:var(--ink-3);background:var(--cream-2);border-radius:var(--r-pill);padding:2px 8px;margin-left:6px;text-transform:none;letter-spacing:0}
 .v2 .med-vivo.on{color:var(--leaf-d);background:var(--leaf-soft)}
 .v2 .med-of2{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:10px 15px;margin-bottom:7px}
+.v2 a.med-of2-link{text-decoration:none;color:inherit;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.v2 a.med-of2-link:hover{border-color:var(--leaf);box-shadow:var(--sh-md)}
+.v2 .med-of2-go{margin-left:5px;color:var(--leaf-d);font-size:12px}
 .v2 .med-of2-l{min-width:0}
 .v2 .med-of2-l .med-of-f{font:600 14px var(--font);color:var(--ink);display:block}
 .v2 .med-of2-sub{font:500 11px var(--font);color:var(--ink-3)}
