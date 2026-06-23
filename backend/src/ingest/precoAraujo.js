@@ -37,11 +37,16 @@ export async function precoAraujoEan(ean, { timeout = 14000 } = {}) {
   if (!gtin || !(gtin === alvo || gtin.endsWith(alvo) || alvo.endsWith(gtin.replace(/^0+/, '')))) return { existe: false };
   const of = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
   const preco = of ? Number(of.price) : null;
+  // sku = o id do produto no URL (/<slug>/<id>.html) — único. O `ld.sku` da Araújo às vezes
+  // é um OBJETO (vira "[object Object]" e colidiria na chave (fonte, sku_fonte)) → não usar.
+  const idUrl = (link.match(/\/(\d+)\.html/) || [])[1];
+  const skuLd = (typeof ld.sku === 'string' || typeof ld.sku === 'number') ? String(ld.sku) : null;
+  const marcaTxt = typeof ld.brand === 'string' ? ld.brand : (ld.brand && typeof ld.brand.name === 'string' ? ld.brand.name : null);
   return {
     existe: true,
     preco: Number.isFinite(preco) && preco > 0 ? preco : null,
-    nome: ld.name || null, marca: (ld.brand && (ld.brand.name || ld.brand)) || null,
-    sku: String(ld.sku || (link.match(/\/(\d+)\.html/) || [])[1] || alvo).slice(0, 24), gtin,
+    nome: typeof ld.name === 'string' ? ld.name : null, marca: marcaTxt,
+    sku: String(idUrl || skuLd || alvo).slice(0, 24), gtin,
     imagem: (ld.image && (Array.isArray(ld.image) ? ld.image[0] : ld.image)) || null,
     url: `https://${HOST}${link}`,
   };
