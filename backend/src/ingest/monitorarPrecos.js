@@ -7,10 +7,12 @@ import { readFileSync } from 'node:fs';
 import { getPool } from '../db.js';
 import { precoEstoqueVtex } from './precoVivo.js';
 import { precoPanvelEan } from './precoPanvel.js';
+import { precoNisseiEan } from './precoNissei.js';
 
 const MANIFESTO = JSON.parse(readFileSync(new URL('../../scripts/fontes_farmacia.json', import.meta.url), 'utf8'));
 const VTEX = MANIFESTO.filter((f) => (f.motor || 'vtex') === 'vtex'); // VTEX: preço + estoque por EAN
-const TEM_PANVEL = MANIFESTO.some((f) => f.motor === 'panvel');        // Panvel: só preço (sem sinal de estoque)
+const TEM_PANVEL = MANIFESTO.some((f) => f.motor === 'panvel');        // Panvel/Nissei: só preço (sem sinal de estoque)
+const TEM_NISSEI = MANIFESTO.some((f) => f.motor === 'nissei');
 
 export async function monitorarMonitorados({ log = console.log } = {}) {
   const pool = getPool();
@@ -40,10 +42,14 @@ export async function monitorarMonitorados({ log = console.log } = {}) {
       vals.push([ean, fonte, r.preco, r.disponivel ? 1 : 0, r.qtd]);
       if (!r.disponivel) esgotados += 1;
     }
-    // Panvel (não-VTEX): só preço, sem sinal de estoque (disponivel=NULL = desconhecido).
+    // Panvel/Nissei (não-VTEX): só preço, sem sinal de estoque (disponivel=NULL = desconhecido).
     if (TEM_PANVEL) {
       const pv = await precoPanvelEan(ean).catch(() => null);
       if (pv && pv.existe && pv.preco != null) vals.push([ean, 'panvel', pv.preco, null, null]);
+    }
+    if (TEM_NISSEI) {
+      const ns = await precoNisseiEan(ean).catch(() => null);
+      if (ns && ns.existe && ns.preco != null) vals.push([ean, 'nissei', ns.preco, null, null]);
     }
     if (vals.length) {
       await pool.query('INSERT INTO medicamento_monitor_hist (ean, fonte, preco, disponivel, qtd_estoque) VALUES ?', [vals]);
