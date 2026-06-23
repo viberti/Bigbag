@@ -37,6 +37,26 @@ async function simular(host, sku, seller, qty, cep, dispatcher, timeout) {
   } catch { return { frete: null, prazo: null, retira: false }; }
 }
 
+// Preço + ESTOQUE de uma farmácia VTEX por EAN, SEM frete (não precisa de CEP nem simulação)
+// — usado pelo monitor periódico. Devolve { existe, preco, disponivel, qtd }. `existe:false`
+// = a farmácia não carrega o produto; `null` = não respondeu (não registar como esgotado).
+export async function precoEstoqueVtex(host, ean, { timeout = 9000, proxy = false } = {}) {
+  const dispatcher = proxy ? proxyDispatcher() : undefined;
+  let it;
+  try {
+    const r = await fetch(`https://${host}/api/catalog_system/pub/products/search?fq=alternateIds_Ean:${ean}`, { headers: H, signal: AbortSignal.timeout(timeout), dispatcher });
+    const j = await r.json();
+    it = j && j[0] && j[0].items && j[0].items[0];
+  } catch { return null; }
+  if (!it) return { existe: false };
+  const offer = (it.sellers && it.sellers[0] && it.sellers[0].commertialOffer) || null;
+  const precoRaw = num(offer && offer.Price);
+  const preco = precoRaw != null && precoRaw > 0 && precoRaw < 1e6 ? precoRaw : null;
+  const qtd = num(offer && offer.AvailableQuantity);
+  const disponivel = preco != null && !((qtd != null && qtd <= 0) || (offer && offer.IsAvailable === false));
+  return { existe: true, preco, disponivel, qtd };
+}
+
 export async function precoVivoVtex(host, ean, cep, { timeout = 4500, proxy = false } = {}) {
   const dispatcher = proxy ? proxyDispatcher() : undefined;
   let it;

@@ -394,3 +394,27 @@ medicamentoRouter.get('/explicacao', async (req, res) => {
     res.json({ substancia: sub, para_que_serve: v(out.para_que_serve), como_usar: v(out.como_usar), cuidados: v(out.cuidados) });
   } catch (e) { console.error('[medicamento/explicacao]', e); res.status(500).json({ erro: 'erro interno' }); }
 });
+
+// GET /api/medicamento/monitor?ean=&dias=30  → histórico denso de preço+estoque dos remédios
+// monitorados (tabela medicamento_monitor_hist, colhida 4/4h). Público (sem PII).
+medicamentoRouter.get('/monitor', async (req, res) => {
+  try {
+    const ean = eanLimpo(req.query.ean);
+    if (!ean) return res.status(400).json({ erro: 'EAN inválido' });
+    const dias = Math.min(180, Math.max(1, Number(req.query.dias) || 30));
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT fonte, preco, disponivel, capturado_em FROM medicamento_monitor_hist
+        WHERE ean = ? AND capturado_em >= (NOW() - INTERVAL ? DAY)
+        ORDER BY capturado_em ASC`, [ean, dias]);
+    const precos = rows.filter((r) => r.preco != null).map((r) => Number(r.preco));
+    res.json({
+      ean, dias, pontos: rows.length,
+      ultimo: rows.length ? rows[rows.length - 1].capturado_em : null,
+      preco_min: precos.length ? Math.min(...precos) : null,
+      preco_max: precos.length ? Math.max(...precos) : null,
+      pct_em_estoque: rows.length ? Math.round((rows.filter((r) => r.disponivel).length / rows.length) * 1000) / 10 : null,
+      historico: rows.map((r) => ({ fonte: r.fonte, preco: r.preco == null ? null : Number(r.preco), disponivel: !!r.disponivel, em: r.capturado_em })),
+    });
+  } catch (e) { console.error('[medicamento/monitor]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
