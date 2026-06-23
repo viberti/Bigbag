@@ -1868,7 +1868,7 @@ function Remedios({ back, standalone }) {
   useEffect(() => {
     if (!scan) return undefined;
     let leitor; setErro('');
-    (async () => { leitor = await lerCodigoBarras(videoRef.current, (cod) => abrir(cod), () => setErro('Câmara indisponível.')); })();
+    (async () => { leitor = await lerCodigoBarras(videoRef.current, (cod) => abrir(cod), () => setErro('Câmera indisponível.')); })();
     return () => leitor?.stop?.();
   }, [scan]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1884,10 +1884,10 @@ function Remedios({ back, standalone }) {
           {q && <button className="med-x" onClick={() => { setQ(''); setSug([]); setMarca(null); setInfo(null); setErro(''); }} aria-label="limpar">×</button>}
         </div>
         <button className={`med-scan ${scan ? 'on' : ''}`} onClick={() => { setInfo(null); setMarca(null); setScan((s) => !s); }}>
-          <Ico name="scan" size={20} stroke={2.2} /> {scan ? 'Fechar câmara' : 'Ler código de barras'}
+          <Ico name="scan" size={20} stroke={2.2} /> {scan ? 'Fechar câmera' : 'Ler código de barras'}
         </button>
 
-        {scan && <div className="med-cam"><video ref={videoRef} playsInline muted /><div className="med-cam-h">Aponte ao código de barras</div></div>}
+        {scan && <div className="med-cam"><video ref={videoRef} playsInline muted /><div className="med-cam-h">Aponte para o código de barras</div></div>}
 
         {/* NÍVEL 3 — ficha de preço de uma apresentação */}
         {info ? (
@@ -1924,7 +1924,7 @@ function Remedios({ back, standalone }) {
           </div>
         ) : null}
 
-        {busy && <p className="empty">A consultar…</p>}
+        {busy && <p className="empty">Consultando…</p>}
         {erro && <p className="empty">{erro}</p>}
       </div>
     </>
@@ -1979,9 +1979,9 @@ function FichaRemedio({ info, abrir }) {
         <div className="med-expl">
           <div className="med-expl-h">💡 Para que serve <span className="med-expl-t">em linguagem simples</span></div>
           <p className="med-expl-p">{expl.para_que_serve}</p>
-          {expl.como_usar && <p className="med-expl-l"><b>Como se usa:</b> {expl.como_usar}</p>}
+          {expl.como_usar && <p className="med-expl-l"><b>Como usar:</b> {expl.como_usar}</p>}
           {expl.cuidados && <p className="med-expl-l"><b>Cuidados:</b> {expl.cuidados}</p>}
-          <p className="med-expl-d">Resumo automático com base no princípio ativo — <b>não substitui a bula nem o seu médico</b>. <a href={bulaUrl} target="_blank" rel="noreferrer">Ver bula oficial (ANVISA) ↗</a></p>
+          <p className="med-expl-d">Resumo automático com base no princípio ativo — <b>não substitui a bula nem a orientação médica</b>. <a href={bulaUrl} target="_blank" rel="noreferrer">Ver bula oficial (ANVISA) ↗</a></p>
         </div>
       )}
 
@@ -2007,7 +2007,7 @@ function FichaRemedio({ info, abrir }) {
           <div className="med-cep">
             <span className="med-cep-l">📍 Entrega no CEP</span>
             <input className="med-cep-i" value={cepEdit} onChange={(e) => onCep(e.target.value)} placeholder="00000-000" inputMode="numeric" maxLength={9} aria-label="CEP de entrega" />
-            {carregVivo ? <span className="med-cep-s">a calcular…</span> : vivo ? <span className="med-cep-s ok">agora</span> : null}
+            {carregVivo ? <span className="med-cep-s">calculando…</span> : vivo ? <span className="med-cep-s ok">agora</span> : null}
           </div>
           {lista.map((o) => (
             <div className="med-of2" key={o.fonte}>
