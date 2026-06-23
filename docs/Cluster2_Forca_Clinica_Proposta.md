@@ -107,7 +107,30 @@ mantém match string-exato — a lupa confirmou grafia limpa; DCB fica como nota
 
 ---
 
-## ⏸️ PARO AQUI — preciso do teu OK (Fases 1–3)
+## ✅ APLICADO — Fase 4 + Fase 5 (2026-06-23)
+
+**Fase 4** (migr. 081 + `curadoria_glp1.mjs`, transação idempotente, COMMIT): `medicamento_curado`
+criada (com `forca_valor_max`), **23 linhas** inseridas (Ozempic 2 + Mounjaro 6 + Extensior 2 +
+Ozivy 3 + Poviztra 5 + Wegovy 5; as 2 correções 0,25→inicio incluídas). `equivalentesComOferta`
+agora usa FORÇA/QTD efetivas por COALESCE(curado, medicamento) e isola por `forca_valor_max <=>`.
+
+**Fase 5 — baldes provados (query deployada, dados reais):**
+- **(a) Classe semaglutida-injetável 1mg FECHADA** — balde de **6**: Ozempic + Ozivy(×2) + Poviztra +
+  Extensior + Wegovy, todas 1mg/manutenção. (Antes: 11, colapsado com 0,25/2/starter.) ✅
+- **(b1) Início FAIXA 0,25/0,5** (max=0,5): 3 → Ozempic, Extensior, Ozivy (canetas duais). ✅
+- **(b2) Início 0,25-EXATA** (max=NULL): 2 → Wegovy ↔ Poviztra. ✅
+  → **os dois baldes de início NÃO se misturam** (max 0,5 vs NULL) **nem com a manutenção**. ✅
+- **(c)(d) Mounjaro 2,5mg**: balde de 1 (separado das outras forças) · **preço/dose = R$415,69**
+  (÷0 do qtd=0 resolvido por qtd_ef=4). ✅
+- **Wegovy 1,7mg**: balde de 2 (Wegovy ↔ Poviztra 1,7) — **sem Ozempic** (não tem 1,7). ✅
+- **Rybelsus 3mg ORAL**: balde de 1, força estrutural (dose_valor), **inalterado**. ✅
+
+**Nada mais mudou:** preços/guard/monitor intactos (tabela aditiva, só leitura na equivalência);
+orais usam `dose_valor` como antes. `medicamento` não foi editada.
+
+---
+
+## ⏸️ Histórico — gate das Fases 1–3 (já aprovado)
 1. **DDL** da `medicamento_curado` — aprovado?
 2. **Valores curados** — aprovados? E o **starter**: `forca_valor=0,25` ou `0,5`?
 3. **Cobertura** — incluir já Wegovy/Ozivy/Poviztra/Extensior (forças do `apresentacao`), ou só Ozempic+Mounjaro agora?
