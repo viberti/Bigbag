@@ -22,13 +22,20 @@ export async function monitorarMonitorados({ log = console.log } = {}) {
   // (mesma SUBSTÂNCIA — marcas, similares e genéricos, todas as forças/formas). Decisão do
   // dono (2026-06-23): a lista é por marca (OZEMPIC/MOUNJARO) mas o monitor cobre a classe
   // inteira (semaglutida/tirzepatida). Auto-inclui genéricos novos. Não adianta EAN sem oferta.
+  // PONTE Trilho A: além da classe semeada (por substância), inclui TODO EAN que algum usuário
+  // monitore (usuario_monitor.ativo=1) — assim a escolha do usuário entra na coleta densa, mesmo
+  // fora das substâncias semeadas (cobre liraglutida/futuras). O índice idx_ativo_ean(ativo,ean)
+  // serve a subquery. Não muda COMO o preço é coletado — só QUE EANs entram.
   const [eans] = await pool.query(
     `SELECT DISTINCT m.ean, m.produto FROM medicamento m
-      WHERE m.substancia IN (
-              SELECT DISTINCT m2.substancia FROM medicamento m2
-                JOIN medicamento_monitorado mm ON UPPER(m2.produto) = mm.produto AND mm.ativo = 1
-               WHERE m2.substancia IS NOT NULL)
-        AND EXISTS (SELECT 1 FROM catalogo_produto cp WHERE cp.ean = m.ean AND cp.preco > 0 AND cp.moeda = 'BRL')`,
+      WHERE (
+              m.substancia IN (
+                SELECT DISTINCT m2.substancia FROM medicamento m2
+                  JOIN medicamento_monitorado mm ON UPPER(m2.produto) = mm.produto AND mm.ativo = 1
+                 WHERE m2.substancia IS NOT NULL)
+              AND EXISTS (SELECT 1 FROM catalogo_produto cp WHERE cp.ean = m.ean AND cp.preco > 0 AND cp.moeda = 'BRL')
+            )
+         OR m.ean IN (SELECT ean FROM usuario_monitor WHERE ativo = 1)`,
   );
   if (!eans.length) { log('[monitor] nenhum EAN monitorado com oferta'); return { eans: 0, linhas: 0 }; }
 

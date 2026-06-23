@@ -13,6 +13,7 @@
 import { Router } from 'express';
 import { readFileSync } from 'node:fs';
 import { getPool, parseJsonCol } from '../db.js';
+import { requireAuth } from '../auth.js';
 import { precoPorDose } from '../normaliza/medicamento.js';
 import { precoVivoVtex } from '../ingest/precoVivo.js';
 import { chatCompletion } from '../openrouter.js';
@@ -531,4 +532,115 @@ medicamentoRouter.get('/catalogo', async (req, res) => {
     res.json({ marca: apres[0].produto, substancia: sub, forma, tarja: apres[0].tarja,
       n_apresentacoes: lista.length, com_oferta: lista.filter((x) => x.estado === 'COM_OFERTA').length, apresentacoes: lista });
   } catch (e) { console.error('[medicamento/catalogo]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
+
+// ───────────────────────── Trilho A — monitor de preço POR USUÁRIO ─────────────────────────
+// Dado de saúde = SENSÍVEL → TUDO atrás de requireAuth, sempre filtrado por req.user.id. Um
+// usuário NUNCA vê monitor/alerta de outro. O gatilho (motor) é dry-run (grava alerta_log
+// entregue=0); a entrega/push é a tarefa seguinte.
+
+// Preços de mercado de um EAN (tabela, ofertas COM estoque): prefere o snapshot denso (fresco,
+// stock-filtrado); cai no catálogo se o denso ainda não cobre o EAN. Devolve ordenado asc.
+async function precosMercado(pool, ean) {
+  const [snaps] = await pool.query(
+    `SELECT t.fonte, t.preco, t.disponivel FROM medicamento_monitor_hist t
+       JOIN (SELECT fonte, MAX(capturado_em) mx FROM medicamento_monitor_hist WHERE ean = ? GROUP BY fonte) g
+         ON g.fonte = t.fonte AND g.mx = t.capturado_em
+      WHERE t.ean = ? AND t.preco > 0 AND t.disponivel = 1`, [ean, ean]);
+  let arr = snaps.map((s) => ({ preco: Number(s.preco), fonte: s.fonte }));
+  if (arr.length < 2) {                                   // denso ainda não cobre → catálogo (sem sinal de estoque)
+    const [cat] = await pool.query(
+      `SELECT fonte, preco FROM catalogo_produto WHERE ean = ? AND preco > 0 AND moeda = 'BRL' AND fonte IN ${inFarmacias}`,
+      [ean, ...FARMACIAS]);
+    if (cat.length >= arr.length) arr = cat.map((r) => ({ preco: Number(r.preco), fonte: r.fonte }));
+  }
+  arr.sort((a, b) => a.preco - b.preco);
+  return arr;
+}
+const medianaPreco = (arr) => { if (!arr.length) return null; const n = arr.length, k = Math.floor(n / 2); return n % 2 ? arr[k].preco : Math.round(((arr[k - 1].preco + arr[k].preco) / 2) * 100) / 100; };
+
+// GET /sugestao?ean= → mediana de mercado (tabela, com estoque) p/ pré-preencher o baseline.
+medicamentoRouter.get('/monitor-usuario/sugestao', requireAuth, async (req, res) => {
+  try {
+    const ean = eanLimpo(req.query.ean);
+    if (!ean) return res.status(400).json({ erro: 'EAN inválido' });
+    const arr = await precosMercado(getPool(), ean);
+    res.json({ ean, mediana: medianaPreco(arr), menor: arr[0]?.preco ?? null, n_ofertas: arr.length });
+  } catch (e) { console.error('[monitor-usuario/sugestao]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
+
+// POST /monitor-usuario {ean, baseline_declarado, baseline_origem} → cria/reativa (UNIQUE user×ean).
+medicamentoRouter.post('/monitor-usuario', requireAuth, async (req, res) => {
+  try {
+    const ean = eanLimpo(req.body?.ean);
+    const baseline = Number(req.body?.baseline_declarado);
+    const origem = req.body?.baseline_origem === 'aceito_sugerido' ? 'aceito_sugerido' : 'declarado';
+    if (!ean || !Number.isFinite(baseline) || baseline <= 0) return res.status(400).json({ erro: 'ean e baseline_declarado válidos obrigatórios' });
+    const pool = getPool();
+    const sugerido = medianaPreco(await precosMercado(pool, ean));
+    await pool.query(
+      `INSERT INTO usuario_monitor (utilizador, ean, baseline_declarado, baseline_sugerido, baseline_origem)
+       VALUES (?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE baseline_declarado = VALUES(baseline_declarado), baseline_sugerido = VALUES(baseline_sugerido),
+         baseline_origem = VALUES(baseline_origem), ativo = 1`,
+      [req.user.id, ean, baseline, sugerido, origem]);
+    const [[row]] = await pool.query('SELECT * FROM usuario_monitor WHERE utilizador = ? AND ean = ?', [req.user.id, ean]);
+    res.status(201).json(row);
+  } catch (e) { console.error('[monitor-usuario POST]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
+
+// GET /meus-monitores → monitores ativos do usuário + preço atual de mercado + estado vs baseline.
+medicamentoRouter.get('/meus-monitores', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query('SELECT * FROM usuario_monitor WHERE utilizador = ? AND ativo = 1 ORDER BY criado_em DESC', [req.user.id]);
+    const out = [];
+    for (const m of rows) {
+      const arr = await precosMercado(pool, m.ean);
+      const atual = arr[0]?.preco ?? null;
+      const baseline = Number(m.baseline_declarado);
+      out.push({ ...m, preco_atual: atual, fonte_atual: arr[0]?.fonte ?? null,
+        estado: atual == null ? 'sem_oferta' : atual <= baseline ? 'abaixo' : 'acima',
+        desconto_pct: atual == null ? null : Math.round(((baseline - atual) / baseline) * 1000) / 10 });
+    }
+    res.json({ monitores: out });
+  } catch (e) { console.error('[meus-monitores]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
+
+// PATCH /monitor-usuario/:id → edita baseline/limiar/piso/cooldown/exige_estoque (só do próprio).
+medicamentoRouter.patch('/monitor-usuario/:id', requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const campos = {};
+    for (const k of ['baseline_declarado', 'limiar_pct', 'piso_abs', 'cooldown_horas', 'exige_estoque']) {
+      if (req.body?.[k] != null && Number.isFinite(Number(req.body[k]))) campos[k] = Number(req.body[k]);
+    }
+    if (!id || !Object.keys(campos).length) return res.status(400).json({ erro: 'nada a atualizar' });
+    const sets = Object.keys(campos).map((k) => `${k} = ?`).join(', ');
+    const pool = getPool();
+    const [r] = await pool.query(`UPDATE usuario_monitor SET ${sets} WHERE id = ? AND utilizador = ?`, [...Object.values(campos), id, req.user.id]);
+    if (!r.affectedRows) return res.status(404).json({ erro: 'monitor não encontrado' });
+    const [[row]] = await pool.query('SELECT * FROM usuario_monitor WHERE id = ?', [id]);
+    res.json(row);
+  } catch (e) { console.error('[monitor-usuario PATCH]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
+
+// DELETE /monitor-usuario/:id → soft-delete (ativo=0). Exclusão real fica p/ exclusão-de-conta (FK CASCADE).
+medicamentoRouter.delete('/monitor-usuario/:id', requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [r] = await getPool().query('UPDATE usuario_monitor SET ativo = 0 WHERE id = ? AND utilizador = ?', [id, req.user.id]);
+    if (!r.affectedRows) return res.status(404).json({ erro: 'monitor não encontrado' });
+    res.json({ ok: true, id });
+  } catch (e) { console.error('[monitor-usuario DELETE]', e); res.status(500).json({ erro: 'erro interno' }); }
+});
+
+// GET /meus-alertas → histórico de alerta_log do usuário (dry-run: entregue=0 até a entrega ligar).
+medicamentoRouter.get('/meus-alertas', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await getPool().query(
+      `SELECT a.*, m.produto FROM alerta_log a LEFT JOIN medicamento m ON m.ean = a.ean
+        WHERE a.utilizador = ? ORDER BY a.disparado_em DESC LIMIT 200`, [req.user.id]);
+    res.json({ alertas: rows });
+  } catch (e) { console.error('[meus-alertas]', e); res.status(500).json({ erro: 'erro interno' }); }
 });
