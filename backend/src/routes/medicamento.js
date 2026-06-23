@@ -126,23 +126,28 @@ async function escolherImagem(pool, med, eanConsultado, ph) {
   return top[0].url;
 }
 
-// Equivalentes terapêuticos (mesmo princípio ativo + força + forma) QUE TÊM oferta,
-// com o menor preço e o preço por dose. O remédio `ean` de referência fica marcado.
+// Equivalentes QUE TÊM oferta, com o menor preço e o preço por dose. O remédio `ean` de
+// referência fica marcado. O preço/dose (R$ por comprimido / ml / g) SÓ é comparável entre
+// embalagens EXATAMENTE da MESMA apresentação — mesmo princípio ativo + MESMA força + MESMA
+// forma — diferindo só na QUANTIDADE. Por isso forma/dose têm de bater por IGUALDADE EXATA
+// (não `<=>`, que casaria NULL com NULL e misturaria, ex., um xarope com um comprimido cuja
+// forma não foi parseada). Se a referência não tem forma/dose, não há comparação possível.
 async function equivalentesComOferta(pool, med) {
+  if (med.forma == null || med.dose_valor == null || med.dose_unidade == null) return [];
   const [rows] = await pool.query(
-    `SELECT m.ean, m.produto, m.laboratorio, m.tipo, m.generico, m.qtd_embalagem, m.pmc_18,
+    `SELECT m.ean, m.produto, m.laboratorio, m.tipo, m.generico, m.forma, m.qtd_embalagem, m.pmc_18,
             MIN(cp.preco) menor_preco, COUNT(DISTINCT cp.fonte) n_farmacias
        FROM medicamento m
        JOIN catalogo_produto cp ON cp.ean = m.ean AND cp.preco > 0
         AND cp.moeda = 'BRL' AND cp.fonte IN ${inFarmacias}
-      WHERE m.substancia <=> ? AND m.dose_valor <=> ? AND m.dose_unidade <=> ? AND m.forma <=> ?
+      WHERE m.substancia <=> ? AND m.dose_valor = ? AND m.dose_unidade = ? AND m.forma = ?
       GROUP BY m.ean
       ORDER BY (MIN(cp.preco) / NULLIF(m.qtd_embalagem, 0)) ASC, menor_preco ASC`,
     [...FARMACIAS, med.substancia, med.dose_valor, med.dose_unidade, med.forma],
   );
   return rows.map((r) => ({
     ean: r.ean, produto: r.produto, laboratorio: r.laboratorio, tipo: r.tipo,
-    generico: !!r.generico, qtd_embalagem: r.qtd_embalagem,
+    generico: !!r.generico, forma: r.forma, qtd_embalagem: r.qtd_embalagem,
     menor_preco: r.menor_preco == null ? null : Number(r.menor_preco),
     preco_por_dose: precoPorDose(r.menor_preco, r.qtd_embalagem),
     n_farmacias: r.n_farmacias, referencia: r.ean === med.ean,
@@ -263,8 +268,14 @@ medicamentoRouter.get('/buscar', async (req, res) => {
       m.n_farmacias = Math.max(m.n_farmacias, a.n_farmacias);
       m.generico = m.generico || a.generico;
     }
+    // Ordena as apresentações AGRUPADAS por forma → dosagem; só DENTRO de cada (forma+dose)
+    // o preço/dose é comparável (R$/comprimido vs R$/ml não se comparam). Nunca um ranking
+    // único cruzando formas.
+    const ordApres = (x, y) => String(x.forma || '').localeCompare(String(y.forma || ''))
+      || String(x.dosagem || '').localeCompare(String(y.dosagem || ''), undefined, { numeric: true })
+      || (x.preco_por_dose ?? 9e9) - (y.preco_por_dose ?? 9e9);
     const resultados = [...marcas.values()]
-      .map((m) => ({ ...m, n_apresentacoes: m.apresentacoes.length, apresentacoes: m.apresentacoes.sort((x, y) => (x.preco_por_dose ?? 9e9) - (y.preco_por_dose ?? 9e9)) }))
+      .map((m) => ({ ...m, n_apresentacoes: m.apresentacoes.length, apresentacoes: m.apresentacoes.sort(ordApres) }))
       .sort((a, b) => b.n_farmacias - a.n_farmacias || Number(a.menor_preco) - Number(b.menor_preco))
       .slice(0, 25);
     res.json({ q, resultados });

@@ -1906,7 +1906,7 @@ function Remedios({ back, standalone }) {
                 <button key={a.ean} className="med-row" onClick={() => abrir(a.ean)}>
                   <div className="med-rt">{varLabel(a)}</div>
                   <div className="med-rs">{a.qtd_embalagem ? `${a.qtd_embalagem} ${unidEmb(a.forma)}` : ''}</div>
-                  <div className="med-rp">{fmtPreco(a.menor_preco, 'BRL')}{a.preco_por_dose != null && <span className="med-rpd">{fmtPreco(a.preco_por_dose, 'BRL')}/un</span>}</div>
+                  <div className="med-rp">{fmtPreco(a.menor_preco, 'BRL')}{a.preco_por_dose != null && <span className="med-rpd">{fmtPreco(a.preco_por_dose, 'BRL')}/{unidEmb(a.forma)}</span>}</div>
                 </button>
               ))}
             </div>
@@ -2032,17 +2032,17 @@ function FichaRemedio({ info, abrir }) {
 
       {info.equivalentes && info.equivalentes.length > 1 && (
         <>
-          <div className="med-lbl">Equivalentes (mesma substância)</div>
+          <div className="med-lbl">Equivalentes — mesma substância e apresentação{id.forma ? ` (${id.forma}${id.dosagem ? ` ${id.dosagem}` : ''})` : ''}</div>
           {info.equivalentes.map((e) => (
             <button key={e.ean} className={`med-eq ${e.referencia ? 'ref' : ''}`} onClick={() => !e.referencia && abrir(e.ean)} disabled={e.referencia}>
               <div className="med-eq-n">{e.produto}{e.generico ? <span className="med-gen">genérico</span> : null}{e.referencia ? <span className="med-atual">este</span> : null}</div>
               <div className="med-eq-r">
                 <span className="med-eq-p">{fmtPreco(e.menor_preco, 'BRL')}</span>
-                {e.preco_por_dose != null && <span className="med-eq-d">{fmtPreco(e.preco_por_dose, 'BRL')}/un</span>}
+                {e.preco_por_dose != null && <span className="med-eq-d">{fmtPreco(e.preco_por_dose, 'BRL')}/{unidEmb(id.forma)}</span>}
               </div>
             </button>
           ))}
-          <p className="med-note">Comparação por preço/unidade (comprimido, cápsula ou ml). Só informação e preço — não é aconselhamento médico.</p>
+          <p className="med-note">Preço por {unidEmb(id.forma)} comparável só entre embalagens da <b>mesma apresentação</b> ({id.forma || 'mesma forma'}{id.dosagem ? ` ${id.dosagem}` : ''}), em quantidades diferentes. Só informação e preço — não é aconselhamento médico.</p>
         </>
       )}
     </div>
