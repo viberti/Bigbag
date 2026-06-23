@@ -12,11 +12,17 @@ const VTEX = MANIFESTO.filter((f) => (f.motor || 'vtex') === 'vtex'); // monitor
 
 export async function monitorarMonitorados({ log = console.log } = {}) {
   const pool = getPool();
-  // EANs COM oferta dos produtos monitorados (não adianta monitorar EAN que ninguém vende).
+  // EANs COM oferta dos produtos monitorados E de TODOS os seus equivalentes/genéricos
+  // (mesma SUBSTÂNCIA — marcas, similares e genéricos, todas as forças/formas). Decisão do
+  // dono (2026-06-23): a lista é por marca (OZEMPIC/MOUNJARO) mas o monitor cobre a classe
+  // inteira (semaglutida/tirzepatida). Auto-inclui genéricos novos. Não adianta EAN sem oferta.
   const [eans] = await pool.query(
     `SELECT DISTINCT m.ean, m.produto FROM medicamento m
-       JOIN medicamento_monitorado mm ON UPPER(m.produto) = mm.produto AND mm.ativo = 1
-      WHERE EXISTS (SELECT 1 FROM catalogo_produto cp WHERE cp.ean = m.ean AND cp.preco > 0 AND cp.moeda = 'BRL')`,
+      WHERE m.substancia IN (
+              SELECT DISTINCT m2.substancia FROM medicamento m2
+                JOIN medicamento_monitorado mm ON UPPER(m2.produto) = mm.produto AND mm.ativo = 1
+               WHERE m2.substancia IS NOT NULL)
+        AND EXISTS (SELECT 1 FROM catalogo_produto cp WHERE cp.ean = m.ean AND cp.preco > 0 AND cp.moeda = 'BRL')`,
   );
   if (!eans.length) { log('[monitor] nenhum EAN monitorado com oferta'); return { eans: 0, linhas: 0 }; }
 
