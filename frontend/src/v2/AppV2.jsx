@@ -1910,25 +1910,38 @@ function ReceitaCard({ rec, onVoto }) {
 }
 function Receitas({ back }) {
   const [aba, setAba] = useState('sugestoes');
-  const [recs, setRecs] = useState(null);
+  const [deck, setDeck] = useState(null);   // baralho ACUMULA (fluxo contínuo)
   const [i, setI] = useState(0);
   const [poucos, setPoucos] = useState(false);
   const [guardadas, setGuardadas] = useState(null);
+  const vistos = useRef(new Set());         // nomes já mostrados → não repetir
+  const semMais = useRef(false);
+  const aCarregar = useRef(false);
   const nGostei = guardadas ? guardadas.length : 0;
-  const carregar = useCallback(() => {
-    setRecs(null); setI(0); setPoucos(false);
-    sugerirReceitas().then((d) => { setRecs(d.receitas || []); setPoucos(!!d.poucos); }).catch(() => setRecs([]));
+  const buscarMais = useCallback(() => {
+    if (aCarregar.current || semMais.current) return;
+    aCarregar.current = true;
+    sugerirReceitas([...vistos.current].slice(-60)).then((d) => {
+      if (d.poucos) { setPoucos(true); setDeck((c) => c || []); return; }
+      const novas = (d.receitas || []).filter((r) => !vistos.current.has(r.nome));
+      novas.forEach((r) => vistos.current.add(r.nome));
+      if (!novas.length) semMais.current = true; // LLM esgotou ideias novas
+      setDeck((c) => [...(c || []), ...novas]);
+    }).catch(() => setDeck((c) => c || [])).finally(() => { aCarregar.current = false; });
   }, []);
   const carregarGostei = useCallback(() => { receitasGostei().then((g) => setGuardadas(g || [])).catch(() => setGuardadas([])); }, []);
-  useEffect(() => { carregar(); carregarGostei(); }, [carregar, carregarGostei]);
+  useEffect(() => { vistos.current = new Set(); semMais.current = false; setDeck(null); setI(0); setPoucos(false); buscarMais(); carregarGostei(); }, [buscarMais, carregarGostei]);
+  // PRÉ-BUSCA transparente: faltando ≤4 cartas, traz o próximo lote (folheamento sem fim)
+  useEffect(() => { if (deck && deck.length - i <= 4 && !semMais.current && !poucos) buscarMais(); }, [i, deck, poucos, buscarMais]);
   const votar = useCallback((rec, voto) => {
     avaliarReceita(rec.nome, voto, { desc: rec.desc, usa: rec.usa, foto: rec.foto }).catch(() => {});
+    vistos.current.add(rec.nome);
     if (voto > 0) setGuardadas((g) => (g && !g.some((x) => x.nome === rec.nome)) ? [{ nome: rec.nome, desc: rec.desc, usa: rec.usa, foto: rec.foto, foto_url: rec.foto_url }, ...g] : g);
     setI((x) => x + 1);
   }, []);
   const remover = useCallback((rec) => { avaliarReceita(rec.nome, -1).catch(() => {}); setGuardadas((g) => (g || []).filter((x) => x.nome !== rec.nome)); }, []);
-  const atual = recs && recs[i];
-  const fim = recs && i >= recs.length && recs.length > 0;
+  const atual = deck && deck[i];
+  const acabou = deck && i >= deck.length && semMais.current; // só "acabou" quando o LLM esgotou
   return (
     <>
       <Ctop title="Receitas" sub="do que você tem em casa" back onBack={back} />
@@ -1938,20 +1951,15 @@ function Receitas({ back }) {
       </div>
       <div className="scrollarea rec-wrap">
         {aba === 'sugestoes' ? (
-          recs == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 300, display: 'block' }} /></div>
+          deck == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
             : poucos ? <p className="empty">Adicione itens à despensa ou registe uma compra para receber receitas com o que você tem em casa.</p>
-            : fim ? (
-              <div className="rec-fim">
-                <Ico name="check" size={42} color="var(--leaf-d)" />
-                <p>É tudo por agora! As que você gostou ajudam a afinar as próximas.</p>
-                <button className="cbtn cbtn-leaf" onClick={carregar}>Ver mais receitas</button>
-              </div>
-            ) : atual ? (
+            : atual ? (
               <>
                 <ReceitaCard key={atual.nome + i} rec={atual} onVoto={votar} />
-                <div className="rec-hint">deslize ↑ para gostar · ↓ para passar &nbsp;·&nbsp; {recs.length - i} restante{recs.length - i !== 1 ? 's' : ''}</div>
+                <div className="rec-hint">deslize ↑ para gostar · ↓ para passar</div>
               </>
-            ) : <p className="empty">Sem sugestões com o que você tem agora.</p>
+            ) : acabou ? <p className="empty">Por agora não há mais ideias novas — volte depois de comprar ou usar mais ingredientes.</p>
+              : <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
         ) : (
           guardadas == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 70, display: 'block' }} /></div>
             : guardadas.length === 0 ? <p className="empty">Ainda não guardou receitas. Nas Sugestões, deslize ↑ (ou toque ♥) nas que gostar.</p>

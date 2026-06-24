@@ -49,19 +49,22 @@ async function ingredientesDisponiveis(pool) {
 receitasRouter.get('/', requireAuth, async (req, res) => {
   try {
     const pool = getPool();
+    const excluir = String(req.query.ex || '').split('||').map((s) => s.trim()).filter(Boolean).slice(0, 60); // já vistas nesta sessão
     const ingredientes = await ingredientesDisponiveis(pool);
     if (ingredientes.length < 4) return res.json({ receitas: [], poucos: true });
     const [votos] = await pool.query('SELECT nome, voto FROM receita_avaliacao WHERE utilizador = ?', [req.user.id]);
     const gostei = votos.filter((v) => v.voto > 0).map((v) => v.nome);
     const naoGostei = votos.filter((v) => v.voto < 0).map((v) => v.nome);
-    const evitar = new Set([...gostei, ...naoGostei].map(norm)); // não repetir o já avaliado
+    const jaVistas = [...new Set([...gostei, ...naoGostei, ...excluir])];
+    const evitar = new Set(jaVistas.map(norm)); // não repetir o já avaliado/mostrado
     const hash = createHash('sha1').update(JSON.stringify([[...ingredientes].sort(), [...gostei].sort(), [...naoGostei].sort()])).digest('hex').slice(0, 16);
-    if (_cache.has(hash)) { const recs = _cache.get(hash); await resolverFotos(recs); return res.json({ receitas: recs, cacheada: true }); }
+    if (!excluir.length && _cache.has(hash)) { const recs = _cache.get(hash); await resolverFotos(recs); return res.json({ receitas: recs, cacheada: true }); }
     const prompt = `Sou cozinheiro caseiro. Tenho estes ingredientes (na despensa ou comprados nos últimos 7 dias):
 ${ingredientes.slice(0, 150).join(', ')}.
-${gostei.length ? `RECEITAS QUE GOSTEI antes (sugira no mesmo gosto/estilo, mas NÃO repita estas): ${gostei.join('; ')}.` : ''}
-${naoGostei.length ? `EVITE o estilo destas que NÃO gostei: ${naoGostei.join('; ')}.` : ''}
-Sugira 6 receitas que usem MAJORITARIAMENTE os meus ingredientes (pode contar com básicos: sal, azeite, alho, cebola, ovos, água, farinha). Varie (entrada, prato principal, etc.). Para cada:
+${gostei.length ? `RECEITAS QUE GOSTEI (sugira no MESMO estilo, mas não as repita): ${gostei.slice(-30).join('; ')}.` : ''}
+${naoGostei.length ? `EVITE o estilo destas que NÃO gostei: ${naoGostei.slice(-30).join('; ')}.` : ''}
+${excluir.length ? `JÁ MOSTRADAS — NÃO repita NENHUMA: ${excluir.slice(-60).join('; ')}.` : ''}
+Sugira 20 receitas VARIADAS (e DIFERENTES das já mostradas) que usem MAJORITARIAMENTE os meus ingredientes (pode contar com básicos: sal, azeite, alho, cebola, ovos, água, farinha). Varie bastante (entradas, pratos principais, saladas, sopas, doces). Para cada:
 - "nome": curto e apetitoso, português do Brasil.
 - "tempo": aprox. (ex.: "25 min").
 - "desc": 1 linha.
@@ -74,10 +77,10 @@ Responda SÓ JSON: {"receitas":[{"nome":"...","tempo":"...","desc":"...","usa":[
       const r = await chatCompletion({ messages: [{ role: 'user', content: prompt }], model: config.openrouter.modelConsulta, responseFormat: { type: 'json_object' }, contexto: 'receitas' });
       receitas = (JSON.parse(r || '{}').receitas || [])
         .filter((x) => x && x.nome && !evitar.has(norm(x.nome)))
-        .slice(0, 6)
+        .slice(0, 20)
         .map((x) => ({ nome: String(x.nome).slice(0, 120), tempo: x.tempo ? String(x.tempo).slice(0, 24) : null, desc: String(x.desc || '').slice(0, 200), usa: Array.isArray(x.usa) ? x.usa.map(String).slice(0, 8) : [], falta: Array.isArray(x.falta) ? x.falta.map(String).slice(0, 2) : [], foto: x.foto ? String(x.foto).slice(0, 80) : null }));
     } catch (e) { console.error('[receitas] LLM:', e.message); }
-    if (receitas.length) { if (_cache.size > 200) _cache.clear(); _cache.set(hash, receitas); }
+    if (receitas.length && !excluir.length) { if (_cache.size > 200) _cache.clear(); _cache.set(hash, receitas); }
     await resolverFotos(receitas);
     res.json({ receitas, base: { despensa_e_compras: ingredientes.length, gostei: gostei.length } });
   } catch (e) { console.error('[receitas]', e.message); res.status(500).json({ erro: 'Falha ao gerar receitas' }); }

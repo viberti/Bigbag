@@ -416,8 +416,9 @@ export async function refeicoesLista() {
   return refeicoes || [];
 }
 // RECEITAS: sugere a partir da despensa + compras dos últimos 7 dias (aprende com 👍/👎).
-export async function sugerirReceitas() {
-  const r = await call('/api/receitas');
+export async function sugerirReceitas(excluir = []) {
+  const ex = excluir.length ? `?ex=${encodeURIComponent(excluir.join('||'))}` : '';
+  const r = await call(`/api/receitas${ex}`);
   if (!r.ok) throw new Error(`receitas ${r.status}`);
   return r.json(); // { receitas, base?, poucos? }
 }
