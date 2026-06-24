@@ -339,17 +339,19 @@ export const SECCOES_LISTA = ['frutas', 'carne', 'peixe', 'charcutaria', 'padari
 const SECCAO_DE_GRUPO = { frutas: 'frutas', carne: 'carne', peixe: 'peixe', lacticinios: 'laticinios',
   padaria: 'padaria', congelados: 'congelados', bebidas: 'bebidas', doces: 'doces', higiene: 'higiene', mercearia: 'mercearia' };
 const RE_CHARCUTARIA = /(^|[^a-z])(fiambre|presunto|chouric|salsich|salame|salami|pate|mortadela|chistorra|bacon|enchido|fuet|morcela|farinheira|alheira|salpicao|chorizo|salchich|embutido|charcutaria|jamon|lomo)/;
-const RE_CONDIMENTOS = /(^|[^a-z])(azeite|olive oil|\boleos?\b|\boil\b|molho|sauce|ketchup|maionese|mayon|mostarda|mustard|vinagre|vinegar|\bsal\b|tempero|especiaria|condimento|caldo|pesto|aderezo|alino|sofrito)/;
+const RE_CONDIMENTOS = /(^|[^a-z])(azeite|olive oil|\boleos?\b|\boil\b|molho|sauce|ketchup|maionese|mayon|mostarda|mustard|vinagre|vinegar|\bsal\b|tempero|especiaria|condimento|caldo|pesto|aderezo|alino|sofrito|\bpimenta\b|oregao|oregano|canela|cominho|curcum|paprica|paprika|colorau|\blouro\b|acafra|\bcravo\b|noz.?moscada|\bcaril\b|\bcurry\b|shoyu|tabasco|piri.?piri|worcest|harissa|chimichurri|sazonad)/;
 const RE_CAFE_CHA = /(^|[^a-z])(chas?\b(?! gelad| fri)|teas?\b|cafes?\b|infus|descafeinado|tisana|rooibos|camomila|cidreira|earl grey)/;
 
 // Secção da lista de UM item, a partir do grupo (loja) + nome. Determinístico.
 export function seccaoLista(grupo, nome) {
   const s = norm(nome);
   if (grupo === 'carne' && RE_CHARCUTARIA.test(s)) return 'charcutaria';
-  if (grupo === 'mercearia') {
-    if (RE_CAFE_CHA.test(s)) return 'cafe_cha';      // café/chá/infusão (são mercearia) → secção própria
+  // café/chá e condimentos são TIPOS de produto fortes pelo NOME → refinam a mercearia E o catch-all
+  // 'outros'/vazio (um "Pimenta"/"Ketchup" mal-resolvido cai em 'outros' e merece a secção certa).
+  if (grupo === 'mercearia' || grupo === 'outros' || !grupo) {
+    if (RE_CAFE_CHA.test(s)) return 'cafe_cha';
     if (RE_CONDIMENTOS.test(s)) return 'condimentos'; // azeite/molho/sal/especiarias → Molhos, Azeites e Condimentos
-    return 'mercearia';                               // resto: arroz, massa, conservas, farinha, açúcar…
+    if (grupo === 'mercearia') return 'mercearia';    // resto da mercearia: arroz, massa, conservas, farinha…
   }
-  return SECCAO_DE_GRUPO[grupo] || 'outros';
+  return SECCAO_DE_GRUPO[grupo] || 'outros';           // 'outros' não-condimento fica 'outros' (não vira mercearia)
 }

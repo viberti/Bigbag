@@ -5,7 +5,7 @@
 // NOTA (fase protótipo): copy PT-BR embutido como no handoff; passar por i18n depois.
 // ──────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { norm as normCat, singularizar, grupoDeNome } from '../../../backend/src/normaliza/categoria.js';
+import { norm as normCat, singularizar, grupoDeNome, seccaoLista } from '../../../backend/src/normaliza/categoria.js';
 import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
   obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa, removerDespensa,
@@ -65,6 +65,18 @@ const SEC_LABEL = { frutas: 'Frutas e vegetais', carne: 'Talho e charcutaria', p
 const secDe = (it) => SEC_LABEL[it.grupo] || 'Outros';
 const SEC_ORDER = ['Frutas e vegetais', 'Talho e charcutaria', 'Peixe e marisco', 'Padaria', 'Laticínios e ovos', 'Congelados', 'Mercearia', 'Bebidas', 'Doces e snacks', 'Higiene e limpeza', 'Outros'];
 const ordSec = (s) => { const i = SEC_ORDER.indexOf(s); return i < 0 ? 99 : i; };
+// DESPENSA: classificação MAIS FINA que a lista. A lista quer corredores grossos (guiar no mercado);
+// a despensa é o inventário de casa → detalha. seccaoLista divide a mercearia em CONDIMENTOS (azeites/
+// molhos/sal/temperos) e CAFÉ-CHÁ, e separa a CHARCUTARIA — secções próprias com rótulo e ordem.
+const SEC_LABEL_DET = { frutas: 'Frutas e vegetais', carne: 'Talho', charcutaria: 'Charcutaria', peixe: 'Peixe e marisco', padaria: 'Padaria', laticinios: 'Laticínios e ovos', congelados: 'Congelados', mercearia: 'Mercearia', condimentos: 'Molhos, azeites e temperos', cafe_cha: 'Café, chá e infusões', bebidas: 'Bebidas', doces: 'Doces e snacks', higiene: 'Higiene e limpeza', outros: 'Outros' };
+const SEC_ORDER_DET = ['frutas', 'carne', 'charcutaria', 'peixe', 'padaria', 'laticinios', 'congelados', 'mercearia', 'condimentos', 'cafe_cha', 'bebidas', 'doces', 'higiene', 'outros'];
+const secDetId = (it) => seccaoLista(it.grupo || grupoDeNome(it.nome), it.nome);
+function agruparDespensa(itens) {
+  const ord = [...itens].sort((a, b) => ((SEC_ORDER_DET.indexOf(secDetId(a)) + 1) || 99) - ((SEC_ORDER_DET.indexOf(secDetId(b)) + 1) || 99));
+  const grupos = []; let last = null;
+  ord.forEach((it) => { const id = secDetId(it); if (!last || last.id !== id) { last = { id, s: SEC_LABEL_DET[id] || 'Outros', itens: [] }; grupos.push(last); } last.itens.push(it); });
+  return grupos;
+}
 // agrupa itens por secção, ordenando por SEC_ORDER (cada cabeçalho aparece 1×)
 function agruparSec(itens) {
   const ord = [...itens].sort((a, b) => ordSec(secDe(a)) - ordSec(secDe(b)));
@@ -1316,7 +1328,7 @@ function Despensa({ go, back }) {
     try { await removerDespensa(it.ean); }
     catch { listarDespensa().then((d) => { setItens(d || []); despCacheSet(d || []); }).catch(() => {}); }
   }, []);
-  const grupos = agruparSec(itens || []);
+  const grupos = agruparDespensa(itens || []); // despensa = classificação MAIS FINA que a lista
   return (
     <>
       <Ctop title="Tenho em casa" sub={itens ? `${itens.length} itens` : ''} back onBack={back} amber />
