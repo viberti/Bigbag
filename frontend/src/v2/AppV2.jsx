@@ -15,6 +15,7 @@ import {
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
   adotarPorNome, definirPais, sugestoesLista, refeicoesLista, carregarHabituais, variantesLista,
   buscarMedicamento, infoMedicamento, precosAoVivo, explicacaoMedicamento,
+  catalogoMedicamento, sugestaoMonitor, criarMonitor,
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLocal.js';
@@ -1833,22 +1834,32 @@ const FARM_NOME = {
 };
 const nomeFarm = (f) => FARM_NOME[f] || (f ? f.charAt(0).toUpperCase() + f.slice(1) : '—');
 // rótulo da apresentação (forma + dosagem) e unidade da embalagem (un/ml/g).
-const varLabel = (a) => { const f = a.forma ? a.forma.charAt(0).toUpperCase() + a.forma.slice(1) : ''; return [f, a.dosagem].filter(Boolean).join(' · ') || 'Apresentação'; };
 const unidEmb = (forma) => (/solu|xarope|susp|gota|elixir|colir|spray|aeros/i.test(forma || '') ? 'ml' : /creme|pomada|gel|pasta|po\b|granulad/i.test(forma || '') ? 'g' : 'un');
 
 function Remedios({ back, standalone }) {
   const [q, setQ] = useState('');
   const [sug, setSug] = useState([]);        // marcas (1 por remédio)
-  const [marca, setMarca] = useState(null);  // marca escolhida → mostra as apresentações
-  const [info, setInfo] = useState(null);    // apresentação escolhida → ficha de preço
+  const [marca, setMarca] = useState(null);  // marca escolhida (cabeçalho)
+  const [cat, setCat] = useState(null);      // catálogo hierárquico da marca (/catalogo)
+  const [catBusy, setCatBusy] = useState(false);
+  const [aberta, setAberta] = useState(null);// ean da apresentação expandida (acordeão)
+  const [info, setInfo] = useState(null);    // EAN escolhido → ficha rica (scan / "detalhes")
   const [busy, setBusy] = useState(false);
   const [erro, setErro] = useState('');
   const [scan, setScan] = useState(false);
+  const [usuario, setUsuario] = useState(null); // sessão OIDC (null = não logado) — só p/ acompanhar
+  const [folha, setFolha] = useState(null);  // apresentação a acompanhar (abre a folha)
+  const [toast, setToast] = useState('');
   const videoRef = useRef(null);
   const tmr = useRef(null);
 
+  // sessão (para o "acompanhar"); ver é livre, isto não bloqueia nada
+  useEffect(() => { let on = true; oidcUser().then((u) => { if (on) setUsuario(u && !u.expired ? u : null); }).catch(() => {}); return () => { on = false; }; }, []);
+  useEffect(() => { if (!toast) return undefined; const id = setTimeout(() => setToast(''), 2600); return () => clearTimeout(id); }, [toast]);
+
+  function limpar() { setQ(''); setSug([]); setMarca(null); setCat(null); setAberta(null); setInfo(null); setErro(''); }
   function onTxt(v) {
-    setQ(v); setInfo(null); setMarca(null); setErro('');
+    setQ(v); setInfo(null); setMarca(null); setCat(null); setAberta(null); setErro('');
     clearTimeout(tmr.current);
     const t = v.trim();
     if (t.length < 3) { setSug([]); return; }
@@ -1856,6 +1867,17 @@ function Remedios({ back, standalone }) {
       buscarMedicamento(t).then((d) => setSug(d.resultados || [])).catch(() => setSug([]));
     }, 220);
   }
+  // escolher uma marca → carrega o CATÁLOGO hierárquico (apresentações c/ rótulo de força curado)
+  async function escolherMarca(b) {
+    setMarca(b); setInfo(null); setCat(null); setAberta(null); setSug([]); setErro(''); setCatBusy(true);
+    try {
+      const d = await catalogoMedicamento(b.produto);
+      if (!d || !d.apresentacoes?.length) setErro('Não encontrei as apresentações desta marca.');
+      else setCat(d);
+    } catch { setErro('Não consegui carregar agora. Tente de novo.'); }
+    finally { setCatBusy(false); }
+  }
+  // ficha rica (imagem + "para que serve" + preço/frete ao vivo) — usada pelo scan e pelo link "detalhes"
   async function abrir(ean) {
     setScan(false); setSug([]); setBusy(true); setErro('');
     try {
@@ -1873,6 +1895,9 @@ function Remedios({ back, standalone }) {
     return () => leitor?.stop?.();
   }, [scan]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // pediu p/ acompanhar: logado → folha de baseline; senão → folha de login (ver continua livre)
+  function pedirAcompanhar(apz) { setFolha({ apz, modo: usuario ? 'baseline' : 'login' }); }
+
   return (
     <>
       {standalone
@@ -1882,41 +1907,48 @@ function Remedios({ back, standalone }) {
         <div className="med-search">
           <span className="med-si"><Ico name="search" size={18} stroke={2.2} /></span>
           <input className="med-inp" value={q} placeholder="Nome do remédio (ex.: dipirona)" onChange={(e) => onTxt(e.target.value)} autoFocus />
-          {q && <button className="med-x" onClick={() => { setQ(''); setSug([]); setMarca(null); setInfo(null); setErro(''); }} aria-label="limpar">×</button>}
+          {q && <button className="med-x" onClick={limpar} aria-label="limpar">×</button>}
         </div>
-        <button className={`med-scan ${scan ? 'on' : ''}`} onClick={() => { setInfo(null); setMarca(null); setScan((s) => !s); }}>
+        <button className={`med-scan ${scan ? 'on' : ''}`} onClick={() => { setInfo(null); setMarca(null); setCat(null); setScan((s) => !s); }}>
           <Ico name="scan" size={20} stroke={2.2} /> {scan ? 'Fechar câmera' : 'Ler código de barras'}
         </button>
 
         {scan && <div className="med-cam"><video ref={videoRef} playsInline muted /><div className="med-cam-h">Aponte para o código de barras</div></div>}
 
-        {/* NÍVEL 3 — ficha de preço de uma apresentação */}
+        {/* FICHA RICA — pelo scan ou pelo link "ver com frete e detalhes" */}
         {info ? (
           <>
-            <button className="med-back" onClick={() => setInfo(null)}><Ico name="back" size={15} stroke={2.4} /> {marca?.produto || 'voltar'}</button>
+            <button className="med-back" onClick={() => setInfo(null)}><Ico name="back" size={15} stroke={2.4} /> {cat?.marca || marca?.produto || 'voltar'}</button>
             <FichaRemedio info={info} abrir={abrir} />
           </>
-        /* NÍVEL 2 — apresentações da marca escolhida */
+        /* NÍVEL 2 — apresentações da marca (CATÁLOGO: rótulo de força, programa, acompanhar) */
         ) : marca ? (
           <>
-            <button className="med-back" onClick={() => setMarca(null)}><Ico name="back" size={15} stroke={2.4} /> voltar à busca</button>
-            <div className="med-var-h"><div className="med-var-t">{marca.produto}{marca.generico ? <span className="med-gen">genérico</span> : null}</div>{marca.substancia && <div className="med-var-s">{marca.substancia}</div>}</div>
-            <div className="med-lbl">Escolha a apresentação</div>
-            <div className="med-sug">
-              {(marca.apresentacoes || []).map((a) => (
-                <button key={a.ean} className="med-row" onClick={() => abrir(a.ean)}>
-                  <div className="med-rt">{varLabel(a)}</div>
-                  <div className="med-rs">{a.qtd_embalagem ? `${a.qtd_embalagem} ${unidEmb(a.forma)}` : ''}</div>
-                  <div className="med-rp">{fmtPreco(a.menor_preco, 'BRL')}{a.preco_por_dose != null && <span className="med-rpd">{fmtPreco(a.preco_por_dose, 'BRL')}/{unidEmb(a.forma)}</span>}</div>
-                </button>
-              ))}
+            <button className="med-back" onClick={() => { setMarca(null); setCat(null); setAberta(null); }}><Ico name="back" size={15} stroke={2.4} /> voltar à busca</button>
+            <div className="med-var-h">
+              <div className="med-var-t">{(cat?.marca || marca.produto)}{marca.generico ? <span className="med-gen">genérico</span> : null}</div>
+              {(cat?.substancia || marca.substancia) && <div className="med-var-s">{[cat?.substancia || marca.substancia, cat?.tarja].filter(Boolean).join(' · ')}</div>}
             </div>
+            {catBusy && <p className="empty">Carregando apresentações…</p>}
+            {cat && (
+              <>
+                <div className="med-lbl">Apresentações <span className="med-lbl-s">por força clínica</span></div>
+                <div className="med-apz-list">
+                  {cat.apresentacoes.map((a) => (
+                    <ApresentacaoCard key={a.ean} apz={a}
+                      aberta={aberta === a.ean} onToggle={() => setAberta((x) => (x === a.ean ? null : a.ean))}
+                      onAcompanhar={() => pedirAcompanhar(a)} onDetalhes={() => abrir(a.ean)} />
+                  ))}
+                </div>
+                <p className="med-obs">Apresentações ordenadas por força clínica (não por preço). Só informação e preço — <b>não é aconselhamento médico</b>.</p>
+              </>
+            )}
           </>
         /* NÍVEL 1 — uma entrada por remédio (marca) */
         ) : !busy && sug.length > 0 ? (
           <div className="med-sug">
             {sug.map((b) => (
-              <button key={b.produto} className="med-row" onClick={() => { setMarca(b); setInfo(null); }}>
+              <button key={b.produto} className="med-row" onClick={() => escolherMarca(b)}>
                 <div className="med-rt">{b.produto}{b.generico ? <span className="med-gen">genérico</span> : null}</div>
                 <div className="med-rs">{[b.substancia, `${b.n_apresentacoes} apresentaç${b.n_apresentacoes > 1 ? 'ões' : 'ão'}`].filter(Boolean).join(' · ')}</div>
                 <div className="med-rp"><span className="med-apartir">a partir de</span>{fmtPreco(b.menor_preco, 'BRL')}</div>
@@ -1928,7 +1960,154 @@ function Remedios({ back, standalone }) {
         {busy && <p className="empty">Consultando…</p>}
         {erro && <p className="empty">{erro}</p>}
       </div>
+
+      {folha && <FolhaAcompanhar folha={folha} marca={cat?.marca || marca?.produto}
+        onClose={() => setFolha(null)} onToast={setToast}
+        onEntrar={() => { try { sessionStorage.setItem('bigbag_post_login', '/remedios'); } catch { /* noop */ } oidcLogin(); }} />}
+      {toast && <div className="rx-toast">{toast}</div>}
     </>
+  );
+}
+
+// Rótulo de estoque/frescor por farmácia: SÓ o booleano `disponivel` (o qtd_estoque traz
+// sentinela 99999 do VTEX — nunca exibir como número). `frescor_h` → "há Xh"/"há Nd".
+const frescorLabel = (h) => (h == null ? '' : h < 1 ? 'agora' : h < 48 ? `há ${Math.round(h)}h` : `há ${Math.round(h / 24)}d`);
+// Agrega os sinais de programa por NOME (não tudo num balde): { nome → nº de farmácias }.
+function programasPorNome(farmacias) {
+  const m = new Map();
+  for (const f of farmacias) if (f.programa?.nome) m.set(f.programa.nome, (m.get(f.programa.nome) || 0) + 1);
+  return [...m.entries()].map(([nome, n]) => ({ nome, n }));
+}
+
+// Cartão de uma apresentação (acordeão): título = rótulo de força HUMANO; COM_OFERTA expande
+// p/ as farmácias + acompanhar; SEM_OFERTA fica rebaixada. "força a curar" → badge âmbar.
+function ApresentacaoCard({ apz, aberta, onToggle, onAcompanhar, onDetalhes }) {
+  const comOferta = apz.estado === 'COM_OFERTA';
+  const aCurar = apz.rotulo_forca === 'força a curar';
+  const farmacias = apz.farmacias || [];
+  const menor = farmacias.length ? Math.min(...farmacias.map((f) => f.preco)) : null;
+  return (
+    <div className={`med-apz ${comOferta ? '' : 'med-apz-off'} ${aberta ? 'on' : ''}`}>
+      <button className="med-apz-h" onClick={comOferta ? onToggle : undefined} disabled={!comOferta} aria-expanded={aberta}>
+        <div className="med-apz-l">
+          <div className="med-apz-t">
+            {aCurar ? 'Força a confirmar' : apz.rotulo_forca}
+            {aCurar && <span className="med-badge-curar">força a confirmar</span>}
+          </div>
+          <div className="med-apz-s">{apz.qtd_efetiva ? `${apz.qtd_efetiva} ${unidEmb(apz.forma || '')}` : ''}{apz.papel === 'inicio' ? ' · dose de início' : ''}</div>
+        </div>
+        <div className="med-apz-r">
+          {comOferta
+            ? <><span className="med-apartir">a partir de</span><span className="med-apz-p">{fmtPreco(menor, 'BRL')}</span><span className="med-apz-cv">{farmacias.length} farmácia{farmacias.length > 1 ? 's' : ''} {aberta ? '▴' : '▾'}</span></>
+            : <span className="med-apz-na">sem oferta agora</span>}
+        </div>
+      </button>
+      {comOferta && aberta && (
+        <div className="med-apz-body">
+          <ListaFarmacias farmacias={farmacias} />
+          <div className="med-apz-acts">
+            <button className="rx-btn-leaf" onClick={onAcompanhar}><Ico name="bell" size={15} stroke={2.3} /> Acompanhar preço</button>
+            <button className="rx-btn-ghost" onClick={onDetalhes}>Ver com frete e detalhes →</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Farmácias de uma apresentação: chip de programa AGREGADO por nome no topo (postura 2,
+// qualitativo, SEM número) + ponto 💊 por farmácia; preço normal e `preco_cond` (NÚMERO real
+// publicado pela farmácia) são DISTINTOS do chip de programa.
+function ListaFarmacias({ farmacias }) {
+  const progs = programasPorNome(farmacias);
+  const temCond = farmacias.some((f) => f.preco_cond != null && f.preco_cond > 0);
+  return (
+    <>
+      {progs.length > 0 && (
+        <div className="med-prog">
+          <div className="med-prog-h">💊 {progs.map((p, i) => <span key={p.nome}>{i > 0 ? ' · ' : ''}Programa <b>{p.nome}</b> em {p.n} farmácia{p.n > 1 ? 's' : ''}</span>)}</div>
+          <div className="med-prog-d">Desconto do laboratório à parte do preço abaixo — <b>cadastre-se na farmácia</b>; o valor final aparece no balcão. Não é o preço listado aqui.</div>
+        </div>
+      )}
+      {farmacias.map((o) => (
+        <div className={`med-of2 ${o.disponivel === false ? 'med-of2-eis' : ''}`} key={o.fonte}>
+          <div className="med-of2-l">
+            <span className="med-of-f">{o.programa?.nome ? <span className="med-prog-dot" title={`Tem programa ${o.programa.nome}`}>💊</span> : null}{nomeFarm(o.fonte)}</span>
+            <span className="med-of2-sub">
+              {o.disponivel === false ? <span className="med-of2-na">esgotada</span> : null}
+              {o.frescor_h != null ? <span className="med-of2-fr">atualizado {frescorLabel(o.frescor_h)}</span> : null}
+            </span>
+          </div>
+          <div className="med-of2-r">
+            <span className="med-of-p">{fmtPreco(o.preco, 'BRL')}</span>
+            {o.preco_cond != null && o.preco_cond > 0 && o.preco_cond < o.preco
+              ? <span className="med-of2-cond">pode chegar a {fmtPreco(o.preco_cond, 'BRL')}<span className="med-of2-condt">condicional</span></span> : null}
+          </div>
+        </div>
+      ))}
+      {temCond && <p className="med-obs2"><b>Pode chegar a R$X</b> = preço com desconto que a própria farmácia publica (condicional, ex.: 1ª compra). Diferente do 💊 programa do laboratório acima, cujo valor só aparece no cadastro/balcão.</p>}
+    </>
+  );
+}
+
+// Folha "acompanhar": não-logado → convite a entrar (ver continua livre); logado → baseline
+// DECLARADO com a MEDIANA de mercado pré-preenchida (aceita/corrige) → cria o monitor (dry-run).
+function FolhaAcompanhar({ folha, marca, onClose, onEntrar, onToast }) {
+  const { apz, modo } = folha;
+  const [sug, setSug] = useState(null);   // { mediana, menor, n_ofertas }
+  const [val, setVal] = useState('');     // texto do baseline (R$)
+  const [mexeu, setMexeu] = useState(false);
+  const [carregando, setCarregando] = useState(modo === 'baseline');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
+  useEffect(() => {
+    if (modo !== 'baseline') return undefined;
+    let on = true;
+    sugestaoMonitor(apz.ean).then((d) => { if (!on) return; setSug(d); const base = d.mediana ?? d.menor; if (base != null) setVal(String(base).replace('.', ',')); })
+      .catch(() => { if (on) setErro('Não consegui sugerir um preço agora — pode digitar o seu.'); })
+      .finally(() => { if (on) setCarregando(false); });
+    return () => { on = false; };
+  }, [modo, apz.ean]);
+  const parseVal = (s) => { const n = Number(String(s).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null; };
+  async function confirmar() {
+    const baseline = parseVal(val);
+    if (baseline == null) { setErro('Informe um preço válido.'); return; }
+    setSalvando(true); setErro('');
+    const sugerida = sug && (sug.mediana ?? sug.menor);
+    const origem = !mexeu && sugerida != null && Math.abs(baseline - sugerida) < 0.005 ? 'aceito_sugerido' : 'declarado';
+    try { await criarMonitor({ ean: apz.ean, baseline, origem }); onClose(); onToast('Acompanhando este preço ✓'); }
+    catch (e) { setErro(String(e?.message).includes('401') || String(e?.message).includes('403') ? 'Sua sessão expirou — entre de novo.' : 'Não consegui salvar agora. Tente de novo.'); setSalvando(false); }
+  }
+  return (
+    <div className="rx-sheet-bg" onClick={onClose}>
+      <div className="rx-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="rx-sheet-grip" />
+        {modo === 'login' ? (
+          <>
+            <div className="rx-sheet-t">Entre para acompanhar</div>
+            <p className="rx-sheet-p">Ver os preços é livre. Para <b>acompanhar</b> um remédio, entre na sua conta — guardamos qual remédio você acompanha, por isso pede login.</p>
+            <button className="rx-btn-leaf wide" onClick={onEntrar}>Entrar para acompanhar</button>
+            <button className="rx-btn-ghost wide" onClick={onClose}>Agora não</button>
+          </>
+        ) : (
+          <>
+            <div className="rx-sheet-t">Acompanhar {marca}</div>
+            <div className="rx-sheet-sub">{apz.rotulo_forca}{apz.qtd_efetiva ? ` · ${apz.qtd_efetiva} ${unidEmb(apz.forma || '')}` : ''}</div>
+            <p className="rx-sheet-p">Qual preço você costuma pagar? Avisamos quando ficar bem abaixo desse valor. {carregando ? '' : sug?.mediana != null ? 'Sugerimos a mediana de mercado — aceite ou corrija.' : 'Digite o seu valor de referência.'}</p>
+            <div className="rx-base">
+              <span className="rx-base-c">R$</span>
+              <input className="rx-base-i" value={carregando ? '' : val} placeholder={carregando ? 'calculando…' : '0,00'} inputMode="decimal"
+                onChange={(e) => { setVal(e.target.value); setMexeu(true); }} disabled={carregando} aria-label="preço de referência" autoFocus />
+            </div>
+            {sug && sug.n_ofertas > 0 && <div className="rx-base-hint">Mediana de mercado: {fmtPreco(sug.mediana, 'BRL')} · menor hoje {fmtPreco(sug.menor, 'BRL')} ({sug.n_ofertas} farmácias com estoque)</div>}
+            {erro && <div className="rx-sheet-err">{erro}</div>}
+            <button className="rx-btn-leaf wide" onClick={confirmar} disabled={carregando || salvando}>{salvando ? 'Salvando…' : 'Acompanhar'}</button>
+            <button className="rx-btn-ghost wide" onClick={onClose}>Cancelar</button>
+            <p className="rx-sheet-fine">Você define o preço de referência. Ainda não enviamos notificações — por enquanto só guardamos o que você acompanha.</p>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

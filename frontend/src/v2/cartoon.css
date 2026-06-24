@@ -622,3 +622,55 @@
 .v2 .med-cond{background:#fff7e6;border:2px solid #ffe1a8;border-radius:var(--r-sm);padding:11px 14px;margin:4px 0 14px}
 .v2 .med-cond-h{font:800 13.5px var(--font);color:#9a6a00}
 .v2 .med-cond-o{font:500 11.5px var(--font);color:var(--ink-2);line-height:1.5;margin-top:4px}
+
+/* /catalogo — apresentações por força clínica (acordeão) + acompanhar */
+.v2 .med-apz-list{display:flex;flex-direction:column;gap:8px;margin-bottom:4px}
+.v2 .med-apz{background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);overflow:hidden}
+.v2 .med-apz.on{border-color:var(--leaf)}
+.v2 .med-apz-off{opacity:.62;background:var(--cream-2)}
+.v2 .med-apz-h{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:0;text-align:left;padding:12px 15px;cursor:pointer}
+.v2 .med-apz-h:disabled{cursor:default}
+.v2 .med-apz-l{min-width:0}
+.v2 .med-apz-t{display:flex;align-items:center;gap:8px;font:800 15.5px var(--disp);color:var(--ink)}
+.v2 .med-apz-s{font:600 11.5px var(--font);color:var(--ink-3);margin-top:2px}
+.v2 .med-apz-r{text-align:right;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end}
+.v2 .med-apz-p{font:800 15px var(--disp);color:var(--leaf-d)}
+.v2 .med-apz-cv{font:600 10.5px var(--font);color:var(--ink-3);margin-top:1px}
+.v2 .med-apz-na{font:700 11.5px var(--font);color:var(--ink-3)}
+.v2 .med-badge-curar{font:800 9px var(--font);text-transform:uppercase;letter-spacing:.04em;color:var(--amber-d);background:var(--amber-soft);border:1px solid #f0d49a;border-radius:var(--r-pill);padding:2px 7px}
+.v2 .med-apz-body{padding:2px 13px 13px;border-top:1.5px dashed var(--line)}
+.v2 .med-apz-body .med-of2{margin-top:9px}
+.v2 .med-apz-acts{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+/* sinal de programa de laboratório — QUALITATIVO (postura 2), âmbar, SEM número */
+.v2 .med-prog{background:var(--amber-soft);border:2px solid #f0d49a;border-radius:var(--r-sm);padding:10px 13px;margin:10px 0 4px}
+.v2 .med-prog-h{font:800 12.5px var(--font);color:#8a5a00;line-height:1.4}
+.v2 .med-prog-h b{color:#8a5a00}
+.v2 .med-prog-d{font:500 11px var(--font);color:var(--ink-2);line-height:1.5;margin-top:4px}
+.v2 .med-prog-dot{margin-right:5px}
+/* farmácia: estoque/frescor (só booleano) e preço condicional (NÚMERO, distinto do programa) */
+.v2 .med-of2-eis{opacity:.6}
+.v2 .med-of2-fr{font:500 10.5px var(--font);color:var(--ink-3);margin-left:6px}
+.v2 .med-of2-cond{display:block;font:700 11px var(--font);color:var(--leaf-d);margin-top:2px}
+.v2 .med-of2-condt{font:600 9px var(--font);text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);background:var(--cream-2);border-radius:var(--r-pill);padding:1px 6px;margin-left:5px}
+/* botões e folha (acompanhar) */
+.v2 .rx-btn-leaf{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--leaf);color:#fff;border:0;border-radius:var(--r-pill);font:800 14px var(--disp);padding:11px 16px;cursor:pointer;box-shadow:var(--sh-sm)}
+.v2 .rx-btn-leaf:active{transform:scale(.97)}
+.v2 .rx-btn-leaf:disabled{opacity:.55;cursor:default}
+.v2 .rx-btn-ghost{display:inline-flex;align-items:center;justify-content:center;background:none;border:0;color:var(--leaf-d);font:700 13px var(--font);padding:9px 6px;cursor:pointer}
+.v2 .rx-btn-leaf.wide,.v2 .rx-btn-ghost.wide{width:100%}
+.v2 .rx-sheet-bg{position:fixed;inset:0;z-index:50;background:rgba(40,52,30,.42);display:flex;align-items:flex-end;justify-content:center}
+.v2 .rx-sheet{width:100%;max-width:460px;background:var(--bg,#fbfdf6);border-radius:20px 20px 0 0;padding:10px 18px 22px;box-shadow:0 -8px 28px rgba(60,70,40,.22);animation:rxUp .18s ease-out}
+@keyframes rxUp{from{transform:translateY(18px);opacity:.6}to{transform:translateY(0);opacity:1}}
+.v2 .rx-sheet-grip{width:38px;height:4px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.v2 .rx-sheet-t{font:800 19px var(--disp);color:var(--ink);text-align:center}
+.v2 .rx-sheet-sub{font:600 12.5px var(--font);color:var(--leaf-d);text-align:center;margin-top:2px}
+.v2 .rx-sheet-p{font:500 13px var(--font);color:var(--ink-2);line-height:1.5;text-align:center;margin:10px 4px 14px}
+.v2 .rx-base{display:flex;align-items:center;gap:8px;background:#fff;border:2px solid var(--line);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:8px}
+.v2 .rx-base:focus-within{border-color:var(--leaf)}
+.v2 .rx-base-c{font:800 17px var(--disp);color:var(--ink-3)}
+.v2 .rx-base-i{flex:1;min-width:0;border:0;background:none;outline:none;font:800 20px var(--disp);color:var(--ink)}
+.v2 .rx-base-hint{font:600 11px var(--font);color:var(--ink-3);text-align:center;margin-bottom:12px}
+.v2 .rx-sheet-err{font:600 12px var(--font);color:var(--coral);text-align:center;margin-bottom:10px}
+.v2 .rx-sheet-fine{font:500 10.5px var(--font);color:var(--ink-3);line-height:1.45;text-align:center;margin:10px 4px 0}
+.v2 .rx-sheet .rx-btn-leaf.wide{margin-bottom:6px}
+.v2 .rx-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;background:var(--leaf-ink);color:#fff;font:700 13px var(--font);padding:11px 18px;border-radius:var(--r-pill);box-shadow:var(--sh-md);animation:rxUp .18s ease-out}

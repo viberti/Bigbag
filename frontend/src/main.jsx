@@ -15,12 +15,21 @@ const caminho = window.location.pathname.replace(/\/+$/, '');
 const root = createRoot(document.getElementById('root'));
 
 if (caminho === '/callback') {
-  // Volta do Zitadel: finaliza o login e regressa à raiz. Sem React app aqui.
+  // Volta do Zitadel: finaliza o login e regressa à origem do login. Sem React app aqui.
+  // DEFAULT byte-idêntico ao anterior: sem `bigbag_post_login` gravado → volta a '/'.
+  // Surfaces que iniciam login fora da raiz (ex.: /remedios) gravam o caminho antes do
+  // redirect; só um valor que comece por '/' é honrado (evita open-redirect).
   root.render(<div style={{ font: '600 16px system-ui', padding: 40, textAlign: 'center', color: '#3b4a30' }}>A entrar…</div>);
+  let destino = '/';
+  try {
+    const guardado = sessionStorage.getItem('bigbag_post_login');
+    sessionStorage.removeItem('bigbag_post_login');
+    if (guardado && /^\/(?!\/)/.test(guardado)) destino = guardado; // só caminho relativo interno
+  } catch { /* sessionStorage indisponível → default '/' */ }
   import('./auth/oidc.js')
     .then(({ oidcCallback }) => oidcCallback())
     .catch(() => {})
-    .finally(() => window.location.replace('/'));
+    .finally(() => window.location.replace(destino));
 } else {
   const Pagina = caminho === '/admin' ? Admin
     : caminho === '/dash' ? Dashboard

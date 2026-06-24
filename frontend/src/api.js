@@ -280,6 +280,32 @@ export async function precosAoVivo(ean, cep) {
   if (!r.ok) throw new Error(`med-vivo ${r.status}`);
   return r.json(); // { ean, cep, agora, fontes:[{fonte,preco,frete,prazo,total,entrega,retira}], melhor_entrega }
 }
+// CATÁLOGO hierárquico de uma marca (público): apresentações com rótulo de força CURADO
+// (ordem clínica, COM_OFERTA primeiro) → farmácias (preço/preco_cond/disponivel/frescor_h)
+// + sinal QUALITATIVO de programa de laboratório (postura 2, só onde validado).
+export async function catalogoMedicamento(marca) {
+  const r = await call(`/api/medicamento/catalogo?marca=${encodeURIComponent(marca)}`);
+  if (r.status === 404) return null; // marca sem apresentações na CMED
+  if (!r.ok) throw new Error(`med-catalogo ${r.status}`);
+  return r.json(); // { marca, substancia, forma, tarja, n_apresentacoes, com_oferta, apresentacoes:[{ean,rotulo_forca,estado,farmacias:[{fonte,preco,preco_cond,disponivel,frescor_h,url,programa?}],...}] }
+}
+// AUTENTICADO. Mediana de mercado (com estoque) p/ pré-preencher o baseline do "acompanhar".
+export async function sugestaoMonitor(ean) {
+  const r = await call(`/api/medicamento/monitor-usuario/sugestao?ean=${encodeURIComponent(ean)}`);
+  if (!r.ok) throw new Error(`med-sugestao ${r.status}`);
+  return r.json(); // { ean, mediana, menor, n_ofertas }
+}
+// AUTENTICADO. Cria/reativa o monitor por-usuário (baseline DECLARADO; dado de saúde sensível).
+// origem: 'aceito_sugerido' (aceitou a mediana) | 'declarado' (corrigiu). NÃO liga envio (dry-run).
+export async function criarMonitor({ ean, baseline, origem }) {
+  const r = await call('/api/medicamento/monitor-usuario', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ean, baseline_declarado: baseline, baseline_origem: origem }),
+  });
+  if (!r.ok) throw new Error(`med-monitor ${r.status}`);
+  return r.json(); // a linha usuario_monitor criada/atualizada
+}
 
 export async function listarDespensa() {
   const r = await call('/api/produto/despensa');
