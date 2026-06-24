@@ -320,10 +320,10 @@ function Home({ go, user, abrirConta }) {
         </div>
         {/* entrada CLARA para registar um talão (foto OU PDF) — reusa o fluxo de processamento das Compras */}
         <label className="talao-cta">
-          <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+          <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) go('notas', { partilhado: f }); }} />
           <span className="talao-cta-ic"><Ico name="receipt" size={26} stroke={2} color="#7a5b12" /></span>
-          <div className="talao-cta-tx"><b>Ler novo talão</b><span>tire foto ou envie o PDF da fatura</span></div>
+          <div className="talao-cta-tx"><b>Ler novo talão</b><span>fotografe a fatura da compra</span></div>
           <span className="talao-cta-go"><Ico name="camera" size={20} color="var(--amber-d)" /></span>
         </label>
         <div className="clabel-row"><span className="clabel">Comprado há pouco</span><button className="seeall" onClick={() => go('notas')}>Ver tudo →</button></div>

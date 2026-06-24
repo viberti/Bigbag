@@ -239,12 +239,21 @@ export function grupoDeNome(nome) {
 // significativa do segmento antes do 1.º conector, singularizada. "Tortilhas de Trigo"→tortilha;
 // "Pão Ralado com Alho"→pao; "Azeite Virgem Extra"→azeite. Agrupa alternativas sem curar família
 // a família: cabeças diferentes = produtos diferentes (tortilha ≠ pão ralado ≠ azeite).
+// grafias equivalentes da MESMA cabeça (PT/PT-BR/ES) → uma só forma canónica, p/ não fragmentar
+// a comparabilidade ("tortilla"≡"tortilha"). Extensível; só pares que são o MESMO produto.
+const CABECA_SINON = {
+  tortilla: 'tortilha', espaguete: 'esparguete', macarrao: 'massa',
+  yogur: 'iogurte', yogurt: 'iogurte', iogurt: 'iogurte',
+  galleta: 'bolacha', biscoito: 'bolacha', aceite: 'azeite', leche: 'leite', queso: 'queijo', pan: 'pao',
+};
 export function cabecaNome(nome) {
   const n = norm(nome || '');
   if (!n) return null;
   const ante = n.split(/\s(?:de|do|da|dos|das|com|sem|para|em|e|ao|aos|à|tipo|sabor|estilo)\s/)[0].trim();
   const palavras = (ante || n).split(/\s+/).filter((w) => w.length >= 3);
-  return palavras.length ? singularizar(palavras[0]) : null;
+  if (!palavras.length) return null;
+  const c = singularizar(palavras[0]);
+  return CABECA_SINON[c] || c;
 }
 
 // Uma "marca" que é na verdade um TIPO/genérico (Leite, Iogurte, Bolacha, Água…) é DADO ERRADO
