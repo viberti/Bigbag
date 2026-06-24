@@ -134,8 +134,19 @@ Regra de promoção `DETECTADO → VALIDADO`, por ordem de força:
 
 ---
 
-## ⏸️ PARE — aguarda OK
-Nada construído. Com o teu OK, a ordem de implementação seria: (a) migração `programa_sinal`;
-(b) script de captura-de-selo reusando o cache (pré-filtro → VLM no resíduo → validação → estados);
-(c) crons (semanal full + diário incremental) + saúde/alarme; (d) campo aditivo no `/catalogo` + chip na UI.
-Cada um é uma tarefa seguinte, separada.
+## ✅ CAMADA COMPLETA — (a)(b)(c)(d) aplicadas (2026-06-23/24)
+- **(a)** migr. 084 `programa_sinal`. **(b)** motor de cascata + máquina de estados (`backend/tools/captura_visual/capturar_programa.mjs`) — heurística de texto apertada (marca sozinha ≠ programa). **(c)** pipeline de produção (`captura_prod.mjs`): render real + fpVisual + VLM-só-no-resíduo; gate ≥2 por leituras INDEPENDENTES (fpVisual igual renova mas nunca promove); saúde-por-fonte + congelar-na-cegueira (só sinais vlm/texto; estruturado-coberto = info); crons dev `30 3 * * *` (incremental) + `30 2 * * 0` (full-scan). **Questão B: sem contador** (14d + full-scan semanal bastam). **(d)** campo aditivo `programa:{}` no `/catalogo`.
+
+### Estado canónico (full-scan 2026-06-24)
+**VALIDADO 108 · DETECTADO 0 · EXPIRADO 0.** VLM real 9 (custo $0,006 — pré-filtro de texto resolve quase tudo). Alarme real: **nissei render 17% → 7 sinais congelados** (a 13s o Next.js não renderiza; sinais protegidos, não perdidos). araujo 0% render mas estruturado → info.
+
+### (d) — exposição no `/catalogo` (postura 2)
+- Campo opcional `programa:{ nome, desde (ultima_confirmacao), idade_dias, estado }` no nível 3 (farmácia), **só VALIDADO + `expira_em>now`**. Quarentena/expirado **nunca** aparecem.
+- **Prova:** Mounjaro 2,5 mg → pacheco/paguemenos/… com `PROGRAMA=Desconto de Laboratório (há 0d, VALIDADO)`; drogariamoderna (render-fail) sem sinal. **Ozempic = 0 sinais** (campo ausente — captura só no Mounjaro). **106/115** farmácias×EAN exibem sinal.
+- **Aditivo provado:** farmácia c/ sinal → chaves = base ∪ {programa}; s/ sinal → base; `preco`/`preco_cond` byte-idênticos.
+- **TEXTO (contrato p/ a UI):** "Tem programa \<nome\> — cadastre-se na farmácia (informação de \<desde\>)". Sem percentual, sem preço final.
+- **FRESCOR NA EXPOSIÇÃO (decisão):** gate = VALIDADO + `expira_em>now` (janela 14d). O backend devolve sempre `desde`+`idade_dias`; a UI **mostra a data quando `idade_dias>3`** e suaviza ("informação de há N dias / pode ter mudado"). Um sinal **congelado** (fonte cega) fica exibível com a data a **envelhecer visivelmente** até expirar aos 14d → nunca se afirma como ATUAL algo velho, e a obsolescência é limitada.
+
+### Pendências (tuning, não-bloqueante)
+- **nissei/Next.js** precisa de timeout de render maior que 13s (o congelamento mascarou-o com segurança; o objetivo é renderizá-lo). Timeout por-fonte é a correção.
+- Chip de UI: o `/catalogo` ainda não é consumido pela tela Remédios; o chip entra quando a tela de catálogo for ligada.
