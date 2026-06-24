@@ -12,7 +12,7 @@ import { config, paisCfg } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, arbitrarMarcaNome, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
-import { grupoDe, grupoDeNome, marcaEhTipo, tokenCasa, singularizar, norm as normN, normAlfa, tipoConsumidor } from '../normaliza/categoria.js';
+import { grupoDe, grupoDeNome, marcaEhTipo, tokenCasa, singularizar, norm as normN, normAlfa, tipoConsumidor, cabecaNome } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
 import { fundirFichaEan } from '../normaliza/fichaEan.js';
 import { acharPorNomeMarca, acharGemeo, nomeCondizGemeo } from '../normaliza/resolverPorNome.js';
@@ -919,19 +919,21 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     const marcaAtual = info.base?.marca || info.off?.marca || info.vlm?.marca || null;
     const famAtual = info.familia;
     const tipoAtual = tipoConsumidor(grupo, nomeFacetas, marcaAtual);
-    // GATE de honestidade (geral): nos grupos-SACO de processados (bebidas/lácteos/doces/MERCEARIA/
-    // PADARIA), o cruzamento por GRUPO junta lixo (tortilha→pão ralado/levedura; água→cerveja). Só vale
-    // se houver SINAL FINO: família (fusor), mestre.categoria, OU um tipo gated MAS só na mercearia — na
-    // padaria o tipo 'pao' lumpa tortilha/pão ralado/pão de forma, não separa nada. Sem sinal fino →
-    // VAZIO honesto (>" lixo). Frescos (fruta/carne/peixe) cruzam pelo grupo de propósito → não entram aqui.
-    const TIPOS_GATED = ['massa', 'pao', 'cereais', 'conservas', 'tomate'];
-    const tipoFino = TIPOS_GATED.includes(tipoAtual) && grupo !== 'padaria';
-    const temSinalFino = !!famAtual || !!mestreCat || tipoFino;
-    const GRUPOS_SACO = new Set(['bebidas', 'lacticinios', 'doces', 'mercearia', 'padaria']);
-    if (GRUPOS_SACO.has(grupo) && !temSinalFino) {
-      return res.json({ grupo, nivel, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
-    }
-    if (famAtual) {
+    // CHAVE DE COMPARABILIDADE (regra GERAL — não curar família a família): nos grupos-SACO de
+    // processados, duas coisas só são alternativas se partilham a CHAVE = família curada (fusor) →
+    // senão tipo-fino (massa/cereais/conservas/tomate; 'pao' FICA FORA, lumpa tortilha↔pão ralado) →
+    // senão o SUBSTANTIVO-CABEÇA do nome (tortilha≠pão≠azeite saem sozinhos). Aplica-se quando a busca
+    // foi por GRUPO (sem mestre.categoria, que já é fino). Frescos (fruta/carne/peixe) cruzam pelo
+    // grupo de propósito (banana→maçã) e NÃO entram aqui. Sem chave → vazio honesto (> lixo).
+    const ehSaco = new Set(['bebidas', 'lacticinios', 'doces', 'mercearia', 'padaria']).has(grupo);
+    const TIPOS_FINOS = ['massa', 'cereais', 'conservas', 'tomate'];
+    const tipoFinoDe = (nome, marca) => { const t = tipoConsumidor(grupo, nome, marca); return TIPOS_FINOS.includes(t) ? t : null; };
+    const chaveDe = (nome, marca = null) => familiaPorNome(nome, marca) || (ehSaco ? (tipoFinoDe(nome, marca) || cabecaNome(nome)) : null);
+    const chaveAtual = famAtual || (ehSaco ? (tipoFinoDe(nomeFacetas, marcaAtual) || cabecaNome(nomeFacetas)) : null);
+    if (ehSaco && !mestreCat) {
+      if (!chaveAtual) return res.json({ grupo, nivel, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
+      cands = cands.filter((c) => chaveDe(c.nome) === chaveAtual);
+    } else if (famAtual) {
       cands = cands.filter((c) => familiaPorNome(c.nome) === famAtual);
     } else if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) {
       cands = cands.filter((c) => tipoConsumidor(grupo, c.nome, null) === tipoAtual);
@@ -963,7 +965,10 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
         if (!mesmaDieta(c.nome)) continue;
         // o NOME tem de casar a família-alvo, E a CATEGORIA-PATH do catálogo não pode indicar CLARAMENTE
         // outra família (veto): "Petit Nesquik" path 'iogurtes/…', "Rolinhos …Cacau" path '…bolos/…'.
-        if (famAtual) {
+        if (ehSaco && !mestreCat) {
+          if (chaveDe(c.nome, c.marca) !== chaveAtual) continue; // mesma chave (família/tipo-fino/cabeça)
+          if (famAtual) { const fc = familiasQueCasam(`${c.categoria_path || ''} ${c.categoria || ''}`.replace(/[/_-]+/g, ' ')); if (fc.length && !fc.includes(famAtual)) continue; }
+        } else if (famAtual) {
           if (familiaPorNome(c.nome, c.marca) !== famAtual) continue;
           const fc = familiasQueCasam(`${c.categoria_path || ''} ${c.categoria || ''}`.replace(/[/_-]+/g, ' '));
           if (fc.length && !fc.includes(famAtual)) continue;

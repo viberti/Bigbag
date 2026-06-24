@@ -235,6 +235,18 @@ export function grupoDeNome(nome) {
   return grupoDeTexto(n);
 }
 
+// SUBSTANTIVO-CABEÇA do nome (regra GERAL de comparabilidade p/ alternativas): a 1.ª palavra
+// significativa do segmento antes do 1.º conector, singularizada. "Tortilhas de Trigo"→tortilha;
+// "Pão Ralado com Alho"→pao; "Azeite Virgem Extra"→azeite. Agrupa alternativas sem curar família
+// a família: cabeças diferentes = produtos diferentes (tortilha ≠ pão ralado ≠ azeite).
+export function cabecaNome(nome) {
+  const n = norm(nome || '');
+  if (!n) return null;
+  const ante = n.split(/\s(?:de|do|da|dos|das|com|sem|para|em|e|ao|aos|à|tipo|sabor|estilo)\s/)[0].trim();
+  const palavras = (ante || n).split(/\s+/).filter((w) => w.length >= 3);
+  return palavras.length ? singularizar(palavras[0]) : null;
+}
+
 // Uma "marca" que é na verdade um TIPO/genérico (Leite, Iogurte, Bolacha, Água…) é DADO ERRADO
 // (campo marca mal preenchido na fonte — caso real: OFF com marca='Sauerkraut'). grupoDeNome cai
 // num grupo ESPECÍFICO para tipos e em GRUPO_OUTROS para marcas reais (Nestlé, Allseasons,
