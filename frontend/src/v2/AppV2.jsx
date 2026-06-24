@@ -265,7 +265,6 @@ function Shell({ nome, onSair, pais }) {
   // BASE LOCAL: pré-carrega as fichas (identificação+nutrição de ~63k EANs PT+Mercadona-ES)
   // para o scan responder instantâneo/offline. Fire-and-forget, auto-limitada a 1x/hora.
   useEffect(() => { sincronizarFichasBulk(); }, []);
-  useEffect(() => { primeReceitas(); }, []); // pré-aquece o 1.º lote de receitas → abre já com cartas
   const go = useCallback((id, p = {}, opts = {}) => {
     if (TABS.has(id)) setCmp([]); // aba principal → a comparação recomeça limpa
     setView((cur) => {
@@ -333,7 +332,7 @@ function Home({ go, user, abrirConta }) {
           <button className="go">Ver a lista →</button>
         </div>
         <div className="quick">
-          {[['recipe', 'Receitas', () => go('receitas'), 'var(--coral)'],
+          {[['recipe', 'Receitas', () => { primeReceitas(); go('receitas'); }, 'var(--coral)'],
             ['compare', 'Comparar', () => go('comparar'), undefined],
             ['talao', 'Despensa', () => go('despensa'), 'var(--amber-d)'],
             ['chart', 'Gastos', () => go('gastos'), '#3b86c4']].map(([ic, lb, on, col]) => (
@@ -1961,7 +1960,6 @@ function Receitas({ back }) {
   useEffect(() => { vistos.current = new Set(); semMais.current = false; setDeck(null); setI(0); setPoucos(false); buscarMais(); carregarGostei(); }, [buscarMais, carregarGostei]);
   // PRÉ-BUSCA transparente: faltando ≤4 cartas, traz o próximo lote (folheamento sem fim)
   useEffect(() => { if (deck && deck.length - i <= 4 && !semMais.current && !poucos) buscarMais(); }, [i, deck, poucos, buscarMais]);
-  useEffect(() => () => { primeReceitas(); }, []); // ao sair, re-aquece o 1.º lote p/ a próxima visita
   const votar = useCallback((rec, voto) => {
     avaliarReceita(rec.nome, voto, { desc: rec.desc, usa: rec.usa, foto: rec.foto }).catch(() => {});
     vistos.current.add(rec.nome);
