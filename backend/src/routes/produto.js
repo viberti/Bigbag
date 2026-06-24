@@ -20,6 +20,7 @@ import { nutricaoPlausivel } from '../normaliza/validadores.js';
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT, pareceEstrangeiro } from '../ingest/traduz.js';
+import { enriquecerDespensaLLM } from '../ingest/classificarDespensa.js';
 import { analiseEan } from '../normaliza/ean.js';
 import { resolverItensLista } from './lista.js';
 import { matchImagemB64, vetorizarImagemB64, cosseno } from '../normaliza/matchImagem.js';
@@ -1302,16 +1303,34 @@ produtoRouter.post('/local-hit', requireAuth, async (req, res) => {
 // o que ainda está em casa). Partilhada; ordenada pelo scan mais recente.
 produtoRouter.get('/despensa', requireAuth, async (req, res) => {
   try {
+    const pool = getPool();
     const mercado = req.query.mercado || null;
-    const [rows] = await getPool().query(
+    const [rows] = await pool.query(
       `SELECT ean, nome, marca, validade, atualizado_em AS data FROM despensa ORDER BY atualizado_em DESC, id DESC`);
     const limparVal = (v) => { const s = String(v ?? '').trim(); return s && !/^null$/i.test(s) ? s : null; };
-    // MESMO enriquecimento da lista de compras (categoria/secção, marca, tamanho,
-    // preço) → a despensa mostra-se com o mesmo formato rico. id = ean (único).
-    const itens = rows.map((r) => ({ id: r.ean, nome: r.nome, ean: r.ean, estado: 'ativo', quantidade: 1, marca_scan: r.marca, validade: limparVal(r.validade), data: r.data }));
-    await resolverItensLista(getPool(), itens, mercado, { leve: true }); // inventário: salta a estimativa de preço pelo irmão (~1,7s)
+    // NOME PT-FIRST: o nome canónico (produto_ean, já traduzido pelo backfill) vence o nome guardado
+    // no scan, que podia ser espanhol/estrangeiro. Os que ainda parecem estrangeiros traduzem-se em
+    // FUNDO (garantirFichaPT persiste em produto_ean) e a despensa é corrigida → próximo load fica PT.
+    const eans = [...new Set(rows.map((r) => r.ean))];
+    const cls = new Map(), ptByEan = new Map();
+    if (eans.length) {
+      const ph = eans.map(() => '?').join(',');
+      const [c] = await pool.query(`SELECT ean, seccao, nome_pt FROM ean_classificacao WHERE ean IN (${ph})`, eans);
+      for (const r of c) cls.set(String(r.ean), r);
+      const [pe] = await pool.query(`SELECT ean, MIN(NULLIF(nome, '')) AS nome FROM produto_ean WHERE ean IN (${ph}) GROUP BY ean`, eans);
+      for (const r of pe) if (r.nome) ptByEan.set(String(r.ean), r.nome);
+    }
+    // NOME PT-FIRST: classificação canónica (LLM) > nome do produto_ean (traduzido) > nome guardado no scan.
+    const nomeFinal = (r) => { const c = cls.get(String(r.ean)); if (c?.nome_pt && !pareceEstrangeiro(c.nome_pt)) return c.nome_pt; const cano = ptByEan.get(String(r.ean)); return (cano && !pareceEstrangeiro(cano)) ? cano : r.nome; };
+    // MESMO enriquecimento da lista (marca, tamanho, preço) → formato rico. `seccao` = secção canónica (LLM).
+    const itens = rows.map((r) => ({ id: r.ean, nome: nomeFinal(r), ean: r.ean, seccao: cls.get(String(r.ean))?.seccao || null, estado: 'ativo', quantidade: 1, marca_scan: r.marca, validade: limparVal(r.validade), data: r.data }));
+    await resolverItensLista(pool, itens, mercado, { leve: true }); // inventário: salta a estimativa de preço pelo irmão (~1,7s)
     for (const it of itens) { if (!it.marca) it.marca = it.marca_scan || null; delete it.marca_scan; }
     res.json({ produtos: itens });
+    // FUNDO (não bloqueia): LLM classifica+traduz os SEM classificação canónica (ou ainda estrangeiros) →
+    // persiste em ean_classificacao + produto_ean.nome → MELHORA A BASE; próximo load fica correto.
+    const faltam = rows.filter((r) => !cls.has(r.ean) || pareceEstrangeiro(nomeFinal(r)));
+    if (faltam.length) enriquecerDespensaLLM(pool, faltam.map((r) => ({ ean: r.ean, nome: nomeFinal(r) }))).catch(() => {});
   } catch (e) {
     console.error('[produto/despensa] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar a despensa' });

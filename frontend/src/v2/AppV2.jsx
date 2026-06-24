@@ -70,7 +70,7 @@ const ordSec = (s) => { const i = SEC_ORDER.indexOf(s); return i < 0 ? 99 : i; }
 // molhos/sal/temperos) e CAFÉ-CHÁ, e separa a CHARCUTARIA — secções próprias com rótulo e ordem.
 const SEC_LABEL_DET = { frutas: 'Frutas e vegetais', carne: 'Talho', charcutaria: 'Charcutaria', peixe: 'Peixe e marisco', padaria: 'Padaria', laticinios: 'Laticínios e ovos', congelados: 'Congelados', mercearia: 'Mercearia', condimentos: 'Molhos, azeites e temperos', cafe_cha: 'Café, chá e infusões', bebidas: 'Bebidas', doces: 'Doces e snacks', higiene: 'Higiene e limpeza', outros: 'Outros' };
 const SEC_ORDER_DET = ['frutas', 'carne', 'charcutaria', 'peixe', 'padaria', 'laticinios', 'congelados', 'mercearia', 'condimentos', 'cafe_cha', 'bebidas', 'doces', 'higiene', 'outros'];
-const secDetId = (it) => seccaoLista(it.grupo || grupoDeNome(it.nome), it.nome);
+const secDetId = (it) => it.seccao || seccaoLista(it.grupo || grupoDeNome(it.nome), it.nome); // it.seccao = secção canónica (LLM)
 function agruparDespensa(itens) {
   const ord = [...itens].sort((a, b) => ((SEC_ORDER_DET.indexOf(secDetId(a)) + 1) || 99) - ((SEC_ORDER_DET.indexOf(secDetId(b)) + 1) || 99));
   const grupos = []; let last = null;
