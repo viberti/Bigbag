@@ -1864,6 +1864,7 @@ function PerfilSaude({ back }) {
 // FOTO real (stock) que combina com o prato: busca por palavras-chave (LoremFlickr, sem chave).
 // `lock` torna a imagem estável por receita. Fallback ao gradiente se a imagem falhar (onError).
 const fotoReceita = (rec) => {
+  if (rec.foto_url) return rec.foto_url; // Pexels (server-side) quando há chave; senão fallback keyless abaixo
   const q = String(rec.foto || rec.nome || 'food').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter((w) => w.length > 2).slice(0, 4).join(',');
   const seed = Math.abs([...String(rec.nome || 'x')].reduce((a, c) => ((a * 31 + c.charCodeAt(0)) | 0), 7)) % 100000;
@@ -1923,7 +1924,7 @@ function Receitas({ back }) {
   useEffect(() => { carregar(); carregarGostei(); }, [carregar, carregarGostei]);
   const votar = useCallback((rec, voto) => {
     avaliarReceita(rec.nome, voto, { desc: rec.desc, usa: rec.usa, foto: rec.foto }).catch(() => {});
-    if (voto > 0) setGuardadas((g) => (g && !g.some((x) => x.nome === rec.nome)) ? [{ nome: rec.nome, desc: rec.desc, usa: rec.usa, foto: rec.foto }, ...g] : g);
+    if (voto > 0) setGuardadas((g) => (g && !g.some((x) => x.nome === rec.nome)) ? [{ nome: rec.nome, desc: rec.desc, usa: rec.usa, foto: rec.foto, foto_url: rec.foto_url }, ...g] : g);
     setI((x) => x + 1);
   }, []);
   const remover = useCallback((rec) => { avaliarReceita(rec.nome, -1).catch(() => {}); setGuardadas((g) => (g || []).filter((x) => x.nome !== rec.nome)); }, []);

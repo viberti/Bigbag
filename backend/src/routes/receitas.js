@@ -11,6 +11,24 @@ import { config } from '../config.js';
 export const receitasRouter = Router();
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 const _cache = new Map(); // hash(ingredientes+gostos) → receitas
+// FOTO real do prato via PEXELS (server-side; a chave nunca vai ao frontend). Cacheada por query.
+// Sem PEXELS_API_KEY → devolve null e o frontend cai no fallback keyless (LoremFlickr).
+const _fotoCache = new Map();
+async function fotoPexels(query) {
+  const q = String(query || '').trim();
+  if (!q || !process.env.PEXELS_API_KEY) return null;
+  if (_fotoCache.has(q)) return _fotoCache.get(q);
+  let url = null;
+  try {
+    const r = await fetch(`https://api.pexels.com/v1/search?per_page=1&orientation=landscape&query=${encodeURIComponent(q)}`,
+      { headers: { Authorization: process.env.PEXELS_API_KEY }, signal: AbortSignal.timeout(5000) });
+    if (r.ok) { const j = await r.json(); url = j?.photos?.[0]?.src?.large || j?.photos?.[0]?.src?.medium || null; }
+  } catch { /* rede/timeout → fallback no frontend */ }
+  if (_fotoCache.size > 1500) _fotoCache.clear();
+  _fotoCache.set(q, url);
+  return url;
+}
+const resolverFotos = (recs) => Promise.all(recs.map(async (x) => { if (!x.foto_url) x.foto_url = await fotoPexels(x.foto); }));
 
 // Ingredientes disponíveis: despensa (nome PT canónico) + comprados nos últimos 7 dias (talões).
 async function ingredientesDisponiveis(pool) {
@@ -38,7 +56,7 @@ receitasRouter.get('/', requireAuth, async (req, res) => {
     const naoGostei = votos.filter((v) => v.voto < 0).map((v) => v.nome);
     const evitar = new Set([...gostei, ...naoGostei].map(norm)); // não repetir o já avaliado
     const hash = createHash('sha1').update(JSON.stringify([[...ingredientes].sort(), [...gostei].sort(), [...naoGostei].sort()])).digest('hex').slice(0, 16);
-    if (_cache.has(hash)) return res.json({ receitas: _cache.get(hash), cacheada: true });
+    if (_cache.has(hash)) { const recs = _cache.get(hash); await resolverFotos(recs); return res.json({ receitas: recs, cacheada: true }); }
     const prompt = `Sou cozinheiro caseiro. Tenho estes ingredientes (na despensa ou comprados nos últimos 7 dias):
 ${ingredientes.slice(0, 150).join(', ')}.
 ${gostei.length ? `RECEITAS QUE GOSTEI antes (sugira no mesmo gosto/estilo, mas NÃO repita estas): ${gostei.join('; ')}.` : ''}
@@ -60,6 +78,7 @@ Responda SÓ JSON: {"receitas":[{"nome":"...","tempo":"...","desc":"...","usa":[
         .map((x) => ({ nome: String(x.nome).slice(0, 120), tempo: x.tempo ? String(x.tempo).slice(0, 24) : null, desc: String(x.desc || '').slice(0, 200), usa: Array.isArray(x.usa) ? x.usa.map(String).slice(0, 8) : [], falta: Array.isArray(x.falta) ? x.falta.map(String).slice(0, 2) : [], foto: x.foto ? String(x.foto).slice(0, 80) : null }));
     } catch (e) { console.error('[receitas] LLM:', e.message); }
     if (receitas.length) { if (_cache.size > 200) _cache.clear(); _cache.set(hash, receitas); }
+    await resolverFotos(receitas);
     res.json({ receitas, base: { despensa_e_compras: ingredientes.length, gostei: gostei.length } });
   } catch (e) { console.error('[receitas]', e.message); res.status(500).json({ erro: 'Falha ao gerar receitas' }); }
 });
@@ -85,6 +104,8 @@ receitasRouter.get('/gostei', requireAuth, async (req, res) => {
   try {
     const [rows] = await getPool().query(
       'SELECT nome, descricao, ingredientes, foto FROM receita_avaliacao WHERE utilizador = ? AND voto > 0 ORDER BY atualizado_em DESC LIMIT 100', [req.user.id]);
-    res.json({ receitas: rows.map((r) => ({ nome: r.nome, desc: r.descricao || '', usa: parseJsonCol(r.ingredientes) || [], foto: r.foto || null })) });
+    const recs = rows.map((r) => ({ nome: r.nome, desc: r.descricao || '', usa: parseJsonCol(r.ingredientes) || [], foto: r.foto || null }));
+    await resolverFotos(recs);
+    res.json({ receitas: recs });
   } catch (e) { console.error('[receitas/gostei]', e.message); res.status(500).json({ erro: 'erro' }); }
 });
