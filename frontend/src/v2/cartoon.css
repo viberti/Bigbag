@@ -118,6 +118,23 @@
 .v2 .rec-saved-n{font:800 15px var(--disp);color:var(--ink);line-height:1.15}
 .v2 .rec-saved-u{font:600 12px var(--font);color:var(--leaf-d);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v2 .rec-saved-x{flex:0 0 auto;width:32px;height:32px;border-radius:50%;border:0;background:var(--coral-soft);color:var(--coral);display:grid;place-items:center;cursor:pointer}
+/* GUARDADAS: grelha de categorias (ingrediente principal) → ícone/emoji */
+.v2 .rec-cats{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;padding:2px}
+.v2 .rec-cat{position:relative;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:16px 8px 12px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
+.v2 .rec-cat:active{transform:scale(.96)}
+.v2 .rec-cat-em{font-size:34px;line-height:1}
+.v2 .rec-cat-l{font:800 13px var(--disp);color:var(--ink)}
+.v2 .rec-cat-n{position:absolute;top:7px;right:8px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--leaf-d);color:#fff;font:800 12px var(--font);display:grid;place-items:center}
+/* carrossel horizontal de uma categoria */
+.v2 .rec-cat-back{display:inline-flex;align-items:center;gap:6px;background:none;border:0;color:var(--ink-2);font:800 15px var(--disp);padding:2px 2px 12px;cursor:pointer}
+.v2 .rec-carousel{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:2px 2px 8px;margin:0 -2px;scrollbar-width:none}
+.v2 .rec-carousel::-webkit-scrollbar{display:none}
+.v2 .rec-ccard{position:relative;flex:0 0 84%;scroll-snap-align:center;background:var(--card);border:2px solid #fff;border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.v2 .rec-ccard-img{display:block;width:100%;height:210px;object-fit:cover;background:linear-gradient(135deg,#cfe6b0,#a6cd8c)}
+.v2 .rec-ccard-x{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:0;background:rgba(25,30,20,.5);display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.v2 .rec-ccard-b{padding:13px 15px 16px}
+.v2 .rec-ccard-n{font:800 18px var(--disp);color:var(--ink);line-height:1.18}
+.v2 .rec-ccard-u{font:600 13px var(--font);color:var(--leaf-d);margin-top:5px;line-height:1.4}
 .v2 .quick{display:flex;justify-content:space-between;gap:3px;padding:16px 0 4px}
 .v2 .quick .round-act{flex:1;min-width:0;gap:6px}
 .v2 .quick .round-act b{font-size:10.5px;letter-spacing:-.02em}

@@ -265,6 +265,7 @@ function Shell({ nome, onSair, pais }) {
   // BASE LOCAL: pré-carrega as fichas (identificação+nutrição de ~63k EANs PT+Mercadona-ES)
   // para o scan responder instantâneo/offline. Fire-and-forget, auto-limitada a 1x/hora.
   useEffect(() => { sincronizarFichasBulk(); }, []);
+  useEffect(() => { primeReceitas(); }, []); // pré-aquece o 1.º lote de receitas → abre já com cartas
   const go = useCallback((id, p = {}, opts = {}) => {
     if (TABS.has(id)) setCmp([]); // aba principal → a comparação recomeça limpa
     setView((cur) => {
@@ -1870,6 +1871,29 @@ const fotoReceita = (rec) => {
   const seed = Math.abs([...String(rec.nome || 'x')].reduce((a, c) => ((a * 31 + c.charCodeAt(0)) | 0), 7)) % 100000;
   return `https://loremflickr.com/600/360/${encodeURIComponent(q || 'food')},food?lock=${seed}`;
 };
+// PRÉ-AQUECIMENTO: começa a buscar o 1.º lote antes de o utilizador abrir Receitas (chamado no Shell),
+// para que a tela já abra com cartas prontas. A promessa fica guardada e é consumida pelo deck.
+let _recPrime = null;
+function primeReceitas() { if (!_recPrime) _recPrime = sugerirReceitas().catch(() => null); }
+function takePrime() { const p = _recPrime; _recPrime = null; return p; }
+// Classificação das GUARDADAS por ingrediente principal (ícone/emoji + carrossel por categoria).
+const REC_CATS = [ // padrões SEM acento (txt é normalizado sem diacríticos)
+  { id: 'massa', label: 'Massas', emoji: '🍝', re: /massa|macarr|espaguet|esparguet|penne|fusilli|talharim|tagliat|lasanha|nhoque|gnocch|noodl|aletria|paccheri|rigat|ravioli|farfalle|spaghetti/ },
+  { id: 'frango', label: 'Frango', emoji: '🍗', re: /frango|galinha|peito de ave|coxa de|sobrecoxa|peru/ },
+  { id: 'carne', label: 'Carne', emoji: '🥩', re: /carne|bife|boi|vaca|vitela|porco|costel|moid|almond|hamburg|picanha|alcatra|lombo|lingui|salsich/ },
+  { id: 'peixe', label: 'Peixe', emoji: '🐟', re: /peixe|atum|sardinh|cavala|bacalhau|salmao|camarao|marisco|polvo|lula|tilapia|merluza|pescada|file de p/ },
+  { id: 'arroz', label: 'Arroz', emoji: '🍚', re: /arroz|risoto|risotto/ },
+  { id: 'sopa', label: 'Sopas', emoji: '🍲', re: /sopa|caldo|canja|creme de (?!leite)/ },
+  { id: 'salada', label: 'Saladas', emoji: '🥗', re: /salada|legumes|vegetais|verduras|salteado de/ },
+  { id: 'ovos', label: 'Ovos', emoji: '🍳', re: /\bovo|omelet|fritada|mexid|quiche|fritata/ },
+  { id: 'doce', label: 'Doces', emoji: '🍰', re: /bolo|doce|sobremesa|chocolate|pudim|mousse|torta|biscoito|bolach|panqueca|crepe|brigad|tapioca doce/ },
+];
+const REC_CAT_OUTROS = { id: 'outros', label: 'Outros', emoji: '🍽️' };
+function catReceita(rec) {
+  const txt = `${rec.nome || ''} ${(rec.usa || []).join(' ')}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  for (const c of REC_CATS) if (c.re.test(txt)) return c.id;
+  return 'outros';
+}
 // swipe VERTICAL para as receitas: ↑ = gostei (👍), ↓ = passar (👎).
 function useSwipeVert(onUp, onDown) {
   const [dy, setDy] = useState(0);
@@ -1914,6 +1938,7 @@ function Receitas({ back }) {
   const [i, setI] = useState(0);
   const [poucos, setPoucos] = useState(false);
   const [guardadas, setGuardadas] = useState(null);
+  const [catSel, setCatSel] = useState(null); // categoria (ingrediente principal) escolhida nas Guardadas
   const vistos = useRef(new Set());         // nomes já mostrados → não repetir
   const semMais = useRef(false);
   const aCarregar = useRef(false);
@@ -1921,18 +1946,22 @@ function Receitas({ back }) {
   const buscarMais = useCallback(() => {
     if (aCarregar.current || semMais.current) return;
     aCarregar.current = true;
-    sugerirReceitas([...vistos.current].slice(-60)).then((d) => {
+    const primed = vistos.current.size === 0 ? takePrime() : null; // 1.º lote: usa o pré-aquecido se houver
+    (primed || sugerirReceitas([...vistos.current].slice(-60))).then((d) => {
+      aCarregar.current = false;
+      if (!d) { if (primed) buscarMais(); return; } // prime falhou → busca normal já
       if (d.poucos) { setPoucos(true); setDeck((c) => c || []); return; }
       const novas = (d.receitas || []).filter((r) => !vistos.current.has(r.nome));
       novas.forEach((r) => vistos.current.add(r.nome));
       if (!novas.length) semMais.current = true; // LLM esgotou ideias novas
       setDeck((c) => [...(c || []), ...novas]);
-    }).catch(() => setDeck((c) => c || [])).finally(() => { aCarregar.current = false; });
+    }).catch(() => { aCarregar.current = false; setDeck((c) => c || []); });
   }, []);
   const carregarGostei = useCallback(() => { receitasGostei().then((g) => setGuardadas(g || [])).catch(() => setGuardadas([])); }, []);
   useEffect(() => { vistos.current = new Set(); semMais.current = false; setDeck(null); setI(0); setPoucos(false); buscarMais(); carregarGostei(); }, [buscarMais, carregarGostei]);
   // PRÉ-BUSCA transparente: faltando ≤4 cartas, traz o próximo lote (folheamento sem fim)
   useEffect(() => { if (deck && deck.length - i <= 4 && !semMais.current && !poucos) buscarMais(); }, [i, deck, poucos, buscarMais]);
+  useEffect(() => () => { primeReceitas(); }, []); // ao sair, re-aquece o 1.º lote p/ a próxima visita
   const votar = useCallback((rec, voto) => {
     avaliarReceita(rec.nome, voto, { desc: rec.desc, usa: rec.usa, foto: rec.foto }).catch(() => {});
     vistos.current.add(rec.nome);
@@ -1947,7 +1976,7 @@ function Receitas({ back }) {
       <Ctop title="Receitas" sub="do que você tem em casa" back onBack={back} />
       <div className="rec-tabs">
         <button className={aba === 'sugestoes' ? 'on' : ''} onClick={() => setAba('sugestoes')}>Sugestões</button>
-        <button className={aba === 'guardadas' ? 'on' : ''} onClick={() => { setAba('guardadas'); carregarGostei(); }}>Guardadas{nGostei ? ` · ${nGostei}` : ''}</button>
+        <button className={aba === 'guardadas' ? 'on' : ''} onClick={() => { setAba('guardadas'); setCatSel(null); carregarGostei(); }}>Guardadas{nGostei ? ` · ${nGostei}` : ''}</button>
       </div>
       <div className="scrollarea rec-wrap">
         {aba === 'sugestoes' ? (
@@ -1961,15 +1990,42 @@ function Receitas({ back }) {
             ) : acabou ? <p className="empty">Por agora não há mais ideias novas — volte depois de comprar ou usar mais ingredientes.</p>
               : <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
         ) : (
-          guardadas == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 70, display: 'block' }} /></div>
-            : guardadas.length === 0 ? <p className="empty">Ainda não guardou receitas. Nas Sugestões, deslize ↑ (ou toque ♥) nas que gostar.</p>
-            : guardadas.map((rec) => (
-              <div className="rec-saved" key={rec.nome}>
-                <img className="rec-saved-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
-                <div className="rec-saved-b"><div className="rec-saved-n">{rec.nome}</div>{rec.usa?.length > 0 && <div className="rec-saved-u">{rec.usa.slice(0, 4).join(' · ')}</div>}</div>
-                <button className="rec-saved-x" title="Remover das guardadas" onClick={() => remover(rec)}><Ico name="close" size={16} stroke={2.4} /></button>
+          guardadas == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 84, display: 'block' }} /></div>
+            : guardadas.length === 0 ? <p className="empty">Ainda não guardou receitas. Nas Sugestões, deslize ↑ (ou toque 👍) nas que gostar.</p>
+            : (catSel && guardadas.some((r) => catReceita(r) === catSel)) ? (() => {
+              const cat = [...REC_CATS, REC_CAT_OUTROS].find((c) => c.id === catSel);
+              return (
+                <>
+                  <button className="rec-cat-back" onClick={() => setCatSel(null)}><Ico name="back" size={15} stroke={2.4} /> <span>{cat?.emoji} {cat?.label}</span></button>
+                  <div className="rec-carousel">
+                    {guardadas.filter((r) => catReceita(r) === catSel).map((rec) => (
+                      <div className="rec-ccard" key={rec.nome}>
+                        <img className="rec-ccard-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+                        <button className="rec-ccard-x" title="Remover das guardadas" onClick={() => remover(rec)}><Ico name="close" size={15} stroke={2.6} color="#fff" /></button>
+                        <div className="rec-ccard-b">
+                          <div className="rec-ccard-n">{rec.nome}</div>
+                          {rec.usa?.length > 0 && <div className="rec-ccard-u">{rec.usa.slice(0, 6).join(' · ')}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rec-hint">deslize na horizontal para folhear</div>
+                </>
+              );
+            })() : (
+              <div className="rec-cats">
+                {[...REC_CATS, REC_CAT_OUTROS]
+                  .map((c) => ({ ...c, n: guardadas.filter((r) => catReceita(r) === c.id).length }))
+                  .filter((c) => c.n > 0)
+                  .map((c) => (
+                    <button className="rec-cat" key={c.id} onClick={() => setCatSel(c.id)}>
+                      <span className="rec-cat-em">{c.emoji}</span>
+                      <span className="rec-cat-l">{c.label}</span>
+                      <span className="rec-cat-n">{c.n}</span>
+                    </button>
+                  ))}
               </div>
-            ))
+            )
         )}
       </div>
     </>
