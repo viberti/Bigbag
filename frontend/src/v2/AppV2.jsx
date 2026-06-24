@@ -14,6 +14,7 @@ import {
   listarPerfis, ativarPerfil, carregarPerfil, salvarSaude, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
   adicionarListaItem, adicionarListaLote, vozParaLista, removerListaItem, autocompleteProduto,
   adotarPorNome, definirPais, sugestoesLista, refeicoesLista, carregarHabituais, variantesLista,
+  sugerirReceitas, avaliarReceita, receitasGostei,
   buscarMedicamento, infoMedicamento, precosAoVivo, explicacaoMedicamento,
   catalogoMedicamento, sugestaoMonitor, criarMonitor,
 } from '../api.js';
@@ -1850,21 +1851,79 @@ function PerfilSaude({ back }) {
 }
 
 /* ── RECEITAS (estático por enquanto) ────────────────────────────────────── */
+// swipe VERTICAL para as receitas: ↑ = gostei (👍), ↓ = passar (👎).
+function useSwipeVert(onUp, onDown) {
+  const [dy, setDy] = useState(0);
+  const g = useRef({ x0: 0, y0: 0, vert: false, mov: false, dy: 0 });
+  const onTouchStart = (e) => { const t = e.touches[0]; g.current = { x0: t.clientX, y0: t.clientY, vert: false, mov: true, dy: 0 }; };
+  const onTouchMove = (e) => {
+    const r = g.current; if (!r.mov) return;
+    const t = e.touches[0]; const dX = t.clientX - r.x0; const dY = t.clientY - r.y0;
+    if (!r.vert && Math.abs(dY) > Math.abs(dX) + 6) r.vert = true;
+    if (r.vert) { r.dy = dY; setDy(dY); }
+  };
+  const onTouchEnd = () => { const r = g.current; r.mov = false; if (r.vert && r.dy < -80) onUp(); else if (r.vert && r.dy > 80) onDown(); setDy(0); };
+  return { dy, touch: { onTouchStart, onTouchMove, onTouchEnd } };
+}
+function ReceitaCard({ rec, onVoto }) {
+  const { dy, touch } = useSwipeVert(() => onVoto(rec, 1), () => onVoto(rec, -1));
+  const tint = dy < -20 ? 'up' : dy > 20 ? 'down' : '';
+  return (
+    <div className={`rec-card ${tint}`} style={{ transform: `translateY(${dy}px) rotate(${dy * 0.015}deg)`, transition: dy ? 'none' : 'transform .2s' }} {...touch}>
+      <div className="rec-hero"><Ico name="recipe" size={42} stroke={1.8} color="#3f7a3f" />
+        {rec.tempo && <span className="rec-tempo">{rec.tempo}</span>}
+        {tint === 'up' && <span className="rec-badge up">Gostei 👍</span>}
+        {tint === 'down' && <span className="rec-badge down">Passar 👎</span>}
+      </div>
+      <div className="rec-body">
+        <div className="rec-nome">{rec.nome}</div>
+        {rec.desc && <div className="rec-desc">{rec.desc}</div>}
+        {rec.usa?.length > 0 && <div className="rec-usa"><b>Usa: </b>{rec.usa.join(' · ')}</div>}
+        {rec.falta?.length > 0 && <div className="rec-falta"><b>Falta: </b>{rec.falta.join(', ')}</div>}
+      </div>
+      <div className="rec-acts">
+        <button className="rec-act down" title="Passar" onClick={() => onVoto(rec, -1)}><Ico name="close" size={22} stroke={2.6} /></button>
+        <button className="rec-act up" title="Gostei" onClick={() => onVoto(rec, 1)}><Ico name="heart" size={22} stroke={2.2} /></button>
+      </div>
+    </div>
+  );
+}
 function Receitas({ back }) {
-  const cards = [['Salada de frango grelhado', 'rica em proteína · 20 min', 'linear-gradient(135deg,#cfe6b0,#a6cd8c)', '#3f7a3f'],
-    ['Omelete de legumes', 'baixo açúcar · 12 min', 'linear-gradient(135deg,#f4d9b0,#e6b34a)', '#9a6a16'],
-    ['Sopa de tomate caseira', 'usa o que tens na despensa', 'linear-gradient(135deg,#f3c2b0,#e0734f)', '#fff']];
+  const [recs, setRecs] = useState(null);
+  const [i, setI] = useState(0);
+  const [poucos, setPoucos] = useState(false);
+  const [nGostei, setNGostei] = useState(0);
+  const carregar = useCallback(() => {
+    setRecs(null); setI(0); setPoucos(false);
+    sugerirReceitas().then((d) => { setRecs(d.receitas || []); setPoucos(!!d.poucos); }).catch(() => setRecs([]));
+  }, []);
+  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => { receitasGostei().then((g) => setNGostei(g.length)).catch(() => {}); }, []);
+  const votar = useCallback((rec, voto) => {
+    avaliarReceita(rec.nome, voto, { desc: rec.desc, usa: rec.usa }).catch(() => {});
+    if (voto > 0) setNGostei((n) => n + 1);
+    setI((x) => x + 1);
+  }, []);
+  const atual = recs && recs[i];
+  const fim = recs && i >= recs.length && recs.length > 0;
   return (
     <>
-      <Ctop title="Receitas" sub="para o seu perfil" back onBack={back} />
-      <div className="scrollarea">
-        {cards.map(([n, s, bg, col]) => (
-          <div className="item" key={n} style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ height: 88, flex: '0 0 96px', background: bg, display: 'grid', placeItems: 'center', color: col }}><Ico name="recipe" size={34} stroke={2} /></div>
-            <div className="ib" style={{ padding: '11px 13px' }}><div className="iname">{n}</div><div className="isub">{s}</div></div>
-          </div>
-        ))}
-        <p className="empty">Em breve: receitas geradas a partir do seu perfil e da sua despensa.</p>
+      <Ctop title="Receitas" sub={nGostei ? `${nGostei} que você gostou` : 'do que você tem em casa'} back onBack={back} />
+      <div className="scrollarea rec-wrap">
+        {recs == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 300, display: 'block' }} /></div>
+          : poucos ? <p className="empty">Adicione itens à despensa ou registe uma compra para receber receitas com o que você tem em casa.</p>
+          : fim ? (
+            <div className="rec-fim">
+              <Ico name="check" size={42} color="var(--leaf-d)" />
+              <p>É tudo por agora! Avaliou {recs.length} receita{recs.length !== 1 ? 's' : ''} — as que gostou ajudam a afinar as próximas.</p>
+              <button className="cbtn cbtn-leaf" onClick={carregar}>Ver mais receitas</button>
+            </div>
+          ) : atual ? (
+            <>
+              <ReceitaCard key={atual.nome + i} rec={atual} onVoto={votar} />
+              <div className="rec-hint">deslize ↑ para gostar · ↓ para passar &nbsp;·&nbsp; {recs.length - i} restante{recs.length - i !== 1 ? 's' : ''}</div>
+            </>
+          ) : <p className="empty">Sem sugestões com o que você tem agora.</p>}
       </div>
     </>
   );

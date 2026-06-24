@@ -13,6 +13,7 @@ import { produtoRouter } from './routes/produto.js';
 import { perfilRouter } from './routes/perfil.js';
 import { listaRouter } from './routes/lista.js';
 import { medicamentoRouter } from './routes/medicamento.js';
+import { receitasRouter } from './routes/receitas.js';
 import { requireAuth, invalidarLocale } from './auth.js';
 import { telemetriaApi, registarEventos } from './telemetria.js';
 
@@ -144,6 +145,7 @@ app.use('/api/produto', produtoRouter);
 app.use('/api/perfil', perfilRouter);
 app.use('/api/lista', listaRouter);
 app.use('/api/medicamento', medicamentoRouter);
+app.use('/api/receitas', receitasRouter);
 
 const server = app.listen(config.port, () => {
   console.log(`[bigbag-backend] a escutar na porta ${config.port} (${config.nodeEnv})`);

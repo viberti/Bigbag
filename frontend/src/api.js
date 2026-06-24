@@ -415,6 +415,22 @@ export async function refeicoesLista() {
   const { refeicoes } = await r.json();
   return refeicoes || [];
 }
+// RECEITAS: sugere a partir da despensa + compras dos últimos 7 dias (aprende com 👍/👎).
+export async function sugerirReceitas() {
+  const r = await call('/api/receitas');
+  if (!r.ok) throw new Error(`receitas ${r.status}`);
+  return r.json(); // { receitas, base?, poucos? }
+}
+export async function avaliarReceita(nome, voto, extra = {}) {
+  const r = await call('/api/receitas/avaliar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome, voto, ...extra }) });
+  return r.ok;
+}
+export async function receitasGostei() {
+  const r = await call('/api/receitas/gostei');
+  if (!r.ok) return [];
+  const { receitas } = await r.json();
+  return receitas || [];
+}
 // Variantes habituais de um item ("iogurte" → os iogurtes que a casa compra).
 export async function variantesLista(nome) {
   const r = await call(`/api/lista/variantes?nome=${encodeURIComponent(nome)}`);
