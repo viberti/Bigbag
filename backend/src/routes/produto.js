@@ -881,15 +881,7 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       mestreCat = m?.categoria || null;
     }
     const processado = info.generico?.tipo !== 'fresco';
-    // GATE de honestidade (Fase 1, 2026-06-18): os grupos-SACO de PROCESSADOS (bebidas, laticínios, doces
-    // misturam tudo — água↔cerveja, iogurte↔manteiga, chocolate↔bolacha) SEM nenhum sinal fino — nem
-    // FAMÍLIA (cobre só mercearia hoje) nem mestre.categoria DO PRÓPRIO produto — dariam alternativas ao
-    // nível do grupo = lixo. Honesto: vazio. (Frescos — fruta/carne/peixe — cruzam pelo GRUPO DE PROPÓSITO:
-    // banana→maçã é alternativa útil; por isso NÃO entram aqui.) Fase 2 = estender a família a estes grupos.
-    const GRUPOS_SACO = new Set(['bebidas', 'lacticinios', 'doces']); // GRUPO de lácteos é 'lacticinios' (c/ c — não confundir com a SECÇÃO 'laticinios')
-    if (GRUPOS_SACO.has(grupo) && !info.familia && !mestreCat) {
-      return res.json({ grupo, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
-    }
+    // (gate de honestidade movido para DEPOIS de tipoAtual — precisa do tipo para decidir)
     const QUERY = (porCategoria) => getPool().query(
       `SELECT s.id, s.nome_canonico AS nome, m.corte, m.variedade, m.sabor, m.teor,
               COALESCE(pg.nutricao, (SELECT pe.nutricao FROM item i JOIN produto_ean pe ON pe.ean = i.ean
@@ -927,6 +919,18 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     const marcaAtual = info.base?.marca || info.off?.marca || info.vlm?.marca || null;
     const famAtual = info.familia;
     const tipoAtual = tipoConsumidor(grupo, nomeFacetas, marcaAtual);
+    // GATE de honestidade (geral): nos grupos-SACO de processados (bebidas/lácteos/doces/MERCEARIA/
+    // PADARIA), o cruzamento por GRUPO junta lixo (tortilha→pão ralado/levedura; água→cerveja). Só vale
+    // se houver SINAL FINO: família (fusor), mestre.categoria, OU um tipo gated MAS só na mercearia — na
+    // padaria o tipo 'pao' lumpa tortilha/pão ralado/pão de forma, não separa nada. Sem sinal fino →
+    // VAZIO honesto (>" lixo). Frescos (fruta/carne/peixe) cruzam pelo grupo de propósito → não entram aqui.
+    const TIPOS_GATED = ['massa', 'pao', 'cereais', 'conservas', 'tomate'];
+    const tipoFino = TIPOS_GATED.includes(tipoAtual) && grupo !== 'padaria';
+    const temSinalFino = !!famAtual || !!mestreCat || tipoFino;
+    const GRUPOS_SACO = new Set(['bebidas', 'lacticinios', 'doces', 'mercearia', 'padaria']);
+    if (GRUPOS_SACO.has(grupo) && !temSinalFino) {
+      return res.json({ grupo, nivel, produto: { nome: info.nome, nutricao: nutAtual }, alternativas: [] });
+    }
     if (famAtual) {
       cands = cands.filter((c) => familiaPorNome(c.nome) === famAtual);
     } else if (['massa', 'pao', 'cereais', 'conservas', 'tomate'].includes(tipoAtual)) {
