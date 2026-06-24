@@ -1843,6 +1843,7 @@ function Remedios({ back, standalone }) {
   const [cat, setCat] = useState(null);      // catálogo hierárquico da marca (/catalogo)
   const [catBusy, setCatBusy] = useState(false);
   const [aberta, setAberta] = useState(null);// ean da apresentação expandida (acordeão)
+  const [verSemOferta, setVerSemOferta] = useState(false); // colapsa a cauda SEM_OFERTA
   const [info, setInfo] = useState(null);    // EAN escolhido → ficha rica (scan / "detalhes")
   const [busy, setBusy] = useState(false);
   const [erro, setErro] = useState('');
@@ -1857,9 +1858,9 @@ function Remedios({ back, standalone }) {
   useEffect(() => { let on = true; oidcUser().then((u) => { if (on) setUsuario(u && !u.expired ? u : null); }).catch(() => {}); return () => { on = false; }; }, []);
   useEffect(() => { if (!toast) return undefined; const id = setTimeout(() => setToast(''), 2600); return () => clearTimeout(id); }, [toast]);
 
-  function limpar() { setQ(''); setSug([]); setMarca(null); setCat(null); setAberta(null); setInfo(null); setErro(''); }
+  function limpar() { setQ(''); setSug([]); setMarca(null); setCat(null); setAberta(null); setVerSemOferta(false); setInfo(null); setErro(''); }
   function onTxt(v) {
-    setQ(v); setInfo(null); setMarca(null); setCat(null); setAberta(null); setErro('');
+    setQ(v); setInfo(null); setMarca(null); setCat(null); setAberta(null); setVerSemOferta(false); setErro('');
     clearTimeout(tmr.current);
     const t = v.trim();
     if (t.length < 3) { setSug([]); return; }
@@ -1869,7 +1870,7 @@ function Remedios({ back, standalone }) {
   }
   // escolher uma marca → carrega o CATÁLOGO hierárquico (apresentações c/ rótulo de força curado)
   async function escolherMarca(b) {
-    setMarca(b); setInfo(null); setCat(null); setAberta(null); setSug([]); setErro(''); setCatBusy(true);
+    setMarca(b); setInfo(null); setCat(null); setAberta(null); setVerSemOferta(false); setSug([]); setErro(''); setCatBusy(true);
     try {
       const d = await catalogoMedicamento(b.produto);
       if (!d || !d.apresentacoes?.length) setErro('Não encontrei as apresentações desta marca.');
@@ -1930,19 +1931,34 @@ function Remedios({ back, standalone }) {
               {(cat?.substancia || marca.substancia) && <div className="med-var-s">{[cat?.substancia || marca.substancia, cat?.tarja].filter(Boolean).join(' · ')}</div>}
             </div>
             {catBusy && <p className="empty">Carregando apresentações…</p>}
-            {cat && (
-              <>
-                <div className="med-lbl">Apresentações <span className="med-lbl-s">por força clínica</span></div>
-                <div className="med-apz-list">
-                  {cat.apresentacoes.map((a) => (
-                    <ApresentacaoCard key={a.ean} apz={a}
-                      aberta={aberta === a.ean} onToggle={() => setAberta((x) => (x === a.ean ? null : a.ean))}
-                      onAcompanhar={() => pedirAcompanhar(a)} onDetalhes={() => abrir(a.ean)} />
-                  ))}
-                </div>
-                <p className="med-obs">Apresentações ordenadas por força clínica (não por preço). Só informação e preço — <b>não é aconselhamento médico</b>.</p>
-              </>
-            )}
+            {cat && (() => {
+              // COM_OFERTA sempre visíveis; a cauda SEM_OFERTA (força a curar, sem preço) colapsa
+              // num expander para não virar uma parede de linhas idênticas. Não esconde — só recolhe.
+              const card = (a) => (
+                <ApresentacaoCard key={a.ean} apz={a}
+                  aberta={aberta === a.ean} onToggle={() => setAberta((x) => (x === a.ean ? null : a.ean))}
+                  onAcompanhar={() => pedirAcompanhar(a)} onDetalhes={() => abrir(a.ean)} />
+              );
+              const comOferta = cat.apresentacoes.filter((a) => a.estado === 'COM_OFERTA');
+              const semOferta = cat.apresentacoes.filter((a) => a.estado !== 'COM_OFERTA');
+              return (
+                <>
+                  <div className="med-lbl">Apresentações <span className="med-lbl-s">por força clínica</span></div>
+                  <div className="med-apz-list">
+                    {comOferta.map(card)}
+                    {semOferta.length > 0 && (
+                      <>
+                        <button className="med-semof-toggle" onClick={() => setVerSemOferta((v) => !v)} aria-expanded={verSemOferta}>
+                          {verSemOferta ? '−' : '+'}{semOferta.length} apresentaç{semOferta.length > 1 ? 'ões' : 'ão'} sem oferta agora {verSemOferta ? '▴' : '▾'}
+                        </button>
+                        {verSemOferta && semOferta.map(card)}
+                      </>
+                    )}
+                  </div>
+                  <p className="med-obs">Apresentações ordenadas por força clínica (não por preço). Só informação e preço — <b>não é aconselhamento médico</b>.</p>
+                </>
+              );
+            })()}
           </>
         /* NÍVEL 1 — uma entrada por remédio (marca) */
         ) : !busy && sug.length > 0 ? (

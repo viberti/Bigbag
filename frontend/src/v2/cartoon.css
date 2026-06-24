@@ -641,6 +641,9 @@
 .v2 .med-apz-body{padding:2px 13px 13px;border-top:1.5px dashed var(--line)}
 .v2 .med-apz-body .med-of2{margin-top:9px}
 .v2 .med-apz-acts{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+/* expander da cauda SEM_OFERTA (recolhe as "força a confirmar" sem oferta) */
+.v2 .med-semof-toggle{width:100%;background:var(--cream-2);border:1.5px dashed var(--line);border-radius:var(--r-sm);color:var(--ink-2);font:700 12.5px var(--font);padding:10px 14px;cursor:pointer;text-align:center}
+.v2 .med-semof-toggle:active{transform:scale(.99)}
 /* sinal de programa de laboratório — QUALITATIVO (postura 2), âmbar, SEM número */
 .v2 .med-prog{background:var(--amber-soft);border:2px solid #f0d49a;border-radius:var(--r-sm);padding:10px 13px;margin:10px 0 4px}
 .v2 .med-prog-h{font:800 12.5px var(--font);color:#8a5a00;line-height:1.4}
