@@ -1321,11 +1321,13 @@ function Notas({ go, back, partilhado, scanNotas }) {
   useEffect(() => { carregar(); }, [carregar]);
   const enviar = useCallback(async (f) => {
     if (!f) return;
-    // mostra a foto + animação "lendo a nota" enquanto o VLM processa (igual à análise de um produto novo)
-    const url = URL.createObjectURL(f);
+    // mostra a foto + animação "lendo a nota" enquanto o VLM processa (igual à análise de um produto novo).
+    // SÓ imagem é renderizável num <img>: um PDF partilhado (ex.: de um leitor de PDF) daria imagem
+    // partida → previewUrl fica null e a UI mostra um ícone de documento (ver o bloco "analisando").
+    const url = (f.type || '').startsWith('image/') ? URL.createObjectURL(f) : null;
     setPreviewUrl(url); setEnviando(true);
     try { await enviarFatura(f, 'v2'); carregar(); } catch { /* falha silenciosa */ }
-    finally { setEnviando(false); setPreviewUrl(null); URL.revokeObjectURL(url); }
+    finally { setEnviando(false); setPreviewUrl(null); if (url) URL.revokeObjectURL(url); }
   }, [carregar]);
   async function lerTalao(e) { const f = e.target.files?.[0]; e.target.value = ''; await enviar(f); }
   // a régua de navegação dispara o "ler talão" pelo scan central (abre a câmara nativa).
@@ -1362,7 +1364,9 @@ function Notas({ go, back, partilhado, scanNotas }) {
         <div className="scrollarea">
           <div className="analisando">
             <div className="an-card">
-              {previewUrl && <img src={previewUrl} alt="talão" className="an-img" />}
+              {previewUrl
+                ? <img src={previewUrl} alt="talão" className="an-img" />
+                : <div className="an-doc"><Ico name="talao" size={92} stroke={1.5} color="var(--ink-3)" /><span>a ler o ficheiro…</span></div>}
               <span className="an-scan" />
             </div>
             <div className="an-txt">Lendo a nota<i className="an-dots" /></div>
