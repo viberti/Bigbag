@@ -37,6 +37,8 @@ const P = {
   chevron: `<path d="M6 9l6 6 6-6"/>`,
   back: `<path d="M15 5l-7 7 7 7"/>`,
   close: `<path d="M6 6l12 12M18 6L6 18"/>`,
+  thumbup: `<path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/><path d="M7 10l4.5-7.2a1.4 1.4 0 0 1 2.5.9V8h5a2 2 0 0 1 2 2.3l-1.1 7a2 2 0 0 1-2 1.7H7"/>`,
+  thumbdown: `<path d="M17 14V3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1z"/><path d="M17 14l-4.5 7.2a1.4 1.4 0 0 1-2.5-.9V16H5a2 2 0 0 1-2-2.3l1.1-7A2 2 0 0 1 6.1 5H17"/>`,
 };
 
 export function ICON(name, o = {}) {

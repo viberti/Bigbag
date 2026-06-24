@@ -1890,11 +1890,10 @@ function ReceitaCard({ rec, onVoto }) {
   return (
     <div className={`rec-card ${tint}`} style={{ transform: `translateY(${dy}px) rotate(${dy * 0.015}deg)`, transition: dy ? 'none' : 'transform .2s' }} {...touch}>
       <div className="rec-hero">
-        <span className="rec-hero-ic"><Ico name="recipe" size={42} stroke={1.8} color="#3f7a3f" /></span>
+        <span className="rec-hero-ic"><Ico name="recipe" size={50} stroke={1.6} color="#3f7a3f" /></span>
         <img className="rec-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         {rec.tempo && <span className="rec-tempo">{rec.tempo}</span>}
-        {tint === 'up' && <span className="rec-badge up">Gostei 👍</span>}
-        {tint === 'down' && <span className="rec-badge down">Passar 👎</span>}
+        {tint && <span className="rec-badge"><Ico name={tint === 'up' ? 'thumbup' : 'thumbdown'} size={30} stroke={2} color="#fff" /></span>}
       </div>
       <div className="rec-body">
         <div className="rec-nome">{rec.nome}</div>
@@ -1903,8 +1902,8 @@ function ReceitaCard({ rec, onVoto }) {
         {rec.falta?.length > 0 && <div className="rec-falta"><b>Falta: </b>{rec.falta.join(', ')}</div>}
       </div>
       <div className="rec-acts">
-        <button className="rec-act down" title="Passar" onClick={() => onVoto(rec, -1)}><Ico name="close" size={22} stroke={2.6} /></button>
-        <button className="rec-act up" title="Gostei" onClick={() => onVoto(rec, 1)}><Ico name="heart" size={22} stroke={2.2} /></button>
+        <button className="rec-act" title="Passar" onClick={() => onVoto(rec, -1)}><Ico name="thumbdown" size={25} stroke={1.9} /></button>
+        <button className="rec-act" title="Gostei" onClick={() => onVoto(rec, 1)}><Ico name="thumbup" size={25} stroke={1.9} /></button>
       </div>
     </div>
   );

@@ -88,13 +88,10 @@
 /* RECEITAS — card com swipe vertical (↑ gostei, ↓ passar) */
 .v2 .rec-wrap{display:flex;flex-direction:column}
 .v2 .rec-card{background:var(--card);border:2px solid #fff;border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;touch-action:pan-y;user-select:none}
-.v2 .rec-card.up{box-shadow:inset 0 0 0 3px var(--leaf),var(--sh)}
-.v2 .rec-card.down{box-shadow:inset 0 0 0 3px var(--coral),var(--sh)}
-.v2 .rec-hero{height:120px;background:linear-gradient(135deg,#cfe6b0,#a6cd8c);display:grid;place-items:center;position:relative}
+.v2 .rec-card.up,.v2 .rec-card.down{box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),var(--sh)}
+.v2 .rec-hero{height:230px;background:linear-gradient(135deg,#cfe6b0,#a6cd8c);display:grid;place-items:center;position:relative}
 .v2 .rec-tempo{position:absolute;top:10px;right:12px;background:#fff;border-radius:var(--r-pill);font:700 12px var(--font);color:var(--ink);padding:4px 11px;box-shadow:var(--sh-sm)}
-.v2 .rec-badge{position:absolute;left:12px;top:11px;border-radius:var(--r-pill);font:800 13px var(--disp);padding:5px 13px;color:#fff}
-.v2 .rec-badge.up{background:var(--leaf-d)}
-.v2 .rec-badge.down{background:var(--coral)}
+.v2 .rec-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:74px;height:74px;border-radius:50%;background:rgba(25,30,20,.5);display:grid;place-items:center;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .v2 .rec-body{padding:14px 16px 4px}
 .v2 .rec-nome{font:800 20px var(--disp);color:var(--ink);line-height:1.15}
 .v2 .rec-desc{font:500 14px var(--font);color:var(--ink-2);margin-top:5px}
@@ -102,10 +99,8 @@
 .v2 .rec-falta{font:600 13px var(--font);color:#9a6a16;margin-top:4px}
 .v2 .rec-usa b,.v2 .rec-falta b{color:var(--ink-3);font-weight:800}
 .v2 .rec-acts{display:flex;justify-content:center;gap:30px;padding:12px 0 16px}
-.v2 .rec-act{width:58px;height:58px;border-radius:50%;border:2px solid #fff;display:grid;place-items:center;box-shadow:var(--sh-sm);cursor:pointer;transition:transform .12s}
-.v2 .rec-act.up{background:var(--leaf-soft);color:var(--leaf-d)}
-.v2 .rec-act.down{background:var(--coral-soft);color:var(--coral)}
-.v2 .rec-act:active{transform:scale(.9)}
+.v2 .rec-act{width:62px;height:62px;border-radius:50%;border:2px solid #e7e1d5;background:#fff;color:var(--ink-2);display:grid;place-items:center;box-shadow:var(--sh-sm);cursor:pointer;transition:transform .12s,border-color .12s}
+.v2 .rec-act:active{transform:scale(.9);border-color:var(--ink-3)}
 .v2 .rec-hint{text-align:center;font:600 12px var(--font);color:var(--ink-3);margin-top:13px}
 .v2 .rec-fim{text-align:center;padding:44px 22px;display:flex;flex-direction:column;align-items:center;gap:14px}
 .v2 .rec-fim p{font:600 15px var(--font);color:var(--ink-2);line-height:1.4}
