@@ -69,8 +69,18 @@ const ordSec = (s) => { const i = SEC_ORDER.indexOf(s); return i < 0 ? 99 : i; }
 // DESPENSA: classificação MAIS FINA que a lista. A lista quer corredores grossos (guiar no mercado);
 // a despensa é o inventário de casa → detalha. seccaoLista divide a mercearia em CONDIMENTOS (azeites/
 // molhos/sal/temperos) e CAFÉ-CHÁ, e separa a CHARCUTARIA — secções próprias com rótulo e ordem.
-const SEC_LABEL_DET = { frutas: 'Frutas e vegetais', carne: 'Talho', charcutaria: 'Charcutaria', peixe: 'Peixe e marisco', padaria: 'Padaria', laticinios: 'Laticínios e ovos', congelados: 'Congelados', mercearia: 'Mercearia', condimentos: 'Molhos, azeites e temperos', cafe_cha: 'Café, chá e infusões', bebidas: 'Bebidas', doces: 'Doces e snacks', higiene: 'Higiene e limpeza', outros: 'Outros' };
-const SEC_ORDER_DET = ['frutas', 'carne', 'charcutaria', 'peixe', 'padaria', 'laticinios', 'congelados', 'mercearia', 'condimentos', 'cafe_cha', 'bebidas', 'doces', 'higiene', 'outros'];
+const SEC_LABEL_DET = {
+  frutas: 'Frutas e vegetais', carne: 'Talho', charcutaria: 'Charcutaria', peixe: 'Peixe e marisco',
+  laticinios: 'Laticínios e ovos', padaria: 'Padaria', congelados: 'Congelados',
+  massas: 'Massas', arroz: 'Arroz', farinhas: 'Farinhas e amidos', cereais: 'Cereais e aveia',
+  leguminosas: 'Leguminosas', conservas: 'Conservas e enlatados', frutos_secos: 'Frutos secos e desidratados',
+  azeites_oleos: 'Azeites e óleos', molhos: 'Molhos', temperos: 'Sal, temperos e especiarias',
+  cafe_cha: 'Café, chá e infusões', doces: 'Doces e snacks', bebidas: 'Bebidas', higiene: 'Higiene e limpeza',
+  mercearia: 'Mercearia', condimentos: 'Molhos, azeites e temperos', outros: 'Outros', // fallback (não-LLM)
+};
+const SEC_ORDER_DET = ['frutas', 'carne', 'charcutaria', 'peixe', 'laticinios', 'padaria', 'congelados',
+  'massas', 'arroz', 'farinhas', 'cereais', 'leguminosas', 'conservas', 'frutos_secos', 'mercearia',
+  'azeites_oleos', 'molhos', 'temperos', 'condimentos', 'cafe_cha', 'doces', 'bebidas', 'higiene', 'outros'];
 const secDetId = (it) => it.seccao || seccaoLista(it.grupo || grupoDeNome(it.nome), it.nome); // it.seccao = secção canónica (LLM)
 function agruparDespensa(itens) {
   const ord = [...itens].sort((a, b) => ((SEC_ORDER_DET.indexOf(secDetId(a)) + 1) || 99) - ((SEC_ORDER_DET.indexOf(secDetId(b)) + 1) || 99));

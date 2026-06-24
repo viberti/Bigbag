@@ -4,14 +4,17 @@
 import { chatCompletion } from '../openrouter.js';
 import { config } from '../config.js';
 
-// Lista FECHADA de secções (mesma da despensa/lista no frontend).
-const SECCOES = ['frutas', 'carne', 'charcutaria', 'peixe', 'padaria', 'laticinios', 'congelados', 'mercearia', 'condimentos', 'cafe_cha', 'bebidas', 'doces', 'higiene', 'outros'];
+// Lista FECHADA de secções de arrumação de DESPENSA (granular — o utilizador quer separar massas/
+// arroz/farinhas/cereais/conservas/frutos secos, e molhos/azeites/temperos à parte).
+const SECCOES = ['frutas', 'carne', 'charcutaria', 'peixe', 'padaria', 'laticinios', 'congelados',
+  'massas', 'arroz', 'farinhas', 'cereais', 'leguminosas', 'conservas', 'frutos_secos',
+  'molhos', 'azeites_oleos', 'temperos', 'cafe_cha', 'doces', 'bebidas', 'higiene', 'outros'];
 const SECCOES_SET = new Set(SECCOES);
 
 const PROMPT = `Você organiza uma DESPENSA de cozinha. Para CADA produto devolva:
 - "nome": o nome em PORTUGUÊS (PT-PT). Traduza de espanhol/inglês/francês. MANTENHA marcas e nomes próprios; não invente nem acrescente informação.
-- "seccao": UMA destas secções de arrumação em casa: ${SECCOES.join(', ')}.
-  Guia: condimentos = azeites, óleos, molhos, sal, vinagre, ESPECIARIAS e temperos (pimenta, cominho, orégãos, páprica, caril, canela, cravo). cafe_cha = café, chá, infusões. mercearia = arroz, massa, farinha, cereais, conservas, leguminosas, açúcar. doces = bolachas, chocolate, snacks doces. laticinios = leite, iogurte, queijo, manteiga, ovos. padaria = pão, tostas, wraps, tortilhas. peixe = peixe/marisco. carne = carne fresca. charcutaria = fiambre, presunto, salsichas. frutas = fruta E legumes/vegetais frescos. higiene = limpeza e higiene.
+- "seccao": UMA destas secções de arrumação (escolha a MAIS específica): ${SECCOES.join(', ')}.
+  Guia: massas = esparguete, macarrão, massa, noodles. arroz = arroz, risoto. farinhas = farinha, fécula, amido, polvilho, maizena. cereais = cereais matinais, aveia, muesli, granola, flocos. leguminosas = feijão, grão-de-bico, lentilha, ervilha (seca/lata). conservas = enlatados, atum/sardinha/cavala em lata, milho, palmito, azeitonas, picles. frutos_secos = amêndoa, noz, caju, amendoim, passas, tâmaras, frutas desidratadas. molhos = molho de tomate/passata, ketchup, maionese, mostarda, pesto, shoyu. azeites_oleos = azeite, óleo, vinagre. temperos = sal, pimenta, ESPECIARIAS e ervas (orégãos, cominho, páprica, caril, canela, cravo, tomilho), caldo, fermento. cafe_cha = café, chá, infusões. doces = bolachas, chocolate, snacks doces, açúcar, mel. laticinios = leite, iogurte, queijo, manteiga, ovos. padaria = pão, tostas, wraps, tortilhas. peixe = peixe/marisco fresco. carne = carne fresca. charcutaria = fiambre, presunto, salsichas. frutas = fruta E legumes/vegetais FRESCOS. higiene = limpeza e higiene. outros = o que não encaixa.
 - "traduzido": true se o nome ORIGINAL não estava já em português correto; senão false.
 Responda SÓ JSON: {"itens":[{"ean":"...","nome":"...","seccao":"...","traduzido":true|false}]}`;
 
