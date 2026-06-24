@@ -109,6 +109,20 @@
 .v2 .rec-hint{text-align:center;font:600 12px var(--font);color:var(--ink-3);margin-top:13px}
 .v2 .rec-fim{text-align:center;padding:44px 22px;display:flex;flex-direction:column;align-items:center;gap:14px}
 .v2 .rec-fim p{font:600 15px var(--font);color:var(--ink-2);line-height:1.4}
+.v2 .rec-hero-ic{position:absolute;z-index:0}
+.v2 .rec-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+.v2 .rec-tempo,.v2 .rec-badge{z-index:2}
+/* abas Sugestões | Guardadas */
+.v2 .rec-tabs{display:flex;gap:8px;padding:0 2px 12px}
+.v2 .rec-tabs button{flex:1;border:2px solid #fff;background:var(--card);border-radius:var(--r-pill);font:800 14px var(--disp);color:var(--ink-3);padding:9px 0;box-shadow:var(--sh-sm);cursor:pointer}
+.v2 .rec-tabs button.on{background:var(--leaf-d);color:#fff;border-color:var(--leaf-d)}
+/* lista de guardadas */
+.v2 .rec-saved{display:flex;align-items:center;gap:12px;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);overflow:hidden;margin-bottom:8px;padding-right:10px}
+.v2 .rec-saved-img{width:74px;height:64px;flex:0 0 74px;object-fit:cover;background:linear-gradient(135deg,#cfe6b0,#a6cd8c)}
+.v2 .rec-saved-b{flex:1;min-width:0;padding:6px 0}
+.v2 .rec-saved-n{font:800 15px var(--disp);color:var(--ink);line-height:1.15}
+.v2 .rec-saved-u{font:600 12px var(--font);color:var(--leaf-d);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v2 .rec-saved-x{flex:0 0 auto;width:32px;height:32px;border-radius:50%;border:0;background:var(--coral-soft);color:var(--coral);display:grid;place-items:center;cursor:pointer}
 .v2 .quick{display:flex;justify-content:space-between;gap:3px;padding:16px 0 4px}
 .v2 .quick .round-act{flex:1;min-width:0;gap:6px}
 .v2 .quick .round-act b{font-size:10.5px;letter-spacing:-.02em}

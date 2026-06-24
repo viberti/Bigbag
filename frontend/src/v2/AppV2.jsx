@@ -1861,6 +1861,14 @@ function PerfilSaude({ back }) {
 }
 
 /* ── RECEITAS (estático por enquanto) ────────────────────────────────────── */
+// FOTO real (stock) que combina com o prato: busca por palavras-chave (LoremFlickr, sem chave).
+// `lock` torna a imagem estável por receita. Fallback ao gradiente se a imagem falhar (onError).
+const fotoReceita = (rec) => {
+  const q = String(rec.foto || rec.nome || 'food').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter((w) => w.length > 2).slice(0, 4).join(',');
+  const seed = Math.abs([...String(rec.nome || 'x')].reduce((a, c) => ((a * 31 + c.charCodeAt(0)) | 0), 7)) % 100000;
+  return `https://loremflickr.com/600/360/${encodeURIComponent(q || 'food')},food?lock=${seed}`;
+};
 // swipe VERTICAL para as receitas: ↑ = gostei (👍), ↓ = passar (👎).
 function useSwipeVert(onUp, onDown) {
   const [dy, setDy] = useState(0);
@@ -1880,7 +1888,9 @@ function ReceitaCard({ rec, onVoto }) {
   const tint = dy < -20 ? 'up' : dy > 20 ? 'down' : '';
   return (
     <div className={`rec-card ${tint}`} style={{ transform: `translateY(${dy}px) rotate(${dy * 0.015}deg)`, transition: dy ? 'none' : 'transform .2s' }} {...touch}>
-      <div className="rec-hero"><Ico name="recipe" size={42} stroke={1.8} color="#3f7a3f" />
+      <div className="rec-hero">
+        <span className="rec-hero-ic"><Ico name="recipe" size={42} stroke={1.8} color="#3f7a3f" /></span>
+        <img className="rec-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         {rec.tempo && <span className="rec-tempo">{rec.tempo}</span>}
         {tint === 'up' && <span className="rec-badge up">Gostei 👍</span>}
         {tint === 'down' && <span className="rec-badge down">Passar 👎</span>}
@@ -1899,41 +1909,60 @@ function ReceitaCard({ rec, onVoto }) {
   );
 }
 function Receitas({ back }) {
+  const [aba, setAba] = useState('sugestoes');
   const [recs, setRecs] = useState(null);
   const [i, setI] = useState(0);
   const [poucos, setPoucos] = useState(false);
-  const [nGostei, setNGostei] = useState(0);
+  const [guardadas, setGuardadas] = useState(null);
+  const nGostei = guardadas ? guardadas.length : 0;
   const carregar = useCallback(() => {
     setRecs(null); setI(0); setPoucos(false);
     sugerirReceitas().then((d) => { setRecs(d.receitas || []); setPoucos(!!d.poucos); }).catch(() => setRecs([]));
   }, []);
-  useEffect(() => { carregar(); }, [carregar]);
-  useEffect(() => { receitasGostei().then((g) => setNGostei(g.length)).catch(() => {}); }, []);
+  const carregarGostei = useCallback(() => { receitasGostei().then((g) => setGuardadas(g || [])).catch(() => setGuardadas([])); }, []);
+  useEffect(() => { carregar(); carregarGostei(); }, [carregar, carregarGostei]);
   const votar = useCallback((rec, voto) => {
-    avaliarReceita(rec.nome, voto, { desc: rec.desc, usa: rec.usa }).catch(() => {});
-    if (voto > 0) setNGostei((n) => n + 1);
+    avaliarReceita(rec.nome, voto, { desc: rec.desc, usa: rec.usa, foto: rec.foto }).catch(() => {});
+    if (voto > 0) setGuardadas((g) => (g && !g.some((x) => x.nome === rec.nome)) ? [{ nome: rec.nome, desc: rec.desc, usa: rec.usa, foto: rec.foto }, ...g] : g);
     setI((x) => x + 1);
   }, []);
+  const remover = useCallback((rec) => { avaliarReceita(rec.nome, -1).catch(() => {}); setGuardadas((g) => (g || []).filter((x) => x.nome !== rec.nome)); }, []);
   const atual = recs && recs[i];
   const fim = recs && i >= recs.length && recs.length > 0;
   return (
     <>
-      <Ctop title="Receitas" sub={nGostei ? `${nGostei} que você gostou` : 'do que você tem em casa'} back onBack={back} />
+      <Ctop title="Receitas" sub="do que você tem em casa" back onBack={back} />
+      <div className="rec-tabs">
+        <button className={aba === 'sugestoes' ? 'on' : ''} onClick={() => setAba('sugestoes')}>Sugestões</button>
+        <button className={aba === 'guardadas' ? 'on' : ''} onClick={() => { setAba('guardadas'); carregarGostei(); }}>Guardadas{nGostei ? ` · ${nGostei}` : ''}</button>
+      </div>
       <div className="scrollarea rec-wrap">
-        {recs == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 300, display: 'block' }} /></div>
-          : poucos ? <p className="empty">Adicione itens à despensa ou registe uma compra para receber receitas com o que você tem em casa.</p>
-          : fim ? (
-            <div className="rec-fim">
-              <Ico name="check" size={42} color="var(--leaf-d)" />
-              <p>É tudo por agora! Avaliou {recs.length} receita{recs.length !== 1 ? 's' : ''} — as que gostou ajudam a afinar as próximas.</p>
-              <button className="cbtn cbtn-leaf" onClick={carregar}>Ver mais receitas</button>
-            </div>
-          ) : atual ? (
-            <>
-              <ReceitaCard key={atual.nome + i} rec={atual} onVoto={votar} />
-              <div className="rec-hint">deslize ↑ para gostar · ↓ para passar &nbsp;·&nbsp; {recs.length - i} restante{recs.length - i !== 1 ? 's' : ''}</div>
-            </>
-          ) : <p className="empty">Sem sugestões com o que você tem agora.</p>}
+        {aba === 'sugestoes' ? (
+          recs == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 300, display: 'block' }} /></div>
+            : poucos ? <p className="empty">Adicione itens à despensa ou registe uma compra para receber receitas com o que você tem em casa.</p>
+            : fim ? (
+              <div className="rec-fim">
+                <Ico name="check" size={42} color="var(--leaf-d)" />
+                <p>É tudo por agora! As que você gostou ajudam a afinar as próximas.</p>
+                <button className="cbtn cbtn-leaf" onClick={carregar}>Ver mais receitas</button>
+              </div>
+            ) : atual ? (
+              <>
+                <ReceitaCard key={atual.nome + i} rec={atual} onVoto={votar} />
+                <div className="rec-hint">deslize ↑ para gostar · ↓ para passar &nbsp;·&nbsp; {recs.length - i} restante{recs.length - i !== 1 ? 's' : ''}</div>
+              </>
+            ) : <p className="empty">Sem sugestões com o que você tem agora.</p>
+        ) : (
+          guardadas == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 70, display: 'block' }} /></div>
+            : guardadas.length === 0 ? <p className="empty">Ainda não guardou receitas. Nas Sugestões, deslize ↑ (ou toque ♥) nas que gostar.</p>
+            : guardadas.map((rec) => (
+              <div className="rec-saved" key={rec.nome}>
+                <img className="rec-saved-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+                <div className="rec-saved-b"><div className="rec-saved-n">{rec.nome}</div>{rec.usa?.length > 0 && <div className="rec-saved-u">{rec.usa.slice(0, 4).join(' · ')}</div>}</div>
+                <button className="rec-saved-x" title="Remover das guardadas" onClick={() => remover(rec)}><Ico name="close" size={16} stroke={2.4} /></button>
+              </div>
+            ))
+        )}
       </div>
     </>
   );

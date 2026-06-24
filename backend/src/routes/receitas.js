@@ -49,14 +49,15 @@ Sugira 6 receitas que usem MAJORITARIAMENTE os meus ingredientes (pode contar co
 - "desc": 1 linha.
 - "usa": ingredientes-chave QUE USA (dos meus listados acima).
 - "falta": o que falta comprar (máx 2; vazio se nada falta).
-Responda SÓ JSON: {"receitas":[{"nome":"...","tempo":"...","desc":"...","usa":["..."],"falta":["..."]}]}`;
+- "foto": 2 a 4 PALAVRAS-CHAVE EM INGLÊS do PRATO PRONTO (para buscar uma foto de stock), ex.: "tuna pasta", "grilled chicken salad", "greek yogurt bowl".
+Responda SÓ JSON: {"receitas":[{"nome":"...","tempo":"...","desc":"...","usa":["..."],"falta":["..."],"foto":"..."}]}`;
     let receitas = [];
     try {
       const r = await chatCompletion({ messages: [{ role: 'user', content: prompt }], model: config.openrouter.modelConsulta, responseFormat: { type: 'json_object' }, contexto: 'receitas' });
       receitas = (JSON.parse(r || '{}').receitas || [])
         .filter((x) => x && x.nome && !evitar.has(norm(x.nome)))
         .slice(0, 6)
-        .map((x) => ({ nome: String(x.nome).slice(0, 120), tempo: x.tempo ? String(x.tempo).slice(0, 24) : null, desc: String(x.desc || '').slice(0, 200), usa: Array.isArray(x.usa) ? x.usa.map(String).slice(0, 8) : [], falta: Array.isArray(x.falta) ? x.falta.map(String).slice(0, 2) : [] }));
+        .map((x) => ({ nome: String(x.nome).slice(0, 120), tempo: x.tempo ? String(x.tempo).slice(0, 24) : null, desc: String(x.desc || '').slice(0, 200), usa: Array.isArray(x.usa) ? x.usa.map(String).slice(0, 8) : [], falta: Array.isArray(x.falta) ? x.falta.map(String).slice(0, 2) : [], foto: x.foto ? String(x.foto).slice(0, 80) : null }));
     } catch (e) { console.error('[receitas] LLM:', e.message); }
     if (receitas.length) { if (_cache.size > 200) _cache.clear(); _cache.set(hash, receitas); }
     res.json({ receitas, base: { despensa_e_compras: ingredientes.length, gostei: gostei.length } });
@@ -70,10 +71,11 @@ receitasRouter.post('/avaliar', requireAuth, async (req, res) => {
     const voto = Number(req.body?.voto) > 0 ? 1 : Number(req.body?.voto) < 0 ? -1 : 0;
     if (!nome || !voto) return res.status(400).json({ erro: 'nome e voto (1|-1) obrigatórios' });
     const usa = Array.isArray(req.body?.usa) ? JSON.stringify(req.body.usa.slice(0, 8)) : null;
+    const foto = req.body?.foto ? String(req.body.foto).slice(0, 120) : null;
     await getPool().query(
-      `INSERT INTO receita_avaliacao (utilizador, nome, nome_norm, voto, descricao, ingredientes) VALUES (?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE voto = VALUES(voto), descricao = VALUES(descricao), ingredientes = VALUES(ingredientes)`,
-      [req.user.id, nome, norm(nome), voto, String(req.body?.desc || '').slice(0, 300) || null, usa]);
+      `INSERT INTO receita_avaliacao (utilizador, nome, nome_norm, voto, descricao, ingredientes, foto) VALUES (?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE voto = VALUES(voto), descricao = VALUES(descricao), ingredientes = VALUES(ingredientes), foto = COALESCE(VALUES(foto), foto)`,
+      [req.user.id, nome, norm(nome), voto, String(req.body?.desc || '').slice(0, 300) || null, usa, foto]);
     res.json({ ok: true });
   } catch (e) { console.error('[receitas/avaliar]', e.message); res.status(500).json({ erro: 'Falha ao guardar' }); }
 });
@@ -82,7 +84,7 @@ receitasRouter.post('/avaliar', requireAuth, async (req, res) => {
 receitasRouter.get('/gostei', requireAuth, async (req, res) => {
   try {
     const [rows] = await getPool().query(
-      'SELECT nome, descricao, ingredientes FROM receita_avaliacao WHERE utilizador = ? AND voto > 0 ORDER BY atualizado_em DESC LIMIT 100', [req.user.id]);
-    res.json({ receitas: rows.map((r) => ({ nome: r.nome, desc: r.descricao || '', usa: parseJsonCol(r.ingredientes) || [] })) });
+      'SELECT nome, descricao, ingredientes, foto FROM receita_avaliacao WHERE utilizador = ? AND voto > 0 ORDER BY atualizado_em DESC LIMIT 100', [req.user.id]);
+    res.json({ receitas: rows.map((r) => ({ nome: r.nome, desc: r.descricao || '', usa: parseJsonCol(r.ingredientes) || [], foto: r.foto || null })) });
   } catch (e) { console.error('[receitas/gostei]', e.message); res.status(500).json({ erro: 'erro' }); }
 });
