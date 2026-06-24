@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { norm as normCat, singularizar, grupoDeNome } from '../../../backend/src/normaliza/categoria.js';
 import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
-  obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa,
+  obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa, removerDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome, consultarProdutoEan,
   listarPerfis, ativarPerfil, carregarPerfil, salvarSaude, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
@@ -1287,23 +1287,46 @@ function Texto({ go, back }) {
 }
 
 /* ── DESPENSA ────────────────────────────────────────────────────────────── */
+// cache local da despensa → render INSTANTÂNEO no regresso (o GET é lento ~2,5s); revalida em fundo.
+const DESPENSA_CACHE = 'despensa_cache_v1';
+const despCacheGet = () => { try { const s = localStorage.getItem(DESPENSA_CACHE); return s ? JSON.parse(s) : null; } catch { return null; } };
+const despCacheSet = (d) => { try { localStorage.setItem(DESPENSA_CACHE, JSON.stringify(d || [])); } catch { /* noop */ } };
+
+// Item da despensa — ARRASTAR para a direita remove (mesmo swipe da lista).
+function ItemDespensa({ it, onAbrir, onRemover }) {
+  const { dx, g, touch } = useSwipeDelete(() => onRemover(it));
+  return (
+    <div className="swrow">
+      <div className="swrow-bg"><Ico name="close" size={18} /></div>
+      <div className="item" style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }} {...touch}
+        onClick={() => { if (g.current.horiz) return; onAbrir(it); }}>
+        <div className="ib"><div className="iname">{nomeTalao(it.nome)}</div><div className="isub">{it.tamanho || (it.marca && limparMarca(it.marca)) || ''}</div></div>
+      </div>
+    </div>
+  );
+}
+
 function Despensa({ go, back }) {
-  const [itens, setItens] = useState(null);
-  useEffect(() => { listarDespensa().then((d) => setItens(d || [])).catch(() => setItens([])); }, []);
+  const [itens, setItens] = useState(despCacheGet); // instantâneo do cache (null só na 1.ª vez)
+  useEffect(() => {
+    listarDespensa().then((d) => { setItens(d || []); despCacheSet(d || []); }).catch(() => setItens((c) => c || []));
+  }, []);
+  const remover = useCallback(async (it) => { // swipe-apagar otimista; reverte recarregando se falhar
+    setItens((cur) => { const next = (cur || []).filter((x) => x.ean !== it.ean); despCacheSet(next); return next; });
+    try { await removerDespensa(it.ean); }
+    catch { listarDespensa().then((d) => { setItens(d || []); despCacheSet(d || []); }).catch(() => {}); }
+  }, []);
   const grupos = agruparSec(itens || []);
   return (
     <>
       <Ctop title="Tenho em casa" sub={itens ? `${itens.length} itens` : ''} back onBack={back} amber />
       <div className="scrollarea">
-        {itens == null ? <p className="empty">…</p> : itens.length === 0 ? <p className="empty">Despensa vazia. Escaneie um produto.</p>
+        {itens == null ? <div className="desp-sk">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="sk-row" />)}</div>
+          : itens.length === 0 ? <p className="empty">Despensa vazia. Escaneie um produto.</p>
           : grupos.map((g) => (
             <React.Fragment key={g.s}>
               <div className="sec amber">{g.s}</div>
-              {g.itens.map((it) => (
-                <div className="item" key={it.ean} onClick={() => go('ficha', { ean: it.ean, nome: it.nome })}>
-                  <div className="ib"><div className="iname">{nomeTalao(it.nome)}</div><div className="isub">{it.tamanho || (it.marca && limparMarca(it.marca)) || ''}</div></div>
-                </div>
-              ))}
+              {g.itens.map((it) => <ItemDespensa key={it.ean} it={it} onAbrir={(x) => go('ficha', { ean: x.ean, nome: x.nome })} onRemover={remover} />)}
             </React.Fragment>
           ))}
       </div>

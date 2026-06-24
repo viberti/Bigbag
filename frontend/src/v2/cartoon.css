@@ -82,6 +82,9 @@
 .v2 .talao-cta-tx b{font:800 16px var(--disp);color:var(--ink)}
 .v2 .talao-cta-tx span{font:600 12px var(--font);color:var(--ink-3)}
 .v2 .talao-cta-go{flex-shrink:0}
+.v2 .desp-sk{padding:4px 0}
+.v2 .sk-row{height:52px;margin-bottom:8px;border-radius:var(--r-sm);border:2px solid #fff;background:linear-gradient(90deg,var(--cream-2) 25%,#ececec 37%,var(--cream-2) 63%);background-size:400% 100%;animation:sksh 1.3s ease infinite}
+@keyframes sksh{0%{background-position:100% 0}100%{background-position:-100% 0}}
 .v2 .quick{display:flex;justify-content:space-between;gap:3px;padding:16px 0 4px}
 .v2 .quick .round-act{flex:1;min-width:0;gap:6px}
 .v2 .quick .round-act b{font-size:10.5px;letter-spacing:-.02em}
