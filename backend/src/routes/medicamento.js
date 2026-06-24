@@ -491,6 +491,12 @@ medicamentoRouter.get('/catalogo', async (req, res) => {
          JOIN (SELECT ean, fonte, MAX(capturado_em) mx FROM medicamento_monitor_hist WHERE ean IN ${inEans} GROUP BY ean, fonte) g
            ON g.ean = t.ean AND g.fonte = t.fonte AND g.mx = t.capturado_em`, eans);
     const stkMap = new Map(stk.map((s) => [`${s.ean}|${s.fonte}`, s]));
+    // SINAL de programa de laboratório (camada QUALITATIVA, postura 2) — ADITIVO, não toca preço.
+    // SÓ exibível: VALIDADO E não-expirado. Quarentena (DETECTADO) e EXPIRADO NUNCA aparecem.
+    const [sinais] = await pool.query(
+      `SELECT ean, fonte, programa_detectado, ultima_confirmacao, DATEDIFF(NOW(), ultima_confirmacao) idade_dias
+         FROM programa_sinal WHERE ean IN ${inEans} AND estado_validacao = 'VALIDADO' AND expira_em > NOW()`, eans);
+    const sigMap = new Map(sinais.map((s) => [`${s.ean}|${s.fonte}`, s]));
     // alternativas mesma força: toda a substancia+forma de uma vez (agrupado depois em JS)
     const sub = apres[0].substancia, forma = apres[0].forma;
     const [alt] = await pool.query(
@@ -507,10 +513,13 @@ medicamentoRouter.get('/catalogo', async (req, res) => {
       const fmax = a.forca_valor_max == null ? null : Number(a.forca_valor_max);
       const farmacias = (ofPorEan.get(a.ean) || []).map((o) => {
         const s = stkMap.get(`${a.ean}|${o.fonte}`);
+        const pg = sigMap.get(`${a.ean}|${o.fonte}`); // sinal qualitativo (só VALIDADO+não-expirado)
         return { fonte: o.fonte, preco: Number(o.preco),
           preco_cond: o.preco_cond == null ? null : Number(o.preco_cond), preco_cond_obs: o.preco_cond_obs,
           disponivel: s && s.disponivel != null ? !!s.disponivel : null, qtd_estoque: s ? s.qtd_estoque : null,
-          frescor_h: o.frescor_h, url: o.url };
+          frescor_h: o.frescor_h, url: o.url,
+          // ADITIVO: aparece SÓ quando há sinal exibível; qualitativo, separado do preço (postura 2)
+          ...(pg ? { programa: { nome: pg.programa_detectado, desde: pg.ultima_confirmacao, idade_dias: pg.idade_dias, estado: 'VALIDADO' } } : {}) };
       });
       const alternativas = alt.filter((x) => x.produto !== a.produto && Number(x.fv) === fef
           && (x.fmax == null ? null : Number(x.fmax)) === fmax && String(x.fu) === String(a.forca_un))
