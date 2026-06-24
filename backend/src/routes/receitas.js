@@ -17,9 +17,11 @@ async function ingredientesDisponiveis(pool) {
   const [desp] = await pool.query(
     `SELECT COALESCE(c.nome_pt, d.nome) AS nome FROM despensa d LEFT JOIN ean_classificacao c ON c.ean = d.ean`);
   const [comprados] = await pool.query(
-    `SELECT DISTINCT s.nome_canonico AS nome FROM item i
-       JOIN fatura f ON f.id = i.fatura_id JOIN sku_normalizado s ON s.id = i.sku_id
-      WHERE f.data >= (CURDATE() - INTERVAL 7 DAY) AND s.nome_canonico IS NOT NULL AND s.nome_canonico <> '' LIMIT 150`);
+    `SELECT DISTINCT COALESCE(s.nome_canonico, i.descricao_original) AS nome FROM item i
+       JOIN fatura f ON f.id = i.fatura_id LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+      WHERE f.data_compra >= (CURDATE() - INTERVAL 7 DAY)
+        AND COALESCE(s.nome_canonico, i.descricao_original) IS NOT NULL AND COALESCE(s.nome_canonico, i.descricao_original) <> ''
+        AND (i.is_non_product IS NULL OR i.is_non_product = 0) LIMIT 150`);
   const set = new Map();
   for (const r of [...desp, ...comprados]) { const n = String(r.nome || '').trim(); if (n) set.set(norm(n), n); }
   return [...set.values()];
