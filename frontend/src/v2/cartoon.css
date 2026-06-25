@@ -137,6 +137,16 @@
 .v2 .rec-hint b{color:var(--ink-2)}
 .v2 .rec-fim{text-align:center;padding:44px 22px;display:flex;flex-direction:column;align-items:center;gap:14px}
 .v2 .rec-fim p{font:600 15px var(--font);color:var(--ink-2);line-height:1.4}
+/* carrossel HORIZONTAL das sugestões (folhear para o lado) */
+.v2 .rec-deck{display:flex;align-items:flex-start;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:2px 2px 8px;margin:0 -2px;scrollbar-width:none}
+.v2 .rec-deck::-webkit-scrollbar{display:none}
+.v2 .rec-deck>.rec-card{flex:0 0 88%;scroll-snap-align:center}
+.v2 .rec-card.acted.down{opacity:.58}
+.v2 .rec-card.acted.up{box-shadow:0 0 0 2.5px var(--leaf),var(--sh)}
+.v2 .rec-acao{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:4;font:800 12px var(--font);color:#fff;padding:5px 13px;border-radius:var(--r-pill);box-shadow:0 4px 12px rgba(20,35,22,.25)}
+.v2 .rec-acao.up{background:var(--leaf-d)}
+.v2 .rec-acao.down{background:rgba(40,50,40,.72)}
+.v2 .act.pass.on{color:var(--coral);border-color:#eeccc6}
 /* lista de guardadas */
 .v2 .rec-saved{display:flex;align-items:center;gap:12px;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);overflow:hidden;margin-bottom:8px;padding-right:10px}
 .v2 .rec-saved-img{width:74px;height:64px;flex:0 0 74px;object-fit:cover;background:linear-gradient(135deg,#cfe6b0,#a6cd8c)}

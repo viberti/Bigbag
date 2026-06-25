@@ -1943,9 +1943,7 @@ function useSwipeVert(onUp, onDown) {
   const onTouchEnd = () => { const r = g.current; r.mov = false; if (r.vert && r.dy < -80) onUp(); else if (r.vert && r.dy > 80) onDown(); setDy(0); };
   return { dy, touch: { onTouchStart, onTouchMove, onTouchEnd } };
 }
-function ReceitaCard({ rec, onVoto, onVer }) {
-  const { dy, touch } = useSwipeVert(() => onVoto(rec, 1), () => onVoto(rec, -1));
-  const tint = dy < -20 ? 'up' : dy > 20 ? 'down' : '';
+function ReceitaCard({ rec, onVoto, onVer, acao }) {
   const usa = rec.usa || [], falta = rec.falta || [];
   const total = usa.length + falta.length, have = usa.length;
   const pct = total ? Math.round((have / total) * 100) : 0;
@@ -1955,7 +1953,7 @@ function ReceitaCard({ rec, onVoto, onVer }) {
     : falta.length === 1 ? { b: 'Quase lá', s: 'falta 1 ingrediente' }
     : { b: 'Dá pra fazer', s: `falta ${falta.length} ingredientes` };
   return (
-    <div className={`rec-card ${tint}`} style={{ transform: `translateY(${dy}px) rotate(${dy * 0.015}deg)`, transition: dy ? 'none' : 'transform .2s' }} {...touch}>
+    <div className={`rec-card${acao ? ` acted ${acao}` : ''}`}>
       <div className="rphoto">
         <span className="rec-hero-ic"><Ico name="recipe" size={50} stroke={1.6} color="#3f7a3f" /></span>
         <img className="rec-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
@@ -1972,7 +1970,7 @@ function ReceitaCard({ rec, onVoto, onVer }) {
             {rec.dificuldade && <span className="pchip"><Ico name="flame" size={13} stroke={1.9} />{rec.dificuldade}</span>}
           </div>
         </div>
-        {tint && <span className="rec-swipe-badge"><Ico name={tint === 'up' ? 'heart' : 'close'} size={28} stroke={2.4} color="#fff" fill={tint === 'up' ? '#fff' : 'none'} /></span>}
+        {acao && <span className={`rec-acao ${acao}`}>{acao === 'up' ? 'Salvo ✓' : 'Passado'}</span>}
       </div>
       <div className="rbody">
         <div className="rcat">{catLabel}{rec.refeicao ? ` · ${rec.refeicao}` : ''}</div>
@@ -1989,17 +1987,17 @@ function ReceitaCard({ rec, onVoto, onVer }) {
         )}
       </div>
       <div className="actions">
-        <button className="act pass" title="Passar" onClick={() => onVoto(rec, -1)}><Ico name="close" size={24} stroke={1.9} /></button>
+        <button className={`act pass${acao === 'down' ? ' on' : ''}`} title="Passar" onClick={() => onVoto(rec, -1)}><Ico name="close" size={24} stroke={1.9} /></button>
         <button className="act view" title="Ver receita (em breve)" onClick={() => onVer && onVer(rec)}><Ico name="eye" size={27} stroke={1.8} /></button>
-        <button className="act like" title="Salvar" onClick={() => onVoto(rec, 1)}><Ico name="heart" size={24} stroke={1.6} fill="#fff" color="#fff" /></button>
+        <button className="act like" title={acao === 'up' ? 'Salvo' : 'Salvar'} onClick={() => onVoto(rec, 1)}><Ico name={acao === 'up' ? 'check' : 'heart'} size={24} stroke={acao === 'up' ? 2.6 : 1.6} fill={acao === 'up' ? 'none' : '#fff'} color="#fff" /></button>
       </div>
     </div>
   );
 }
 function Receitas({ back }) {
   const [aba, setAba] = useState('sugestoes');
-  const [deck, setDeck] = useState(null);   // baralho ACUMULA (fluxo contínuo)
-  const [i, setI] = useState(0);
+  const [deck, setDeck] = useState(null);   // lista de sugestões (carrossel horizontal)
+  const [acoes, setAcoes] = useState({});   // nome → 'up' (salvo) | 'down' (passado)
   const [poucos, setPoucos] = useState(false);
   const [guardadas, setGuardadas] = useState(null);
   const [catSel, setCatSel] = useState(null); // categoria (ingrediente principal) escolhida nas Guardadas
@@ -2024,7 +2022,7 @@ function Receitas({ back }) {
   }, []);
   const carregarGostei = useCallback(() => { receitasGostei().then((g) => setGuardadas(g || [])).catch(() => setGuardadas([])); }, []);
   useEffect(() => {
-    vistos.current = new Set(); semMais.current = false; setI(0); setPoucos(false);
+    vistos.current = new Set(); semMais.current = false; setAcoes({}); setPoucos(false);
     const cache = lerRecCache();
     if (cache) { // RESERVA: abre instantânea com o que ficou guardado; não repete o já visto
       cache.deck.forEach((r) => vistos.current.add(r.nome));
@@ -2034,19 +2032,20 @@ function Receitas({ back }) {
     buscarMais();      // estende/atualiza em fundo (ou faz a 1.ª busca, se não havia reserva)
     carregarGostei();
   }, [buscarMais, carregarGostei]);
-  // RESERVA: persiste o restante (não consumido) + as 2 últimas recebidas → próxima abertura é instantânea
-  useEffect(() => { if (deck && deck.length) gravarRecCache(deck.slice(i), deck.slice(-2), vistos.current); }, [deck, i]);
-  // PRÉ-BUSCA transparente: faltando ≤4 cartas, traz o próximo lote (folheamento sem fim)
-  useEffect(() => { if (deck && deck.length - i <= 4 && !semMais.current && !poucos) buscarMais(); }, [i, deck, poucos, buscarMais]);
+  // RESERVA: persiste as sugestões ainda NÃO tratadas (salvas/passadas saem) → próxima abertura instantânea
+  useEffect(() => { if (deck && deck.length) gravarRecCache(deck.filter((r) => !acoes[r.nome]), [], vistos.current); }, [deck, acoes]);
+  // PRÉ-BUSCA ao chegar perto do fim do carrossel (folheamento sem fim)
+  const onScrollDeck = useCallback((e) => {
+    const el = e.currentTarget;
+    if (!semMais.current && !poucos && el.scrollLeft + el.clientWidth >= el.scrollWidth - el.clientWidth * 1.2) buscarMais();
+  }, [poucos, buscarMais]);
   const votar = useCallback((rec, voto) => {
     avaliarReceita(rec.nome, voto, { desc: rec.desc, usa: rec.usa, foto: rec.foto }).catch(() => {});
     vistos.current.add(rec.nome);
+    setAcoes((a) => ({ ...a, [rec.nome]: voto > 0 ? 'up' : 'down' }));
     if (voto > 0) setGuardadas((g) => (g && !g.some((x) => x.nome === rec.nome)) ? [{ nome: rec.nome, desc: rec.desc, usa: rec.usa, foto: rec.foto, foto_url: rec.foto_url }, ...g] : g);
-    setI((x) => x + 1);
   }, []);
   const remover = useCallback((rec) => { avaliarReceita(rec.nome, -1).catch(() => {}); setGuardadas((g) => (g || []).filter((x) => x.nome !== rec.nome)); }, []);
-  const atual = deck && deck[i];
-  const acabou = deck && i >= deck.length && semMais.current; // só "acabou" quando o LLM esgotou
   return (
     <>
       <Ctop title="Receitas" sub="do que você tem em casa" back onBack={back} />
@@ -2056,18 +2055,15 @@ function Receitas({ back }) {
       </div>
       <div className="scrollarea rec-wrap">
         {aba === 'sugestoes' ? (
-          atual ? (
+          deck && deck.length ? (
             <>
-              <div className="rec-stack">
-                <span className="rcard-peek peek2" />
-                <span className="rcard-peek peek1" />
-                <ReceitaCard key={atual.nome + i} rec={atual} onVoto={votar} onVer={() => {}} />
+              <div className="rec-deck" onScroll={onScrollDeck}>
+                {deck.map((rec) => <ReceitaCard key={rec.nome} rec={rec} acao={acoes[rec.nome]} onVoto={votar} onVer={() => {}} />)}
               </div>
-              <div className="rec-hint">deslize ↑ para <b>salvar</b> · ↓ para passar</div>
+              <div className="rec-hint">deslize para o lado para folhear · ♥ <b>salva</b> · ✕ passa</div>
             </>
           ) : deck == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
             : poucos ? <p className="empty">Adicione itens à despensa ou registe uma compra para receber receitas com o que você tem em casa.</p>
-            : acabou ? <p className="empty">Por agora não há mais ideias novas — volte depois de comprar ou usar mais ingredientes.</p>
               : <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
         ) : (
           guardadas == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 84, display: 'block' }} /></div>
