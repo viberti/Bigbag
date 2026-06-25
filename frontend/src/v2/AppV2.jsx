@@ -1873,7 +1873,26 @@ const fotoReceita = (rec) => {
 // PRÉ-AQUECIMENTO: começa a buscar o 1.º lote antes de o utilizador abrir Receitas (chamado no Shell),
 // para que a tela já abra com cartas prontas. A promessa fica guardada e é consumida pelo deck.
 let _recPrime = null;
-function primeReceitas() { if (!_recPrime) _recPrime = sugerirReceitas().catch(() => null); }
+// RESERVA LOCAL no telefone: guarda o baralho restante (não consumido) + sempre as 2 últimas recebidas
+// como semente garantida → a tela abre INSTANTÂNEA com estas e atualiza/estende em fundo.
+const REC_LS = 'bb_receitas_cache_v1';
+function lerRecCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(REC_LS) || 'null');
+    if (!c || !Array.isArray(c.deck) || !c.deck.length) return null;
+    if (c.ts && Date.now() - c.ts > 7 * 864e5) return null; // descarta cache com +7 dias
+    return c;
+  } catch { return null; }
+}
+function gravarRecCache(restante, ultimas, vistosSet) {
+  try {
+    const seen = new Set(); const deck = [];
+    for (const r of [...(restante || []), ...(ultimas || [])]) { if (r && r.nome && !seen.has(r.nome)) { seen.add(r.nome); deck.push(r); if (deck.length >= 30) break; } }
+    if (deck.length) localStorage.setItem(REC_LS, JSON.stringify({ deck, vistos: [...(vistosSet || [])].slice(-120), ts: Date.now() }));
+  } catch { /* sem localStorage (modo privado) — sem reserva, segue normal */ }
+}
+// pré-aquece o 1.º lote SÓ quando NÃO há reserva local (com reserva, a tela já abre instantânea)
+function primeReceitas() { if (_recPrime || lerRecCache()) return; _recPrime = sugerirReceitas().catch(() => null); }
 function takePrime() { const p = _recPrime; _recPrime = null; return p; }
 // Classificação das GUARDADAS por ingrediente principal (ícone/emoji + carrossel por categoria).
 const REC_CATS = [ // padrões SEM acento (txt é normalizado sem diacríticos)
@@ -1957,7 +1976,19 @@ function Receitas({ back }) {
     }).catch(() => { aCarregar.current = false; setDeck((c) => c || []); });
   }, []);
   const carregarGostei = useCallback(() => { receitasGostei().then((g) => setGuardadas(g || [])).catch(() => setGuardadas([])); }, []);
-  useEffect(() => { vistos.current = new Set(); semMais.current = false; setDeck(null); setI(0); setPoucos(false); buscarMais(); carregarGostei(); }, [buscarMais, carregarGostei]);
+  useEffect(() => {
+    vistos.current = new Set(); semMais.current = false; setI(0); setPoucos(false);
+    const cache = lerRecCache();
+    if (cache) { // RESERVA: abre instantânea com o que ficou guardado; não repete o já visto
+      cache.deck.forEach((r) => vistos.current.add(r.nome));
+      (cache.vistos || []).forEach((n) => vistos.current.add(n));
+      setDeck(cache.deck);
+    } else setDeck(null);
+    buscarMais();      // estende/atualiza em fundo (ou faz a 1.ª busca, se não havia reserva)
+    carregarGostei();
+  }, [buscarMais, carregarGostei]);
+  // RESERVA: persiste o restante (não consumido) + as 2 últimas recebidas → próxima abertura é instantânea
+  useEffect(() => { if (deck && deck.length) gravarRecCache(deck.slice(i), deck.slice(-2), vistos.current); }, [deck, i]);
   // PRÉ-BUSCA transparente: faltando ≤4 cartas, traz o próximo lote (folheamento sem fim)
   useEffect(() => { if (deck && deck.length - i <= 4 && !semMais.current && !poucos) buscarMais(); }, [i, deck, poucos, buscarMais]);
   const votar = useCallback((rec, voto) => {
@@ -1978,14 +2009,14 @@ function Receitas({ back }) {
       </div>
       <div className="scrollarea rec-wrap">
         {aba === 'sugestoes' ? (
-          deck == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
+          atual ? (
+            <>
+              <ReceitaCard key={atual.nome + i} rec={atual} onVoto={votar} />
+              <div className="rec-hint">deslize ↑ para gostar · ↓ para passar</div>
+            </>
+          ) : deck == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
             : poucos ? <p className="empty">Adicione itens à despensa ou registe uma compra para receber receitas com o que você tem em casa.</p>
-            : atual ? (
-              <>
-                <ReceitaCard key={atual.nome + i} rec={atual} onVoto={votar} />
-                <div className="rec-hint">deslize ↑ para gostar · ↓ para passar</div>
-              </>
-            ) : acabou ? <p className="empty">Por agora não há mais ideias novas — volte depois de comprar ou usar mais ingredientes.</p>
+            : acabou ? <p className="empty">Por agora não há mais ideias novas — volte depois de comprar ou usar mais ingredientes.</p>
               : <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
         ) : (
           guardadas == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 84, display: 'block' }} /></div>
