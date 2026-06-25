@@ -191,7 +191,7 @@
 .v2 .web-noimg{display:grid!important;place-items:center;background:var(--leaf-soft)}
 .v2 .swrow>.rec-saved{margin-bottom:0}
 /* cards "Da web" ~25% maiores: foto proporcionalmente maior (a linha cresce com ela) */
-.v2 .swrow .rec-saved-img{width:92px;height:80px;flex:0 0 92px}
+.v2 .swrow .rec-saved-img{width:110px;height:96px;flex:0 0 110px}
 .v2 .swrow .rec-saved-n{font-size:16px}
 /* detalhe */
 .v2 .web-det{padding-bottom:20px}
