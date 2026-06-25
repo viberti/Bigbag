@@ -2048,7 +2048,7 @@ function Receitas({ back }) {
   const remover = useCallback((rec) => { avaliarReceita(rec.nome, -1).catch(() => {}); setGuardadas((g) => (g || []).filter((x) => x.nome !== rec.nome)); }, []);
   return (
     <>
-      <Ctop title="Receitas" sub="do que você tem em casa" back onBack={back} />
+      <Ctop title="Idéias para fazer" sub="do que você tem em casa" back onBack={back} />
       <div className="rec-seg">
         <button className={aba === 'sugestoes' ? 'on' : ''} onClick={() => setAba('sugestoes')}>Sugestões</button>
         <button className={aba === 'guardadas' ? 'on' : ''} onClick={() => { setAba('guardadas'); setCatSel(null); setBusca(''); carregarGostei(); }}>Guardadas {nGostei ? <span className="b">{nGostei}</span> : null}</button>
