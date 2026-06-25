@@ -2095,8 +2095,9 @@ function Receitas({ back }) {
               <h2 className="web-det-n">{webSel.nome || webSel.fonte}</h2>
               <div className="web-det-meta">{[webSel.tempo, webSel.porcoes].filter(Boolean).join(' · ')}{(webSel.tempo || webSel.porcoes) ? ' · ' : ''}<a href={webSel.url} target="_blank" rel="noreferrer">{webSel.fonte}</a></div>
               {webSel.ingredientes?.length > 0 && (<><h3 className="web-det-h">Ingredientes</h3><ul className="web-det-ing">{webSel.ingredientes.map((x, k) => <li key={k}>{x}</li>)}</ul></>)}
-              {webSel.preparo && (<><h3 className="web-det-h">Modo de preparo</h3><div className="web-det-prep">{webSel.preparo.split('\n').filter(Boolean).map((p, k) => <p key={k}>{p}</p>)}</div></>)}
-              {!webSel.ingredientes?.length && !webSel.preparo && <p className="empty">Não consegui ler os detalhes desta página — abra a fonte original.{webSel.bruto ? ` ${webSel.bruto}` : ''}</p>}
+              {webSel.preparo ? (<><h3 className="web-det-h">Modo de preparo</h3><div className="web-det-prep">{webSel.preparo.split('\n').filter(Boolean).map((p, k) => <p key={k}>{p}</p>)}</div></>)
+                : webSel.bruto ? (<><h3 className="web-det-h">Descrição</h3><div className="web-det-prep">{webSel.bruto.split('\n').filter(Boolean).map((p, k) => <p key={k}>{p}</p>)}</div></>) : null}
+              {!webSel.ingredientes?.length && !webSel.preparo && !webSel.bruto && <p className="empty">Não consegui ler os detalhes desta página — abra a fonte original.</p>}
               <div className="web-det-acts"><a className="cbtn cbtn-leaf" href={webSel.url} target="_blank" rel="noreferrer">Abrir original</a><button className="cbtn cbtn-ghost" onClick={() => apagarImportada(webSel)}>Apagar</button></div>
             </div>
           ) : (

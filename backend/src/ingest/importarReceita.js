@@ -92,16 +92,46 @@ ${texto.slice(0, 7000)}`;
   } catch (e) { console.error('[importar receita] LLM:', e.message); return null; }
 }
 
+const ehYoutube = (host) => /(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(host);
+
+// YouTube: o watch page é JS + muro de consentimento (UE) → usar oEmbed (título+thumbnail) e ler a
+// DESCRIÇÃO do vídeo (onde a receita costuma estar) saltando o consentimento com o cookie CONSENT.
+async function importarYoutube(url) {
+  let oe = null;
+  try {
+    const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url.href)}`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(10000) });
+    if (r.ok) oe = await r.json();
+  } catch { /* sem oembed */ }
+  const base = { url: url.href, fonte: 'youtube.com', nome: oe?.title || 'Vídeo do YouTube', foto: oe?.thumbnail_url || null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'youtube', bruto: oe?.author_name ? `Vídeo de ${oe.author_name}` : null };
+  try {
+    const r = await fetch(url.href, { headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR,pt;q=0.9', Cookie: 'CONSENT=YES+1' }, signal: AbortSignal.timeout(12000) });
+    const html = await r.text();
+    const m = html.match(/"shortDescription":"((?:[^"\\]|\\.)*)"/);
+    if (m) {
+      let desc = ''; try { desc = JSON.parse(`"${m[1]}"`); } catch { desc = m[1]; }
+      if (desc && desc.length > 80) {
+        const llm = await llmExtrai(desc, 'youtube');
+        if (llm && (llm.ingredientes.length || llm.preparo)) {
+          return { ...base, via: 'youtube+llm', ingredientes: llm.ingredientes, preparo: llm.preparo, tempo: llm.tempo, porcoes: llm.porcoes, bruto: desc.slice(0, 1500) };
+        }
+        return { ...base, bruto: desc.slice(0, 1500) }; // sem receita estruturada → guarda a descrição
+      }
+    }
+  } catch { /* descrição indisponível — fica oembed */ }
+  return base;
+}
+
 export async function importarDeUrl(urlBruto) {
   let url;
   try { url = new URL(String(urlBruto).trim()); } catch { throw new Error('URL inválido'); }
   if (!/^https?:$/.test(url.protocol)) throw new Error('URL inválido');
+  if (ehYoutube(url.hostname)) return importarYoutube(url);
   const fonte = url.hostname.replace(/^www\./, '');
   const base = { url: url.href, fonte, nome: null, foto: null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'erro', bruto: null };
 
   let html = '';
   try {
-    const r = await fetch(url.href, { headers: { 'User-Agent': UA, Accept: 'text/html,*/*' }, redirect: 'follow', signal: AbortSignal.timeout(13000) });
+    const r = await fetch(url.href, { headers: { 'User-Agent': UA, Accept: 'text/html,*/*', 'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.5' }, redirect: 'follow', signal: AbortSignal.timeout(13000) });
     html = await r.text();
   } catch (e) {
     // sem acesso à página (geo/bot/login) → guarda só o link
