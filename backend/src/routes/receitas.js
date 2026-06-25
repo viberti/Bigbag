@@ -7,6 +7,7 @@ import { getPool, parseJsonCol } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { chatCompletion } from '../openrouter.js';
 import { config } from '../config.js';
+import { importarDeUrl } from '../ingest/importarReceita.js';
 
 export const receitasRouter = Router();
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
@@ -121,4 +122,45 @@ receitasRouter.get('/gostei', requireAuth, async (req, res) => {
     await resolverFotos(recs);
     res.json({ receitas: recs });
   } catch (e) { console.error('[receitas/gostei]', e.message); res.status(500).json({ erro: 'erro' }); }
+});
+
+// ===== Receitas IMPORTADAS da internet (partilhar/colar link → extrair e guardar) =====
+const mapImportada = (r) => ({
+  id: r.id, url: r.url, fonte: r.fonte, nome: r.nome, foto: r.foto,
+  ingredientes: parseJsonCol(r.ingredientes) || [], preparo: r.preparo, tempo: r.tempo,
+  porcoes: r.porcoes, via: r.via, bruto: r.bruto, criado_em: r.criado_em,
+});
+
+// POST /api/receitas/importar { url } → extrai e guarda; idempotente por (user, url).
+receitasRouter.post('/importar', requireAuth, async (req, res) => {
+  const url = String(req.body?.url || '').trim();
+  if (!/^https?:\/\/\S+/i.test(url)) return res.status(400).json({ erro: 'Envie um link (URL) válido.' });
+  try {
+    const r = await importarDeUrl(url);
+    const pool = getPool();
+    await pool.query(
+      `INSERT INTO receita_importada (utilizador, url, fonte, nome, foto, ingredientes, preparo, tempo, porcoes, via, bruto)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE fonte=VALUES(fonte), nome=VALUES(nome), foto=VALUES(foto), ingredientes=VALUES(ingredientes),
+         preparo=VALUES(preparo), tempo=VALUES(tempo), porcoes=VALUES(porcoes), via=VALUES(via), bruto=VALUES(bruto)`,
+      [req.user.id, r.url, r.fonte, r.nome, r.foto, JSON.stringify(r.ingredientes || []), r.preparo, r.tempo, r.porcoes, r.via, r.bruto]);
+    const [[row]] = await pool.query('SELECT * FROM receita_importada WHERE utilizador=? AND url=?', [req.user.id, r.url]);
+    res.json({ ok: true, receita: mapImportada(row) });
+  } catch (e) { console.error('[receitas/importar]', e.message); res.status(500).json({ erro: 'Não consegui importar este link.' }); }
+});
+
+// GET /api/receitas/importadas → coleção do usuário (mais recentes 1.º).
+receitasRouter.get('/importadas', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await getPool().query('SELECT * FROM receita_importada WHERE utilizador=? ORDER BY criado_em DESC LIMIT 300', [req.user.id]);
+    res.json({ receitas: rows.map(mapImportada) });
+  } catch (e) { console.error('[receitas/importadas]', e.message); res.status(500).json({ erro: 'erro' }); }
+});
+
+// DELETE /api/receitas/importada/:id
+receitasRouter.delete('/importada/:id', requireAuth, async (req, res) => {
+  try {
+    await getPool().query('DELETE FROM receita_importada WHERE id=? AND utilizador=?', [Number(req.params.id) || 0, req.user.id]);
+    res.json({ ok: true });
+  } catch (e) { console.error('[receitas/importada del]', e.message); res.status(500).json({ erro: 'erro' }); }
 });
