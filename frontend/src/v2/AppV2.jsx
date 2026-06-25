@@ -1250,7 +1250,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
         )}
 
         <div className="accbox">
-          {(() => { const ing = info?.vlm?.ingredientes || info?.off?.ingredientes; return ing ? (
+          {(() => { const ing = info?.ingredientes || info?.vlm?.ingredientes || info?.off?.ingredientes; return ing ? (
             <>
               <button className={`acc ${open.ing ? 'open' : ''}`} onClick={() => setOpen((o) => ({ ...o, ing: !o.ing }))}><span>Ingredientes</span><Ico name="chevron" size={16} stroke={2.6} /></button>
               {open.ing && <div className="acc-body"><p>{ing}</p>{(info?.vlm?.alergenios || info?.off?.alergenios) && <div className="alerg">⚠ Alergénios: <b>{info?.vlm?.alergenios || info?.off?.alergenios}</b></div>}</div>}

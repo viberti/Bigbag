@@ -459,7 +459,12 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   // → rejeita (não a mostra nem a usa como gate). Genéricos estrangeiros (ex.: 'Sauerkraut') não
   // entram aqui (vocabulário PT/ES) — ficam p/ a blocklist por rácio do corpus.
   if (marcaResolvida && marcaEhTipo(marcaResolvida)) { marcaResolvida = null; marcaVia = null; }
-  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut,
+  // ingredientes/alergénios FUNDIDOS da ficha (produto_ean) — a fonte canónica decidida pelo fusor
+  // (Nutripédia > lojas > OFF). O read passa a CONSUMI-los em vez de tirar do off/vlm cru.
+  const ingredientesFicha = (rows.find((r) => r.ingredientes && String(r.ingredientes).trim())?.ingredientes) || null;
+  const alergeniosFicha = (rows.find((r) => r.alergenios && String(r.alergenios).trim())?.alergenios) || null;
+  return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo,
+    ingredientes: ingredientesFicha, alergenios: alergeniosFicha, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut,
     // ficha MAGRA = nem nutrição nem imagem: não temos como mostrar nada útil. Mesmo que haja um
     // nome/marca (talvez só DECODIFICADO do EAN), o scan deve pedir FOTOS (VLM) em vez de abrir
     // uma ficha inútil. (sugestão de gémeo já passa pelo gate de precisão `nomeCondizGemeo`.)
@@ -1435,7 +1440,7 @@ produtoRouter.get('/analise', requireAuth, async (req, res) => {
     const p = {
       nome: info.off?.nome || info.vlm?.nome || info.generico?.alimento || info.nome || null,
       categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
-      ingredientes: info.vlm?.ingredientes || info.off?.ingredientes || null,
+      ingredientes: info.ingredientes || info.vlm?.ingredientes || info.off?.ingredientes || null,
       nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
       nutriscore: info.off?.nutriscore || null,
       nova: info.off?.nova ?? (ehFresco ? 1 : null), // fresco/inteiro → NOVA 1
@@ -1481,7 +1486,7 @@ produtoRouter.get('/personalizado', requireAuth, async (req, res) => {
     const produto = {
       nome: info.off?.nome || info.vlm?.nome || info.generico?.alimento || info.nome || null,
       categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
-      ingredientes: info.vlm?.ingredientes || info.off?.ingredientes || null,
+      ingredientes: info.ingredientes || info.vlm?.ingredientes || info.off?.ingredientes || null,
       alergenios: info.off?.alergenios || info.vlm?.alergenios || null,
       nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
       nutriscore: info.off?.nutriscore || null,
@@ -1560,7 +1565,7 @@ produtoRouter.post('/comparar', requireAuth, async (req, res) => {
         marca: info.off?.marca || info.vlm?.marca || info.base?.marca || null,
         quantidade: info.off?.quantidade || info.vlm?.quantidade || info.base?.quantidade || null,
         categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
-        ingredientes: info.vlm?.ingredientes || info.off?.ingredientes || null,
+        ingredientes: info.ingredientes || info.vlm?.ingredientes || info.off?.ingredientes || null,
         alergenios: info.off?.alergenios || info.vlm?.alergenios || null,
         nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
         nutriscore: info.off?.nutriscore || null,
