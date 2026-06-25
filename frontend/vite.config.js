@@ -72,11 +72,18 @@ export default defineConfig({
         // do LIDL a partilhar o talão como imagem). O SW intercepta este POST,
         // guarda o ficheiro e reencaminha para /?compartilhado=1, onde a app o lê
         // e o mete no fluxo de talões. (iOS/Safari não suporta — só Android/desktop.)
+        // Aceita talão (imagem/PDF) E link de receita (title/text/url) — o SW distingue:
+        // ficheiro → fluxo de talões; link → /?compartilhado=receita (importa a receita).
         share_target: {
           action: '/share-target',
           method: 'POST',
           enctype: 'multipart/form-data',
-          params: { files: [{ name: 'talao', accept: ['image/*', 'application/pdf'] }] },
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [{ name: 'talao', accept: ['image/*', 'application/pdf'] }],
+          },
         },
         // Ícone "Spotlight" (saco iluminado por holofote verde sobre fundo escuro).
         // SVG escalável + PNGs `any` (tile com cantos) + PNGs `maskable` (saco na

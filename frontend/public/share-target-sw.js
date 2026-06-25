@@ -27,9 +27,14 @@ self.addEventListener('fetch', (event) => {
               },
             }),
           );
+          return Response.redirect('/?compartilhado=1', 303);
         }
+        // partilha de LINK (página de receita) → extrai o 1.º http(s) do url/text/title
+        const partilhado = String(form.get('url') || form.get('text') || form.get('title') || '');
+        const m = partilhado.match(/https?:\/\/\S+/);
+        if (m) return Response.redirect('/?compartilhado=receita&link=' + encodeURIComponent(m[0]), 303);
       } catch (e) {
-        // se a partilha falhar, abre a app na mesma (sem ficheiro pendente)
+        // se a partilha falhar, abre a app na mesma (sem nada pendente)
       }
       // 303 → a navegação seguinte é GET (não repete o POST ao recarregar)
       return Response.redirect('/?compartilhado=1', 303);

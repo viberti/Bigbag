@@ -280,8 +280,11 @@ function Shell({ nome, onSair, pais }) {
   // Share Target: se viemos de /?compartilhado=1, lê o ficheiro guardado pelo SW
   // e abre as Compras a enviá-lo (a v1 fazia isto; sem isto a partilha some).
   useEffect(() => {
-    if (!new URLSearchParams(window.location.search).has('compartilhado')) return;
+    const sp = new URLSearchParams(window.location.search);
+    if (!sp.has('compartilhado')) return;
+    const tipo = sp.get('compartilhado'); const link = sp.get('link');
     window.history.replaceState(null, '', '/');
+    if (tipo === 'receita' && link) { _linkPartilhado = link; go('receitas'); return; } // link de receita partilhado
     (async () => { const file = await lerTalaoPartilhado(); if (file) go('notas', { partilhado: file }); })();
   }, [go]);
   // a Comparar mostra a nav (para consultar mais itens pelo botão central) sem ser um TAB
@@ -1874,6 +1877,7 @@ const fotoReceita = (rec) => {
 // PRÉ-AQUECIMENTO: começa a buscar o 1.º lote antes de o utilizador abrir Receitas (chamado no Shell),
 // para que a tela já abra com cartas prontas. A promessa fica guardada e é consumida pelo deck.
 let _recPrime = null;
+let _linkPartilhado = null; // link de receita partilhado (Android share) → auto-importa ao abrir Receitas
 // RESERVA LOCAL no telefone: guarda o baralho restante (não consumido) + sempre as 2 últimas recebidas
 // como semente garantida → a tela abre INSTANTÂNEA com estas e atualiza/estende em fundo.
 const REC_LS = 'bb_receitas_cache_v1';
@@ -2062,6 +2066,8 @@ function Receitas({ back }) {
     finally { setImportando(false); }
   }, []);
   const apagarImportada = useCallback((r) => { apagarReceitaImportada(r.id).catch(() => {}); setImportadas((l) => (l || []).filter((x) => x.id !== r.id)); setWebSel(null); }, []);
+  // link de receita partilhado (Android) → abre na aba "Da web" e importa sozinho
+  useEffect(() => { if (!_linkPartilhado) return; const l = _linkPartilhado; _linkPartilhado = null; setAba('web'); (async () => { await importar(l); carregarImportadas(); })(); }, [importar, carregarImportadas]);
   return (
     <>
       <Ctop title="Idéias para fazer" sub="do que você tem em casa" back onBack={back} />
