@@ -34,10 +34,10 @@ for (const atual of fichas) {
     appendFileSync(OUT, JSON.stringify({ ean: atual.ean, nome: f.nome, diffs }) + '\n');
     await pool.query(
       `UPDATE produto_ean SET nome=?, marca=?, quantidade=?, categoria=?, ingredientes=?, alergenios=?,
-              nutricao=?, nutricao_confirmada=?, fusao=? WHERE id=?`,
+              nutricao=?, nutricao_confirmada=?, imagem_url=COALESCE(?, imagem_url), fusao=? WHERE id=?`,
       [lim(f.nome, 200), lim(f.marca, 120), lim(f.quantidade, 60), lim(f.categoria, 255),
         f.ingredientes, f.alergenios, f.nutricao ? JSON.stringify(f.nutricao) : null,
-        f.nutricao_confirmada, JSON.stringify(r.fusao), atual.id]);
+        f.nutricao_confirmada, lim(f.imagem_url, 500), JSON.stringify(r.fusao), atual.id]);
     mudadas++;
   } catch (e) { console.error('  erro', atual.ean, e.message); }
 }
