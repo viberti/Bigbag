@@ -160,6 +160,24 @@ const moda = (valores) => {
   return [...c.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 };
 
+// Rótulos de PACK/embalagem que NÃO são nome de produto (Mercadona "x4 Indivisível", Consum
+// "Bipack Indivisible", "Pack 6 Latas"…). Limpa-os do nome; se sobrar lixo, o nome deriva da categoria.
+const RE_PACK = /\b(?:bi|tri|multi)?pack\b|\bindivis[ií]ve(?:l|is)\b|\bindivisible\b|\blote\b|\bconjunto\b|\b\d+\s*(?:latas?|unidades?|uds?|un)\b|\bx\s*\d+\b/gi;
+function limparPack(nome) {
+  if (!nome) return null;
+  const s = String(nome).replace(RE_PACK, ' ').replace(/\s{2,}/g, ' ').replace(/^[\s,.-]+|[\s,.-]+$/g, '').trim();
+  return s || null;
+}
+// nome-lixo = nada de substância depois de tirar pack + números (ex.: "x4 Indivisível" → vazio)
+const ehNomeLixo = (n) => { const t = limparPack(n); return !t || norm(t).replace(/[0-9]/g, '').trim().length < 3; };
+// nome genérico da CATEGORIA (folha PT mais específica): "…,Atum,Atuns em lata,en:Tuna…" → "Atuns em lata"
+function nomeDaCategoria(categoria) {
+  if (!categoria) return null;
+  const segs = String(categoria).split(',').map((s) => s.trim()).filter((s) => s && !/^[a-z]{2,3}:/i.test(s));
+  const leaf = segs[segs.length - 1];
+  return leaf && leaf.length >= 3 ? tituloProduto(leaf) : null;
+}
+
 // ── fusão principal ──────────────────────────────────────────────────────────
 // Devolve { ficha, fusao } prontos a gravar. `extra`: { off, vlm } trazidos pelo
 // chamador (OFF live / leitura de fotos); `atual`: linha produto_ean existente
@@ -294,6 +312,16 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     { valor: off?.categoria, fonte: 'off' },
     { valor: vlm?.categoria, fonte: 'vlm' },
   ]);
+
+  // PACK não é nome (dono 2026-06-25, caso atum x4 Mercadona): tira os rótulos de embalagem; se o
+  // nome ficar lixo ("Indivisível"), deriva-o da CATEGORIA (ex.: "Atuns em lata"). Se sobrar um nome
+  // real (ex.: "Refresco Cola Bipack" → "Refresco Cola"), mantém-no já limpo.
+  if (!manual.has('nome') && nome) {
+    if (ehNomeLixo(nome)) {
+      const ncat = nomeDaCategoria(categoria);
+      if (ncat) { nome = ncat; prov.nome = 'categoria'; nomeEstrangeiro = false; } else nome = limparPack(nome);
+    } else { const limpo = limparPack(nome); if (limpo && norm(limpo) !== norm(nome)) nome = limpo; }
+  }
 
   // NUTRIÇÃO: catálogo-oficial > OFF > VLM-plausível (decisão do dono)
   const nutCat = cat.map((c) => parse(c.nutricao)).find((n) => n && nutricaoPlausivel(n)) || null;

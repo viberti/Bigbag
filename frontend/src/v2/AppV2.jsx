@@ -1030,14 +1030,20 @@ function nivel(tipo, v) {
   for (const [lim, w, lvl] of T) if (v <= lim) return [lvl, w];
   return [3, 'alto'];
 }
+// nutrição: SÓ inteiros (dono 2026-06-25) — mata artefatos de vírgula flutuante (6,69999980926514 → 7).
+const fmtNut = (v) => {
+  if (v == null || Number.isNaN(Number(v))) return null;
+  return String(Math.round(Number(v)));
+};
 function Regua({ label, val, tipo }) {
   const cols = ['#7ec46a', '#cdb83e', '#e6a23c', '#e0734f'];
   const n = nivel(tipo, val);
   const lvl = n ? n[0] : -1;
+  const txt = fmtNut(val);
   return (
     <div className="rgrow">
       <span className="rg-l">{label}</span>
-      <span className="rg-v">{val == null ? '—' : `${String(val).replace('.', ',')} g`}</span>
+      <span className="rg-v">{txt == null ? '—' : `${txt} g`}</span>
       <span className="rg-bar">{[0, 1, 2, 3].map((i) => <span key={i} className="rg-seg" style={{ background: i === lvl ? cols[lvl] : 'var(--cream-2)' }} />)}</span>
       <span className="rg-w" style={{ color: n ? cols[lvl] : 'var(--ink-3)' }}>{n ? n[1] : ''}</span>
     </div>
@@ -1046,7 +1052,7 @@ function Regua({ label, val, tipo }) {
 // pílulas de nutrição das alternativas: prot (↑ melhor), gord. sat e açúc (↓ melhor).
 // Cor pelos MESMOS limiares FSA do nivel() — comparar saúde de relance, sem inventar.
 function Pills({ prot, sat, acu }) {
-  const fmt = (x) => String(Number(x).toFixed(1)).replace(/\.0$/, '').replace('.', ',');
+  const fmt = (x) => fmtNut(x);
   const baixoMelhor = (tipo, v) => { const n = nivel(tipo, v); return n ? (n[0] <= 1 ? 'good' : n[0] === 2 ? 'warn' : 'bad') : 'mid'; };
   const protCls = (v) => { const n = nivel('proteina', v); return n && n[0] >= 2 ? 'good' : 'mid'; };
   const pills = [];
