@@ -209,7 +209,9 @@ faturasRouter.post('/', requireAuth, upload.single('fatura'), async (req, res) =
     const canonPorDesc = {};
     try {
       const [rows] = await getPool().query(
-        'SELECT i.descricao_original AS d, s.nome_canonico AS n FROM item i JOIN sku_normalizado s ON s.id = i.sku_id WHERE i.fatura_id = ?',
+        `SELECT i.descricao_original AS d,
+           COALESCE((SELECT pe1.nome FROM produto_ean pe1 WHERE pe1.ean = i.ean AND pe1.nome IS NOT NULL AND pe1.nome <> '' ORDER BY pe1.id LIMIT 1), s.nome_canonico) AS n
+           FROM item i LEFT JOIN sku_normalizado s ON s.id = i.sku_id WHERE i.fatura_id = ?`,
         [fatura_id],
       );
       for (const r of rows) if (r.n) canonPorDesc[r.d] = r.n;
@@ -335,7 +337,7 @@ faturasRouter.get('/gastos/categoria', requireAuth, async (req, res) => {
     if (!grupos.length) return res.status(400).json({ erro: 'grupos em falta' });
     const [[hoje]] = await getPool().query('SELECT YEAR(CURDATE()) y, MONTH(CURDATE()) m');
     const [produtos] = await getPool().query(`
-      SELECT MAX(COALESCE(s.nome_simplificado, s.nome_canonico, i.descricao_original)) AS nome,
+      SELECT MAX(COALESCE((SELECT pe1.nome FROM produto_ean pe1 WHERE pe1.ean = i.ean AND pe1.nome IS NOT NULL AND pe1.nome <> '' ORDER BY pe1.id LIMIT 1), s.nome_simplificado, s.nome_canonico, i.descricao_original)) AS nome,
              MAX(s.marca) AS marca, MAX(i.ean) AS ean, MAX(i.sku_id) AS sku_id,
              ROUND(SUM(i.preco_liquido), 2) AS total, COUNT(*) AS n, ROUND(SUM(i.quantidade), 2) AS qtd
         FROM item i
@@ -368,7 +370,10 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
     // as compras Continente com o mesmo nome (mesmo produto). Entre cadeias não — pode
     // ser marca-própria diferente. `ident` é a ficha por (descrição, cadeia).
     const [itens] = await getPool().query(
-      `SELECT i.id, i.sku_id, COALESCE(s.nome_canonico, i.descricao_original) AS produto,
+      `SELECT i.id, i.sku_id,
+              COALESCE((SELECT pe1.nome FROM produto_ean pe1
+                          WHERE pe1.ean = COALESCE(i.ean, ident.ean) AND pe1.nome IS NOT NULL AND pe1.nome <> ''
+                          ORDER BY pe1.id LIMIT 1), s.nome_canonico, i.descricao_original) AS produto,
               i.quantidade, i.preco_liquido AS preco, s.unidade_base, i.preco_por_base,
               s.grupo,
               COALESCE(i.ean, ident.ean) AS ean,

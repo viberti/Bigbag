@@ -794,8 +794,10 @@ produtoRouter.get('/consultados', requireAuth, async (req, res) => {
   try {
     const limite = Math.min(Math.max(Number(req.query.limite) || 10, 1), 100);
     const [produtos] = await getPool().query(
-      `SELECT ean, sku_id, nome, marca, n_consultas, ultima_em, primeira_em
-       FROM historico_produto WHERE utilizador = ? ORDER BY ultima_em DESC LIMIT ${limite}`,
+      `SELECT h.ean, h.sku_id,
+              COALESCE((SELECT pe1.nome FROM produto_ean pe1 WHERE pe1.ean = h.ean AND pe1.nome IS NOT NULL AND pe1.nome <> '' ORDER BY pe1.id LIMIT 1), h.nome) AS nome,
+              h.marca, h.n_consultas, h.ultima_em, h.primeira_em
+       FROM historico_produto h WHERE h.utilizador = ? ORDER BY h.ultima_em DESC LIMIT ${limite}`,
       [req.user.id]);
     const [[c]] = await getPool().query('SELECT COUNT(*) total FROM historico_produto WHERE utilizador = ?', [req.user.id]);
     res.json({ produtos, total: c.total });
