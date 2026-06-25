@@ -64,6 +64,11 @@ function metaTag(html, prop) {
   const m = html.match(re) || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, 'i'));
   return m ? m[1].trim() : null;
 }
+function fotoPagina(html) {
+  return metaTag(html, 'og:image') || metaTag(html, 'og:image:url') || metaTag(html, 'og:image:secure_url')
+    || metaTag(html, 'twitter:image') || metaTag(html, 'twitter:image:src')
+    || ((html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i) || [])[1] || null);
+}
 function textoVisivel(html) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -126,17 +131,22 @@ export async function importarDeUrl(urlBruto) {
   try { url = new URL(String(urlBruto).trim()); } catch { throw new Error('URL inválido'); }
   if (!/^https?:$/.test(url.protocol)) throw new Error('URL inválido');
   if (ehYoutube(url.hostname)) return importarYoutube(url);
-  const fonte = url.hostname.replace(/^www\./, '');
-  const base = { url: url.href, fonte, nome: null, foto: null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'erro', bruto: null };
 
-  let html = '';
+  // segue redirects (ex.: share.google, l.facebook, lnkd.in) e usa o URL FINAL para a fonte/link
+  let html = '', finalUrl = url.href;
   try {
     const r = await fetch(url.href, { headers: { 'User-Agent': UA, Accept: 'text/html,*/*', 'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.5' }, redirect: 'follow', signal: AbortSignal.timeout(13000) });
+    finalUrl = r.url || url.href;
     html = await r.text();
   } catch (e) {
-    // sem acesso à página (geo/bot/login) → guarda só o link
-    return { ...base, nome: fonte, bruto: `Não foi possível abrir a página (${e.message}).` };
+    const f = url.hostname.replace(/^www\./, '');
+    return { url: url.href, fonte: f, nome: f, foto: null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'erro', bruto: `Não foi possível abrir a página (${e.message}).` };
   }
+  let real = url; try { real = new URL(finalUrl); } catch { /* fica o original */ }
+  if (ehYoutube(real.hostname)) return importarYoutube(real); // redirect levou ao YouTube
+  const fonte = real.hostname.replace(/^www\./, '');
+  const fotoPag = fotoPagina(html);
+  const base = { url: finalUrl, fonte, nome: null, foto: null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'erro', bruto: null };
 
   // 1) JSON-LD Recipe
   const rec = lerJsonLd(html).find(ehReceita);
@@ -146,7 +156,7 @@ export async function importarDeUrl(urlBruto) {
     return {
       ...base, via: 'jsonld',
       nome: txt(rec.name) || metaTag(html, 'og:title') || fonte,
-      foto: primeiraImagem(rec.image) || metaTag(html, 'og:image'),
+      foto: primeiraImagem(rec.image) || fotoPag,
       ingredientes: (Array.isArray(ing) ? ing : [ing]).map(String).map((s) => s.trim()).filter(Boolean).slice(0, 60),
       preparo: ps.length ? ps.join('\n') : null,
       tempo: duracaoHumana(rec.totalTime) || duracaoHumana(rec.cookTime) || duracaoHumana(rec.prepTime),
@@ -156,7 +166,7 @@ export async function importarDeUrl(urlBruto) {
 
   // 2) OpenGraph + 3) LLM sobre o texto
   const ogTitle = metaTag(html, 'og:title') || (html.match(/<title>([^<]+)<\/title>/i) || [])[1] || fonte;
-  const ogImg = metaTag(html, 'og:image');
+  const ogImg = fotoPag;
   const ogDesc = metaTag(html, 'og:description') || metaTag(html, 'description');
   const texto = textoVisivel(html);
   const llm = texto.length > 200 ? await llmExtrai(texto, fonte) : null;
