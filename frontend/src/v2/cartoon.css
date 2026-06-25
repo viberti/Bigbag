@@ -189,6 +189,7 @@
 .v2 .web-dica{font:500 12.5px var(--font);color:var(--ink-3);margin:0 4px 14px;line-height:1.4}
 .v2 .web-dica b{color:var(--ink-2)}
 .v2 .web-noimg{display:grid!important;place-items:center;background:var(--leaf-soft)}
+.v2 .swrow>.rec-saved{margin-bottom:0}
 /* detalhe */
 .v2 .web-det{padding-bottom:20px}
 .v2 .web-det-img{width:100%;height:200px;object-fit:cover;border-radius:var(--r-sm);box-shadow:var(--sh-sm);margin:6px 0 12px;display:block}

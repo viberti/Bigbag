@@ -1999,6 +1999,20 @@ function ReceitaCard({ rec, onVoto, onVer, acao }) {
     </div>
   );
 }
+// Linha de receita "Da web" — abre ao tocar; apaga com swipe (sem botão ✕).
+function LinhaWeb({ r, onAbrir, onRemover }) {
+  const { dx, g, touch } = useSwipeDelete(() => onRemover(r));
+  return (
+    <div className="swrow">
+      <div className="swrow-bg"><Ico name="close" size={18} /></div>
+      <div className="rec-saved" role="button" style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }} {...touch}
+        onClick={() => { if (g.current.horiz) return; onAbrir(r); }}>
+        {r.foto ? <img className="rec-saved-img" src={r.foto} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} /> : <span className="rec-saved-img web-noimg"><Ico name="recipe" size={26} stroke={1.7} color="#3f7a3f" /></span>}
+        <div className="rec-saved-b"><div className="rec-saved-n">{r.nome || r.site_nome || r.fonte}</div><div className="rec-saved-u">{r.site_nome || r.fonte}{r.ingredientes?.length ? ` · ${r.ingredientes.length} ingredientes` : ''}</div></div>
+      </div>
+    </div>
+  );
+}
 function Receitas({ back }) {
   const [aba, setAba] = useState('sugestoes');
   const [deck, setDeck] = useState(null);   // lista de sugestões (carrossel horizontal)
@@ -2110,13 +2124,8 @@ function Receitas({ back }) {
               <p className="web-dica">Ou use <b>Compartilhar → BigBag</b> no navegador do celular para salvar sozinho.</p>
               {importadas == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 84, display: 'block' }} /></div>
                 : importadas.length === 0 ? <p className="empty">Nenhuma receita da web ainda. Cole um link acima — ou compartilhe uma página de receita para o BigBag.</p>
-                : importadas.map((r) => (
-                  <div className="rec-saved" key={r.id} role="button" onClick={() => setWebSel(r)}>
-                    {r.foto ? <img className="rec-saved-img" src={r.foto} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} /> : <span className="rec-saved-img web-noimg"><Ico name="recipe" size={26} stroke={1.7} color="#3f7a3f" /></span>}
-                    <div className="rec-saved-b"><div className="rec-saved-n">{r.nome || r.site_nome || r.fonte}</div><div className="rec-saved-u">{r.site_nome || r.fonte}{r.ingredientes?.length ? ` · ${r.ingredientes.length} ingredientes` : ''}</div></div>
-                    <button className="rec-saved-x" title="Apagar" onClick={(e) => { e.stopPropagation(); apagarImportada(r); }}><Ico name="close" size={16} stroke={2.4} /></button>
-                  </div>
-                ))}
+                : importadas.map((r) => <LinhaWeb key={r.id} r={r} onAbrir={setWebSel} onRemover={apagarImportada} />)}
+              {importadas?.length > 0 && <p className="web-dica" style={{ marginTop: 10 }}>Arraste um cartão para o lado para apagar.</p>}
             </>
           )
         ) : (
