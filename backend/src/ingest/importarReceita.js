@@ -64,6 +64,12 @@ function metaTag(html, prop) {
   const m = html.match(re) || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, 'i'));
   return m ? m[1].trim() : null;
 }
+function nomeDoSite(html, host) {
+  const og = (metaTag(html, 'og:site_name') || metaTag(html, 'application-name') || '').trim();
+  if (og) return og.slice(0, 120);
+  const base = String(host || '').replace(/^www\./, '').split('.')[0]; // panelinha.com.br → "Panelinha"
+  return base ? base.charAt(0).toUpperCase() + base.slice(1) : host;
+}
 function fotoPagina(html) {
   return metaTag(html, 'og:image') || metaTag(html, 'og:image:url') || metaTag(html, 'og:image:secure_url')
     || metaTag(html, 'twitter:image') || metaTag(html, 'twitter:image:src')
@@ -107,7 +113,7 @@ async function importarYoutube(url) {
     const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url.href)}`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(10000) });
     if (r.ok) oe = await r.json();
   } catch { /* sem oembed */ }
-  const base = { url: url.href, fonte: 'youtube.com', nome: oe?.title || 'Vídeo do YouTube', foto: oe?.thumbnail_url || null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'youtube', bruto: oe?.author_name ? `Vídeo de ${oe.author_name}` : null };
+  const base = { url: url.href, fonte: 'youtube.com', site_nome: 'YouTube', nome: oe?.title || 'Vídeo do YouTube', foto: oe?.thumbnail_url || null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'youtube', bruto: oe?.author_name ? `Vídeo de ${oe.author_name}` : null };
   try {
     const r = await fetch(url.href, { headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR,pt;q=0.9', Cookie: 'CONSENT=YES+1' }, signal: AbortSignal.timeout(12000) });
     const html = await r.text();
@@ -140,13 +146,13 @@ export async function importarDeUrl(urlBruto) {
     html = await r.text();
   } catch (e) {
     const f = url.hostname.replace(/^www\./, '');
-    return { url: url.href, fonte: f, nome: f, foto: null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'erro', bruto: `Não foi possível abrir a página (${e.message}).` };
+    return { url: url.href, fonte: f, site_nome: nomeDoSite('', url.hostname), nome: nomeDoSite('', url.hostname), foto: null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'erro', bruto: `Não foi possível abrir a página (${e.message}).` };
   }
   let real = url; try { real = new URL(finalUrl); } catch { /* fica o original */ }
   if (ehYoutube(real.hostname)) return importarYoutube(real); // redirect levou ao YouTube
   const fonte = real.hostname.replace(/^www\./, '');
   const fotoPag = fotoPagina(html);
-  const base = { url: finalUrl, fonte, nome: null, foto: null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'erro', bruto: null };
+  const base = { url: finalUrl, fonte, site_nome: nomeDoSite(html, real.hostname), nome: null, foto: null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'erro', bruto: null };
 
   // 1) JSON-LD Recipe
   const rec = lerJsonLd(html).find(ehReceita);

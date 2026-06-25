@@ -2093,7 +2093,7 @@ function Receitas({ back }) {
               <button className="rec-cat-back" onClick={() => setWebSel(null)}><Ico name="back" size={15} stroke={2.4} /> <span>Voltar</span></button>
               {webSel.foto && <img className="web-det-img" src={webSel.foto} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
               <h2 className="web-det-n">{webSel.nome || webSel.fonte}</h2>
-              <div className="web-det-meta">{[webSel.tempo, webSel.porcoes].filter(Boolean).join(' · ')}{(webSel.tempo || webSel.porcoes) ? ' · ' : ''}<a href={webSel.url} target="_blank" rel="noreferrer">{webSel.fonte}</a></div>
+              <div className="web-det-meta">{[webSel.tempo, webSel.porcoes].filter(Boolean).join(' · ')}{(webSel.tempo || webSel.porcoes) ? ' · ' : ''}<a href={webSel.url} target="_blank" rel="noreferrer">{webSel.site_nome || webSel.fonte}</a></div>
               {webSel.ingredientes?.length > 0 && (<><h3 className="web-det-h">Ingredientes</h3><ul className="web-det-ing">{webSel.ingredientes.map((x, k) => <li key={k}>{x}</li>)}</ul></>)}
               {webSel.preparo ? (<><h3 className="web-det-h">Modo de preparo</h3><div className="web-det-prep">{webSel.preparo.split('\n').filter(Boolean).map((p, k) => <p key={k}>{p}</p>)}</div></>)
                 : webSel.bruto ? (<><h3 className="web-det-h">Descrição</h3><div className="web-det-prep">{webSel.bruto.split('\n').filter(Boolean).map((p, k) => <p key={k}>{p}</p>)}</div></>) : null}
@@ -2113,7 +2113,7 @@ function Receitas({ back }) {
                 : importadas.map((r) => (
                   <div className="rec-saved" key={r.id} role="button" onClick={() => setWebSel(r)}>
                     {r.foto ? <img className="rec-saved-img" src={r.foto} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} /> : <span className="rec-saved-img web-noimg"><Ico name="recipe" size={26} stroke={1.7} color="#3f7a3f" /></span>}
-                    <div className="rec-saved-b"><div className="rec-saved-n">{r.nome || r.fonte}</div><div className="rec-saved-u">{r.fonte}{r.ingredientes?.length ? ` · ${r.ingredientes.length} ingredientes` : ''}</div></div>
+                    <div className="rec-saved-b"><div className="rec-saved-n">{r.nome || r.site_nome || r.fonte}</div><div className="rec-saved-u">{r.site_nome || r.fonte}{r.ingredientes?.length ? ` · ${r.ingredientes.length} ingredientes` : ''}</div></div>
                     <button className="rec-saved-x" title="Apagar" onClick={(e) => { e.stopPropagation(); apagarImportada(r); }}><Ico name="close" size={16} stroke={2.4} /></button>
                   </div>
                 ))}

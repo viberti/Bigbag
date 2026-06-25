@@ -126,7 +126,7 @@ receitasRouter.get('/gostei', requireAuth, async (req, res) => {
 
 // ===== Receitas IMPORTADAS da internet (partilhar/colar link → extrair e guardar) =====
 const mapImportada = (r) => ({
-  id: r.id, url: r.url, fonte: r.fonte, nome: r.nome, foto: r.foto,
+  id: r.id, url: r.url, fonte: r.fonte, site_nome: r.site_nome || null, nome: r.nome, foto: r.foto,
   ingredientes: parseJsonCol(r.ingredientes) || [], preparo: r.preparo, tempo: r.tempo,
   porcoes: r.porcoes, via: r.via, bruto: r.bruto, criado_em: r.criado_em,
 });
@@ -139,11 +139,11 @@ receitasRouter.post('/importar', requireAuth, async (req, res) => {
     const r = await importarDeUrl(url);
     const pool = getPool();
     await pool.query(
-      `INSERT INTO receita_importada (utilizador, url, fonte, nome, foto, ingredientes, preparo, tempo, porcoes, via, bruto)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE fonte=VALUES(fonte), nome=VALUES(nome), foto=VALUES(foto), ingredientes=VALUES(ingredientes),
+      `INSERT INTO receita_importada (utilizador, url, fonte, site_nome, nome, foto, ingredientes, preparo, tempo, porcoes, via, bruto)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE fonte=VALUES(fonte), site_nome=VALUES(site_nome), nome=VALUES(nome), foto=VALUES(foto), ingredientes=VALUES(ingredientes),
          preparo=VALUES(preparo), tempo=VALUES(tempo), porcoes=VALUES(porcoes), via=VALUES(via), bruto=VALUES(bruto)`,
-      [req.user.id, r.url, r.fonte, r.nome, r.foto, JSON.stringify(r.ingredientes || []), r.preparo, r.tempo, r.porcoes, r.via, r.bruto]);
+      [req.user.id, r.url, r.fonte, r.site_nome || null, r.nome, r.foto, JSON.stringify(r.ingredientes || []), r.preparo, r.tempo, r.porcoes, r.via, r.bruto]);
     const [[row]] = await pool.query('SELECT * FROM receita_importada WHERE utilizador=? AND url=?', [req.user.id, r.url]);
     res.json({ ok: true, receita: mapImportada(row) });
   } catch (e) { console.error('[receitas/importar]', e.message); res.status(500).json({ erro: 'Não consegui importar este link.' }); }
