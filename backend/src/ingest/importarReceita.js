@@ -115,15 +115,15 @@ const ehYoutube = (host) => /(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(host);
 // Transcrição/legendas do vídeo (quando existem): o URL da faixa está no JSON da página (captionTracks).
 // Preferimos PT; senão a 1.ª disponível. Lê o timedtext, tira as tags e devolve o texto corrido.
 async function transcricaoYoutube(html) {
-  const m = html.match(/"captionTracks":(\[[^\]]*\])/);
-  if (!m) return null;
-  let tracks; try { tracks = JSON.parse(m[1]); } catch { return null; }
-  if (!Array.isArray(tracks) || !tracks.length) return null;
-  const pt = tracks.find((t) => /^pt/i.test(t.languageCode || '')) || tracks[0];
-  let u = pt && pt.baseUrl; if (!u) return null;
-  u = u.replace(/\\u0026/g, '&').replace(/\\\//g, '/');
+  // extrai os URLs das faixas de legenda diretamente (o array tem objetos aninhados → não dá p/ JSON.parse);
+  // baseUrl vem relativo e com & escapado → torna absoluto. Prefere PT.
+  const urls = [...html.matchAll(/"baseUrl":"([^"]*timedtext[^"]*)"/g)]
+    .map((x) => x[1].replace(/\\u0026/g, '&').replace(/\\\//g, '/'));
+  if (!urls.length) return null;
+  let pick = urls.find((u) => /[?&](?:lang|tlang)=pt/i.test(u)) || urls[0];
+  if (!/^https?:/i.test(pick)) pick = `https://www.youtube.com${pick.startsWith('/') ? '' : '/'}${pick}`;
   try {
-    const xml = await fetch(u, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(12000) }).then((r) => r.text());
+    const xml = await fetch(pick, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(12000) }).then((r) => r.text());
     const t = xml.replace(/<[^>]+>/g, ' ')
       .replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&')
       .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
