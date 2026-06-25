@@ -1957,6 +1957,7 @@ function Receitas({ back }) {
   const [poucos, setPoucos] = useState(false);
   const [guardadas, setGuardadas] = useState(null);
   const [catSel, setCatSel] = useState(null); // categoria (ingrediente principal) escolhida nas Guardadas
+  const [busca, setBusca] = useState('');      // busca nas Guardadas (nome/ingredientes)
   const vistos = useRef(new Set());         // nomes já mostrados → não repetir
   const semMais = useRef(false);
   const aCarregar = useRef(false);
@@ -2005,7 +2006,7 @@ function Receitas({ back }) {
       <Ctop title="Receitas" sub="do que você tem em casa" back onBack={back} />
       <div className="rec-tabs">
         <button className={aba === 'sugestoes' ? 'on' : ''} onClick={() => setAba('sugestoes')}>Sugestões</button>
-        <button className={aba === 'guardadas' ? 'on' : ''} onClick={() => { setAba('guardadas'); setCatSel(null); carregarGostei(); }}>Guardadas{nGostei ? ` · ${nGostei}` : ''}</button>
+        <button className={aba === 'guardadas' ? 'on' : ''} onClick={() => { setAba('guardadas'); setCatSel(null); setBusca(''); carregarGostei(); }}>Guardadas{nGostei ? ` · ${nGostei}` : ''}</button>
       </div>
       <div className="scrollarea rec-wrap">
         {aba === 'sugestoes' ? (
@@ -2021,39 +2022,58 @@ function Receitas({ back }) {
         ) : (
           guardadas == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 84, display: 'block' }} /></div>
             : guardadas.length === 0 ? <p className="empty">Ainda não guardou receitas. Nas Sugestões, deslize ↑ (ou toque 👍) nas que gostar.</p>
-            : (catSel && guardadas.some((r) => catReceita(r) === catSel)) ? (() => {
-              const cat = [...REC_CATS, REC_CAT_OUTROS].find((c) => c.id === catSel);
-              return (
-                <>
-                  <button className="rec-cat-back" onClick={() => setCatSel(null)}><Ico name="back" size={15} stroke={2.4} /> <span>{cat?.emoji} {cat?.label}</span></button>
-                  <div className="rec-carousel">
-                    {guardadas.filter((r) => catReceita(r) === catSel).map((rec) => (
-                      <div className="rec-ccard" key={rec.nome}>
-                        <img className="rec-ccard-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
-                        <button className="rec-ccard-x" title="Remover das guardadas" onClick={() => remover(rec)}><Ico name="close" size={15} stroke={2.6} color="#fff" /></button>
-                        <div className="rec-ccard-b">
-                          <div className="rec-ccard-n">{rec.nome}</div>
-                          {rec.usa?.length > 0 && <div className="rec-ccard-u">{rec.usa.slice(0, 6).join(' · ')}</div>}
-                        </div>
+            : (
+              <>
+                <div className="rec-busca">
+                  <Ico name="search" size={17} stroke={2} />
+                  <input value={busca} onChange={(e) => { setBusca(e.target.value); setCatSel(null); }} placeholder="Buscar receita guardada…" aria-label="Buscar receita guardada" />
+                  {busca && <button className="rec-busca-x" title="Limpar" onClick={() => setBusca('')}><Ico name="close" size={14} stroke={2.6} /></button>}
+                </div>
+                {busca.trim() ? (() => {
+                  const q = busca.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+                  const res = guardadas.filter((r) => `${r.nome || ''} ${(r.usa || []).join(' ')}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(q));
+                  return res.length ? res.map((rec) => (
+                    <div className="rec-saved" key={rec.nome}>
+                      <img className="rec-saved-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+                      <div className="rec-saved-b"><div className="rec-saved-n">{rec.nome}</div>{rec.usa?.length > 0 && <div className="rec-saved-u">{rec.usa.slice(0, 4).join(' · ')}</div>}</div>
+                      <button className="rec-saved-x" title="Remover das guardadas" onClick={() => remover(rec)}><Ico name="close" size={16} stroke={2.4} /></button>
+                    </div>
+                  )) : <p className="empty">Nenhuma receita guardada encontrada.</p>;
+                })() : (catSel && guardadas.some((r) => catReceita(r) === catSel)) ? (() => {
+                  const cat = [...REC_CATS, REC_CAT_OUTROS].find((c) => c.id === catSel);
+                  return (
+                    <>
+                      <button className="rec-cat-back" onClick={() => setCatSel(null)}><Ico name="back" size={15} stroke={2.4} /> <span>{cat?.emoji} {cat?.label}</span></button>
+                      <div className="rec-carousel">
+                        {guardadas.filter((r) => catReceita(r) === catSel).map((rec) => (
+                          <div className="rec-ccard" key={rec.nome}>
+                            <img className="rec-ccard-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+                            <button className="rec-ccard-x" title="Remover das guardadas" onClick={() => remover(rec)}><Ico name="close" size={15} stroke={2.6} color="#fff" /></button>
+                            <div className="rec-ccard-b">
+                              <div className="rec-ccard-n">{rec.nome}</div>
+                              {rec.usa?.length > 0 && <div className="rec-ccard-u">{rec.usa.slice(0, 6).join(' · ')}</div>}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                      <div className="rec-hint">deslize na horizontal para folhear</div>
+                    </>
+                  );
+                })() : (
+                  <div className="rec-cats">
+                    {[...REC_CATS, REC_CAT_OUTROS]
+                      .map((c) => ({ ...c, n: guardadas.filter((r) => catReceita(r) === c.id).length }))
+                      .filter((c) => c.n > 0)
+                      .map((c) => (
+                        <button className="rec-cat" key={c.id} onClick={() => setCatSel(c.id)}>
+                          <span className="rec-cat-em">{c.emoji}</span>
+                          <span className="rec-cat-l">{c.label}</span>
+                          <span className="rec-cat-n">{c.n}</span>
+                        </button>
+                      ))}
                   </div>
-                  <div className="rec-hint">deslize na horizontal para folhear</div>
-                </>
-              );
-            })() : (
-              <div className="rec-cats">
-                {[...REC_CATS, REC_CAT_OUTROS]
-                  .map((c) => ({ ...c, n: guardadas.filter((r) => catReceita(r) === c.id).length }))
-                  .filter((c) => c.n > 0)
-                  .map((c) => (
-                    <button className="rec-cat" key={c.id} onClick={() => setCatSel(c.id)}>
-                      <span className="rec-cat-em">{c.emoji}</span>
-                      <span className="rec-cat-l">{c.label}</span>
-                      <span className="rec-cat-n">{c.n}</span>
-                    </button>
-                  ))}
-              </div>
+                )}
+              </>
             )
         )}
       </div>

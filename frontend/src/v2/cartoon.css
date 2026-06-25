@@ -118,6 +118,11 @@
 .v2 .rec-saved-n{font:800 15px var(--disp);color:var(--ink);line-height:1.15}
 .v2 .rec-saved-u{font:600 12px var(--font);color:var(--leaf-d);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v2 .rec-saved-x{flex:0 0 auto;width:32px;height:32px;border-radius:50%;border:0;background:var(--coral-soft);color:var(--coral);display:grid;place-items:center;cursor:pointer}
+/* GUARDADAS: busca por nome/ingrediente */
+.v2 .rec-busca{display:flex;align-items:center;gap:8px;background:var(--card);border:2px solid #fff;border-radius:var(--r-pill);box-shadow:var(--sh-sm);padding:9px 14px;margin-bottom:12px;color:var(--ink-3)}
+.v2 .rec-busca input{flex:1;border:0;background:none;outline:none;font:600 15px var(--font);color:var(--ink)}
+.v2 .rec-busca input::placeholder{color:var(--ink-3)}
+.v2 .rec-busca-x{flex:0 0 auto;width:24px;height:24px;border-radius:50%;border:0;background:var(--cream-2);color:var(--ink-2);display:grid;place-items:center;cursor:pointer}
 /* GUARDADAS: grelha de categorias (ingrediente principal) → ícone/emoji */
 .v2 .rec-cats{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;padding:2px}
 .v2 .rec-cat{position:relative;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);box-shadow:var(--sh-sm);padding:16px 8px 12px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
