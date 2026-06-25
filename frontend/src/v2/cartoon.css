@@ -122,7 +122,7 @@
 .v2 .ingl{font:700 11.5px var(--font);color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:9px}
 .v2 .ingl b{color:var(--leaf-d)}
 .v2 .chips{display:flex;flex-wrap:wrap;gap:7px}
-.v2 .ing{display:flex;align-items:center;gap:5px;font:600 12.5px var(--font);padding:6px 11px;border-radius:10px}
+.v2 .ing{display:flex;align-items:center;gap:6px;font:600 12.5px var(--font);padding:6px 14px;border-radius:11px}
 .v2 .ing.have{background:var(--leaf-soft);color:var(--leaf-d)}
 .v2 .ing.miss{background:#fff;color:var(--amber-d);border:1.5px dashed #e6c79e}
 /* barra de ações: Passar · Ver · Salvar */
