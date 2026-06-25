@@ -311,7 +311,7 @@ async function aplicarDadosEan(pool, itens) {
   const pathPorEan = new Map(paths.map((r) => [String(r.ean), r.path]));
   const marcaCatPorEan = new Map(paths.map((r) => [String(r.ean), r.marca]));
   const [pe] = await pool.query(
-    `SELECT ean, MAX(NULLIF(marca,'')) AS marca, MAX(NULLIF(quantidade,'')) AS quantidade FROM produto_ean WHERE ean IN (${ph}) GROUP BY ean`, eans);
+    `SELECT ean, MAX(NULLIF(nome,'')) AS nome, MAX(NULLIF(marca,'')) AS marca, MAX(NULLIF(quantidade,'')) AS quantidade FROM produto_ean WHERE ean IN (${ph}) GROUP BY ean`, eans);
   const pePorEan = new Map(pe.map((r) => [String(r.ean), r]));
   // formato do catálogo SÓ se for tamanho real (exclui "Nun" = parse de peso falhado)
   const [cf] = await pool.query(
@@ -322,6 +322,9 @@ async function aplicarDadosEan(pool, itens) {
     const r = precoPorEan.get(String(it.ean));
     if (r) { it.preco_ref = num(r.preco); it.preco_ref_loja = r.fonte || null; }
     const fe = pePorEan.get(String(it.ean));
+    // NOME: a ficha do EAN PREVALECE sobre o nome do talão (dono 2026-06-25: o EAN é a fonte canónica;
+    // o nome do recibo é a PIOR fonte — abreviado/errado. Identificado por scan → usar o nome da ficha).
+    if (fe?.nome) { it.nome_ean = true; it.nome = fe.nome; }
     // MARCA: catálogo > ficha > deteção no nome (caso Felicia 2026-06-13: o OFF
     // marca produtos de terceiros vendidos na Mercadona como "Hacendado"; o
     // catálogo da loja é curado e tem a forma limpa — mesma regra do nome PT-first).
