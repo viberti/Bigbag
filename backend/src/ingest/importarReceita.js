@@ -112,6 +112,26 @@ ${texto.slice(0, 7000)}`;
 
 const ehYoutube = (host) => /(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(host);
 
+// Transcrição/legendas do vídeo (quando existem): o URL da faixa está no JSON da página (captionTracks).
+// Preferimos PT; senão a 1.ª disponível. Lê o timedtext, tira as tags e devolve o texto corrido.
+async function transcricaoYoutube(html) {
+  const m = html.match(/"captionTracks":(\[[^\]]*\])/);
+  if (!m) return null;
+  let tracks; try { tracks = JSON.parse(m[1]); } catch { return null; }
+  if (!Array.isArray(tracks) || !tracks.length) return null;
+  const pt = tracks.find((t) => /^pt/i.test(t.languageCode || '')) || tracks[0];
+  let u = pt && pt.baseUrl; if (!u) return null;
+  u = u.replace(/\\u0026/g, '&').replace(/\\\//g, '/');
+  try {
+    const xml = await fetch(u, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(12000) }).then((r) => r.text());
+    const t = xml.replace(/<[^>]+>/g, ' ')
+      .replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+      .replace(/\s+/g, ' ').trim();
+    return t.length > 120 ? t.slice(0, 8000) : null;
+  } catch { return null; }
+}
+
 // YouTube: o watch page é JS + muro de consentimento (UE) → usar oEmbed (título+thumbnail) e ler a
 // DESCRIÇÃO do vídeo (onde a receita costuma estar) saltando o consentimento com o cookie CONSENT.
 async function importarYoutube(url) {
@@ -121,22 +141,27 @@ async function importarYoutube(url) {
     if (r.ok) oe = await r.json();
   } catch { /* sem oembed */ }
   const base = { url: url.href, fonte: 'youtube.com', site_nome: 'YouTube', nome: oe?.title || 'Vídeo do YouTube', foto: oe?.thumbnail_url || null, ingredientes: [], preparo: null, tempo: null, porcoes: null, via: 'youtube', bruto: oe?.author_name ? `Vídeo de ${oe.author_name}` : null };
+  let desc = null, transcricao = null;
   try {
     const r = await fetch(url.href, { headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR,pt;q=0.9', Cookie: 'CONSENT=YES+1' }, signal: AbortSignal.timeout(12000) });
     const html = await r.text();
     const m = html.match(/"shortDescription":"((?:[^"\\]|\\.)*)"/);
-    if (m) {
-      let desc = ''; try { desc = JSON.parse(`"${m[1]}"`); } catch { desc = m[1]; }
-      if (desc && desc.length > 80) {
-        const llm = await llmExtrai(desc, 'youtube');
-        if (llm && (llm.ingredientes.length || llm.preparo)) {
-          return { ...base, via: 'youtube+llm', ingredientes: llm.ingredientes, preparo: llm.preparo, tempo: llm.tempo, porcoes: llm.porcoes, bruto: desc.slice(0, 1500) };
-        }
-        return { ...base, bruto: desc.slice(0, 1500) }; // sem receita estruturada → guarda a descrição
-      }
+    if (m) { try { desc = JSON.parse(`"${m[1]}"`); } catch { desc = m[1]; } }
+    transcricao = await transcricaoYoutube(html); // legendas (opção 1) — onde a receita falada está
+  } catch { /* página indisponível — fica oembed */ }
+  // junta descrição + transcrição e deixa o LLM montar a receita
+  const material = [
+    desc && desc.length > 40 ? `Descrição do vídeo:\n${desc}` : null,
+    transcricao ? `Transcrição (legendas) do vídeo:\n${transcricao}` : null,
+  ].filter(Boolean).join('\n\n');
+  if (material.length > 120) {
+    const llm = await llmExtrai(material, 'vídeo do YouTube');
+    if (llm && (llm.ingredientes.length || llm.preparo)) {
+      return { ...base, via: transcricao ? 'youtube+transcricao' : 'youtube+llm', ingredientes: llm.ingredientes, preparo: llm.preparo, tempo: llm.tempo, porcoes: llm.porcoes, bruto: (desc || transcricao || '').slice(0, 1500) };
     }
-  } catch { /* descrição indisponível — fica oembed */ }
-  return base;
+  }
+  const fb = (desc && desc.length > 40) ? desc : (transcricao || base.bruto);
+  return { ...base, bruto: fb ? String(fb).slice(0, 1500) : base.bruto };
 }
 
 export async function importarDeUrl(urlBruto) {
