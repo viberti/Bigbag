@@ -122,7 +122,13 @@ export function escolherIngredientes(cands) {
     if (curtos > 3) s -= (curtos - 3) * 5;           // excesso de tokens de 1-2 letras = OCR
     return s;
   };
-  vivos.sort((a, b) => score(b.texto) - score(a.texto));
+  // PRIORIDADE POR FONTE (dono 2026-06-25): Nutripédia > supermercados do país > OFF/VLM/anterior.
+  // O OFF crowdsourced cola a lista PT+ES + frases de marketing → fica MAIS COMPRIDO mas é pior;
+  // só entra quando as lojas curadas não têm ingredientes. Dentro do MESMO nível, a pontuação de
+  // qualidade desempata (escolhe a loja mais limpa; e no último nível preserva a tradução PT do
+  // 'anterior' a vencer um OFF estrangeiro).
+  const tier = (f) => (f === 'manual' ? 0 : f === 'catalogo:nutripedia' ? 1 : f.startsWith('catalogo:') ? 2 : 3);
+  vivos.sort((a, b) => tier(a.fonte) - tier(b.fonte) || score(b.texto) - score(a.texto));
   return vivos[0];
 }
 
