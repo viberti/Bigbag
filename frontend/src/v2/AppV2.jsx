@@ -29,8 +29,8 @@ import './cartoon.css';
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
-const Ico = ({ name, size = 24, stroke, color }) =>
-  <span style={{ display: 'inline-grid' }} dangerouslySetInnerHTML={{ __html: ICON(name, { size, stroke, color }) }} />;
+const Ico = ({ name, size = 24, stroke, color, fill }) =>
+  <span style={{ display: 'inline-grid' }} dangerouslySetInnerHTML={{ __html: ICON(name, { size, stroke, color, fill }) }} />;
 const Mk = ({ size = 30, chip }) =>
   <span style={{ display: 'inline-grid' }} dangerouslySetInnerHTML={{ __html: BIGBAG_MARK({ size, chip }) }} />;
 // Moeda do utilizador (camada locale): definida no load da sessão (/api/me). `eur`
@@ -1912,6 +1912,23 @@ function catReceita(rec) {
   for (const c of REC_CATS) if (c.re.test(txt)) return c.id;
   return 'outros';
 }
+// ícones de categoria — set único mono-linha (do handoff), viewBox recortado p/ a arte encher o quadro
+const CAT_SVG = {
+  massa: '<path d="M4 11.5h16a8 8 0 0 1-16 0z"/><path d="M8.4 10.2c-1-1.6.4-3.1 1.6-2.3"/><path d="M12 10.2c-1-1.9.6-3.5 1.9-2.5"/><path d="M15.2 10.2c-.8-1.4.4-2.7 1.4-2"/>',
+  frango: '<path d="M15.7 8.3a4.2 4.2 0 1 0-6 4.4l-3.4 3.4a2.4 2.4 0 1 0 .8 4 2.4 2.4 0 0 0 4-.8l3.4-3.4a4.2 4.2 0 0 0 1.2-7.6z"/>',
+  carne: '<path d="M5 10c0-3 3.2-4.6 7-4.6s7 1.6 7 4.6c0 4.2-3.2 8.2-7 8.2S5 14.2 5 10z"/><path d="M8.8 9.6c2 1.3 4.4 1.3 6.4 0"/>',
+  peixe: '<path d="M3.5 12c2.6-3.7 8.4-3.7 11 0-2.6 3.7-8.4 3.7-11 0z"/><path d="M14.5 12l5-3.2v6.4z"/><circle cx="7.4" cy="10.7" r=".8" fill="currentColor" stroke="none"/>',
+  arroz: '<path d="M5 13.5h10a5 5 0 0 1-10 0z"/><path d="M11.5 12.8l7.5-5.3M12.7 14l7-4.6"/>',
+  sopa: '<path d="M4.5 12.5h15a7.5 7.5 0 0 1-15 0z"/><path d="M9 8c-.7-1 .3-2 .9-1.4M12 8c-.7-1 .3-2 .9-1.4M15 8c-.7-1 .3-2 .9-1.4"/>',
+  salada: '<path d="M3.6 13.5h16.8a8.4 8.4 0 0 1-16.8 0z"/><path d="M7.8 13c-2-2-1-5.2 1.6-4.8"/><path d="M12 13c-.4-3.4 2-5.4 4.4-4.2"/><path d="M10.6 13c-.3-2.2.8-3.8 2.2-3.6"/>',
+  ovos: '<path d="M8.6 6.8c2.7-1.5 6-.2 6.5 2.4.3 1.4-.3 2.1.6 3.3.9 1.3.1 3.2-1.5 3.5-1.2.2-1.8-.6-3.1-.4-1.6.3-2.7 1-4 .2-1.6-.9-1.6-3-1.1-4.3.3-1 .1-1.7-.2-2.6-.4-1.4.5-2.8 2.3-3.5z"/><circle cx="11" cy="11" r="2.4"/>',
+  doce: '<path d="M6 11.2h12l-1.1 7.1a1 1 0 0 1-1 .85H8.1a1 1 0 0 1-1-.85z"/><path d="M6 11.2a6 6 0 0 1 12 0z"/><path d="M12 5.2v2"/>',
+  outros: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="3.8"/>',
+};
+const CatIco = ({ id }) => (
+  <svg viewBox="3.4 3.4 17.5 17.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
+    style={{ display: 'block', width: '100%', height: '100%' }} dangerouslySetInnerHTML={{ __html: CAT_SVG[id] || CAT_SVG.outros }} />
+);
 // swipe VERTICAL para as receitas: ↑ = gostei (👍), ↓ = passar (👎).
 function useSwipeVert(onUp, onDown) {
   const [dy, setDy] = useState(0);
@@ -1926,26 +1943,55 @@ function useSwipeVert(onUp, onDown) {
   const onTouchEnd = () => { const r = g.current; r.mov = false; if (r.vert && r.dy < -80) onUp(); else if (r.vert && r.dy > 80) onDown(); setDy(0); };
   return { dy, touch: { onTouchStart, onTouchMove, onTouchEnd } };
 }
-function ReceitaCard({ rec, onVoto }) {
+function ReceitaCard({ rec, onVoto, onVer }) {
   const { dy, touch } = useSwipeVert(() => onVoto(rec, 1), () => onVoto(rec, -1));
   const tint = dy < -20 ? 'up' : dy > 20 ? 'down' : '';
+  const usa = rec.usa || [], falta = rec.falta || [];
+  const total = usa.length + falta.length, have = usa.length;
+  const pct = total ? Math.round((have / total) * 100) : 0;
+  const catId = catReceita(rec);
+  const catLabel = ([...REC_CATS, REC_CAT_OUTROS].find((c) => c.id === catId) || {}).label || 'Receita';
+  const mt = falta.length === 0 ? { b: 'Tem tudo!', s: 'pode fazer agora' }
+    : falta.length === 1 ? { b: 'Quase lá', s: 'falta 1 ingrediente' }
+    : { b: 'Dá pra fazer', s: `falta ${falta.length} ingredientes` };
   return (
     <div className={`rec-card ${tint}`} style={{ transform: `translateY(${dy}px) rotate(${dy * 0.015}deg)`, transition: dy ? 'none' : 'transform .2s' }} {...touch}>
-      <div className="rec-hero">
+      <div className="rphoto">
         <span className="rec-hero-ic"><Ico name="recipe" size={50} stroke={1.6} color="#3f7a3f" /></span>
         <img className="rec-img" src={fotoReceita(rec)} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-        {rec.tempo && <span className="rec-tempo">{rec.tempo}</span>}
-        {tint && <span className="rec-badge"><Ico name={tint === 'up' ? 'thumbup' : 'thumbdown'} size={30} stroke={2} color="#fff" /></span>}
+        <div className="rphoto-scrim" />
+        <div className="ptop">
+          {total > 0 ? (
+            <div className="match">
+              <span className="ring" style={{ background: `conic-gradient(var(--leaf-d) 0 ${pct}%, #dfe6da ${pct}% 100%)` }}><i>{have}/{total}</i></span>
+              <span className="mt"><b>{mt.b}</b><span>{mt.s}</span></span>
+            </div>
+          ) : <span />}
+          <div className="ptags">
+            {rec.tempo && <span className="pchip"><Ico name="clock" size={13} stroke={1.9} />{rec.tempo}</span>}
+            {rec.dificuldade && <span className="pchip"><Ico name="flame" size={13} stroke={1.9} />{rec.dificuldade}</span>}
+          </div>
+        </div>
+        {tint && <span className="rec-swipe-badge"><Ico name={tint === 'up' ? 'heart' : 'close'} size={28} stroke={2.4} color="#fff" fill={tint === 'up' ? '#fff' : 'none'} /></span>}
       </div>
-      <div className="rec-body">
-        <div className="rec-nome">{rec.nome}</div>
-        {rec.desc && <div className="rec-desc">{rec.desc}</div>}
-        {rec.usa?.length > 0 && <div className="rec-usa"><b>Usa: </b>{rec.usa.join(' · ')}</div>}
-        {rec.falta?.length > 0 && <div className="rec-falta"><b>Falta: </b>{rec.falta.join(', ')}</div>}
+      <div className="rbody">
+        <div className="rcat">{catLabel}{rec.refeicao ? ` · ${rec.refeicao}` : ''}</div>
+        <div className="rtitle">{rec.nome}</div>
+        {rec.desc && <div className="rdesc">{rec.desc}</div>}
+        {total > 0 && (
+          <div className="inged">
+            <div className="ingl">Ingredientes · <b>você tem {have} de {total}</b></div>
+            <div className="chips">
+              {usa.slice(0, 8).map((x, k) => <span className="ing have" key={`h${k}`}><Ico name="check" size={12} stroke={3} />{x}</span>)}
+              {falta.slice(0, 4).map((x, k) => <span className="ing miss" key={`m${k}`}><Ico name="plus" size={12} stroke={3} />{x}</span>)}
+            </div>
+          </div>
+        )}
       </div>
-      <div className="rec-acts">
-        <button className="rec-act" title="Passar" onClick={() => onVoto(rec, -1)}><Ico name="thumbdown" size={25} stroke={1.9} /></button>
-        <button className="rec-act" title="Gostei" onClick={() => onVoto(rec, 1)}><Ico name="thumbup" size={25} stroke={1.9} /></button>
+      <div className="actions">
+        <button className="act pass" title="Passar" onClick={() => onVoto(rec, -1)}><Ico name="close" size={24} stroke={1.9} /></button>
+        <button className="act view" title="Ver receita (em breve)" onClick={() => onVer && onVer(rec)}><Ico name="eye" size={27} stroke={1.8} /></button>
+        <button className="act like" title="Salvar" onClick={() => onVoto(rec, 1)}><Ico name="heart" size={24} stroke={1.6} fill="#fff" color="#fff" /></button>
       </div>
     </div>
   );
@@ -2004,16 +2050,20 @@ function Receitas({ back }) {
   return (
     <>
       <Ctop title="Receitas" sub="do que você tem em casa" back onBack={back} />
-      <div className="rec-tabs">
+      <div className="rec-seg">
         <button className={aba === 'sugestoes' ? 'on' : ''} onClick={() => setAba('sugestoes')}>Sugestões</button>
-        <button className={aba === 'guardadas' ? 'on' : ''} onClick={() => { setAba('guardadas'); setCatSel(null); setBusca(''); carregarGostei(); }}>Guardadas{nGostei ? ` · ${nGostei}` : ''}</button>
+        <button className={aba === 'guardadas' ? 'on' : ''} onClick={() => { setAba('guardadas'); setCatSel(null); setBusca(''); carregarGostei(); }}>Guardadas {nGostei ? <span className="b">{nGostei}</span> : null}</button>
       </div>
       <div className="scrollarea rec-wrap">
         {aba === 'sugestoes' ? (
           atual ? (
             <>
-              <ReceitaCard key={atual.nome + i} rec={atual} onVoto={votar} />
-              <div className="rec-hint">deslize ↑ para gostar · ↓ para passar</div>
+              <div className="rec-stack">
+                <span className="rcard-peek peek2" />
+                <span className="rcard-peek peek1" />
+                <ReceitaCard key={atual.nome + i} rec={atual} onVoto={votar} onVer={() => {}} />
+              </div>
+              <div className="rec-hint">deslize ↑ para <b>salvar</b> · ↓ para passar</div>
             </>
           ) : deck == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
             : poucos ? <p className="empty">Adicione itens à despensa ou registe uma compra para receber receitas com o que você tem em casa.</p>
@@ -2060,18 +2110,21 @@ function Receitas({ back }) {
                     </>
                   );
                 })() : (
-                  <div className="rec-cats">
-                    {[...REC_CATS, REC_CAT_OUTROS]
-                      .map((c) => ({ ...c, n: guardadas.filter((r) => catReceita(r) === c.id).length }))
-                      .filter((c) => c.n > 0)
-                      .map((c) => (
-                        <button className="rec-cat" key={c.id} onClick={() => setCatSel(c.id)}>
-                          <span className="rec-cat-em">{c.emoji}</span>
-                          <span className="rec-cat-l">{c.label}</span>
-                          <span className="rec-cat-n">{c.n}</span>
-                        </button>
-                      ))}
-                  </div>
+                  <>
+                    <div className="rec-cats-h"><h3>Categorias</h3></div>
+                    <div className="rec-cats">
+                      {[...REC_CATS, REC_CAT_OUTROS]
+                        .map((c) => ({ ...c, n: guardadas.filter((r) => catReceita(r) === c.id).length }))
+                        .filter((c) => c.n > 0)
+                        .map((c) => (
+                          <button className="rec-cat" key={c.id} onClick={() => setCatSel(c.id)}>
+                            <span className="rec-cat-badge">{c.n}</span>
+                            <span className="rec-cat-ic"><CatIco id={c.id} /></span>
+                            <span className="rec-cat-l">{c.label}</span>
+                          </button>
+                        ))}
+                    </div>
+                  </>
                 )}
               </>
             )

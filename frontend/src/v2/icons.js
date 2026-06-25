@@ -39,6 +39,9 @@ const P = {
   close: `<path d="M6 6l12 12M18 6L6 18"/>`,
   thumbup: `<path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/><path d="M7 10l4.5-7.2a1.4 1.4 0 0 1 2.5.9V8h5a2 2 0 0 1 2 2.3l-1.1 7a2 2 0 0 1-2 1.7H7"/>`,
   thumbdown: `<path d="M17 14V3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1z"/><path d="M17 14l-4.5 7.2a1.4 1.4 0 0 1-2.5-.9V16H5a2 2 0 0 1-2-2.3l1.1-7A2 2 0 0 1 6.1 5H17"/>`,
+  clock: `<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.8"/>`,
+  flame: `<path d="M12 3c2.6 3.6 4.5 5.6 4.5 8.6a4.5 4.5 0 0 1-9 0C7.5 9.4 9.4 7.6 12 3z"/>`,
+  eye: `<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3.1"/>`,
 };
 
 export function ICON(name, o = {}) {

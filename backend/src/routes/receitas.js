@@ -75,18 +75,20 @@ ${excluir.length ? `JÁ MOSTRADAS — NÃO repita NENHUMA: ${excluir.slice(-60).
 Sugira 20 receitas VARIADAS (e DIFERENTES das já mostradas) que usem MAJORITARIAMENTE os meus ingredientes (pode contar com básicos: sal, azeite, alho, cebola, ovos, água, farinha). Equilibre: VÁRIAS receitas devem usar as CARNES/PEIXES/PROTEÍNAS que comprei; varie o resto (saladas, sopas, massas, doces). Para cada:
 - "nome": curto e apetitoso, português do Brasil.
 - "tempo": aprox. (ex.: "25 min").
+- "dificuldade": "Fácil", "Médio" ou "Difícil".
+- "refeicao": "Café da manhã", "Almoço", "Jantar", "Lanche", "Sobremesa" ou "Acompanhamento".
 - "desc": 1 linha.
-- "usa": ingredientes-chave QUE USA (dos meus listados acima).
-- "falta": o que falta comprar (máx 2; vazio se nada falta).
+- "usa": ingredientes-chave QUE EU TENHO (dos meus listados acima) e que a receita usa.
+- "falta": ingredientes que a receita pede mas que NÃO estão na minha lista (o que eu teria de comprar; máx 3; vazio se nada falta).
 - "foto": 2 a 4 PALAVRAS-CHAVE EM INGLÊS do PRATO PRONTO (para buscar uma foto de stock), ex.: "tuna pasta", "grilled chicken salad", "greek yogurt bowl".
-Responda SÓ JSON: {"receitas":[{"nome":"...","tempo":"...","desc":"...","usa":["..."],"falta":["..."],"foto":"..."}]}`;
+Responda SÓ JSON: {"receitas":[{"nome":"...","tempo":"...","dificuldade":"...","refeicao":"...","desc":"...","usa":["..."],"falta":["..."],"foto":"..."}]}`;
     let receitas = [];
     try {
       const r = await chatCompletion({ messages: [{ role: 'user', content: prompt }], model: config.openrouter.modelConsulta, responseFormat: { type: 'json_object' }, contexto: 'receitas' });
       receitas = (JSON.parse(r || '{}').receitas || [])
         .filter((x) => x && x.nome && !evitar.has(norm(x.nome)))
         .slice(0, 20)
-        .map((x) => ({ nome: String(x.nome).slice(0, 120), tempo: x.tempo ? String(x.tempo).slice(0, 24) : null, desc: String(x.desc || '').slice(0, 200), usa: Array.isArray(x.usa) ? x.usa.map(String).slice(0, 8) : [], falta: Array.isArray(x.falta) ? x.falta.map(String).slice(0, 2) : [], foto: x.foto ? String(x.foto).slice(0, 80) : null }));
+        .map((x) => ({ nome: String(x.nome).slice(0, 120), tempo: x.tempo ? String(x.tempo).slice(0, 24) : null, dificuldade: x.dificuldade ? String(x.dificuldade).slice(0, 16) : null, refeicao: x.refeicao ? String(x.refeicao).slice(0, 24) : null, desc: String(x.desc || '').slice(0, 200), usa: Array.isArray(x.usa) ? x.usa.map(String).slice(0, 8) : [], falta: Array.isArray(x.falta) ? x.falta.map(String).slice(0, 3) : [], foto: x.foto ? String(x.foto).slice(0, 80) : null }));
     } catch (e) { console.error('[receitas] LLM:', e.message); }
     if (receitas.length && !excluir.length) { if (_cache.size > 200) _cache.clear(); _cache.set(hash, receitas); }
     await resolverFotos(receitas);
