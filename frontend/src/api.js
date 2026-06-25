@@ -426,6 +426,22 @@ export async function avaliarReceita(nome, voto, extra = {}) {
   const r = await call('/api/receitas/avaliar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome, voto, ...extra }) });
   return r.ok;
 }
+// Receitas importadas da internet (partilhar/colar link)
+export async function importarReceitaUrl(url) {
+  const r = await call('/api/receitas/importar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+  if (!r.ok) throw new Error(`importar ${r.status}`);
+  return r.json(); // { ok, receita }
+}
+export async function listarReceitasImportadas() {
+  const r = await call('/api/receitas/importadas');
+  if (!r.ok) throw new Error(`importadas ${r.status}`);
+  return (await r.json()).receitas || [];
+}
+export async function apagarReceitaImportada(id) {
+  const r = await call(`/api/receitas/importada/${id}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`apagar ${r.status}`);
+  return r.json();
+}
 export async function receitasGostei() {
   const r = await call('/api/receitas/gostei');
   if (!r.ok) return [];

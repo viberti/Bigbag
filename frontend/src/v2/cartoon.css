@@ -179,6 +179,28 @@
 .v2 .rec-ccard-b{padding:13px 15px 16px}
 .v2 .rec-ccard-n{font:800 18px var(--disp);color:var(--ink);line-height:1.18}
 .v2 .rec-ccard-u{font:600 13px var(--font);color:var(--leaf-d);margin-top:5px;line-height:1.4}
+/* ===== DA WEB: importar link + coleção + detalhe ===== */
+.v2 .web-import{display:flex;gap:8px;margin-bottom:8px}
+.v2 .web-import input{flex:1;min-width:0;border:2px solid #fff;background:var(--card);border-radius:var(--r-pill);box-shadow:var(--sh-sm);padding:11px 16px;font:600 14px var(--font);color:var(--ink);outline:none}
+.v2 .web-import input::placeholder{color:var(--ink-3)}
+.v2 .web-import button{flex:0 0 auto;border:0;border-radius:var(--r-pill);background:linear-gradient(145deg,var(--leaf),var(--leaf-d));color:#fff;font:800 14px var(--disp);padding:0 18px;cursor:pointer}
+.v2 .web-import button:disabled{opacity:.6}
+.v2 .web-erro{font:600 13px var(--font);color:var(--coral);margin:2px 4px 6px}
+.v2 .web-dica{font:500 12.5px var(--font);color:var(--ink-3);margin:0 4px 14px;line-height:1.4}
+.v2 .web-dica b{color:var(--ink-2)}
+.v2 .web-noimg{display:grid!important;place-items:center;background:var(--leaf-soft)}
+/* detalhe */
+.v2 .web-det{padding-bottom:20px}
+.v2 .web-det-img{width:100%;height:200px;object-fit:cover;border-radius:var(--r-sm);box-shadow:var(--sh-sm);margin:6px 0 12px;display:block}
+.v2 .web-det-n{font:800 22px var(--disp);color:var(--ink);line-height:1.12}
+.v2 .web-det-meta{font:600 13px var(--font);color:var(--ink-2);margin-top:6px}
+.v2 .web-det-meta a{color:var(--leaf-d);text-decoration:underline}
+.v2 .web-det-h{font:800 13px var(--disp);color:var(--leaf-d);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
+.v2 .web-det-ing{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+.v2 .web-det-ing li{font:500 14.5px var(--font);color:var(--ink);line-height:1.35}
+.v2 .web-det-prep p{font:500 14.5px var(--font);color:var(--ink);line-height:1.5;margin-bottom:9px}
+.v2 .web-det-acts{display:flex;gap:10px;margin-top:20px}
+.v2 .cbtn-ghost{background:var(--card);border:2px solid #e7e1d5;color:var(--ink-2)}
 .v2 .quick{display:flex;justify-content:space-between;gap:3px;padding:16px 0 4px}
 .v2 .quick .round-act{flex:1;min-width:0;gap:6px}
 .v2 .quick .round-act b{font-size:10.5px;letter-spacing:-.02em}
