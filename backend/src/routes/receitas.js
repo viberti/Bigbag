@@ -30,19 +30,26 @@ async function fotoPexels(query) {
 }
 const resolverFotos = (recs) => Promise.all(recs.map(async (x) => { if (!x.foto_url) x.foto_url = await fotoPexels(x.foto); }));
 
-// Ingredientes disponíveis: despensa (nome PT canónico) + comprados nos últimos 7 dias (talões).
+// Ingredientes disponíveis, em DOIS grupos para o prompt poder priorizar:
+//  - comprados: o que entrou nos talões dos últimos 7 dias (mais recente 1.º) — sinal FRESCO e forte
+//    (carnes/peixes que se acabou de comprar devem virar pratos); deduplicado.
+//  - despensa: o que se tem em casa (base/temperos/acompanhamentos), excluindo o que já está em comprados.
 async function ingredientesDisponiveis(pool) {
   const [desp] = await pool.query(
     `SELECT COALESCE(c.nome_pt, d.nome) AS nome FROM despensa d LEFT JOIN ean_classificacao c ON c.ean = d.ean`);
-  const [comprados] = await pool.query(
-    `SELECT DISTINCT COALESCE(s.nome_canonico, i.descricao_original) AS nome FROM item i
+  const [comp] = await pool.query(
+    `SELECT COALESCE(s.nome_canonico, i.descricao_original) AS nome, MAX(f.data_compra) AS dc FROM item i
        JOIN fatura f ON f.id = i.fatura_id LEFT JOIN sku_normalizado s ON s.id = i.sku_id
       WHERE f.data_compra >= (CURDATE() - INTERVAL 7 DAY)
         AND COALESCE(s.nome_canonico, i.descricao_original) IS NOT NULL AND COALESCE(s.nome_canonico, i.descricao_original) <> ''
-        AND (i.is_non_product IS NULL OR i.is_non_product = 0) LIMIT 150`);
-  const set = new Map();
-  for (const r of [...desp, ...comprados]) { const n = String(r.nome || '').trim(); if (n) set.set(norm(n), n); }
-  return [...set.values()];
+        AND (i.is_non_product IS NULL OR i.is_non_product = 0)
+      GROUP BY nome ORDER BY dc DESC LIMIT 120`);
+  const visto = new Set();
+  const comprados = [];
+  for (const r of comp) { const n = String(r.nome || '').trim(); const k = norm(n); if (n && !visto.has(k)) { visto.add(k); comprados.push(n); } }
+  const despensa = [];
+  for (const r of desp) { const n = String(r.nome || '').trim(); const k = norm(n); if (n && !visto.has(k)) { visto.add(k); despensa.push(n); } }
+  return { comprados, despensa, total: comprados.length + despensa.length };
 }
 
 // GET /api/receitas → 6 sugestões a partir dos ingredientes + gostos.
@@ -50,21 +57,22 @@ receitasRouter.get('/', requireAuth, async (req, res) => {
   try {
     const pool = getPool();
     const excluir = String(req.query.ex || '').split('||').map((s) => s.trim()).filter(Boolean).slice(0, 60); // já vistas nesta sessão
-    const ingredientes = await ingredientesDisponiveis(pool);
-    if (ingredientes.length < 4) return res.json({ receitas: [], poucos: true });
+    const ing = await ingredientesDisponiveis(pool);
+    if (ing.total < 4) return res.json({ receitas: [], poucos: true });
     const [votos] = await pool.query('SELECT nome, voto FROM receita_avaliacao WHERE utilizador = ?', [req.user.id]);
     const gostei = votos.filter((v) => v.voto > 0).map((v) => v.nome);
     const naoGostei = votos.filter((v) => v.voto < 0).map((v) => v.nome);
     const jaVistas = [...new Set([...gostei, ...naoGostei, ...excluir])];
     const evitar = new Set(jaVistas.map(norm)); // não repetir o já avaliado/mostrado
-    const hash = createHash('sha1').update(JSON.stringify([[...ingredientes].sort(), [...gostei].sort(), [...naoGostei].sort()])).digest('hex').slice(0, 16);
+    const hash = createHash('sha1').update(JSON.stringify([[...ing.comprados].sort(), [...ing.despensa].sort(), [...gostei].sort(), [...naoGostei].sort()])).digest('hex').slice(0, 16);
     if (!excluir.length && _cache.has(hash)) { const recs = _cache.get(hash); await resolverFotos(recs); return res.json({ receitas: recs, cacheada: true }); }
-    const prompt = `Sou cozinheiro caseiro. Tenho estes ingredientes (na despensa ou comprados nos últimos 7 dias):
-${ingredientes.slice(0, 150).join(', ')}.
+    const prompt = `Sou cozinheiro caseiro.
+COMPREI nos últimos 7 dias (DÊ PRIORIDADE a estes — sobretudo CARNES, PEIXES e outras PROTEÍNAS, que devem ser a base de VÁRIAS receitas): ${ing.comprados.slice(0, 100).join(', ') || '(nada recente)'}.
+TENHO na despensa (base, temperos e acompanhamentos): ${ing.despensa.slice(0, 120).join(', ') || '(vazia)'}.
 ${gostei.length ? `RECEITAS QUE GOSTEI (sugira no MESMO estilo, mas não as repita): ${gostei.slice(-30).join('; ')}.` : ''}
 ${naoGostei.length ? `EVITE o estilo destas que NÃO gostei: ${naoGostei.slice(-30).join('; ')}.` : ''}
 ${excluir.length ? `JÁ MOSTRADAS — NÃO repita NENHUMA: ${excluir.slice(-60).join('; ')}.` : ''}
-Sugira 20 receitas VARIADAS (e DIFERENTES das já mostradas) que usem MAJORITARIAMENTE os meus ingredientes (pode contar com básicos: sal, azeite, alho, cebola, ovos, água, farinha). Varie bastante (entradas, pratos principais, saladas, sopas, doces). Para cada:
+Sugira 20 receitas VARIADAS (e DIFERENTES das já mostradas) que usem MAJORITARIAMENTE os meus ingredientes (pode contar com básicos: sal, azeite, alho, cebola, ovos, água, farinha). Equilibre: VÁRIAS receitas devem usar as CARNES/PEIXES/PROTEÍNAS que comprei; varie o resto (saladas, sopas, massas, doces). Para cada:
 - "nome": curto e apetitoso, português do Brasil.
 - "tempo": aprox. (ex.: "25 min").
 - "desc": 1 linha.
@@ -82,7 +90,7 @@ Responda SÓ JSON: {"receitas":[{"nome":"...","tempo":"...","desc":"...","usa":[
     } catch (e) { console.error('[receitas] LLM:', e.message); }
     if (receitas.length && !excluir.length) { if (_cache.size > 200) _cache.clear(); _cache.set(hash, receitas); }
     await resolverFotos(receitas);
-    res.json({ receitas, base: { despensa_e_compras: ingredientes.length, gostei: gostei.length } });
+    res.json({ receitas, base: { comprados: ing.comprados.length, despensa: ing.despensa.length, gostei: gostei.length } });
   } catch (e) { console.error('[receitas]', e.message); res.status(500).json({ erro: 'Falha ao gerar receitas' }); }
 });
 
