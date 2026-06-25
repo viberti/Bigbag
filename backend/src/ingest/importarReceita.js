@@ -43,7 +43,7 @@ function passos(ri) {
 // extrai todos os blocos <script type="application/ld+json"> e devolve objetos achatados (@graph incl.)
 function lerJsonLd(html) {
   const out = [];
-  const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  const re = /<script[^>]+type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi;
   let m;
   while ((m = re.exec(html))) {
     try {
@@ -59,10 +59,16 @@ const ehReceita = (o) => {
   return t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'));
 };
 
+// lê <meta property|name=prop content=...> — tolerante a atributos SEM aspas (ex.: Panelinha)
 function metaTag(html, prop) {
-  const re = new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`, 'i');
-  const m = html.match(re) || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, 'i'));
-  return m ? m[1].trim() : null;
+  const pe = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`<meta\\b[^>]*?(?:property|name)\\s*=\\s*["']?${pe}["'\\s/>][^>]*>`, 'i');
+  const m = html.match(re);
+  if (!m) return null;
+  const q = m[0].match(/content\s*=\s*(["'])([\s\S]*?)\1/i);   // content com aspas
+  if (q) return q[2].trim();
+  const u = m[0].match(/content\s*=\s*([^\s/>]+)/i);            // content sem aspas
+  return u ? u[1].trim() : null;
 }
 function nomeDoSite(html, host) {
   const og = (metaTag(html, 'og:site_name') || metaTag(html, 'application-name') || '').trim();
