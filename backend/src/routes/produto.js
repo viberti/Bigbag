@@ -463,13 +463,19 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   // (Nutripédia > lojas > OFF). O read passa a CONSUMI-los em vez de tirar do off/vlm cru.
   const ingredientesFicha = (rows.find((r) => r.ingredientes && String(r.ingredientes).trim())?.ingredientes) || null;
   const alergeniosFicha = (rows.find((r) => r.alergenios && String(r.alergenios).trim())?.alergenios) || null;
+  // NUTRIÇÃO + TAMANHO fundidos da ficha — a fonte que o app DEVE mostrar. Só quando a ficha não tem
+  // (scan fresco ainda sem ficha, ou só estimativa genérica) é que se cai para as fontes cruas/genérico.
+  const temV = (o) => o && Object.values(o).some((v) => v != null);
+  const nutFicha = parseJson(rows.find((r) => r.nutricao)?.nutricao);
+  const nutricaoDisplay = temV(nutFicha) ? nutFicha : (off?.nutricao_100g || vlm?.nutricao_100g || base?.nutricao_100g || generico?.nutricao_100g || null);
+  const tamanhoFicha = (rows.find((r) => r.quantidade && String(r.quantidade).trim())?.quantidade) || off?.quantidade || vlm?.quantidade || base?.quantidade || null;
   return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo,
-    ingredientes: ingredientesFicha, alergenios: alergeniosFicha, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut,
+    ingredientes: ingredientesFicha, alergenios: alergeniosFicha, nutricao_100g: nutricaoDisplay, tamanho: tamanhoFicha, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut,
     // ficha MAGRA = nem nutrição nem imagem: não temos como mostrar nada útil. Mesmo que haja um
     // nome/marca (talvez só DECODIFICADO do EAN), o scan deve pedir FOTOS (VLM) em vez de abrir
     // uma ficha inútil. (sugestão de gémeo já passa pelo gate de precisão `nomeCondizGemeo`.)
     ficha_magra: !temNutFinal && !imagemCatalogo,
-    nutriscore_calc: nutriScore(off?.nutricao_100g || vlm?.nutricao_100g || base?.nutricao_100g || generico?.nutricao_100g || null) };
+    nutriscore_calc: nutriScore(nutricaoDisplay) };
 }
 
 const MAX_FOTOS = 10;
@@ -1441,7 +1447,7 @@ produtoRouter.get('/analise', requireAuth, async (req, res) => {
       nome: info.off?.nome || info.vlm?.nome || info.generico?.alimento || info.nome || null,
       categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
       ingredientes: info.ingredientes || info.vlm?.ingredientes || info.off?.ingredientes || null,
-      nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
+      nutricao_100g: info.nutricao_100g || info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
       nutriscore: info.off?.nutriscore || null,
       nova: info.off?.nova ?? (ehFresco ? 1 : null), // fresco/inteiro → NOVA 1
     };
@@ -1488,7 +1494,7 @@ produtoRouter.get('/personalizado', requireAuth, async (req, res) => {
       categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
       ingredientes: info.ingredientes || info.vlm?.ingredientes || info.off?.ingredientes || null,
       alergenios: info.off?.alergenios || info.vlm?.alergenios || null,
-      nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
+      nutricao_100g: info.nutricao_100g || info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
       nutriscore: info.off?.nutriscore || null,
       nova: info.off?.nova ?? null,
     };
@@ -1567,7 +1573,7 @@ produtoRouter.post('/comparar', requireAuth, async (req, res) => {
         categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
         ingredientes: info.ingredientes || info.vlm?.ingredientes || info.off?.ingredientes || null,
         alergenios: info.off?.alergenios || info.vlm?.alergenios || null,
-        nutricao_100g: info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
+        nutricao_100g: info.nutricao_100g || info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
         nutriscore: info.off?.nutriscore || null,
         nova: info.off?.nova ?? null,
       };

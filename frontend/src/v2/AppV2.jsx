@@ -1112,7 +1112,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const nut = (() => {
     const s = info && !info.erro ? info : {};
     const temValor = (o) => o && Object.values(o).some((v) => v != null && v !== '');
-    return [s.base?.nutricao_100g, s.off?.nutricao_100g, s.generico?.nutricao_100g, s.vlm?.nutricao_100g].find(temValor) || {};
+    return [s.nutricao_100g, s.base?.nutricao_100g, s.off?.nutricao_100g, s.generico?.nutricao_100g, s.vlm?.nutricao_100g].find(temValor) || {};
   })();
   const num = (...ks) => { for (const k of ks) { const v = nut[k]; if (v != null && !Number.isNaN(Number(v))) return Number(v); } return null; };
   const nomeProd = nomeTalao(info?.nome || info?.vlm?.nome || info?.off?.nome || info?.base?.nome || nome || 'Produto');
@@ -1143,7 +1143,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const ehAlimento = temNut || !!grau;
   const marcaViaEan = info?.marca_via === 'ean_empresa'; // marca veio do prefixo do EAN (voto), não de uma fonte
   const marcaP = info?.marca || info?.off?.marca || info?.vlm?.marca || info?.base?.marca || null;
-  const tamanhoP = info?.off?.quantidade || info?.vlm?.quantidade || info?.base?.quantidade || null;
+  const tamanhoP = info?.tamanho || info?.off?.quantidade || info?.vlm?.quantidade || info?.base?.quantidade || null;
   // NOTA: não mostramos "categoria" no layout não-alimento — o classificador (grupoDeNome)
   // é orientado a alimentos e erra em não-alimentos ("Leite de Proteção Solar"→Laticínios).
   // Uma categoria fiável p/ não-alimentos precisa do campo product_type (ver backlog).
@@ -1253,7 +1253,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
           {(() => { const ing = info?.ingredientes || info?.vlm?.ingredientes || info?.off?.ingredientes; return ing ? (
             <>
               <button className={`acc ${open.ing ? 'open' : ''}`} onClick={() => setOpen((o) => ({ ...o, ing: !o.ing }))}><span>Ingredientes</span><Ico name="chevron" size={16} stroke={2.6} /></button>
-              {open.ing && <div className="acc-body"><p>{ing}</p>{(info?.vlm?.alergenios || info?.off?.alergenios) && <div className="alerg">⚠ Alergénios: <b>{info?.vlm?.alergenios || info?.off?.alergenios}</b></div>}</div>}
+              {open.ing && <div className="acc-body"><p>{ing}</p>{(info?.alergenios || info?.vlm?.alergenios || info?.off?.alergenios) && <div className="alerg">⚠ Alergénios: <b>{info?.alergenios || info?.vlm?.alergenios || info?.off?.alergenios}</b></div>}</div>}
             </>
           ) : null; })()}
           {ehAlimento && <>
