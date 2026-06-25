@@ -13,6 +13,16 @@ cd "$(dirname "$0")/.."
 FRONT=0
 [[ "${1:-}" == "-f" ]] && FRONT=1
 
+# 0) bump da versão: incrementa o último segmento do package.json para o número que o
+# utilizador vê MUDAR a cada deploy do frontend (a versão é baked no build, logo só faz
+# sentido com -f). Commita+push (git push é livre) antes da checagem de commits por enviar.
+if [[ "$FRONT" == "1" ]]; then
+  NEWVER=$(node -e "const f='frontend/package.json',fs=require('fs'),p=JSON.parse(fs.readFileSync(f));const a=String(p.version).split('.');a[a.length-1]=String((parseInt(a[a.length-1],10)||0)+1);p.version=a.join('.');fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n');console.log(p.version)")
+  if [[ -n "$(git status --porcelain frontend/package.json)" ]]; then
+    git add frontend/package.json && git commit -q -m "Versão $NEWVER" && git push -q && echo "versão → $NEWVER"
+  fi
+fi
+
 # 1) sanity local: sintaxe dos ficheiros backend tocados nos últimos commits
 for f in $(git diff --name-only HEAD~3 2>/dev/null | grep '^backend/.*\.js$' || true); do
   [[ -f "$f" ]] && node --check "$f" && echo "check OK: $f"
