@@ -95,6 +95,36 @@ await pool.query(
     WHERE o.paises_tags LIKE '%portugal%' AND ${EAN_OK} AND o.nome IS NOT NULL AND o.nome <> ''`,
 );
 
+// Passo 3 (2026-06-25): SOBREPOR a FICHA FUNDIDA (produto_ean = fonte canónica) — nome/marca/
+// ingredientes/nutrição/alergénios já decididos pelo fusor (Nutripédia>lojas>OFF) vencem o que o
+// bootstrap pôs. Preserva o que a ficha NÃO tem (COALESCE) e o product_type/nutriscore/nova da base.
+// DELETE+INSERT (não ON DUPLICATE) para ganhar `seq` novo → as linhas mudadas RE-SINCRONIZAM no telefone.
+console.log('[base_local] passo 3: sobrepor a ficha fundida (produto_ean)…');
+await pool.query('DROP TEMPORARY TABLE IF EXISTS bl_merge');
+await pool.query(
+  `CREATE TEMPORARY TABLE bl_merge AS
+   SELECT pe.ean,
+     LEFT(COALESCE(NULLIF(pe.nome,''), b.nome),255) nome,
+     LEFT(COALESCE(NULLIF(pe.marca,''), b.marca),120) marca,
+     LEFT(COALESCE(NULLIF(pe.quantidade,''), b.quantidade),80) quantidade,
+     LEFT(COALESCE(NULLIF(pe.categoria,''), b.categoria),120) categoria,
+     b.product_type, LEFT(COALESCE(NULLIF(pe.alergenios,''), b.alergenios),255) alergenios,
+     b.nutriscore, b.nova,
+     COALESCE(pe.nutricao, b.nutricao) nutricao,
+     LEFT(COALESCE(NULLIF(pe.ingredientes,''), b.ingredientes),1200) ingredientes,
+     COALESCE(b.origem,'uso') origem
+   FROM produto_ean pe LEFT JOIN base_local b ON b.ean = pe.ean
+   WHERE pe.ean IS NOT NULL AND pe.ean <> '' AND pe.nome IS NOT NULL AND pe.nome <> ''`,
+);
+await pool.query('DELETE FROM base_local WHERE ean IN (SELECT ean FROM bl_merge)');
+await pool.query(
+  `INSERT INTO base_local (ean,nome,marca,quantidade,categoria,product_type,alergenios,nutriscore,nova,nutricao,ingredientes,origem)
+   SELECT ean,nome,marca,quantidade,categoria,product_type,alergenios,nutriscore,nova,nutricao,ingredientes,origem FROM bl_merge`,
+);
+const [[ov]] = await pool.query('SELECT COUNT(*) n FROM bl_merge');
+console.log(`[base_local] passo 3: ${ov.n} fichas sobrepostas`);
+await pool.query('DROP TEMPORARY TABLE IF EXISTS bl_merge');
+
 await pool.query('DROP TEMPORARY TABLE IF EXISTS bl_cat');
 
 // Relatório
