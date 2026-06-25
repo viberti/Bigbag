@@ -249,6 +249,9 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   let base = rows.find((r) => r.nome || r.marca)
     ? (() => { const r = rows.find((x) => x.nome || x.marca); return { nome: r.nome, marca: r.marca, quantidade: r.quantidade, categoria: r.categoria, fonte: r.fonte }; })()
     : null;
+  // NOME: quando há EAN, a ficha do EAN (produto_ean.nome) é a fonte CANÓNICA e vence o nome do
+  // SKU/talão (dono 2026-06-25: o EAN identifica o produto; o nome do recibo é a pior fonte).
+  if (ean && base?.nome) nome = base.nome;
   // nome PT-first (scan/busca, sem item da nota). Ordem:
   //  1) nome_canonico do SKU — a NOSSA canonicalização PT (ex.: o iogurte grego
   //     Hacendado do Mercadona vira "Iogurte Grego Natural", como no talão);
