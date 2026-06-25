@@ -84,17 +84,17 @@ export async function consultarOuGuardar(ean, { traduzir = false } = {}) {
     const f = r.ficha;
     try {
       await pool.query(
-        `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, nutricao_confirmada, fonte, off_json, fusao)
-           VALUES (?,NULL,NULL,?,?,?,?,?,?,?,?,?,?,?,?)
+        `INSERT INTO produto_ean (ean, item_id, sku_id, nome, marca, quantidade, categoria, ingredientes, alergenios, validade, nutricao, nutricao_confirmada, fonte, off_json, fusao, imagem_url)
+           VALUES (?,NULL,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE nome=VALUES(nome), marca=VALUES(marca), quantidade=VALUES(quantidade), categoria=VALUES(categoria),
            ingredientes=VALUES(ingredientes), alergenios=VALUES(alergenios), validade=COALESCE(VALUES(validade), validade),
            nutricao=VALUES(nutricao), nutricao_confirmada=VALUES(nutricao_confirmada), fonte=VALUES(fonte),
-           off_json=COALESCE(VALUES(off_json), off_json), fusao=VALUES(fusao)`,
+           off_json=COALESCE(VALUES(off_json), off_json), fusao=VALUES(fusao), imagem_url=COALESCE(VALUES(imagem_url), imagem_url)`,
         [ean, lim(f.nome, 200), lim(f.marca, 120), lim(f.quantidade, 60), lim(f.categoria, 255),
           f.ingredientes, f.alergenios, lim(f.validade, 60),
           f.nutricao ? JSON.stringify(f.nutricao) : null, f.nutricao_confirmada,
           (r.fusao.proveniencia.nome || 'fusao').slice(0, 10),
-          r.off ? JSON.stringify(r.off) : null, JSON.stringify(r.fusao)],
+          r.off ? JSON.stringify(r.off) : null, JSON.stringify(r.fusao), lim(f.imagem_url, 500)],
       );
       await guardarNomes(ean, null, [{ nome: f.nome, origem: (r.fusao.proveniencia.nome || 'fusao').slice(0, 20) }]);
       await atualizarConteudoFicha(pool, ean);
@@ -323,13 +323,16 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   const nutricaoProvisoria = !off?.nutricao_100g && rows.some((r) => r.nutricao && r.nutricao_confirmada === 0);
   // foto de CATÁLOGO do produto (hotlink; ~52k disponíveis): dá cara à ficha
   // mesmo sem fotos do utilizador. Por EAN direto, ou pelo ean_inferido (PD).
-  let imagemCatalogo = null, catalogoCategoria = null, catalogoTipo = null;
+  // IMAGEM da ficha (produto_ean.imagem_url) — fonte centralizada; o catálogo só para categoria/tipo
+  // (e como fallback da imagem se a ficha ainda não a tiver).
+  const fichaImg = rows.find((r) => r.imagem_url && String(r.imagem_url).trim())?.imagem_url || null;
+  let imagemCatalogo = fichaImg, catalogoCategoria = null, catalogoTipo = null;
   if (ean) {
     const [[img]] = await getPool().query(
       `SELECT imagem_url, categoria, product_type FROM catalogo_produto
         WHERE (ean = ? OR ean_inferido = ?) AND ((imagem_url IS NOT NULL AND imagem_url <> '') OR (categoria IS NOT NULL AND categoria <> '') OR product_type IS NOT NULL)
         ORDER BY (product_type IS NOT NULL) DESC, (imagem_url IS NOT NULL AND imagem_url <> '') DESC LIMIT 1`, [ean, ean]);
-    imagemCatalogo = img?.imagem_url || null;
+    imagemCatalogo = fichaImg || img?.imagem_url || null;
     catalogoCategoria = img?.categoria || null;
     catalogoTipo = img?.product_type || null;
   }
@@ -869,7 +872,7 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     const skuId = Number(req.query.sku_id) || null;
     if (!itemId && !eanQ && !skuId) return res.status(400).json({ erro: 'item_id, sku_id ou ean em falta' });
     const info = await consolidarProduto({ itemId, eanQ, skuId, pais: req.user?.pais });
-    const nutAtual = info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null;
+    const nutAtual = info.nutricao_100g || info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null;
     // LOCALIZAÇÃO: só sugerir produtos vendidos no PAÍS do utilizador (fontes do catálogo desse país) —
     // não faz sentido propor um produto só-BR a um user PT, e vice-versa. SAÚDE: score FSA do pesquisado.
     const fontesPais = new Set(paisCfg(req.user?.pais).fontesPreco);

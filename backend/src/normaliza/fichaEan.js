@@ -167,13 +167,13 @@ const moda = (valores) => {
 export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {}) {
   const [cat] = await pool.query(
     `SELECT fonte, nome, nome_pt, marca, formato, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria,
-            nutricao, ingredientes FROM catalogo_produto WHERE ean = ? AND nome IS NOT NULL AND nome <> ''`, [ean]);
+            nutricao, ingredientes, imagem_url FROM catalogo_produto WHERE ean = ? AND nome IS NOT NULL AND nome <> ''`, [ean]);
   const [[offDump]] = await pool.query('SELECT * FROM off_produto WHERE ean = ?', [ean]);
   // off_full (import 4,5M, 2026-06-15): nutrição em colunas planas + imagem; o dump
   // antigo (off_produto, 27k) raramente traz nutrição — o off_full é o backstop (ex.:
   // ketchup Heinz/Lidl tinham nutrição no OFF mas não no dump antigo).
   const [[offFullRow]] = await pool.query(
-    `SELECT nome, marca, quantidade, categoria, ingredientes, alergenios,
+    `SELECT nome, marca, quantidade, categoria, ingredientes, alergenios, imagem_url,
             energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra
        FROM off_full WHERE ean = ?`, [ean]);
   const parse = parseJsonCol; // fonte única (db.js): trata coluna JSON (objeto) ou string
@@ -331,6 +331,13 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
     if (alg) { alergenios = alg.texto; prov.alergenios = alg.fonte; }
   }
   const validade = escolhe('validade', [{ valor: vlm?.validade, fonte: 'vlm' }]);
+  // IMAGEM na ficha (centralizar): loja PT curada > qualquer loja > off_full > a já gravada.
+  // O read consome daqui em vez de ir ao catálogo/off_full a cada scan.
+  const imagem = (manual.has('imagem_url') ? atual?.imagem_url : null)
+    || cat.find((c) => FONTES_PT.includes(c.fonte) && c.imagem_url)?.imagem_url
+    || cat.find((c) => c.imagem_url)?.imagem_url
+    || offFullRow?.imagem_url || atual?.imagem_url || null;
+  if (imagem) prov.imagem_url = imagem === atual?.imagem_url ? (prov.imagem_url || 'anterior') : 'catalogo/off';
 
   const fontesHash = createHash('sha1').update(JSON.stringify({ cat, off, vlm })).digest('base64').slice(0, 16);
   return {
@@ -340,7 +347,7 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
       quantidade: quantidade ? String(quantidade).replace(/℮/g, '').replace(/\s+e$/i, '').trim() || null : null,
       categoria: categoria ? String(categoria).slice(0, 255) : null, // cap da coluna — senão re-fusões "mudam" sempre
       ingredientes: ing?.texto || null, alergenios: alergenios || null, validade: validade || null,
-      nutricao, nutricao_confirmada: nutConfirmada,
+      nutricao, nutricao_confirmada: nutConfirmada, imagem_url: imagem || null,
     },
     fusao: { proveniencia: prov, divergencias: div, fontes_hash: fontesHash, fundido_em: new Date().toISOString().slice(0, 19) },
     nomeEstrangeiro, off, vlm,
