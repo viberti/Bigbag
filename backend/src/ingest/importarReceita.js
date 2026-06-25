@@ -71,7 +71,8 @@ function metaTag(html, prop) {
   return u ? u[1].trim() : null;
 }
 function nomeDoSite(html, host) {
-  const og = (metaTag(html, 'og:site_name') || metaTag(html, 'application-name') || '').trim();
+  let og = (metaTag(html, 'og:site_name') || metaTag(html, 'application-name') || '').trim();
+  og = og.split(/\s[-–—|·]\s/)[0].trim(); // "Panelinha - Receitas que funcionam" → "Panelinha"
   if (og) return og.slice(0, 120);
   const base = String(host || '').replace(/^www\./, '').split('.')[0]; // panelinha.com.br → "Panelinha"
   return base ? base.charAt(0).toUpperCase() + base.slice(1) : host;
@@ -165,12 +166,15 @@ export async function importarDeUrl(urlBruto) {
   if (rec && (Array.isArray(rec.recipeIngredient) || rec.recipeInstructions)) {
     const ing = (rec.recipeIngredient || rec.ingredients || []);
     const ps = passos(rec.recipeInstructions);
+    let preparo = ps.length ? ps.join('\n') : null;
+    // JSON-LD sem instruções (ex.: Panelinha só põe ingredientes) → tira o modo de preparo do texto via LLM
+    if (!preparo) { const t = textoVisivel(html); if (t.length > 200) { const llm = await llmExtrai(t, fonte); if (llm?.preparo) preparo = llm.preparo; } }
     return {
-      ...base, via: 'jsonld',
+      ...base, via: ps.length ? 'jsonld' : 'jsonld+llm',
       nome: txt(rec.name) || metaTag(html, 'og:title') || fonte,
       foto: primeiraImagem(rec.image) || fotoPag,
       ingredientes: (Array.isArray(ing) ? ing : [ing]).map(String).map((s) => s.trim()).filter(Boolean).slice(0, 60),
-      preparo: ps.length ? ps.join('\n') : null,
+      preparo,
       tempo: duracaoHumana(rec.totalTime) || duracaoHumana(rec.cookTime) || duracaoHumana(rec.prepTime),
       porcoes: rec.recipeYield ? String(Array.isArray(rec.recipeYield) ? rec.recipeYield[0] : rec.recipeYield).trim() : null,
     };
