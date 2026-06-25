@@ -2060,7 +2060,6 @@ function Receitas({ back }) {
               <div className="rec-deck" onScroll={onScrollDeck}>
                 {deck.map((rec) => <ReceitaCard key={rec.nome} rec={rec} acao={acoes[rec.nome]} onVoto={votar} onVer={() => {}} />)}
               </div>
-              <div className="rec-hint">deslize para o lado para folhear · ♥ <b>salva</b> · ✕ passa</div>
             </>
           ) : deck == null ? <div className="rec-sk"><span className="sk-row" style={{ height: 330, display: 'block' }} /></div>
             : poucos ? <p className="empty">Adicione itens à despensa ou registe uma compra para receber receitas com o que você tem em casa.</p>
