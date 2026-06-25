@@ -56,6 +56,17 @@ Objetivo do dono (2026-06-14): um serviço de autenticação **próprio, reutili
 - **LIÇÃO — login policy é da ORG PARTILHADA (2026-06-22):** o BigBag usa a login HOSPEDADA, que mostra TODOS os IdP ligados à login policy da org. Só o IdP do BigBag deve estar ligado. O Noteca tem Google PRÓPRIO (`378093835420434435`); quando foi ligado à mesma policy apareceu um **2.º botão Google** no login do BigBag. Corrigido com `DELETE /management/v1/policies/login/idps/378093835420434435` (desliga da policy, NÃO apaga o IdP). O Noteca usa login próprio (idp_intent por ID) → não precisa da policy. **Manter o IdP do Noteca fora da login policy.** Listar os ligados: `POST /management/v1/policies/login/idps/_search`.
 - **Bug destravado:** `auth.js` deixou de mandar `WWW-Authenticate: Basic` no 401 — o browser abria o diálogo nativo de Basic e tapava o ecrã de login OIDC.
 
+## 2FA/MFA desligado na org BigBag (2026-06-25)
+- **Sintoma:** o `suerocha` (e qualquer user) ao entrar via Google levava com o **prompt de configurar 2FA**. A política NÃO forçava MFA (`forceMfa` ausente) — o prompt vinha de a login policy ter **métodos 2FA ativos** (`OTP`, `U2F`), que o Zitadel oferece para configurar (saltável, mas reaparece por `mfaInitSkipLifetime`).
+- **Decisão do dono:** não quer 2FA (app de lab pessoal; trade-off de segurança aceite conscientemente).
+- **Feito:** removidos os métodos da login policy da **org BigBag `377442061785300995`** (só a org, não a instância — o PAT só gere a org), via Management API:
+  - `DELETE /management/v1/policies/login/second_factors/SECOND_FACTOR_TYPE_OTP`
+  - `DELETE /management/v1/policies/login/second_factors/SECOND_FACTOR_TYPE_U2F`
+  - `DELETE /management/v1/policies/login/multi_factors/MULTI_FACTOR_TYPE_U2F_WITH_VERIFICATION`
+  - Confirmar: `GET /management/v1/policies/login` (header `x-zitadel-orgid: 377442061785300995`) → sem `secondFactors`/`multiFactors`.
+- **Reverter / 2FA OPCIONAL (sem prompt):** repor os métodos (`POST …/second_factors` body `{"type":"SECOND_FACTOR_TYPE_OTP"}`) e pôr `mfaInitSkipLifetime` alto — fica disponível p/ quem quer, sem obrigar.
+- **Outro user que não consegue entrar — causa típica (caso suerocha, 2026-06-25):** foi **pré-criado** no Zitadel → ao entrar por Google dá "Usuário externo não encontrado" e o **registrar** falha ("já existe"); o **Vincular** também trava se a conta está `INITIAL` (sem password, sem SMTP). **Fix:** apagar o user pré-criado no console (Users) → ele faz **registrar** novo, ligado ao Google, ativa na hora. (Reforça a regra: NÃO pré-criar users.)
+
 ## Falta / próximos
 1. **Rotacionar o PAT** (exposto no chat + no `zitadel.txt` do repo público).
 2. **SMTP no Zitadel** (envio de emails: verify/reset). Sem isto, ativações por email não funcionam (daí o "não pré-criar users").
