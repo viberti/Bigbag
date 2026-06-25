@@ -230,7 +230,17 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
     itemEan = it?.ean || null;
   }
   // EAN autoritativo: o do TALÃO sobrepõe-se ao lido à mão; senão o eanQ pedido.
-  const ean = itemEan || eanQ || null;
+  let ean = itemEan || eanQ || null;
+  // Ficha aberta SÓ com sku_id (lista/compras/histórico, sem ean): resolve um EAN do SKU para
+  // ler a FICHA POR EAN. Sem isto, ficava só com o genérico → SEM nutrição/ingredientes/imagem
+  // (bug do Oikos: scan mostrava tudo, mas abrir da lista não). EAN do talão > ficha por sku.
+  if (!ean && skuId) {
+    const [[e]] = await getPool().query(
+      `SELECT ean FROM item WHERE sku_id = ? AND ean IS NOT NULL AND ean <> '' ORDER BY id DESC LIMIT 1`, [skuId]);
+    ean = e?.ean
+      || (await getPool().query(`SELECT ean FROM produto_ean WHERE sku_id = ? AND ean IS NOT NULL AND ean <> '' ORDER BY id LIMIT 1`, [skuId]))[0][0]?.ean
+      || null;
+  }
 
   // produto_ean: pelo EAN autoritativo (ignora identificações manuais com OUTRO
   // EAN); se o item não tem EAN, pela identificação manual (item_id).
@@ -294,6 +304,26 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
     }
     if (nutCat) { if (base) base.nutricao_100g = nutCat; else base = { nutricao_100g: nutCat }; }
   }
+  // off_full: BACKSTOP por EAN (a base_local usa-o; o /info também deve, senão um produto que só
+  // tem nutrição/ingredientes/imagem no off_full aparecia SEM nutrição no servidor — a app mostrava
+  // a base local e o /info, ao chegar, apagava-a). EAN é PK no off_full → ~1ms.
+  let offFull = null;
+  if (ean) {
+    try {
+      const [[ofr]] = await getPool().query(
+        `SELECT nome, marca, quantidade, ingredientes, alergenios, imagem_url,
+                energia_kcal, gordura, gordura_sat, hidratos, acucares, proteinas, sal, fibra
+           FROM off_full WHERE ean = ?`, [ean]);
+      if (ofr) {
+        const n = { energia_kcal: ofr.energia_kcal, gordura: ofr.gordura, gordura_saturada: ofr.gordura_sat, hidratos: ofr.hidratos, acucares: ofr.acucares, proteina: ofr.proteinas, sal: ofr.sal, fibra: ofr.fibra };
+        offFull = { ...ofr, nutricao_100g: Object.values(n).some((v) => v != null) ? n : null };
+        const semNut = !(off?.nutricao_100g && Object.values(off.nutricao_100g).some((v) => v != null))
+          && !(vlm?.nutricao_100g && Object.values(vlm.nutricao_100g).some((v) => v != null))
+          && !base?.nutricao_100g;
+        if (offFull.nutricao_100g && semNut) base = { ...(base || {}), nutricao_100g: offFull.nutricao_100g };
+      }
+    } catch { /* off_full pode faltar localmente */ }
+  }
   const [fotos] = ean
     ? await getPool().query('SELECT id, ordem FROM produto_foto WHERE ean = ? OR item_id = ? ORDER BY ordem, id', [ean, itemId])
     : itemId
@@ -332,7 +362,7 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
       `SELECT imagem_url, categoria, product_type FROM catalogo_produto
         WHERE (ean = ? OR ean_inferido = ?) AND ((imagem_url IS NOT NULL AND imagem_url <> '') OR (categoria IS NOT NULL AND categoria <> '') OR product_type IS NOT NULL)
         ORDER BY (product_type IS NOT NULL) DESC, (imagem_url IS NOT NULL AND imagem_url <> '') DESC LIMIT 1`, [ean, ean]);
-    imagemCatalogo = fichaImg || img?.imagem_url || null;
+    imagemCatalogo = fichaImg || img?.imagem_url || offFull?.imagem_url || null;
     catalogoCategoria = img?.categoria || null;
     catalogoTipo = img?.product_type || null;
   }
@@ -464,14 +494,14 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   if (marcaResolvida && marcaEhTipo(marcaResolvida)) { marcaResolvida = null; marcaVia = null; }
   // ingredientes/alergénios FUNDIDOS da ficha (produto_ean) — a fonte canónica decidida pelo fusor
   // (Nutripédia > lojas > OFF). O read passa a CONSUMI-los em vez de tirar do off/vlm cru.
-  const ingredientesFicha = (rows.find((r) => r.ingredientes && String(r.ingredientes).trim())?.ingredientes) || null;
-  const alergeniosFicha = (rows.find((r) => r.alergenios && String(r.alergenios).trim())?.alergenios) || null;
+  const ingredientesFicha = (rows.find((r) => r.ingredientes && String(r.ingredientes).trim())?.ingredientes) || offFull?.ingredientes || null;
+  const alergeniosFicha = (rows.find((r) => r.alergenios && String(r.alergenios).trim())?.alergenios) || offFull?.alergenios || null;
   // NUTRIÇÃO + TAMANHO fundidos da ficha — a fonte que o app DEVE mostrar. Só quando a ficha não tem
   // (scan fresco ainda sem ficha, ou só estimativa genérica) é que se cai para as fontes cruas/genérico.
   const temV = (o) => o && Object.values(o).some((v) => v != null);
   const nutFicha = parseJson(rows.find((r) => r.nutricao)?.nutricao);
   const nutricaoDisplay = temV(nutFicha) ? nutFicha : (off?.nutricao_100g || vlm?.nutricao_100g || base?.nutricao_100g || generico?.nutricao_100g || null);
-  const tamanhoFicha = (rows.find((r) => r.quantidade && String(r.quantidade).trim())?.quantidade) || off?.quantidade || vlm?.quantidade || base?.quantidade || null;
+  const tamanhoFicha = (rows.find((r) => r.quantidade && String(r.quantidade).trim())?.quantidade) || off?.quantidade || vlm?.quantidade || base?.quantidade || offFull?.quantidade || null;
   return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo,
     ingredientes: ingredientesFicha, alergenios: alergeniosFicha, nutricao_100g: nutricaoDisplay, tamanho: tamanhoFicha, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut,
     // ficha MAGRA = nem nutrição nem imagem: não temos como mostrar nada útil. Mesmo que haja um
