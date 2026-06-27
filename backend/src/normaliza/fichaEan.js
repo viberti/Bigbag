@@ -193,13 +193,29 @@ function nomeDaCategoria(categoria) {
 // Devolve { ficha, fusao } prontos a gravar. `extra`: { off, vlm } trazidos pelo
 // chamador (OFF live / leitura de fotos); `atual`: linha produto_ean existente
 // (para respeitar campos 'manual' e reaproveitar vlm_json/off_json gravados).
-// Normaliza a quantidade/tamanho: tira o ℮, junta unidade com letra colada (lixo de OCR/VLM/fonte).
+// Normaliza a quantidade/tamanho num valor humano LIMPO ("200 g", "1 L", "12 un"): tira lixo de
+// OCR/VLM/fonte (℮, "neto/bruto", parênteses de breakdown "(6x125g)", "gram", "Unidades", unidade com
+// letra colada "25 cle"/"150 ge") e fica com a 1.ª medida válida (número + unidade).
 export function limparQuantidade(q) {
   if (!q) return null;
-  let s = String(q).replace(/℮/g, '').trim();
-  s = s.replace(/(\d)\s*gram(as|os)?\b/gi, '$1 g');                  // "125 gram" → "125 g"
-  s = s.replace(/(\d)\s*(cl|kg|ml|mg|cc|lt|gr|g|l)e\b/gi, '$1 $2');  // "25 cle"/"1 kge" → "25 cl"/"1 kg"
-  s = s.replace(/(\d)\s*gr\b/gi, '$1 g');                            // "100gr" → "100 g"
+  let s = String(q).replace(/℮/g, ' ');
+  s = s.replace(/\([^)]*\)/g, ' ');                                            // "(6x125g)" fora
+  s = s.replace(/\b(peso\s+)?(neto|net|bruto|gross|escorrido|drained)\b/gi, ' ');
+  s = s.replace(/(\d)\s*gram(as|os)?\b/gi, '$1 g');                            // "125 gram" → "125 g"
+  s = s.replace(/(\d)\s*uds?\b/gi, '$1 un');                                   // "1ud"/"3 ud" → "1 un"
+  s = s.replace(/\b(unidades?|teabags?|tea\s*bags?|saquetas?|saqs?|pieces?|pcs?)\b/gi, 'un');
+  // 1.ª medida = número + unidade (tolera letra colada "ge"/"kge"/"cle" e ausência de espaço "0.25kg")
+  const m = s.match(/(\d+(?:[.,]\d+)?)\s*(kg|mg|ml|cl|dl|lt|cc|gr|g|l|un)e?\b/i);
+  if (m) {
+    let u = m[2].toLowerCase();
+    if (u === 'lt') u = 'l';
+    if (u === 'gr') u = 'g';
+    if (u === 'l') u = 'L';
+    return `${m[1].replace('.', ',')} ${u}`;
+  }
+  // contagem com palavras pelo meio ("20 Pyramid un" → "20 un")
+  const un = s.match(/^(\d+)\b/);
+  if (un && /\bun\b/i.test(s)) return `${un[1]} un`;
   s = s.replace(/\s+e$/i, '').replace(/\s+/g, ' ').trim();
   return s || null;
 }
