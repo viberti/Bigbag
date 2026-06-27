@@ -81,6 +81,12 @@ test('laticínios: iogurte / queijo / leite / manteiga / natas / requeijão', ()
   for (const n of ['Requeijão Light', 'Ricotta']) assert.equal(familiaPorNome(n), 'requeijao', n);
 });
 
+test('ovos: família própria, separada dos laticínios', () => {
+  for (const n of ['Ovos Classe M', 'Ovos de Galinha do Campo', 'Clara de Ovo Pasteurizada', 'Ovo de Codorniz'])
+    assert.equal(familiaPorNome(n), 'ovos', n);
+  assert.equal(familiaPorNome('Esparguete com Ovo'), 'massa'); // cabeça manda (não 'ovos')
+});
+
 test('doces: chocolate / bolacha / cacau / gelado / compota — leftmost desambigua', () => {
   for (const n of ['Chocolate Negro 70%', 'Tablete Chocolate Leite', 'Bombons Sortidos', 'Tablete Nestlé Extrafino 70% Cacau']) assert.equal(familiaPorNome(n), 'chocolate', n); // tablete (mesmo "…Cacau") é chocolate, não achocolatado
   // bolacha/biscoito DE chocolate → bolacha (cabeça vence o chocolate)

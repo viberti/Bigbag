@@ -30,6 +30,7 @@ export const FAMILIAS = {
   manteiga:           { label: 'Manteiga e Margarina',       dep: 'food', grupo: 'lacticinios', seccao: 'laticinios', unidade: 'kg' },
   natas:              { label: 'Natas e Cremes',             dep: 'food', grupo: 'lacticinios', seccao: 'laticinios', unidade: 'l'  },
   requeijao:          { label: 'Requeijão',                  dep: 'food', grupo: 'lacticinios', seccao: 'laticinios', unidade: 'kg' },
+  ovos:               { label: 'Ovos',                       dep: 'food', grupo: 'lacticinios', seccao: 'laticinios', unidade: 'un' },
   // — DOCES —
   chocolate:          { label: 'Chocolates',                 dep: 'food', grupo: 'doces',       seccao: 'doces',     unidade: 'kg' },
   bolacha:            { label: 'Bolachas e Biscoitos',       dep: 'food', grupo: 'doces',       seccao: 'doces',     unidade: 'kg' },
@@ -80,6 +81,7 @@ const FAM_RE = [
   ['vegetal',            /(^|[^a-z])(cenoura|batata|cebola|cebolinha|\balho\b|alho frances|alface|couves?|brocolos|broculos|repolho|espinafres?|acelga|rucula|agriao|\bnabo\b|nabica|rabanete|beterraba|\baipo\b|funcho|abobora|courgette|curgete|abobrinha|pepino|pimento([^a-z]|$)|pimentos([^a-z]|$)|pimentao|\btomate\b|beringela|berinjela|grelos|alcachofra|cogumelos?|champignon|coentros|hortela|chuchu|quiabo|mandioca|inhame|salada|hortic|verduras?|legumes?|vegeta)/],
   ['farinha_acucar',     /(^|[^a-z])(farinha|\bacucar\b|azucar|fermento (em po|de padeiro|quimico)|levedura|gelatina (neutra|em po)|maizena|amido de milho|\bfecula)/],
   // — LATICÍNIOS (Fase 2) — requeijão antes de queijo; natas antes de leite (creme de leite → natas) —
+  ['ovos',               /(^|[^a-z])(ovos?\b|clara de ovo|claras de ovo|gemas? de ovo|ovo de codorniz|huevos?\b)/],
   ['requeijao',          /(^|[^a-z])(requeij[ao]|ricott?a)/],
   ['iogurte',            /(^|[^a-z])(iogurtes?|yogur|yoghurt|\bskyr\b|\bkefir\b)/],
   ['queijo',             /(^|[^a-z])(queijos?|mozz?arel?la|mozarela|gorgonzola|\bgouda\b|flamengo|emmental|cheddar|parmesao|parmigiano|reggiano|\bbrie\b|camembert|halloumi|\bfeta\b|\bedam\b|barra de queijo)/],
