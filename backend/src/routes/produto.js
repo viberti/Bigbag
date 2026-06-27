@@ -423,6 +423,9 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
       : /(carne|frango|porco|vaca|bovin|salsich|presunto|chouric|pate|jamon|embutid)/.test(tn) ? 'Conservas de carne' : 'Conservas';
   }
   if (!categoriaPt) categoriaPt = GRUPO_LABEL[grupoTax] || null;
+  // NUNCA mostrar a categoria CRUA estrangeira (ES/multilíngue do OFF/Mercadona, ex.: "Herméticos
+  // y moldes"). Sem mapa na taxonomia → balde PT por tipo: não-alimentar = "Casa e utilidades".
+  if (!categoriaPt && tipo === 'non_food') categoriaPt = 'Casa e utilidades';
   // SUGESTÃO por-nome (texto acha, o utilizador confirma): ficha "magra" (sem nutrição
   // NEM imagem em fonte nenhuma) e ainda não ligada a um gémeo → procura no off_full o
   // MESMO produto sob OUTRO EAN (match por nome+marca, marca=gate forte). NÃO adota:
