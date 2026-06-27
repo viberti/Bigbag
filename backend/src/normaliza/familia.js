@@ -47,6 +47,15 @@ export const FAMILIAS = {
   // — CHARCUTARIA (enchidos/fiambres/curados; distinta da CARNE FRESCA do talho) — as fontes já
   //   separam: Continente classifica fiambre como "Charcutaria", a ficha tem "Frescos/Charcutaria".
   charcutaria:        { label: 'Charcutaria',                dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
+  // — CARNE por ESPÉCIE (dono, 2026-06-27): o grupo 'carne' é o corredor; a família é a espécie exibida.
+  //   Cortes sem espécie no nome (ex.: "Peito Familiar", "Carne Picada") caem no rótulo do grupo ("Carne").
+  frango:             { label: 'Frango',                    dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
+  boi:                { label: 'Boi',                        dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
+  porco:              { label: 'Porco',                      dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
+  peru:               { label: 'Peru',                       dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
+  pato:               { label: 'Pato',                       dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
+  cordeiro:           { label: 'Cordeiro',                   dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
+  carne_misto:        { label: 'Misto',                      dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
   // — FRESCOS hortofrutícolas: FRUTA vs VEGETAIS separados (dono, 2026-06-27) — o grupo 'frutas' é o
   //   corredor (lente de loja); a família é o que se EXIBE. Produce sem match no vocábulo cai no rótulo
   //   combinado do grupo ("Frutas e Vegetais"), honesto para os ambíguos (saladas/mix).
@@ -68,6 +77,15 @@ const FAM_RE = [
   ['conservas_peixe',    /(^|[^a-z])(atum|sardinhas?|anchovas?|anchoa|cavala|\bsarda\b|biqueir[ao]|melva|filetes? de (peixe|cavala|sarda|anchova))/],
   // charcutaria = enchidos/fiambres/curados (cabeça do nome: "Fiambre …", "Presunto …", "Chouriço …")
   ['charcutaria',        /(^|[^a-z])(fiambre|presunto|chouric\w*|salsich\w*|salchich\w*|mortadela|\bsalame\b|\bsalami\b|\bpaio\b|\bbacon\b|enchidos?|embutidos?|\bjamon\b|linguica|chistorra|sobrasada|panceta|morcela|alheira|salpicao|\bpate\b|charcutar|lombo (curado|fumado|assado))/],
+  // CARNE por espécie (a espécie é o que se EXIBE; cortes sem espécie ficam no grupo "Carne").
+  // 'misto' primeiro (picada/mix de carnes); a espécie casa o ANIMAL, não o corte → "Bife de Atum" não casa.
+  ['carne_misto',        /(^|[^a-z])(picada mista|carnes? mistas?|espetada mista|mix de carnes?|misto de carnes?)/],
+  ['frango',             /(^|[^a-z])(frangos?|chicken|pollo|galinha)/],
+  ['peru',               /(^|[^a-z])(\bperu\b|\bpavo\b|turkey)/],
+  ['pato',               /(^|[^a-z])(\bpato\b|\bduck\b|canard|magret)/],
+  ['cordeiro',           /(^|[^a-z])(cordeiro|borrego|cabrito|\blamb\b|cordero|\banho\b)/],
+  ['porco',              /(^|[^a-z])(porco|suino|\bpork\b|cerdo|leitao|entremeada|febras|secretos)/],
+  ['boi',                /(^|[^a-z])(\bboi\b|\bvaca\b|bovino|\bbeef\b|ternera|vitela|novilho|alcatra|picanha|maminha|fraldinha|\bacem\b)/],
   ['cafe',               /(^|[^a-z])(cafes?\b|descafeinado|expresso|espresso|capsulas? de cafe|cafe (soluvel|moido|em grao|torrado|torref)|nescafe|nespresso)/],
   ['cha_infusoes',       /(^|[^a-z])(chas?\b(?! gelad| fri)|teas?\b|infus|tisana|rooibos|camomila|cidreira|earl grey|matcha|\btilia\b|verbena)/],
   ['massa',              T.massa],

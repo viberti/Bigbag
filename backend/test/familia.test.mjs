@@ -87,6 +87,16 @@ test('ovos: família própria, separada dos laticínios', () => {
   assert.equal(familiaPorNome('Esparguete com Ovo'), 'massa'); // cabeça manda (não 'ovos')
 });
 
+test('carne por ESPÉCIE: frango/boi/porco/peru/pato/cordeiro/misto', () => {
+  for (const n of ['Peito de Frango', 'Coxa de Frango', 'Almôndegas de Frango']) assert.equal(familiaPorNome(n), 'frango', n);
+  for (const n of ['Bife de Vaca', 'Carne Picada de Vaca', 'Hambúrguer de Vaca']) assert.equal(familiaPorNome(n), 'boi', n);
+  for (const n of ['Lombo de Porco', 'Febras de Porco']) assert.equal(familiaPorNome(n), 'porco', n);
+  assert.equal(familiaPorNome('Peito de Peru'), 'peru');
+  assert.equal(familiaPorNome('Pato Inteiro'), 'pato');
+  for (const n of ['Perna de Borrego', 'Cordeiro']) assert.equal(familiaPorNome(n), 'cordeiro', n);
+  for (const n of ['Carne Picada Mista', 'Mix de Carnes']) assert.equal(familiaPorNome(n), 'carne_misto', n);
+});
+
 test('doces: chocolate / bolacha / cacau / gelado / compota — leftmost desambigua', () => {
   for (const n of ['Chocolate Negro 70%', 'Tablete Chocolate Leite', 'Bombons Sortidos', 'Tablete Nestlé Extrafino 70% Cacau']) assert.equal(familiaPorNome(n), 'chocolate', n); // tablete (mesmo "…Cacau") é chocolate, não achocolatado
   // bolacha/biscoito DE chocolate → bolacha (cabeça vence o chocolate)
