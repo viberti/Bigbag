@@ -260,6 +260,18 @@
 .v2 .frow{display:flex;align-items:center;gap:12px;background:var(--card);border:2px solid #fff;border-radius:var(--r-sm);padding:11px 13px;margin-bottom:10px;box-shadow:var(--sh-sm);cursor:pointer}
 .v2 .fdot{width:40px;height:40px;border-radius:13px;flex:0 0 auto;display:grid;place-items:center;font:800 14px var(--disp);color:#fff}
 .v2 .fb{flex:1;min-width:0}.v2 .fn{font:700 15px var(--font);color:var(--ink)}.v2 .fs{font:500 12px var(--font);color:var(--ink-2);margin-top:1px}.v2 .fp{font:800 15px var(--disp);color:var(--leaf-d)}
+/* cartão de leitura assíncrona: "Em análise" (sem prender o ecrã) / "Não consegui ler" + repetir */
+.v2 .jobcard{display:flex;align-items:center;gap:12px;border-radius:var(--r-sm);padding:12px 13px;margin-bottom:10px;box-shadow:var(--sh-sm)}
+.v2 .jobcard.em_analise{background:#eef6ff;border:2px solid #d6e8ff}
+.v2 .jobcard.falhou{background:#fff1ef;border:2px solid #ffd9d2}
+.v2 .jc-b{flex:1;min-width:0}
+.v2 .jc-t{font:700 15px var(--font);color:var(--ink)}
+.v2 .jc-s{font:500 12px var(--font);color:var(--ink-2);margin-top:1px}
+.v2 .jc-spin{width:22px;height:22px;flex:0 0 auto;border-radius:50%;border:2.6px solid #cfe2fb;border-top-color:#3b82d6;animation:jcspin .8s linear infinite}
+@keyframes jcspin{to{transform:rotate(360deg)}}
+.v2 .jc-fail{width:30px;height:30px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;background:#ffdcd5;color:#c0392b}
+.v2 .jc-retry{flex:0 0 auto;border:0;background:#c0392b;color:#fff;border-radius:var(--r-pill);padding:7px 14px;font:800 13px var(--disp);cursor:pointer}
+.v2 .jc-retry:active{transform:scale(.95)}
 .v2 .sec{display:flex;align-items:center;gap:9px;font:800 italic 15px var(--disp);color:#2f6b43;letter-spacing:.2px;padding:16px 4px 9px}
 .v2 .sec::before{content:"";width:12px;height:12px;background:#e6b34a;border:2px solid #fff;transform:rotate(45deg);box-shadow:var(--sh-sm);flex:0 0 auto}
 .v2 .sec::after{content:"";flex:1;height:0;border-top:3px double #d6c79c}

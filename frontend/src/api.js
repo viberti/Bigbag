@@ -108,6 +108,20 @@ export async function listarNotas() {
   return notas || [];
 }
 
+// Jobs de leitura assíncrona (cartões "em análise"/"não consegui ler" + transição p/ "lido").
+export async function listarJobsNota() {
+  const r = await call('/api/faturas/jobs');
+  if (!r.ok) throw new Error(`jobs ${r.status}`);
+  const { jobs } = await r.json();
+  return jobs || [];
+}
+
+export async function repetirLeitura(id) {
+  const r = await call(`/api/faturas/jobs/${id}/retry`, { method: 'POST' });
+  if (!r.ok) throw new Error(`retry ${r.status}`);
+  return r.json();
+}
+
 export async function detalhesNota(id) {
   const r = await call(`/api/faturas/${id}`);
   if (!r.ok) throw new Error(`nota ${r.status}`);

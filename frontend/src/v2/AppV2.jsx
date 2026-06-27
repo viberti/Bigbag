@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { norm as normCat, singularizar, grupoDeNome, seccaoLista } from '../../../backend/src/normaliza/categoria.js';
 import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
-  obterLista, atualizarListaItem, listarNotas, detalhesNota, resumoGastos, gastosCategoria, listarDespensa, removerDespensa,
+  obterLista, atualizarListaItem, listarNotas, listarJobsNota, repetirLeitura, detalhesNota, resumoGastos, gastosCategoria, listarDespensa, removerDespensa,
   listarHistoricoProduto, registarHistoricoProduto, infoProduto, analiseProduto,
   avaliacaoPersonalizada, alternativasProduto, compararProdutos, consultarProdutoNome, consultarProdutoEan,
   listarPerfis, ativarPerfil, carregarPerfil, salvarSaude, matchFoto, vozParaProduto, buscarProduto, identificarProduto,
@@ -1377,23 +1377,38 @@ function Notas({ go, back, partilhado, scanNotas }) {
   // PRESERVAR a última escolha do filtro de mercado entre aberturas (localStorage).
   const [filtro, setFiltroRaw] = useState(() => { try { return localStorage.getItem('compras_filtro') || 'todas'; } catch { return 'todas'; } });
   const setFiltro = useCallback((v) => { setFiltroRaw(v); try { localStorage.setItem('compras_filtro', v); } catch { /* noop */ } }, []);
-  const [enviando, setEnviando] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState(null); // foto do talão a mostrar enquanto processa
+  const [jobs, setJobs] = useState([]);             // leituras em curso/falhadas (cartões)
   const fileRef = useRef(null);
   const partilhadoEnviado = useRef(false);
+  const terminadosVistos = useRef(0);
   const carregar = useCallback(() => { listarNotas().then(setNotas).catch(() => setNotas([])); }, []);
-  useEffect(() => { carregar(); }, [carregar]);
+  const carregarJobs = useCallback(() => listarJobsNota().then(setJobs).catch(() => {}), []);
+  useEffect(() => { carregar(); carregarJobs(); }, [carregar, carregarJobs]);
+  // Enquanto houver leitura 'em_analise', faz polling dos jobs (o resultado vem ter com o utilizador).
+  useEffect(() => {
+    if (!jobs.some((j) => j.estado === 'em_analise')) return undefined;
+    const t = setInterval(carregarJobs, 3500);
+    return () => clearInterval(t);
+  }, [jobs, carregarJobs]);
+  // Quando uma leitura TERMINA (pronto/precisa_revisao), recarrega as notas → o talão lido aparece sozinho.
+  useEffect(() => {
+    const fim = jobs.filter((j) => j.estado === 'pronto' || j.estado === 'precisa_revisao').length;
+    if (fim > terminadosVistos.current) { terminadosVistos.current = fim; carregar(); }
+  }, [jobs, carregar]);
   const enviar = useCallback(async (f) => {
     if (!f) return;
-    // mostra a foto + animação "lendo a nota" enquanto o VLM processa (igual à análise de um produto novo).
-    // SÓ imagem é renderizável num <img>: um PDF partilhado (ex.: de um leitor de PDF) daria imagem
-    // partida → previewUrl fica null e a UI mostra um ícone de documento (ver o bloco "analisando").
-    const url = (f.type || '').startsWith('image/') ? URL.createObjectURL(f) : null;
-    setPreviewUrl(url); setEnviando(true);
-    try { await enviarFatura(f, 'v2'); carregar(); } catch { /* falha silenciosa */ }
-    finally { setEnviando(false); setPreviewUrl(null); if (url) URL.revokeObjectURL(url); }
-  }, [carregar]);
+    // RESPOSTA IMEDIATA: cartão otimista "Em análise" na hora; o VLM corre em fundo no servidor.
+    const tmpId = `tmp-${Date.now()}`;
+    setJobs((js) => [{ id: tmpId, estado: 'em_analise', loja_nome: null }, ...js]);
+    try { await enviarFatura(f, 'v2'); } catch { /* a varredura do servidor recupera o ficheiro guardado */ }
+    carregarJobs(); // troca o cartão temporário pelo job real do servidor
+  }, [carregarJobs]);
   async function lerTalao(e) { const f = e.target.files?.[0]; e.target.value = ''; await enviar(f); }
+  const repetir = useCallback(async (id) => {
+    setJobs((js) => js.map((j) => (j.id === id ? { ...j, estado: 'em_analise' } : j)));
+    try { await repetirLeitura(id); } catch { /* noop */ }
+    carregarJobs();
+  }, [carregarJobs]);
   // a régua de navegação dispara o "ler talão" pelo scan central (abre a câmara nativa).
   useEffect(() => {
     if (!scanNotas) return undefined;
@@ -1424,20 +1439,6 @@ function Notas({ go, back, partilhado, scanNotas }) {
   return (
     <>
       <Ctop title="Minhas compras" sub={filtro === 'todas' ? 'todos os mercados' : filtro} back onBack={back} />
-      {enviando ? (
-        <div className="scrollarea">
-          <div className="analisando">
-            <div className="an-card">
-              {previewUrl
-                ? <img src={previewUrl} alt="talão" className="an-img" />
-                : <div className="an-doc"><Ico name="talao" size={92} stroke={1.5} color="var(--ink-3)" /><span>a ler o ficheiro…</span></div>}
-              <span className="an-scan" />
-            </div>
-            <div className="an-txt">Lendo a nota<i className="an-dots" /></div>
-            <div className="sc-hint" style={{ margin: 0 }}>a identificar os produtos — um instante…</div>
-          </div>
-        </div>
-      ) : (
       <div className="scrollarea">
         <div className="herolist" onClick={() => go('gastos')}>
           <div className="k">Gasto em {grupos[0]?.l || 'este mês'}</div>
@@ -1454,7 +1455,24 @@ function Notas({ go, back, partilhado, scanNotas }) {
             ))}
           </div>
         )}
-        {notas == null ? <p className="empty">…</p> : filt.length === 0 ? <p className="empty">Sem talões ainda.</p>
+        {/* leituras em curso/falhadas: o utilizador não fica preso — o cartão vira talão lido sozinho */}
+        {jobs.filter((j) => j.estado === 'em_analise' || j.estado === 'falhou').map((j) => (
+          <div className={`jobcard ${j.estado}`} key={j.id}>
+            {j.estado === 'em_analise' ? (
+              <>
+                <span className="jc-spin" />
+                <div className="jc-b"><div className="jc-t">Em análise{j.loja_nome ? ` · ${j.loja_nome}` : ''}</div><div className="jc-s">aviso quando ficar pronto</div></div>
+              </>
+            ) : (
+              <>
+                <span className="jc-fail"><Ico name="close" size={17} stroke={2.6} /></span>
+                <div className="jc-b"><div className="jc-t">Não consegui ler</div><div className="jc-s">tente outra foto ou repita</div></div>
+                <button className="jc-retry" onClick={() => repetir(j.id)}>Repetir</button>
+              </>
+            )}
+          </div>
+        ))}
+        {notas == null ? <p className="empty">…</p> : filt.length === 0 && !jobs.length ? <p className="empty">Sem talões ainda.</p>
           : grupos.map((g) => (
             <React.Fragment key={g.k}>
               <div className="monthsep-retro"><span className="ms-month">{g.l}</span><span className="ms-rule" /><span className="ms-badge"><b>{eur(g.total)}</b></span></div>
@@ -1467,7 +1485,6 @@ function Notas({ go, back, partilhado, scanNotas }) {
             </React.Fragment>
           ))}
       </div>
-      )}
       {/* o scan central da régua aciona este input (câmara nativa) — ver Notas/scanNotas */}
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={lerTalao} />
     </>

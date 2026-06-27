@@ -50,6 +50,7 @@ const STRINGS = {
     'nota.scanning': 'digitalizando…',
     'nota.reading': 'lendo a nota…',
     'nota.duplicate': 'Você já me enviou essa nota ({loja}, {data}).',
+    'nota.emAnalise': '📄 Recebi sua nota — estou lendo. Vai aparecer em "As minhas compras" daqui a pouco.',
     'nota.nomesCorrigidos': '🔍 Leitura conferida por segunda opinião — corrigido: {nomes}',
     'nota.added': 'Compra adicionada',
     'nota.summary': '{n|item|itens} · {loja} · {data} · total {total}',

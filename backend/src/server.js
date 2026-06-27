@@ -158,6 +158,14 @@ import('./ingest/filaVetor.js').then(({ iniciarWorkerFila }) => {
   iniciarWorkerFila(getPool(), { intervaloMs: 180000, lote: 5 });
 }).catch((e) => console.error('[fila-vetor] não arrancou:', e.message));
 
+// Fila de NOTAS (talões assíncronos): o POST cria o job + dispara o processamento; esta
+// varredura é a REDE DE SEGURANÇA — re-apanha jobs 'em_analise' presos (reinício do serviço
+// a meio de uma leitura) ou que falharam e ainda têm retentativas. Gentil + unref.
+import('./ingest/filaNotas.js').then(({ varrerPendentes }) => {
+  const tick = () => varrerPendentes(getPool()).catch((e) => console.error('[fila-notas]', e.message));
+  setInterval(tick, 60000).unref();
+}).catch((e) => console.error('[fila-notas] não arrancou:', e.message));
+
 // Aquecer a cache do DASHBOARD de gestão (/dash): o cálculo é pesado (~20s, cruza 4,5M do OFF)
 // e fica cacheado 20 min. Aquecer no arranque + refrescar antes de expirar → /dash sempre instantâneo.
 import('./dashboard.js').then(({ panoramaDashboard }) => {

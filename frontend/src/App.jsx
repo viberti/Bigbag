@@ -480,6 +480,7 @@ function Chat({ onSair, nome }) {
       const out = await enviarFatura(enviar, origem);
       tiraPensar();
       if (out.erro) add({ lado: 'bot', tipo: 'erro', texto: out.detalhe || out.erro });
+      else if (out.job_id) add({ lado: 'bot', tipo: 'resposta', texto: t('nota.emAnalise') }); // ingestão assíncrona: a nota lê-se em fundo
       else if (out.duplicada)
         add({
           lado: 'bot',
