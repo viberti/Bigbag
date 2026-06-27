@@ -1,6 +1,6 @@
 {
   "name": "bigbag-frontend",
-  "version": "0.0.190.14",
+  "version": "0.0.190.15",
   "private": true,
   "type": "module",
   "scripts": {
