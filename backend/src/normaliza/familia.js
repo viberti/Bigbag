@@ -140,14 +140,20 @@ const RE_MANTEIGA_VARIEDADE = /(abobora|alface|feijao|feijoes|fava|favas|pera|pe
 // CONSERVA não é fresco: fruta/vegetal "em calda/conserva/lata/enlatado" é conserva (não o fresco).
 // O nome da fruta vem à cabeça e ganharia por posição → este guard re-roteia para conservas_vegetais.
 const RE_CONSERVA_HORTOFRUT = /(em calda|em conserva|enlatad|\bem lata\b|\d+\s*latas?)/;
+// PREPARADOS/pão cuja CABEÇA não é carne: a espécie no nome é só RECHEIO ("Pão de … de Pato",
+// "Empada de Frango", "Pizza de Vaca") → não é a família da carne/charcutaria. Regra geral.
+const FAM_CARNE = new Set(['frango', 'boi', 'porco', 'peru', 'pato', 'cordeiro', 'carne_misto', 'charcutaria']);
+const RE_CABECA_PREPARADO = /^(pao\b|paezinhos?|empad[ao]|folhado|pastel|pasteis|croquete|rissol|rissois|sopa|caldo|canja|sandes|sanduiche|pizza|quiche|tarte|pataniscas|salgad)/;
 export function familiaPorNome(nome, marca = null) {
   const s = norm(nome);
   if (s) {
+    const cabecaPreparado = RE_CABECA_PREPARADO.test(s);
     let best = null, bestIdx = Infinity;
     for (const [slug, re] of FAM_RE) {
       const mm = re.exec(s);
       if (!mm) continue;
       if (slug === 'manteiga' && RE_MANTEIGA_VARIEDADE.test(s)) continue; // "abóbora manteiga" ≠ manteiga
+      if (cabecaPreparado && FAM_CARNE.has(slug)) continue;                // "Pão de … de Pato" ≠ Pato
       if (mm.index < bestIdx) { best = slug; bestIdx = mm.index; }
     }
     if (best) {
