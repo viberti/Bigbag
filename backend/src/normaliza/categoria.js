@@ -110,6 +110,8 @@ function termRe(term) {
 //  - milho/maíz DOCE = a conserva de milho (produto de prateleira, o corredor da
 //    loja é "Conservas"), distinta do milho fresco/espiga → mercearia.
 const FRASE_GRUPO = [
+  // pastelaria/pão: a CABEÇA manda mesmo com recheio que confunde (croissant MANTEIGA → padaria, não lacticínios).
+  [/(^|[^a-z])(croissants?|brioche|folar|bagels?|scones?|baguete|ciabatta|focaccia)/, 'padaria'],
   [/(^|[^a-z])(frutos?\s+secos?|frutos?\s+desecad\w*|fruta\s+(seca|desecada|deshidratada|desidratada))/, 'mercearia'],
   [/(^|[^a-z])(milho\s+doce|maiz\s+dulce)/, 'mercearia'],
   [/(^|[^a-z])em\s+calda/, 'mercearia'], // fruta em calda = conserva de prateleira (pêssego, ananás…)
