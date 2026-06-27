@@ -95,13 +95,19 @@ const MARCA_MASSA = /(^|[^a-z])(pasta|massa)([^a-z]|$)/;
 // nome). Resolve as colisões sem depender da ordem do FAM_RE: "Molho de Tomate Frito" → molhos ("molho"
 // na posição 0 < "tomate"), "Bolacha de Água e Sal" → bolacha ("bolacha" 0 < "sal"). Empate de posição
 // → desempata pela ordem do FAM_RE (específico→geral). Mantém os roll-ups e o MARCA_MASSA de fallback.
+// "manteiga" como VARIEDADE de outro alimento (abóbora/alface/feijão/pera/milho manteiga, butternut)
+// NÃO é a manteiga (lacticínio): é o qualificador de um vegetal/legume/fruta. A família da manteiga
+// só vale quando "manteiga/margarina" é a CABEÇA, não um adjetivo a seguir a um produto. Regra geral.
+const RE_MANTEIGA_VARIEDADE = /(abobora|alface|feijao|feijoes|fava|favas|pera|peras|milho|batata|cacau)\s+manteig|butternut/;
 export function familiaPorNome(nome, marca = null) {
   const s = norm(nome);
   if (s) {
     let best = null, bestIdx = Infinity;
     for (const [slug, re] of FAM_RE) {
       const mm = re.exec(s);
-      if (mm && mm.index < bestIdx) { best = slug; bestIdx = mm.index; }
+      if (!mm) continue;
+      if (slug === 'manteiga' && RE_MANTEIGA_VARIEDADE.test(s)) continue; // "abóbora manteiga" ≠ manteiga
+      if (mm.index < bestIdx) { best = slug; bestIdx = mm.index; }
     }
     if (best) return best;
   }
