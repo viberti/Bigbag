@@ -359,6 +359,10 @@ utilidades"** resto). **Nunca** a string estrangeira crua.
 - *bebidas*: Sumos e Néctares · Refrigerantes · Água · Cervejas · Vinhos.
 - *carne*: **Charcutaria** (enchidos/fiambres, distinta do fresco) + **ESPÉCIE** (Frango ·
   Boi · Porco · Peru · Pato · Cordeiro · Misto). Cortes sem espécie no nome → grupo "Carne".
+- *peixe*: por **ESPÉCIE** (Salmão · Bacalhau · Atum · Pescada · Dourada · Robalo · Sardinha ·
+  Cavala · Polvo · Lulas e Chocos · Marisco · Truta); a **conserva de peixe** só dispara com
+  indicador de enlatado (em lata/conserva/óleo/azeite/água/tomate/escabeche) — senão é a
+  espécie FRESCA ("Bife de Atum" → Atum, não "Conservas de Peixe").
 - *frutas*: **Frutas** vs **Vegetais** (separados; o grupo continua "frutas").
 
 **Guards gerais** (`familiaPorNome`, leftmost-wins; cada um é uma REGRA, não um caso):
