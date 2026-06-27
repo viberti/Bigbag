@@ -12,7 +12,7 @@ import { config, paisCfg } from '../config.js';
 import { POR_IDENTIFICAR_SQL } from '../criterios.js';
 import { extrairProdutoFotos, arbitrarMarcaNome, consultarOFF, consultarCatalogo, analisarProduto, caracterizarProdutoNome, eanValido, lerEanDeFoto, analisarFotoProduto, buscarOffPorNome, garantirGenericoSku } from '../ingest/produto.js';
 import { atualizarConteudoFicha } from '../normaliza/conteudo.js';
-import { grupoDe, grupoDeNome, marcaEhTipo, tokenCasa, singularizar, norm as normN, normAlfa, tipoConsumidor, cabecaNome } from '../normaliza/categoria.js';
+import { grupoDe, grupoDeNome, grupoDeTexto, marcaEhTipo, tokenCasa, singularizar, norm as normN, normAlfa, tipoConsumidor, cabecaNome } from '../normaliza/categoria.js';
 import { facetasDe } from '../normaliza/facetas.js';
 import { fundirFichaEan } from '../normaliza/fichaEan.js';
 import { acharPorNomeMarca, acharGemeo, nomeCondizGemeo } from '../normaliza/resolverPorNome.js';
@@ -411,7 +411,8 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   // mostrar a string crua/multilíngue do OFF (ex.: Mercadona em espanhol: "Lácteos,Nata,en:UHT…").
   // Determinística; o grupoDeNome/família já reconhecem vocabulário ES/EN, por isso o mapa cobre tudo.
   const GRUPO_LABEL = { frutas: 'Frutas e Vegetais', carne: 'Carne', peixe: 'Peixe', lacticinios: 'Laticínios', padaria: 'Padaria', bebidas: 'Bebidas', doces: 'Doces e Snacks', congelados: 'Congelados', higiene: 'Higiene e Limpeza', mercearia: 'Mercearia' };
-  const categoriaPt = familiaLabel || GRUPO_LABEL[grupoDeNome(nome || '')] || null;
+  const catTexto = [catalogoCategoria, off?.categoria, base?.categoria, vlm?.categoria, nome].filter(Boolean).join(' ');
+  const categoriaPt = familiaLabel || GRUPO_LABEL[grupoDeTexto(catTexto)] || GRUPO_LABEL[grupoDeNome(nome || '')] || null;
   // SUGESTÃO por-nome (texto acha, o utilizador confirma): ficha "magra" (sem nutrição
   // NEM imagem em fonte nenhuma) e ainda não ligada a um gémeo → procura no off_full o
   // MESMO produto sob OUTRO EAN (match por nome+marca, marca=gate forte). NÃO adota:
