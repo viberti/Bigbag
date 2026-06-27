@@ -44,6 +44,11 @@ export const FAMILIAS = {
   // — CHARCUTARIA (enchidos/fiambres/curados; distinta da CARNE FRESCA do talho) — as fontes já
   //   separam: Continente classifica fiambre como "Charcutaria", a ficha tem "Frescos/Charcutaria".
   charcutaria:        { label: 'Charcutaria',                dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
+  // — FRESCOS hortofrutícolas: FRUTA vs VEGETAIS separados (dono, 2026-06-27) — o grupo 'frutas' é o
+  //   corredor (lente de loja); a família é o que se EXIBE. Produce sem match no vocábulo cai no rótulo
+  //   combinado do grupo ("Frutas e Vegetais"), honesto para os ambíguos (saladas/mix).
+  fruta:              { label: 'Frutas',                     dep: 'food', grupo: 'frutas',      seccao: 'frutas',    unidade: 'kg' },
+  vegetal:            { label: 'Vegetais',                   dep: 'food', grupo: 'frutas',      seccao: 'frutas',    unidade: 'kg' },
 };
 
 export const familia = (slug) => FAMILIAS[slug] || null;
@@ -66,6 +71,10 @@ const FAM_RE = [
   ['cereais_pa',         T.cereais],
   ['leguminosas',        /(^|[^a-z])(feij[ao]|feijoes|\bgrao\b|grao de bico|garbanzo|lentilhas?|\bervilhas?\b|\bfavas?\b)/],
   ['conservas_vegetais', /(^|[^a-z])(milho doce|\bmilho\b|tomate (pelado|triturado|frito)|polpa de tomate|passatas?|pelati|concentrado de tomate|cogumelos?|champignon|pimentos? (piquillo|morron|assados)|piquillo|palmito|alcachofra|espargos|azeitonas?|\bpickles?\b|\bpicles\b|em calda|em vinagre|cebolinhas?)/],
+  // FRUTA fresca (cabeça do nome). Curto/ambíguo (maca/pera/lima/uva/figo/roma) leva fronteira à direita.
+  ['fruta',              /(^|[^a-z])(maca([^a-z]|$)|macas|banana|laranjas?|tangerina|clementina|mandarina|toranja|limao|lima([^a-z]|$)|uvas?([^a-z]|$)|morango|mirtilo|framboesa|amora|groselha|pessego|nectarina|ameixa|cereja|alperce|damasco|kiwi|mangas?([^a-z]|$)|abacaxi|ananas|melao|melancia|meloa|papaia|papaya|maracuja|figo([^a-z]|$)|figos|roma([^a-z]|$)|diospiro|caqui|lichia|tamara|abacate|goiaba|acai|pitaya|nespera|marmelo|pera([^a-z]|$)|peras|frutos vermelhos|frutos do bosque)/],
+  // VEGETAIS/hortícolas frescos (legumes-vagem = leguminosas, captados acima; tomate-conserva idem).
+  ['vegetal',            /(^|[^a-z])(cenoura|batata|cebola|cebolinha|\balho\b|alho frances|alface|couves?|brocolos|broculos|repolho|espinafres?|acelga|rucula|agriao|\bnabo\b|nabica|rabanete|beterraba|\baipo\b|funcho|abobora|courgette|curgete|abobrinha|pepino|pimento([^a-z]|$)|pimentos([^a-z]|$)|pimentao|\btomate\b|beringela|berinjela|grelos|alcachofra|cogumelos?|champignon|coentros|hortela|chuchu|quiabo|mandioca|inhame|salada|hortic|verduras?|legumes?|vegeta)/],
   ['farinha_acucar',     /(^|[^a-z])(farinha|\bacucar\b|azucar|fermento (em po|de padeiro|quimico)|levedura|gelatina (neutra|em po)|maizena|amido de milho|\bfecula)/],
   // — LATICÍNIOS (Fase 2) — requeijão antes de queijo; natas antes de leite (creme de leite → natas) —
   ['requeijao',          /(^|[^a-z])(requeij[ao]|ricott?a)/],
@@ -104,6 +113,9 @@ const MARCA_MASSA = /(^|[^a-z])(pasta|massa)([^a-z]|$)/;
 // NÃO é a manteiga (lacticínio): é o qualificador de um vegetal/legume/fruta. A família da manteiga
 // só vale quando "manteiga/margarina" é a CABEÇA, não um adjetivo a seguir a um produto. Regra geral.
 const RE_MANTEIGA_VARIEDADE = /(abobora|alface|feijao|feijoes|fava|favas|pera|peras|milho|batata|cacau)\s+manteig|butternut/;
+// CONSERVA não é fresco: fruta/vegetal "em calda/conserva/lata/enlatado" é conserva (não o fresco).
+// O nome da fruta vem à cabeça e ganharia por posição → este guard re-roteia para conservas_vegetais.
+const RE_CONSERVA_HORTOFRUT = /(em calda|em conserva|enlatad|\bem lata\b|\d+\s*latas?)/;
 export function familiaPorNome(nome, marca = null) {
   const s = norm(nome);
   if (s) {
@@ -114,7 +126,10 @@ export function familiaPorNome(nome, marca = null) {
       if (slug === 'manteiga' && RE_MANTEIGA_VARIEDADE.test(s)) continue; // "abóbora manteiga" ≠ manteiga
       if (mm.index < bestIdx) { best = slug; bestIdx = mm.index; }
     }
-    if (best) return best;
+    if (best) {
+      if ((best === 'fruta' || best === 'vegetal') && RE_CONSERVA_HORTOFRUT.test(s)) return 'conservas_vegetais';
+      return best;
+    }
   }
   if (marca && MARCA_MASSA.test(norm(marca))) return 'massa';
   return null;
