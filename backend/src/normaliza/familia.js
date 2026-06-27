@@ -102,7 +102,7 @@ const FAM_RE = [
   ['ovos',               /(^|[^a-z])(ovos?\b|clara de ovo|claras de ovo|gemas? de ovo|ovo de codorniz|huevos?\b)/],
   ['requeijao',          /(^|[^a-z])(requeij[ao]|ricott?a)/],
   ['iogurte',            /(^|[^a-z])(iogurtes?|yogur|yoghurt|\bskyr\b|\bkefir\b)/],
-  ['queijo',             /(^|[^a-z])(queijos?|mozz?arel?la|mozarela|gorgonzola|\bgouda\b|flamengo|emmental|cheddar|parmesao|parmigiano|reggiano|\bbrie\b|camembert|halloumi|\bfeta\b|\bedam\b|barra de queijo)/],
+  ['queijo',             /(^|[^a-z])(queijos?|cottage|mozz?arel?la|mozarela|gorgonzola|\bgouda\b|flamengo|emmental|cheddar|parmesao|parmigiano|reggiano|\bbrie\b|camembert|halloumi|\bfeta\b|\bedam\b|burrata|mascarpone|cream cheese|barra de queijo)/],
   ['manteiga',           /(^|[^a-z])(manteiga|mantequilla|margarina)/],
   ['natas',              /(^|[^a-z])(natas?|creme de leite|creme fresco|creme fraiche|creme para cozinhar|nata para)/],
   ['leite',              /(^|[^a-z])(leite|leche)([^a-z]|$)/],
