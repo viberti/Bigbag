@@ -41,6 +41,9 @@ export const FAMILIAS = {
   agua:               { label: 'Água',                       dep: 'food', grupo: 'bebidas',     seccao: 'bebidas',   unidade: 'l'  },
   cerveja:            { label: 'Cervejas',                   dep: 'food', grupo: 'bebidas',     seccao: 'bebidas',   unidade: 'l'  },
   vinho:              { label: 'Vinhos',                     dep: 'food', grupo: 'bebidas',     seccao: 'bebidas',   unidade: 'l'  },
+  // — CHARCUTARIA (enchidos/fiambres/curados; distinta da CARNE FRESCA do talho) — as fontes já
+  //   separam: Continente classifica fiambre como "Charcutaria", a ficha tem "Frescos/Charcutaria".
+  charcutaria:        { label: 'Charcutaria',                dep: 'food', grupo: 'carne',       seccao: 'carne',     unidade: 'kg' },
 };
 
 export const familia = (slug) => FAMILIAS[slug] || null;
@@ -55,6 +58,8 @@ const T = Object.fromEntries(TIPOS_NOME);
 // que aparecem MEIO de outros nomes) por ÚLTIMO, senão "Bolacha de Água e Sal" → especiarias.
 const FAM_RE = [
   ['conservas_peixe',    /(^|[^a-z])(atum|sardinhas?|anchovas?|anchoa|cavala|\bsarda\b|biqueir[ao]|melva|filetes? de (peixe|cavala|sarda|anchova))/],
+  // charcutaria = enchidos/fiambres/curados (cabeça do nome: "Fiambre …", "Presunto …", "Chouriço …")
+  ['charcutaria',        /(^|[^a-z])(fiambre|presunto|chouric\w*|salsich\w*|salchich\w*|mortadela|\bsalame\b|\bsalami\b|\bpaio\b|\bbacon\b|enchidos?|embutidos?|\bjamon\b|linguica|chistorra|sobrasada|panceta|morcela|alheira|salpicao|\bpate\b|charcutar|lombo (curado|fumado|assado))/],
   ['cafe_cha',           T.cafe_cha],
   ['massa',              T.massa],
   ['arroz',              /(^|[^a-z])(arroz|basmati|risotto|risoto|arborio|carolino|\bagulha\b|jasmim)/],
