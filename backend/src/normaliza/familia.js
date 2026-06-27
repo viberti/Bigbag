@@ -15,6 +15,19 @@ export const FAMILIAS = {
   cereais_pa:         { label: 'Cereais',                   dep: 'food', grupo: 'mercearia', seccao: 'mercearia',    unidade: 'kg' },
   leguminosas:        { label: 'Leguminosas',               dep: 'food', grupo: 'mercearia', seccao: 'mercearia',    unidade: 'kg' },
   conservas_peixe:    { label: 'Conservas de Peixe',        dep: 'food', grupo: 'mercearia', seccao: 'mercearia',    unidade: 'kg', natureza: 'peixe' },
+  // — PEIXE FRESCO por ESPÉCIE (dono, 2026-06-27): grupo 'peixe'; a conserva só dispara com enlatado (ver guard).
+  salmao:             { label: 'Salmão',                    dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  bacalhau:           { label: 'Bacalhau',                  dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  atum:               { label: 'Atum',                      dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  pescada:            { label: 'Pescada',                   dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  dourada:            { label: 'Dourada',                   dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  robalo:             { label: 'Robalo',                    dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  sardinha:           { label: 'Sardinha',                  dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  cavala:             { label: 'Cavala',                    dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  polvo:              { label: 'Polvo',                     dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  lulas:              { label: 'Lulas e Chocos',            dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  marisco:            { label: 'Marisco',                   dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
+  truta:              { label: 'Truta',                     dep: 'food', grupo: 'peixe',      seccao: 'peixe',     unidade: 'kg' },
   conservas_vegetais: { label: 'Conservas Vegetais',        dep: 'food', grupo: 'mercearia', seccao: 'mercearia',    unidade: 'kg' },
   molhos_condimentos: { label: 'Molhos e Condimentos',      dep: 'food', grupo: 'mercearia', seccao: 'condimentos',  unidade: 'un' },
   azeite:             { label: 'Azeite',                    dep: 'food', grupo: 'mercearia', seccao: 'condimentos',  unidade: 'l'  },
@@ -74,7 +87,21 @@ const T = Object.fromEntries(TIPOS_NOME);
 // ORDEM = produto-TIPO (head-noun específico) primeiro; CONDIMENTOS/ingredientes (sal/azeite/molho —
 // que aparecem MEIO de outros nomes) por ÚLTIMO, senão "Bolacha de Água e Sal" → especiarias.
 const FAM_RE = [
-  ['conservas_peixe',    /(^|[^a-z])(atum|sardinhas?|anchovas?|anchoa|cavala|\bsarda\b|biqueir[ao]|melva|filetes? de (peixe|cavala|sarda|anchova))/],
+  // conservas_peixe = SÓ o que é intrinsecamente de lata (anchova/melva/biqueirão); atum/sardinha/cavala
+  // são espécies frescas, e só viram conserva com indicador de enlatado (RE_CONSERVA_PEIXE no guard).
+  ['conservas_peixe',    /(^|[^a-z])(anchovas?|anchoa|biqueir[ao]|melva|filetes? de anchova)/],
+  ['salmao',             /(^|[^a-z])(salmao|salmón|salmon|lombos? de salmao)/],
+  ['bacalhau',           /(^|[^a-z])(bacalhau|bacalao|\bcod\b|\bmorue\b)/],
+  ['atum',               /(^|[^a-z])(atum|atun|tuna)/],
+  ['pescada',            /(^|[^a-z])(pescada|pescadilla|merluz)/],
+  ['dourada',            /(^|[^a-z])(dourada|dorada)/],
+  ['robalo',             /(^|[^a-z])(robalo|lubina)/],
+  ['sardinha',           /(^|[^a-z])(sardinhas?|sardina)/],
+  ['cavala',             /(^|[^a-z])(cavala|caballa|\bsarda\b|verdel)/],
+  ['polvo',              /(^|[^a-z])(polvo|pulpo)/],
+  ['lulas',              /(^|[^a-z])(lulas?|calamar|chipiron|\bchocos?\b|chocos? \w)/],
+  ['marisco',            /(^|[^a-z])(camarao|gambas?|langostino|mariscos?|mexilh|ameijoas?|amêijoas?|berbig|navalheir|santola|sapateira|lagosta|lavagante|percebes?|lagostim)/],
+  ['truta',              /(^|[^a-z])(trutas?|trucha)/],
   // charcutaria = enchidos/fiambres/curados (cabeça do nome: "Fiambre …", "Presunto …", "Chouriço …")
   ['charcutaria',        /(^|[^a-z])(fiambre|presunto|chouric\w*|salsich\w*|salchich\w*|mortadela|\bsalame\b|\bsalami\b|\bpaio\b|\bbacon\b|enchidos?|embutidos?|\bjamon\b|linguica|chistorra|sobrasada|panceta|morcela|alheira|salpicao|\bpate\b|charcutar|lombo (curado|fumado|assado))/],
   // CARNE por espécie (a espécie é o que se EXIBE; cortes sem espécie ficam no grupo "Carne").
@@ -150,6 +177,10 @@ const RE_CABECA_PREPARADO = /^((mini|maxi|midi|pack|caixa)\s+)?(pao\b|paezinhos?
 const RE_MASSA_NAO_PASTA = /massa de (alho|piment|tomate|malagueta|piri|curry|caril|gengibre|cebola)/;
 // "Peito"/"pechuga" SEM outra espécie no nome = peito de FRANGO (espécie prototípica do peito).
 const RE_PEITO_FRANGO = /(^|[^a-z])(peito|pechuga)([^a-z]|$)/;
+// PEIXE: a espécie (atum/sardinha/cavala/salmão…) só é CONSERVA com indicador de enlatado;
+// senão é FRESCO ("Bife de Atum"/"Lombo de Salmão" → a espécie, não "Conservas de Peixe").
+const FAM_PEIXE = new Set(['salmao', 'bacalhau', 'atum', 'pescada', 'dourada', 'robalo', 'sardinha', 'cavala', 'polvo', 'lulas', 'marisco', 'truta']);
+const RE_CONSERVA_PEIXE = /(em lata|em conserva|\bconservas?\b|enlatad|em oleo|em azeite|em agua|em tomate|em molho|escabeche|\blata\b)/;
 export function familiaPorNome(nome, marca = null) {
   const s = norm(nome);
   if (s) {
@@ -167,6 +198,7 @@ export function familiaPorNome(nome, marca = null) {
     if (!best && !cabecaPreparado && RE_PEITO_FRANGO.test(s)) best = 'frango';
     if (best) {
       if ((best === 'fruta' || best === 'vegetal') && RE_CONSERVA_HORTOFRUT.test(s)) return 'conservas_vegetais';
+      if (FAM_PEIXE.has(best) && RE_CONSERVA_PEIXE.test(s)) return 'conservas_peixe'; // "Atum em Óleo" → conserva
       return best;
     }
   }
