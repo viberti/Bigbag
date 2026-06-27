@@ -37,7 +37,7 @@
 .v2 .ctop .hi b{font:800 19px var(--disp);color:var(--ink);display:block;line-height:1.05}
 .v2 .ctop .hi span{font:600 12.5px/1.3 var(--font);color:var(--ink-2);display:block}
 .v2 .ctop .av{width:40px;height:40px;border-radius:50%;background:var(--leaf-soft);color:var(--leaf-d);display:grid;place-items:center;font:800 16px var(--disp);border:2px solid #fff;cursor:pointer;flex:0 0 auto}
-.v2 .ctop .bk{height:38px;padding:0 14px 0 9px;border-radius:var(--r-pill);background:var(--card);border:2px solid #fff;color:var(--leaf-d);display:flex;align-items:center;gap:5px;font:800 14px var(--disp);cursor:pointer;box-shadow:var(--sh-sm);flex:0 0 auto}
+.v2 .ctop .bk{height:40px;width:40px;margin-left:-8px;padding:0;border-radius:50%;background:none;border:0;color:var(--leaf-d);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}
 .v2 .ctop .bk:active{transform:scale(.95)}
 .v2 .scrollarea{flex:1;overflow-y:auto;min-height:0;padding:4px 16px 12px}
 .v2 .scrollarea::-webkit-scrollbar{width:0}

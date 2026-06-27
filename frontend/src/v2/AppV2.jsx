@@ -107,7 +107,7 @@ const Motif = () => <span dangerouslySetInnerHTML={{ __html: MOTIF }} />;
 function Ctop({ title, sub, back, amber, av, action, onBack, onAv }) {
   return (
     <div className="ctop">
-      {back ? <button className="bk" onClick={onBack}><Ico name="back" size={19} stroke={2.6} />Voltar</button>
+      {back ? <button className="bk" onClick={onBack} aria-label="Voltar"><Ico name="back" size={24} stroke={2.2} /></button>
         : <span className={`mk ${amber ? 'amber' : ''}`}><Mk size={30} /></span>}
       <div className="hi"><b dangerouslySetInnerHTML={{ __html: title }} />{sub && <span dangerouslySetInnerHTML={{ __html: sub }} />}</div>
       {action}
