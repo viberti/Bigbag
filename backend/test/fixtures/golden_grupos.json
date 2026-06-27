@@ -2845,7 +2845,7 @@
    "categoria": "Descartáveis Lar",
    "cat_gen": null,
    "foodGroups": null,
-   "ouro": "outros"
+   "ouro": "higiene"
   },
   {
    "nome": "Croissant Folhado",
@@ -3815,7 +3815,7 @@
   },
   {
    "nome": "Guardanapo",
-   "esperado": "outros"
+   "esperado": "higiene"
   },
   {
    "nome": "Cebola",
