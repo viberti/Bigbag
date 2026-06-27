@@ -422,6 +422,9 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
     categoriaPt = /(atum|atun|tuna|sardinh|cavala|caballa|anchov|anchoa|pescado|peixe|fish|mexilh|berberech|polvo|lula|calamar|bacalhau)/.test(tn) ? 'Conservas de peixe'
       : /(carne|frango|porco|vaca|bovin|salsich|presunto|chouric|pate|jamon|embutid)/.test(tn) ? 'Conservas de carne' : 'Conservas';
   }
+  // UTILIDADES DE COZINHA (não-alimentar): alumínio/película/papel vegetal/moldes/herméticos/sacos de
+  // congelação não são "Higiene e Limpeza" (o token "papel" mandava o alumínio p/ higiene). Balde próprio.
+  if (!categoriaPt && tipo === 'non_food' && /(aluminio|pelicula|\bfilm\b|papel\s+(vegetal|manteiga|de\s+forno|para\s+horno)|\bmoldes?\b|hermetic|(sacos?|bolsas?)\s+(de\s+|para\s+)?(congel|conserv|frio|basura|lixo))/.test(tn)) categoriaPt = 'Cozinha e utilidades';
   if (!categoriaPt) categoriaPt = GRUPO_LABEL[grupoTax] || null;
   // NUNCA mostrar a categoria CRUA estrangeira (ES/multilíngue do OFF/Mercadona, ex.: "Herméticos
   // y moldes"). Sem mapa na taxonomia → balde PT por tipo: não-alimentar = "Casa e utilidades".

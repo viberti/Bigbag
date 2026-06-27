@@ -171,11 +171,22 @@ function limparPack(nome) {
 // nome-lixo = nada de substância depois de tirar pack + números (ex.: "x4 Indivisível" → vazio)
 const ehNomeLixo = (n) => { const t = limparPack(n); return !t || norm(t).replace(/[0-9]/g, '').trim().length < 3; };
 // nome genérico da CATEGORIA (folha PT mais específica): "…,Atum,Atuns em lata,en:Tuna…" → "Atuns em lata"
+// Plural→singular da CABEÇA de um rótulo de categoria (preserva acentos e caixa, ao contrário do
+// `singularizar` que normaliza). Os rótulos de catálogo vêm no plural ("Atuns em lata", "Moldes"),
+// mas o nome de um produto é singular ("Atum em lata"). Cobre as classes que aparecem em categorias.
+function singularPt(w) {
+  if (/ões$/i.test(w)) return w.replace(/ões$/i, 'ão');   // Limões→Limão
+  if (/ns$/i.test(w)) return w.replace(/ns$/i, 'm');       // Atuns→Atum
+  if (/[aeiouáéíóúâêôãõ]s$/i.test(w) && w.length > 3) return w.slice(0, -1); // Sardinhas→Sardinha, Pêssegos→Pêssego
+  return w;
+}
 function nomeDaCategoria(categoria) {
   if (!categoria) return null;
   const segs = String(categoria).split(',').map((s) => s.trim()).filter((s) => s && !/^[a-z]{2,3}:/i.test(s));
-  const leaf = segs[segs.length - 1];
-  return leaf && leaf.length >= 3 ? tituloProduto(leaf) : null;
+  let leaf = segs[segs.length - 1];
+  if (!leaf || leaf.length < 3) return null;
+  leaf = leaf.replace(/^(\S+)/, (w) => singularPt(w)); // "Atuns em lata" → "Atum em lata"
+  return tituloProduto(leaf);
 }
 
 // ── fusão principal ──────────────────────────────────────────────────────────
