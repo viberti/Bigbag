@@ -193,6 +193,17 @@ function nomeDaCategoria(categoria) {
 // Devolve { ficha, fusao } prontos a gravar. `extra`: { off, vlm } trazidos pelo
 // chamador (OFF live / leitura de fotos); `atual`: linha produto_ean existente
 // (para respeitar campos 'manual' e reaproveitar vlm_json/off_json gravados).
+// Normaliza a quantidade/tamanho: tira o ℮, junta unidade com letra colada (lixo de OCR/VLM/fonte).
+export function limparQuantidade(q) {
+  if (!q) return null;
+  let s = String(q).replace(/℮/g, '').trim();
+  s = s.replace(/(\d)\s*gram(as|os)?\b/gi, '$1 g');                  // "125 gram" → "125 g"
+  s = s.replace(/(\d)\s*(cl|kg|ml|mg|cc|lt|gr|g|l)e\b/gi, '$1 $2');  // "25 cle"/"1 kge" → "25 cl"/"1 kg"
+  s = s.replace(/(\d)\s*gr\b/gi, '$1 g');                            // "100gr" → "100 g"
+  s = s.replace(/\s+e$/i, '').replace(/\s+/g, ' ').trim();
+  return s || null;
+}
+
 export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {}) {
   const [cat] = await pool.query(
     `SELECT fonte, nome, nome_pt, marca, formato, COALESCE(NULLIF(categoria_path,''), categoria) AS categoria,
@@ -382,8 +393,9 @@ export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {
   return {
     ficha: {
       nome: nome ? tituloProduto(nome) : null, marca: marca ? tituloProduto(marca) : null,
-      // ℮ (símbolo "quantidade estimada" do rótulo) vira "e" no VLM → fora
-      quantidade: quantidade ? String(quantidade).replace(/℮/g, '').replace(/\s+e$/i, '').trim() || null : null,
+      // ℮ (símbolo "quantidade estimada" do rótulo) vira "e" no VLM → fora; + unidade com letra
+      // colada ("25 cle"→"25 cl", "1 kge"→"1 kg", "125 gram"→"125 g") — lixo de OCR/VLM/fonte.
+      quantidade: limparQuantidade(quantidade),
       categoria: categoria ? String(categoria).slice(0, 255) : null, // cap da coluna — senão re-fusões "mudam" sempre
       ingredientes: ing?.texto || null, alergenios: alergenios || null, validade: validade || null,
       nutricao, nutricao_confirmada: nutConfirmada, imagem_url: imagem || null,
