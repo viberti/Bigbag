@@ -113,11 +113,19 @@ const FRASE_GRUPO = [
   [/(^|[^a-z])em\s+calda/, 'mercearia'], // fruta em calda = conserva de prateleira (pêssego, ananás…)
 ];
 
+// CONSERVA não é fresco (dono 2026-06-25): peixe/carne ENLATADO/em conserva pertence à MERCEARIA
+// (corredor ambiente das conservas), NUNCA ao corredor do fresco. Regra GERAL (não p/ um produto):
+// só re-roteia quando o grupo deu peixe/carne — uma bebida em lata fica bebidas (não é peixe/carne).
+// sinais de conserva: rótulo de lata/enlatado E o modo "em óleo/azeite/água/escabeche" (peixe assim
+// é SEMPRE de lata — o fresco é "posta/lombo/filete de … fresco", nunca "em óleo"). Só re-roteia
+// peixe/carne, por isso "mozzarella em água" (laticínio) ou "cerveja em lata" (bebida) não são tocados.
+const RE_CONSERVA = /(^|[^a-z])(conservas?|enlatad\w*|em\s+(?:lata|oleo|azeite|agua|escabeche|molho de escabeche)|en\s+(?:lata|aceite|agua|escabeche)|\d+\s*latas?)([^a-z]|$)/;
+const conservaReroteia = (g, s) => ((g === 'peixe' || g === 'carne') && RE_CONSERVA.test(s) ? 'mercearia' : g);
 export function grupoDeTexto(texto) {
   const s = norm(texto);
   if (!s) return GRUPO_OUTROS;
   for (const [re, g] of FRASE_GRUPO) if (re.test(s)) return g;
-  for (const g of GRUPOS) if (g.t.some((term) => termRe(term).test(s))) return g.id;
+  for (const g of GRUPOS) if (g.t.some((term) => termRe(term).test(s))) return conservaReroteia(g.id, s);
   return GRUPO_OUTROS;
 }
 
@@ -230,7 +238,8 @@ export function grupoDeNome(nome) {
   const cabeca = n.split(/\s(?:de|do|da|dos|das|com|em|para|e)\s/)[0].trim();
   if (cabeca && cabeca !== n) {
     const g = grupoDeTexto(cabeca);
-    if (g !== GRUPO_OUTROS) return g;
+    // cabeça "Atuns" dá peixe, mas o nome completo tem "em lata" → conserva (mercearia), não fresco.
+    if (g !== GRUPO_OUTROS) return conservaReroteia(g, n);
   }
   return grupoDeTexto(n);
 }

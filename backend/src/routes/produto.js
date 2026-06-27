@@ -413,11 +413,15 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   const GRUPO_LABEL = { frutas: 'Frutas e Vegetais', carne: 'Carne', peixe: 'Peixe', lacticinios: 'Laticínios', padaria: 'Padaria', bebidas: 'Bebidas', doces: 'Doces e Snacks', congelados: 'Congelados', higiene: 'Higiene e Limpeza', mercearia: 'Mercearia' };
   const catTexto = [catalogoCategoria, off?.categoria, base?.categoria, vlm?.categoria, nome].filter(Boolean).join(' ');
   const grupoTax = grupoDeTexto(catTexto) || grupoDeNome(nome || '');
-  // CONSERVA não é fresco (dono 2026-06-25): atum/sardinha EM LATA é conserva (mercearia), não "Peixe"
-  // (corredor do fresco). Os sinais de enlatado mandam para Conservas, com o tipo do alimento.
-  const ehConserva = /\b(lata|latas|enlatad\w*|conserva\w*|canned|tinned)\b/i.test(catTexto);
+  // CONSERVA não é fresco (dono 2026-06-25): a classificação já manda enlatados p/ mercearia; aqui só
+  // se afina o RÓTULO exibido ("Conservas de peixe/carne") detetando o tipo do alimento no texto.
+  const tn = normN(catTexto);
+  const ehConserva = /(^|[^a-z])(conservas?|enlatad\w*|em\s+lata|en\s+lata|\d+\s*latas?)([^a-z]|$)/.test(tn);
   let categoriaPt = familiaLabel;
-  if (!categoriaPt && ehConserva) categoriaPt = grupoTax === 'peixe' ? 'Conservas de peixe' : grupoTax === 'carne' ? 'Conservas de carne' : 'Conservas';
+  if (!categoriaPt && ehConserva) {
+    categoriaPt = /(atum|atun|tuna|sardinh|cavala|caballa|anchov|anchoa|pescado|peixe|fish|mexilh|berberech|polvo|lula|calamar|bacalhau)/.test(tn) ? 'Conservas de peixe'
+      : /(carne|frango|porco|vaca|bovin|salsich|presunto|chouric|pate|jamon|embutid)/.test(tn) ? 'Conservas de carne' : 'Conservas';
+  }
   if (!categoriaPt) categoriaPt = GRUPO_LABEL[grupoTax] || null;
   // SUGESTÃO por-nome (texto acha, o utilizador confirma): ficha "magra" (sem nutrição
   // NEM imagem em fonte nenhuma) e ainda não ligada a um gémeo → procura no off_full o
