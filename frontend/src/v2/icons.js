@@ -35,7 +35,7 @@ const P = {
   talao: `<rect x="7.6" y="6" width="11.4" height="14" rx="2.2"/><path d="M5.2 16.6V5.4A2 2 0 0 1 7.2 3.4h7.4"/><path d="M10.4 10.8h5.6M10.4 13.8h5.6M10.4 16.8h3.4"/>`,
   check: `<path d="M5 12.5l4.2 4.2L19 7"/>`,
   chevron: `<path d="M6 9l6 6 6-6"/>`,
-  back: `<path d="M15 5l-7 7 7 7"/>`,
+  back: `<path d="M20 12H5"/><path d="M12 19l-7-7 7-7"/>`,
   close: `<path d="M6 6l12 12M18 6L6 18"/>`,
   thumbup: `<path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/><path d="M7 10l4.5-7.2a1.4 1.4 0 0 1 2.5.9V8h5a2 2 0 0 1 2 2.3l-1.1 7a2 2 0 0 1-2 1.7H7"/>`,
   thumbdown: `<path d="M17 14V3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1z"/><path d="M17 14l-4.5 7.2a1.4 1.4 0 0 1-2.5-.9V16H5a2 2 0 0 1-2-2.3l1.1-7A2 2 0 0 1 6.1 5H17"/>`,
