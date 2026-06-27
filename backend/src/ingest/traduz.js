@@ -11,13 +11,13 @@ const PROMPT_TRADUZ = `Recebes campos da ficha de um produto de SUPERMERCADO —
 {"nome": string|null, "ingredientes": string|null, "alergenios": string|null, "mudou": boolean}
 "mudou" = true só se traduziste alguma coisa.`;
 
-export async function traduzirFichaPT(campos) {
+export async function traduzirFichaPT(campos, { model } = {}) {
   const conteudo = await chatCompletion({
     messages: [
       { role: 'system', content: PROMPT_TRADUZ },
       { role: 'user', content: JSON.stringify(campos) },
     ],
-    model: config.openrouter.modelConsulta,
+    model: model || config.openrouter.modelConsulta,
     responseFormat: { type: 'json_object' },
     timeoutMs: 25000,
     contexto: 'traducao',
@@ -84,11 +84,13 @@ export async function garantirFichaPT(pool, ean) {
     _tentados.add(ean);
     const [[r]] = await pool.query('SELECT nome, ingredientes, alergenios FROM produto_ean WHERE ean = ?', [ean]);
     if (!r || (!r.nome && !r.ingredientes && !r.alergenios)) return r?.nome || null;
-    // 2 VOTOS INDEPENDENTES (só na 1.ª tradução; re-leituras reusam o nome gravado → zero LLM).
-    // O 1.º traduz a ficha toda; o 2.º só o nome (mais barato). Paralelos → mesmo tempo de relógio.
+    // 2 VOTOS INDEPENDENTES e CROSS-FAMÍLIA (só na 1.ª tradução; re-leituras reusam o nome → zero LLM).
+    // O 1.º traduz a ficha toda (gemini); o 2.º só o nome, numa FAMÍLIA DIFERENTE (OpenAI) — modelos
+    // da mesma família alucinam igual e o consenso não apanha (caso cottage→ricota). Paralelos.
+    const M1 = config.openrouter.modelConsulta, M2 = config.openrouter.modelTraducaoAlt;
     const [t, t2] = await Promise.all([
-      traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios }),
-      traduzirFichaPT({ nome: r.nome }),
+      traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios }, { model: M1 }),
+      traduzirFichaPT({ nome: r.nome }, { model: M2 }),
     ]);
     // GATE por QUALQUER voto: o voto-ficha (ingredientes no contexto) às vezes deixa passar um nome
     // estrangeiro que o voto-nome (focado) apanha — caso "Lessive Liquide". Só fica IGUAL se AMBOS
@@ -98,7 +100,7 @@ export async function garantirFichaPT(pool, ean) {
     let nomeTrad = (t?.mudou && t.nome) ? t.nome : (t2?.nome || t.nome || r.nome);
     // AMBOS traduziram mas DIVERGEM no significado → 3.º voto desempata por consenso (alucinação isolada).
     if (t?.mudou && t2?.mudou && t.nome && t2.nome && !traducoesConcordam(t.nome, t2.nome)) {
-      const t3 = await traduzirFichaPT({ nome: r.nome });
+      const t3 = await traduzirFichaPT({ nome: r.nome }, { model: M1 });
       const consenso = consensoTraducao([t.nome, t2.nome, t3?.nome]);
       if (consenso) { console.warn('[traduz] votos divergiram → consenso:', JSON.stringify({ original: r.nome, votos: [t.nome, t2.nome, t3?.nome], consenso })); nomeTrad = consenso; }
     }
