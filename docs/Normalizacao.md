@@ -338,6 +338,48 @@ marca-no-nome) que escondiam produtos diferentes.
 - **EAN à mão** na **aba Itens** do `/admin`: define/limpa `item.ean` (valida dígito
   verificador + enriquece a ficha por OFF/catálogo).
 
+### 5.2 Categoria de exibição — taxonomia de FAMÍLIAS PT (`normaliza/familia.js`, 2026-06-27)
+
+A categoria que o utilizador VÊ (ficha, lista, despensa, planilha de export) deixou de ser a
+string crua do OFF/loja (muitas vezes ES/multilíngue) e passou a ser sempre a **família PT**.
+Ordem de resolução (em `consolidarProduto` e no export, mesmas funções):
+`família` (rótulo específico) → `conserva` → `grupo` (corredor, rótulo PT) → balde de
+não-alimentar (**"Cozinha e utilidades"** alumínio/película/moldes/sacos · **"Casa e
+utilidades"** resto). **Nunca** a string estrangeira crua.
+
+**Famílias por grupo** (`FAMILIAS` em `familia.js`; o `grupo` é o corredor/lente-de-loja, a
+`label` é o que se exibe):
+- *mercearia*: Massa · Arroz · Cereais · Leguminosas · **Conservas de Peixe** · **Conservas
+  Vegetais** · Molhos e Condimentos · **Azeite** · **Óleo** · Especiarias e Temperos ·
+  Farinhas/Açúcar · **Café** · **Chá e Infusões**.
+- *laticínios*: Iogurtes · Queijos (inclui cottage/burrata/mascarpone/cream cheese) · Leite ·
+  Manteiga e Margarina · Natas e Cremes · Requeijão · **Ovos**.
+- *doces*: Chocolates · Bolachas e Biscoitos · Cacau e Achocolatados · Gelados · Doces e
+  Compotas · Bolos e Sobremesas.
+- *bebidas*: Sumos e Néctares · Refrigerantes · Água · Cervejas · Vinhos.
+- *carne*: **Charcutaria** (enchidos/fiambres, distinta do fresco) + **ESPÉCIE** (Frango ·
+  Boi · Porco · Peru · Pato · Cordeiro · Misto). Cortes sem espécie no nome → grupo "Carne".
+- *frutas*: **Frutas** vs **Vegetais** (separados; o grupo continua "frutas").
+
+**Guards gerais** (`familiaPorNome`, leftmost-wins; cada um é uma REGRA, não um caso):
+1. **Conserva ≠ fresco**: peixe/carne em lata/conserva/óleo/azeite e fruta "em calda" →
+   conservas (mercearia), nunca o corredor do fresco. Aplicado também em `grupoDeTexto`
+   (gate do golden; ver §conservas no histórico de commits).
+2. **"manteiga" variedade**: "abóbora/feijão/alface/pera manteiga", "butternut" ≠ a
+   manteiga-lacticínio (só conta como cabeça).
+3. **Cabeça preparada** (`RE_CABECA_PREPARADO` + `FILL_PREPARADO`): pão/croissant/empada/
+   pizza/folhado (com "mini/maxi" à frente) → o recheio (carne/manteiga/queijo) é ignorado;
+   `FRASE_GRUPO` manda croissant/brioche/baguete → padaria mesmo com "manteiga" no nome.
+4. **"massa de alho/pimentão/tomate…"** = pasta-tempero, não massa alimentícia.
+5. **"Peito"/"Pechuga" sem espécie → Frango** (espécie prototípica do peito); qualquer
+   espécie explícita ("Peito de Peru/Vaca") casa primeiro.
+6. **Espécie casa o ANIMAL, não o corte** — "Bife/Lombo de Atum" fica peixe (bife/lombo
+   ficaram FORA do grupo carne por colidirem com peixe).
+
+Tudo determinístico e PARTILHADO front/back; gate no golden (`grupoDe`/`grupoDeNome`) +
+testes próprios de família (`test/familia.test.mjs`). A planilha de export usa exatamente
+estas funções → o que está na app e na planilha bate.
+
 ## 6. Problemas em aberto
 
 1. ~~**Unidade adivinhada errada**~~ **resolvido** (ver 4.2): peso/volume explícito
