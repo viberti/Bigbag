@@ -85,7 +85,7 @@ const FAM_RE = [
   ['pato',               /(^|[^a-z])(\bpato\b|\bduck\b|canard|magret)/],
   ['cordeiro',           /(^|[^a-z])(cordeiro|borrego|cabrito|\blamb\b|cordero|\banho\b)/],
   ['porco',              /(^|[^a-z])(porco|suino|\bpork\b|cerdo|leitao|entremeada|febras|secretos)/],
-  ['boi',                /(^|[^a-z])(\bboi\b|\bvaca\b|bovino|\bbeef\b|ternera|vitela|novilho|alcatra|picanha|maminha|fraldinha|\bacem\b)/],
+  ['boi',                /(^|[^a-z])(\bboi\b|\bvaca\b|bovin\w*|\bbeef\b|ternera|vitela|novilho|alcatra|picanha|maminha|fraldinha|\bacem\b)/],
   ['cafe',               /(^|[^a-z])(cafes?\b|descafeinado|expresso|espresso|capsulas? de cafe|cafe (soluvel|moido|em grao|torrado|torref)|nescafe|nespresso)/],
   ['cha_infusoes',       /(^|[^a-z])(chas?\b(?! gelad| fri)|teas?\b|infus|tisana|rooibos|camomila|cidreira|earl grey|matcha|\btilia\b|verbena)/],
   ['massa',              T.massa],
