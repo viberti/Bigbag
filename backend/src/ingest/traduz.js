@@ -7,15 +7,18 @@ import { config } from '../config.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { norm } from '../normaliza/categoria.js';
 
-const PROMPT_TRADUZ = `Recebes campos da ficha de um produto de SUPERMERCADO — alimentar OU não-alimentar (limpeza, higiene, cosmética, casa, animais…) — (nome, ingredientes, alergenios), possivelmente noutra língua (espanhol, francês, INGLÊS, alemão…). Traduz para PORTUGUÊS DO BRASIL (PT-BR) TUDO o que NÃO estiver em português; o que já estiver em português fica EXATAMENTE igual (não reescrevas). Traduz SEMPRE as palavras descritivas estrangeiras, MESMO ao lado de um nome próprio ou marca (exemplos: "Eggs" → "Ovos"; "Sliced bread" → "Pão de forma fatiado"; "Sparkling water" → "Água com gás"; "Gorgonzola Doux/Piquant" → "Gorgonzola Suave/Picante"; "Multiusos Desinfectante Antibacterias" → "Multiuso Desinfetante Antibactérias"; "Raisin Sec Sultanine" → "Passa de Uva Sultana"). MARCAS e nomes próprios (incl. denominações como Gorgonzola, Hacendado) NÃO se traduzem, mas as palavras à volta SIM. VARIEDADES/DENOMINAÇÕES são NOMES PRÓPRIOS — mantém a variedade tal e qual e traduz só a palavra genérica à volta; NUNCA troques uma variedade por OUTRA. Queijos: "Cottage Cheese" → "Queijo Cottage" (NUNCA "Ricota"); "Cream Cheese" → "Queijo Creme"; "Cheddar/Mozzarella/Ricotta/Brie/Feta/Gouda Cheese" → "Queijo Cheddar/Mozzarella/Ricotta/Brie/Feta/Gouda". A mesma regra vale para variedades de outros alimentos (arroz Basmati, café Arábica, uva Sultana…). Põe "mudou":true se traduziste QUALQUER palavra. Mantém números, percentagens, unidades e E-números tal como estão. Campo null fica null. Devolve SÓ JSON:
+const PROMPT_TRADUZ = `Recebes campos da ficha de um produto de SUPERMERCADO — alimentar OU não-alimentar (limpeza, higiene, cosmética, casa, animais…) — (nome, ingredientes, alergenios), possivelmente noutra língua (espanhol, francês, INGLÊS, alemão…). Traduz para PORTUGUÊS DO BRASIL (PT-BR) TUDO o que NÃO estiver em português; o que já estiver em português fica EXATAMENTE igual (não reescrevas). Traduz SEMPRE as palavras descritivas estrangeiras, MESMO ao lado de um nome próprio ou marca (exemplos: "Eggs" → "Ovos"; "Sliced bread" → "Pão de forma fatiado"; "Sparkling water" → "Água com gás"; "Gorgonzola Doux/Piquant" → "Gorgonzola Suave/Picante"; "Multiusos Desinfectante Antibacterias" → "Multiuso Desinfetante Antibactérias"; "Raisin Sec Sultanine" → "Passa de Uva Sultana"). MARCAS e nomes próprios (incl. denominações como Gorgonzola, Hacendado) NÃO se traduzem, mas as palavras à volta SIM. VARIEDADES/DENOMINAÇÕES são NOMES PRÓPRIOS — mantém a variedade tal e qual e traduz só a palavra genérica à volta; NUNCA troques uma variedade por OUTRA. Queijos: "Cottage Cheese" → "Queijo Cottage" (NUNCA "Ricota"); "Cream Cheese" → "Queijo Creme"; "Cheddar/Mozzarella/Ricotta/Brie/Feta/Gouda Cheese" → "Queijo Cheddar/Mozzarella/Ricotta/Brie/Feta/Gouda". A mesma regra vale para variedades de outros alimentos (arroz Basmati, café Arábica, uva Sultana…). Se for indicada a CATEGORIA do produto, USA-A para desambiguar: quando o NOME é uma palavra comum mas a CATEGORIA diz outra coisa, o nome é o do BLEND/VARIEDADE — mantém-no SEM traduzir e antepõe o TIPO. Ex.: categoria CAFÉ + nome "Dessert"/"Crema"/"Gold"/"Classic" → "Café Dessert"/"Café Crema"/"Café Gold" (NUNCA "Sobremesa"/"Creme"); categoria CHÁ + nome "Forest Fruits" → "Chá Frutos do Bosque". Põe "mudou":true se traduziste QUALQUER palavra. Mantém números, percentagens, unidades e E-números tal como estão. Campo null fica null. Devolve SÓ JSON:
 {"nome": string|null, "ingredientes": string|null, "alergenios": string|null, "mudou": boolean}
 "mudou" = true só se traduziste alguma coisa.`;
 
-export async function traduzirFichaPT(campos, { model } = {}) {
+export async function traduzirFichaPT(campos, { model, categoria } = {}) {
+  const userMsg = categoria
+    ? `CATEGORIA do produto (só contexto p/ desambiguar variedade/blend — NÃO é campo a traduzir): ${categoria}\n${JSON.stringify(campos)}`
+    : JSON.stringify(campos);
   const conteudo = await chatCompletion({
     messages: [
       { role: 'system', content: PROMPT_TRADUZ },
-      { role: 'user', content: JSON.stringify(campos) },
+      { role: 'user', content: userMsg },
     ],
     model: model || config.openrouter.modelConsulta,
     responseFormat: { type: 'json_object' },
@@ -82,15 +85,16 @@ export async function garantirFichaPT(pool, ean) {
     if (_tentados.has(ean) && !pareceEstrangeiro(r0?.nome)) return r0?.nome || null;
     if (_tentados.size > 5000) _tentados.clear();
     _tentados.add(ean);
-    const [[r]] = await pool.query('SELECT nome, ingredientes, alergenios FROM produto_ean WHERE ean = ?', [ean]);
+    const [[r]] = await pool.query('SELECT nome, ingredientes, alergenios, categoria FROM produto_ean WHERE ean = ?', [ean]);
     if (!r || (!r.nome && !r.ingredientes && !r.alergenios)) return r?.nome || null;
+    const cat = r.categoria || null; // contexto p/ desambiguar blend/variedade (café "Dessert" ≠ sobremesa)
     // 2 VOTOS INDEPENDENTES e CROSS-FAMÍLIA (só na 1.ª tradução; re-leituras reusam o nome → zero LLM).
     // O 1.º traduz a ficha toda (gemini); o 2.º só o nome, numa FAMÍLIA DIFERENTE (OpenAI) — modelos
     // da mesma família alucinam igual e o consenso não apanha (caso cottage→ricota). Paralelos.
     const M1 = config.openrouter.modelConsulta, M2 = config.openrouter.modelTraducaoAlt;
     const [t, t2] = await Promise.all([
-      traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios }, { model: M1 }),
-      traduzirFichaPT({ nome: r.nome }, { model: M2 }),
+      traduzirFichaPT({ nome: r.nome, ingredientes: r.ingredientes, alergenios: r.alergenios }, { model: M1, categoria: cat }),
+      traduzirFichaPT({ nome: r.nome }, { model: M2, categoria: cat }),
     ]);
     // GATE por QUALQUER voto: o voto-ficha (ingredientes no contexto) às vezes deixa passar um nome
     // estrangeiro que o voto-nome (focado) apanha — caso "Lessive Liquide". Só fica IGUAL se AMBOS
@@ -100,7 +104,7 @@ export async function garantirFichaPT(pool, ean) {
     let nomeTrad = (t?.mudou && t.nome) ? t.nome : (t2?.nome || t.nome || r.nome);
     // AMBOS traduziram mas DIVERGEM no significado → 3.º voto desempata por consenso (alucinação isolada).
     if (t?.mudou && t2?.mudou && t.nome && t2.nome && !traducoesConcordam(t.nome, t2.nome)) {
-      const t3 = await traduzirFichaPT({ nome: r.nome }, { model: M1 });
+      const t3 = await traduzirFichaPT({ nome: r.nome }, { model: M1, categoria: cat });
       const consenso = consensoTraducao([t.nome, t2.nome, t3?.nome]);
       if (consenso) { console.warn('[traduz] votos divergiram → consenso:', JSON.stringify({ original: r.nome, votos: [t.nome, t2.nome, t3?.nome], consenso })); nomeTrad = consenso; }
     }
