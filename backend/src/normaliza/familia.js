@@ -17,10 +17,12 @@ export const FAMILIAS = {
   conservas_peixe:    { label: 'Conservas de Peixe',        dep: 'food', grupo: 'mercearia', seccao: 'mercearia',    unidade: 'kg', natureza: 'peixe' },
   conservas_vegetais: { label: 'Conservas Vegetais',        dep: 'food', grupo: 'mercearia', seccao: 'mercearia',    unidade: 'kg' },
   molhos_condimentos: { label: 'Molhos e Condimentos',      dep: 'food', grupo: 'mercearia', seccao: 'condimentos',  unidade: 'un' },
-  azeite_oleo:        { label: 'Azeite e Óleo',             dep: 'food', grupo: 'mercearia', seccao: 'condimentos',  unidade: 'l'  },
+  azeite:             { label: 'Azeite',                    dep: 'food', grupo: 'mercearia', seccao: 'condimentos',  unidade: 'l'  },
+  oleo:               { label: 'Óleo',                      dep: 'food', grupo: 'mercearia', seccao: 'condimentos',  unidade: 'l'  },
   especiarias:        { label: 'Especiarias e Temperos',    dep: 'food', grupo: 'mercearia', seccao: 'condimentos',  unidade: 'kg' },
   farinha_acucar:     { label: 'Farinhas, Açúcar e Fermentos', dep: 'food', grupo: 'mercearia', seccao: 'mercearia', unidade: 'kg' },
-  cafe_cha:           { label: 'Café, Chá e Infusões',       dep: 'food', grupo: 'mercearia', seccao: 'cafe_cha',    unidade: 'kg' },
+  cafe:               { label: 'Café',                      dep: 'food', grupo: 'mercearia', seccao: 'cafe_cha',    unidade: 'kg' },
+  cha_infusoes:       { label: 'Chá e Infusões',            dep: 'food', grupo: 'mercearia', seccao: 'cafe_cha',    unidade: 'kg' },
   // — LATICÍNIOS (grupo 'lacticinios' c/ c; secção 'laticinios' sem c) — Fase 2 (2026-06-18) —
   iogurte:            { label: 'Iogurtes',                   dep: 'food', grupo: 'lacticinios', seccao: 'laticinios', unidade: 'un' },
   queijo:             { label: 'Queijos',                    dep: 'food', grupo: 'lacticinios', seccao: 'laticinios', unidade: 'kg' },
@@ -65,7 +67,8 @@ const FAM_RE = [
   ['conservas_peixe',    /(^|[^a-z])(atum|sardinhas?|anchovas?|anchoa|cavala|\bsarda\b|biqueir[ao]|melva|filetes? de (peixe|cavala|sarda|anchova))/],
   // charcutaria = enchidos/fiambres/curados (cabeça do nome: "Fiambre …", "Presunto …", "Chouriço …")
   ['charcutaria',        /(^|[^a-z])(fiambre|presunto|chouric\w*|salsich\w*|salchich\w*|mortadela|\bsalame\b|\bsalami\b|\bpaio\b|\bbacon\b|enchidos?|embutidos?|\bjamon\b|linguica|chistorra|sobrasada|panceta|morcela|alheira|salpicao|\bpate\b|charcutar|lombo (curado|fumado|assado))/],
-  ['cafe_cha',           T.cafe_cha],
+  ['cafe',               /(^|[^a-z])(cafes?\b|descafeinado|expresso|espresso|capsulas? de cafe|cafe (soluvel|moido|em grao|torrado|torref)|nescafe|nespresso)/],
+  ['cha_infusoes',       /(^|[^a-z])(chas?\b(?! gelad| fri)|teas?\b|infus|tisana|rooibos|camomila|cidreira|earl grey|matcha|\btilia\b|verbena)/],
   ['massa',              T.massa],
   ['arroz',              /(^|[^a-z])(arroz|basmati|risotto|risoto|arborio|carolino|\bagulha\b|jasmim)/],
   ['cereais_pa',         T.cereais],
@@ -97,7 +100,8 @@ const FAM_RE = [
   ['refrigerante',       /(^|[^a-z])(refrigerantes?|coca[- ]?cola|\bcola\b|pepsi|fanta|sprite|7 ?up|gasosa|\bsoda\b|tonica|ice ?tea|cha gelado|red bull|monster|isotonic|gatorade|powerade)/],
   ['agua',               /(^|[^a-z])agua( (mineral|com gas|sem gas|das pedras|natural|de nascente|tonica))?([^a-z]|$)/],
   // — CONDIMENTOS/ingredientes por ÚLTIMO (aparecem MEIO de outros nomes) —
-  ['azeite_oleo',        /(^|[^a-z])(azeite|olive oil|oleo (de )?(girassol|alimentar|vegetal|amendoim|colza|milho)|\boleo\b)/],
+  ['azeite',             /(^|[^a-z])(azeite|olive oil|aceite de oliva|oleo de oliva)/],
+  ['oleo',               /(^|[^a-z])(oleo (de )?(girassol|alimentar|vegetal|amendoim|colza|milho|soja|coco|linhaca|sesamo)|\boleo\b|\bolio\b|aceite (de )?(girasol|vegetal|soja))/],
   ['molhos_condimentos', /(^|[^a-z])(ketchup|maionese|mayon|mostarda|mustard|\bmolho|\bsauce\b|pesto|vinagrete?|sofrito|aioli|alioli|barbecue|teriyaki|worcester|tabasco|guacamole|\bbechamel)/],
   ['especiarias',        /(^|[^a-z])(\bsal\b|pimenta|oregaos?|oregano|canela|\bcaril\b|\bcurry\b|cominho|colorau|paprica|noz[- ]moscada|\blouro\b|\bcravo\b|acafrao|gengibre em po|tomilho|alecrim|especiaria|\btempero)/],
 ];

@@ -44,8 +44,9 @@ test('conservas vegetais vs leguminosas vs molhos (colisões controladas)', () =
 });
 
 test('azeite/óleo, especiarias, farinha/açúcar', () => {
-  assert.equal(familiaPorNome('Azeite Virgem Extra'), 'azeite_oleo');
-  assert.equal(familiaPorNome('Óleo de Girassol'), 'azeite_oleo');
+  assert.equal(familiaPorNome('Azeite Virgem Extra'), 'azeite');
+  assert.equal(familiaPorNome('Óleo de Girassol'), 'oleo');
+  assert.equal(familiaPorNome('Óleo de Oliva'), 'azeite'); // oliva = azeite, não óleo
   assert.equal(familiaPorNome('Sal Fino Marinho'), 'especiarias');
   assert.equal(familiaPorNome('Orégãos'), 'especiarias');
   assert.equal(familiaPorNome('Farinha de Trigo T55'), 'farinha_acucar');
@@ -57,9 +58,11 @@ test('cereais de pequeno-almoço', () => {
     assert.equal(familiaPorNome(n), 'cereais_pa', n);
 });
 
-test('café, chá e infusões (família acrescentada após a cobertura)', () => {
-  for (const n of ['Café Delta Solúvel Descafeinado', 'Café Nescafé Gold 100g', 'Chá Verde 20 Saquetas', 'Infusão de Camomila'])
-    assert.equal(familiaPorNome(n), 'cafe_cha', n);
+test('café vs chá e infusões (famílias separadas)', () => {
+  for (const n of ['Café Delta Solúvel Descafeinado', 'Café Nescafé Gold 100g'])
+    assert.equal(familiaPorNome(n), 'cafe', n);
+  for (const n of ['Chá Verde 20 Saquetas', 'Infusão de Camomila'])
+    assert.equal(familiaPorNome(n), 'cha_infusoes', n);
 });
 
 test('conservas_vegetais estendidas: azeitonas, pickles, fruta em calda', () => {
