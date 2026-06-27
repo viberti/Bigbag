@@ -407,6 +407,11 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   });
   const familiaSlug = famR.familia;
   const familiaLabel = familiaSlug ? (FAMILIAS[familiaSlug]?.label || null) : null;
+  // CATEGORIA exibida na NOSSA taxonomia (PT) — família (mais específica) > grupo (corredor). Evita
+  // mostrar a string crua/multilíngue do OFF (ex.: Mercadona em espanhol: "Lácteos,Nata,en:UHT…").
+  // Determinística; o grupoDeNome/família já reconhecem vocabulário ES/EN, por isso o mapa cobre tudo.
+  const GRUPO_LABEL = { frutas: 'Frutas e Vegetais', carne: 'Carne', peixe: 'Peixe', lacticinios: 'Laticínios', padaria: 'Padaria', bebidas: 'Bebidas', doces: 'Doces e Snacks', congelados: 'Congelados', higiene: 'Higiene e Limpeza', mercearia: 'Mercearia' };
+  const categoriaPt = familiaLabel || GRUPO_LABEL[grupoDeNome(nome || '')] || null;
   // SUGESTÃO por-nome (texto acha, o utilizador confirma): ficha "magra" (sem nutrição
   // NEM imagem em fonte nenhuma) e ainda não ligada a um gémeo → procura no off_full o
   // MESMO produto sob OUTRO EAN (match por nome+marca, marca=gate forte). NÃO adota:
@@ -489,7 +494,7 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   const nutricaoDisplay = temV(nutFicha) ? nutFicha : (off?.nutricao_100g || vlm?.nutricao_100g || base?.nutricao_100g || generico?.nutricao_100g || null);
   const tamanhoFicha = (rows.find((r) => r.quantidade && String(r.quantidade).trim())?.quantidade) || off?.quantidade || vlm?.quantidade || base?.quantidade || null;
   return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo,
-    ingredientes: ingredientesFicha, alergenios: alergeniosFicha, nutricao_100g: nutricaoDisplay, tamanho: tamanhoFicha, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut,
+    ingredientes: ingredientesFicha, alergenios: alergeniosFicha, nutricao_100g: nutricaoDisplay, tamanho: tamanhoFicha, nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: categoriaPt || catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut,
     // ficha MAGRA = nem nutrição nem imagem: não temos como mostrar nada útil. Mesmo que haja um
     // nome/marca (talvez só DECODIFICADO do EAN), o scan deve pedir FOTOS (VLM) em vez de abrir
     // uma ficha inútil. (sugestão de gémeo já passa pelo gate de precisão `nomeCondizGemeo`.)
