@@ -143,7 +143,13 @@ const RE_CONSERVA_HORTOFRUT = /(em calda|em conserva|enlatad|\bem lata\b|\d+\s*l
 // PREPARADOS/pão cuja CABEÇA não é carne: a espécie no nome é só RECHEIO ("Pão de … de Pato",
 // "Empada de Frango", "Pizza de Vaca") → não é a família da carne/charcutaria. Regra geral.
 const FAM_CARNE = new Set(['frango', 'boi', 'porco', 'peru', 'pato', 'cordeiro', 'carne_misto', 'charcutaria']);
-const RE_CABECA_PREPARADO = /^(pao\b|paezinhos?|empad[ao]|folhado|pastel|pasteis|croquete|rissol|rissois|sopa|caldo|canja|sandes|sanduiche|pizza|quiche|tarte|pataniscas|salgad)/;
+// quando a cabeça é pão/pastelaria/prato preparado, a manteiga/queijo/carne no nome é RECHEIO, não a família.
+const FILL_PREPARADO = new Set([...FAM_CARNE, 'manteiga', 'queijo']);
+const RE_CABECA_PREPARADO = /^((mini|maxi|midi|pack|caixa)\s+)?(pao\b|paezinhos?|croissants?|brioche|folar|donuts?|panquecas?|waffles?|gofres?|bagels?|scones?|tostas?\b|wraps?\b|empad[ao]|folhado|pastel|pasteis|croquete|rissol|rissois|sopa|caldo|canja|sandes|sanduiche|pizza|quiche|tarte|pataniscas|salgad)/;
+// "Massa de Alho/Pimentão/Tomate…" é PASTA-TEMPERO (condimento), NÃO massa alimentícia.
+const RE_MASSA_NAO_PASTA = /massa de (alho|piment|tomate|malagueta|piri|curry|caril|gengibre|cebola)/;
+// "Peito"/"pechuga" SEM outra espécie no nome = peito de FRANGO (espécie prototípica do peito).
+const RE_PEITO_FRANGO = /(^|[^a-z])(peito|pechuga)([^a-z]|$)/;
 export function familiaPorNome(nome, marca = null) {
   const s = norm(nome);
   if (s) {
@@ -153,9 +159,12 @@ export function familiaPorNome(nome, marca = null) {
       const mm = re.exec(s);
       if (!mm) continue;
       if (slug === 'manteiga' && RE_MANTEIGA_VARIEDADE.test(s)) continue; // "abóbora manteiga" ≠ manteiga
-      if (cabecaPreparado && FAM_CARNE.has(slug)) continue;                // "Pão de … de Pato" ≠ Pato
+      if (slug === 'massa' && RE_MASSA_NAO_PASTA.test(s)) continue;       // "massa de alho" = alho, não pasta
+      if (cabecaPreparado && FILL_PREPARADO.has(slug)) continue;          // "Croissant Manteiga" / "Pão de Pato" = recheio
       if (mm.index < bestIdx) { best = slug; bestIdx = mm.index; }
     }
+    // "Peito Familiar"/"Pechuga" sem espécie explícita → Frango (qualquer espécie no nome já teria casado acima).
+    if (!best && !cabecaPreparado && RE_PEITO_FRANGO.test(s)) best = 'frango';
     if (best) {
       if ((best === 'fruta' || best === 'vegetal') && RE_CONSERVA_HORTOFRUT.test(s)) return 'conservas_vegetais';
       return best;
