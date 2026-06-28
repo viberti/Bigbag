@@ -1489,7 +1489,8 @@ produtoRouter.get('/analise', requireAuth, async (req, res) => {
       categoria: info.off?.categoria || info.vlm?.categoria || info.generico?.categoria || null,
       ingredientes: info.ingredientes || info.vlm?.ingredientes || info.off?.ingredientes || null,
       nutricao_100g: info.nutricao_100g || info.off?.nutricao_100g || info.vlm?.nutricao_100g || info.generico?.nutricao_100g || null,
-      nutriscore: info.off?.nutriscore || null,
+      // o parecer comenta a NOSSA nota (determinística, 2023), não a do OFF — fonte única
+      nutriscore: info.nutriscore_calc?.grau || info.off?.nutriscore || null,
       nova: info.off?.nova ?? (ehFresco ? 1 : null), // fresco/inteiro → NOVA 1
     };
     if (!p.ingredientes && !p.nutricao_100g) {
