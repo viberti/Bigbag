@@ -12,14 +12,19 @@
 //   • Cortes da letra (sólidos): A passou a ≤0 (era ≤−1).
 //   Energia e gordura saturada (sólidos gerais): inalteradas.
 //
+// DUAS escalas implementadas (Nutri-Score 2023):
+//   • SÓLIDOS GERAIS (default).
+//   • BEBIDAS (`classe='bebida'`) — tabelas próprias de energia/açúcar (bem mais severas), proteína
+//     própria, e cortes de letra próprios; só a ÁGUA (`classe='agua'`) pode ser A. O LEITE conta como
+//     bebida no Nutri-Score (apesar de estar em laticínios) — por isso a classe vem da FAMÍLIA, não do
+//     grupo (ver `classeNutriScore` em familia.js).
+//
 // LIMITAÇÕES (assumidas de propósito):
 //   1) NÃO temos a % de fruta/legumes/frutos secos (não parseamos ingredientes) → assume 0 → score um
 //      pouco MAIS SEVERO que o oficial (produtos ricos em fruta perdem o bónus). Comparações entre
 //      produtos mantêm-se justas (todos sem o bónus).
-//   2) Só a escala de SÓLIDOS GERAIS. Bebidas (incl. leite/bebidas vegetais), gorduras/óleos/frutos
-//      secos e queijos têm escalas próprias no Nutri-Score 2023 — a Nesquik PREPARADA como bebida, ou
-//      sumos/refrigerantes, seriam pontuados pela escala de bebidas (com penalização de adoçantes),
-//      mais severa. A acrescentar se valer.
+//   2) NÃO detetamos adoçantes não-nutritivos → não aplicamos a penalização de +4 das bebidas (2023).
+//   3) FALTAM ainda as escalas de gorduras/óleos (azeite injustamente em E) e de queijos. A acrescentar.
 
 const pts = (v, limites) => { for (let i = 0; i < limites.length; i++) if (v <= limites[i]) return i; return limites.length; };
 
@@ -31,21 +36,34 @@ const L_SAL      = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 
 const L_FIBRA    = [3.0, 4.1, 5.2, 6.3, 7.4];                                                                   // g (AOAC) → 0..5 (limiares 2023)
 const L_PROTEINA = [2.4, 4.8, 7.2, 9.6, 12, 14, 17];                                                            // g → 0..7 (NOVA)
 
-// Nutrição esperada (por 100 g): { energia_kcal, acucares, gordura_saturada, sal, fibra, proteina }.
-export function nutriScore(n) {
+// ── Tabelas oficiais 2023 — BEBIDAS (por 100 ml; energia/açúcar muito mais severas que sólidos)
+const L_ENERGIA_BEB  = [30, 90, 150, 210, 240, 270, 300, 330, 360, 390]; // kJ → 0..10
+const L_ACUCAR_BEB   = [0.5, 2, 3.5, 5, 6, 7, 8, 9, 10, 11];             // g  → 0..10
+const L_PROTEINA_BEB = [1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0];             // g  → 0..7
+// saturada e sal das bebidas usam as MESMAS tabelas dos sólidos (L_SATURADA, L_SAL).
+
+// Nutrição esperada (por 100 g/ml): { energia_kcal, acucares, gordura_saturada, sal, fibra, proteina }.
+// opts.classe: 'agua' (→ A) | 'bebida' (escala de bebidas) | outro/undefined (sólidos gerais).
+export function nutriScore(n, opts = {}) {
   if (!n || n.energia_kcal == null || n.gordura_saturada == null || n.acucares == null || n.sal == null) return null;
   const num = (x) => (x == null ? 0 : Number(x));
+  const bebida = opts.classe === 'bebida' || opts.classe === 'agua';
   const kJ = num(n.energia_kcal) * 4.184;
-  // pontos NEGATIVOS (desfavoráveis): 0..55 no algoritmo de 2023
-  const A = pts(kJ, L_ENERGIA) + pts(num(n.acucares), L_ACUCAR) + pts(num(n.gordura_saturada), L_SATURADA) + pts(num(n.sal), L_SAL);
+  // pontos NEGATIVOS (desfavoráveis)
+  const A = pts(kJ, bebida ? L_ENERGIA_BEB : L_ENERGIA)
+          + pts(num(n.acucares), bebida ? L_ACUCAR_BEB : L_ACUCAR)
+          + pts(num(n.gordura_saturada), L_SATURADA)
+          + pts(num(n.sal), L_SAL);
   // pontos POSITIVOS (favoráveis)
-  const ptFibra = n.fibra != null ? pts(num(n.fibra), L_FIBRA) : 0;            // 0..5
-  const ptProt  = n.proteina != null ? pts(num(n.proteina), L_PROTEINA) : 0;  // 0..7
-  const ptFruta = 0;                                                          // desconhecido (ver limitação 1)
+  const ptFibra = n.fibra != null ? pts(num(n.fibra), L_FIBRA) : 0;                                  // 0..5
+  const ptProt  = n.proteina != null ? pts(num(n.proteina), bebida ? L_PROTEINA_BEB : L_PROTEINA) : 0; // 0..7
+  const ptFruta = 0;                                                                                 // desconhecido (ver limitação 1)
   // regra oficial (mantida em 2023): se os negativos ≥ 11 e a fruta < 5, a PROTEÍNA não conta (só
   // fibra + fruta) — evita "compensar" um produto mau com proteína (ex.: carnes processadas).
   const pontos = (A >= 11 && ptFruta < 5) ? A - (ptFibra + ptFruta) : A - (ptFibra + ptProt + ptFruta);
-  // cortes da letra para SÓLIDOS (2023): A ≤0, B ≤2, C ≤10, D ≤18, E ≥19
-  const grau = pontos <= 0 ? 'A' : pontos <= 2 ? 'B' : pontos <= 10 ? 'C' : pontos <= 18 ? 'D' : 'E';
+  let grau;
+  if (opts.classe === 'agua') grau = 'A';                          // só a água pode ser A
+  else if (bebida) grau = pontos <= 2 ? 'B' : pontos <= 6 ? 'C' : pontos <= 9 ? 'D' : 'E'; // bebidas: nunca A
+  else grau = pontos <= 0 ? 'A' : pontos <= 2 ? 'B' : pontos <= 10 ? 'C' : pontos <= 18 ? 'D' : 'E'; // sólidos
   return { pontos, grau };
 }

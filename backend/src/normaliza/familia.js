@@ -236,3 +236,13 @@ export function familiaDe({ nome = '', marca = null, categoria = '', tipoTexto =
   const win = Object.entries(soma).sort((a, b) => b[1] - a[1])[0][0];
   return { familia: win, via: votos.find((v) => v.familia === win).via, votos };
 }
+
+// CLASSE do Nutri-Score 2023 a partir da família (slug). O Nutri-Score tem escalas próprias para
+// BEBIDAS (energia/açúcar muito mais severas; só a água pode ser A) — e o LEITE conta como bebida
+// apesar de viver em laticínios. Devolve 'agua' | 'bebida' | 'solido'.
+const FAM_BEBIDA = new Set(['leite', 'sumo', 'refrigerante', 'cerveja', 'vinho']);
+export function classeNutriScore(familiaSlug) {
+  if (familiaSlug === 'agua') return 'agua';
+  if (FAM_BEBIDA.has(familiaSlug)) return 'bebida';
+  return 'solido';
+}

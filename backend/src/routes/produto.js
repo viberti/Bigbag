@@ -28,7 +28,7 @@ import { mestrePorEan } from '../normaliza/mestreEan.js';
 import { gerarThumbCatalogo } from '../ingest/thumbCatalogo.js';
 import { nutricaoContinenteLive } from '../ingest/nutricaoContinente.js';
 import { tipoProduto, decidirTipo } from '../normaliza/tipoProduto.js';
-import { familiaDe, familiaPorNome, familiasQueCasam, FAMILIAS } from '../normaliza/familia.js';
+import { familiaDe, familiaPorNome, familiasQueCasam, FAMILIAS, classeNutriScore } from '../normaliza/familia.js';
 import { nutriScore } from '../normaliza/nutriscore.js';
 
 // Fotos dos produtos vivem ao lado das das notas, num subdiretório 'produtos'.
@@ -516,7 +516,7 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
     // nome/marca (talvez só DECODIFICADO do EAN), o scan deve pedir FOTOS (VLM) em vez de abrir
     // uma ficha inútil. (sugestão de gémeo já passa pelo gate de precisão `nomeCondizGemeo`.)
     ficha_magra: !temNutFinal && !imagemCatalogo,
-    nutriscore_calc: nutriScore(nutricaoDisplay) };
+    nutriscore_calc: nutriScore(nutricaoDisplay, { classe: classeNutriScore(familiaSlug) }) };
 }
 
 const MAX_FOTOS = 10;
@@ -976,6 +976,7 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
     // cai no tipoConsumidor.
     const marcaAtual = info.base?.marca || info.off?.marca || info.vlm?.marca || null;
     const famAtual = info.familia;
+    const classeNS = classeNutriScore(famAtual); // escala Nutri-Score (bebida/água/sólido) p/ o produto e alternativas
     const tipoAtual = tipoConsumidor(grupo, nomeFacetas, marcaAtual);
     // CHAVE DE COMPARABILIDADE (regra GERAL — não curar família a família): nos grupos-SACO de
     // processados, duas coisas só são alternativas se partilham a CHAVE = família curada (fusor) →
@@ -1051,8 +1052,8 @@ produtoRouter.get('/alternativas', requireAuth, async (req, res) => {
       .filter(naoPior)
       .sort((a, b) => (a._s ?? 99) - (b._s ?? 99) || (b.eur_base != null) - (a.eur_base != null))
       .slice(0, 6)
-      .map(({ _s, ...a }) => ({ ...a, mais_saudavel: scoreAtual != null && _s != null && _s < scoreAtual, nutriscore: nutriScore(a.nutricao) }));
-    res.json({ grupo, nivel, categoria: mestreCat, produto: { nome: info.nome, nutricao: nutAtual, score_saude: scoreAtual, nutriscore: nutriScore(nutAtual) }, alternativas: ord });
+      .map(({ _s, ...a }) => ({ ...a, mais_saudavel: scoreAtual != null && _s != null && _s < scoreAtual, nutriscore: nutriScore(a.nutricao, { classe: classeNS }) }));
+    res.json({ grupo, nivel, categoria: mestreCat, produto: { nome: info.nome, nutricao: nutAtual, score_saude: scoreAtual, nutriscore: nutriScore(nutAtual, { classe: classeNS }) }, alternativas: ord });
   } catch (e) {
     console.error('[produto/alternativas] erro:', e.message);
     res.status(500).json({ erro: 'Falha a obter alternativas' });
