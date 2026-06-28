@@ -414,17 +414,21 @@ function fmtMedida(qtd, unidade) {
   if (unidade === 'L') return n < 1 ? `${Math.round(n * 1000)} ml` : `${v(Math.round(n * 1000) / 1000)} L`;
   return `${v(n)} ${unidade || ''}`.trim();
 }
-// Formata um TAMANHO em texto (canónico "1000 g"/"250 ml" OU já amigo "1 kg") para exibição:
-// ≥1000 g → kg, ≥1000 ml → L; abaixo fica g/ml. Idempotente (mantém o que já está amigo).
+// Formata um TAMANHO em texto para exibição, AGNÓSTICO à unidade de entrada (canónico "1000 g"/
+// "250 ml", legado "0,25 kg"/"25 cl", ou já amigo "1 kg"): normaliza a peso(g)/volume(ml) e aplica
+// ≥1000 g → kg, ≥1000 ml → L (dono). Idempotente.
 function fmtTamanho(s) {
   if (!s) return s;
-  const m = String(s).match(/^(\d+(?:[.,]\d+)?)\s*(g|ml|un)$/i);
+  const m = String(s).match(/^(\d+(?:[.,]\d+)?)\s*(kg|mg|gr|g|lt|l|dl|cl|ml|cc|un)$/i);
   if (!m) return s;
   const val = parseFloat(m[1].replace(',', '.')); const u = m[2].toLowerCase();
   const n = (x) => (Number.isInteger(x) ? String(x) : String(Math.round(x * 1000) / 1000)).replace('.', ',');
-  if (u === 'g') return val >= 1000 ? `${n(val / 1000)} kg` : `${Math.round(val)} g`;
-  if (u === 'ml') return val >= 1000 ? `${n(val / 1000)} L` : `${Math.round(val)} ml`;
-  return `${Math.round(val)} un`;
+  let g = null, ml = null;
+  if (u === 'kg') g = val * 1000; else if (u === 'g' || u === 'gr') g = val; else if (u === 'mg') g = val / 1000;
+  else if (u === 'l' || u === 'lt') ml = val * 1000; else if (u === 'dl') ml = val * 100; else if (u === 'cl') ml = val * 10; else if (u === 'ml' || u === 'cc') ml = val;
+  else return `${Math.round(val)} un`;
+  if (g != null) return g >= 1000 ? `${n(g / 1000)} kg` : `${n(g)} g`;
+  return ml >= 1000 ? `${n(ml / 1000)} L` : `${n(ml)} ml`;
 }
 
 // Ovos contam-se por DÚZIA (convenção; produto popular — enriquecimento especial permitido). 1 pack = 1 dúzia.
