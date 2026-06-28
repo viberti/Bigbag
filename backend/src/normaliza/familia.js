@@ -241,8 +241,10 @@ export function familiaDe({ nome = '', marca = null, categoria = '', tipoTexto =
 // BEBIDAS (energia/açúcar muito mais severas; só a água pode ser A) — e o LEITE conta como bebida
 // apesar de viver em laticínios. Devolve 'agua' | 'bebida' | 'solido'.
 const FAM_BEBIDA = new Set(['leite', 'sumo', 'refrigerante', 'cerveja', 'vinho']);
+const FAM_GORDURA = new Set(['azeite', 'oleo', 'manteiga']); // óleos + manteiga/margarina (categoria gorduras do NS)
 export function classeNutriScore(familiaSlug) {
   if (familiaSlug === 'agua') return 'agua';
   if (FAM_BEBIDA.has(familiaSlug)) return 'bebida';
+  if (FAM_GORDURA.has(familiaSlug)) return 'gordura';
   return 'solido';
 }

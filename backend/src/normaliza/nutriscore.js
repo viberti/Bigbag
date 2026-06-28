@@ -18,13 +18,16 @@
 //     própria, e cortes de letra próprios; só a ÁGUA (`classe='agua'`) pode ser A. O LEITE conta como
 //     bebida no Nutri-Score (apesar de estar em laticínios) — por isso a classe vem da FAMÍLIA, não do
 //     grupo (ver `classeNutriScore` em familia.js).
+//   • GORDURAS/ÓLEOS/FRUTOS SECOS (`classe='gordura'`) — energia a partir da SATURADA (não da energia
+//     total) e saturada como RÁCIO saturada/gordura-total → o azeite deixa de ser injustamente E (fica
+//     ~C); diferencia azeite (bom) de óleo de coco/manteiga (mau).
 //
 // LIMITAÇÕES (assumidas de propósito):
 //   1) NÃO temos a % de fruta/legumes/frutos secos (não parseamos ingredientes) → assume 0 → score um
 //      pouco MAIS SEVERO que o oficial (produtos ricos em fruta perdem o bónus). Comparações entre
 //      produtos mantêm-se justas (todos sem o bónus).
 //   2) NÃO detetamos adoçantes não-nutritivos → não aplicamos a penalização de +4 das bebidas (2023).
-//   3) FALTAM ainda as escalas de gorduras/óleos (azeite injustamente em E) e de queijos. A acrescentar.
+//   3) FALTA ainda a escala de QUEIJOS (a proteína conta sempre). A acrescentar se valer.
 
 const pts = (v, limites) => { for (let i = 0; i < limites.length; i++) if (v <= limites[i]) return i; return limites.length; };
 
@@ -42,28 +45,47 @@ const L_ACUCAR_BEB   = [0.5, 2, 3.5, 5, 6, 7, 8, 9, 10, 11];             // g  �
 const L_PROTEINA_BEB = [1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0];             // g  → 0..7
 // saturada e sal das bebidas usam as MESMAS tabelas dos sólidos (L_SATURADA, L_SAL).
 
-// Nutrição esperada (por 100 g/ml): { energia_kcal, acucares, gordura_saturada, sal, fibra, proteina }.
-// opts.classe: 'agua' (→ A) | 'bebida' (escala de bebidas) | outro/undefined (sólidos gerais).
+// ── Tabelas oficiais 2023 — GORDURAS/ÓLEOS/FRUTOS SECOS (diferenciam azeite de óleo de coco):
+// • a "energia" vem da ENERGIA DA SATURADA (saturada g × 37 kJ/g), não da energia total → não pune o
+//   azeite só por ser calórico; pune a GORDURA MÁ.
+// • a saturada entra como RÁCIO saturada/gordura-total (%) → azeite ~16% (bom), coco ~88% (mau).
+// • açúcar e sal usam as tabelas gerais; proteína exclui-se quando os negativos ≥ 7.
+const L_ENERGIA_SAT  = [120, 240, 360, 480, 600, 720, 840, 960, 1080, 1200]; // kJ da saturada → 0..10
+const L_SAT_RATIO    = [10, 16, 22, 28, 34, 40, 46, 52, 58, 64];             // % saturada/total → 0..10
+
+// Nutrição esperada (por 100 g/ml): { energia_kcal, acucares, gordura_saturada, sal, fibra, proteina, gordura }.
+// opts.classe: 'agua' (→ A) | 'bebida' (escala de bebidas) | 'gordura' (gorduras/óleos) | outro/undefined (sólidos).
 export function nutriScore(n, opts = {}) {
   if (!n || n.energia_kcal == null || n.gordura_saturada == null || n.acucares == null || n.sal == null) return null;
   const num = (x) => (x == null ? 0 : Number(x));
   const bebida = opts.classe === 'bebida' || opts.classe === 'agua';
-  const kJ = num(n.energia_kcal) * 4.184;
-  // pontos NEGATIVOS (desfavoráveis)
-  const A = pts(kJ, bebida ? L_ENERGIA_BEB : L_ENERGIA)
-          + pts(num(n.acucares), bebida ? L_ACUCAR_BEB : L_ACUCAR)
-          + pts(num(n.gordura_saturada), L_SATURADA)
-          + pts(num(n.sal), L_SAL);
-  // pontos POSITIVOS (favoráveis)
-  const ptFibra = n.fibra != null ? pts(num(n.fibra), L_FIBRA) : 0;                                  // 0..5
-  const ptProt  = n.proteina != null ? pts(num(n.proteina), bebida ? L_PROTEINA_BEB : L_PROTEINA) : 0; // 0..7
-  const ptFruta = 0;                                                                                 // desconhecido (ver limitação 1)
-  // regra oficial (mantida em 2023): se os negativos ≥ 11 e a fruta < 5, a PROTEÍNA não conta (só
-  // fibra + fruta) — evita "compensar" um produto mau com proteína (ex.: carnes processadas).
-  const pontos = (A >= 11 && ptFruta < 5) ? A - (ptFibra + ptFruta) : A - (ptFibra + ptProt + ptFruta);
+  const sat = num(n.gordura_saturada);
+  const gorduraTotal = num(n.gordura);
+  // GORDURAS/ÓLEOS só com a gordura total conhecida (precisa do rácio); senão cai p/ sólidos.
+  const gordura = opts.classe === 'gordura' && gorduraTotal > 0;
+  let A, ptProt;
+  const ptFibra = n.fibra != null ? pts(num(n.fibra), L_FIBRA) : 0; // 0..5
+  if (gordura) {
+    // energia DA SATURADA (sat × 37 kJ/g) + rácio saturada/total + açúcar/sal gerais
+    A = pts(sat * 37, L_ENERGIA_SAT) + pts((sat / gorduraTotal) * 100, L_SAT_RATIO)
+      + pts(num(n.acucares), L_ACUCAR) + pts(num(n.sal), L_SAL);
+    ptProt = n.proteina != null ? pts(num(n.proteina), L_PROTEINA) : 0;
+  } else {
+    const kJ = num(n.energia_kcal) * 4.184;
+    A = pts(kJ, bebida ? L_ENERGIA_BEB : L_ENERGIA)
+      + pts(num(n.acucares), bebida ? L_ACUCAR_BEB : L_ACUCAR)
+      + pts(sat, L_SATURADA) + pts(num(n.sal), L_SAL);
+    ptProt = n.proteina != null ? pts(num(n.proteina), bebida ? L_PROTEINA_BEB : L_PROTEINA) : 0; // 0..7
+  }
+  const ptFruta = 0; // desconhecido (ver limitação 1)
+  // a PROTEÍNA não conta quando os negativos são altos (≥7 nas gorduras, ≥11 nos restantes) e a fruta<5
+  // — evita "compensar" um produto mau com proteína.
+  const capProt = gordura ? 7 : 11;
+  const pontos = (A >= capProt && ptFruta < 5) ? A - (ptFibra + ptFruta) : A - (ptFibra + ptProt + ptFruta);
   let grau;
   if (opts.classe === 'agua') grau = 'A';                          // só a água pode ser A
   else if (bebida) grau = pontos <= 2 ? 'B' : pontos <= 6 ? 'C' : pontos <= 9 ? 'D' : 'E'; // bebidas: nunca A
+  else if (gordura) grau = pontos <= -6 ? 'A' : pontos <= 2 ? 'B' : pontos <= 10 ? 'C' : pontos <= 18 ? 'D' : 'E'; // gorduras: A exige ≤−6
   else grau = pontos <= 0 ? 'A' : pontos <= 2 ? 'B' : pontos <= 10 ? 'C' : pontos <= 18 ? 'D' : 'E'; // sólidos
   return { pontos, grau };
 }

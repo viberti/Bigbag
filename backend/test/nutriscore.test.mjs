@@ -62,3 +62,24 @@ test('refrigerante açucarado → E na escala de bebidas', () => {
   assert.equal(r.pontos, 12);
   assert.equal(r.grau, 'E');
 });
+
+// ── ESCALA DE GORDURAS/ÓLEOS (2023) — energia da saturada + rácio saturada/total.
+test('AZEITE como gordura → C (na escala de sólidos dava E)', () => {
+  const n = { energia_kcal: 822, gordura: 91.6, gordura_saturada: 15.3, acucares: 0, sal: 0, fibra: 0, proteina: 0 };
+  assert.equal(nutriScore(n).grau, 'E'); // sólidos: injustamente E
+  // gordura: energia-sat 15.3×37=566→4; rácio 16.7%→2; açúcar 0; sal 0 ⇒ A=6 ⇒ C.
+  const r = nutriScore(n, { classe: 'gordura' });
+  assert.equal(r.pontos, 6);
+  assert.equal(r.grau, 'C');
+});
+
+test('óleo de COCO (muito saturado) → E mesmo na escala de gorduras', () => {
+  // energia-sat 87×37=3219→10; rácio 87%→10 ⇒ A=20 ⇒ E. Diferencia do azeite.
+  const r = nutriScore({ energia_kcal: 862, gordura: 100, gordura_saturada: 87, acucares: 0, sal: 0, fibra: 0, proteina: 0 }, { classe: 'gordura' });
+  assert.equal(r.grau, 'E');
+});
+
+test('gordura sem gordura total conhecida → cai p/ sólidos (não rebenta)', () => {
+  const r = nutriScore({ energia_kcal: 822, gordura: null, gordura_saturada: 15.3, acucares: 0, sal: 0 }, { classe: 'gordura' });
+  assert.ok(r && r.grau); // calcula na escala de sólidos
+});
