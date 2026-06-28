@@ -1161,7 +1161,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
       .catch(() => { if (meu === avalSeq.current) { setAval(null); setAvalLoading(false); } });
   }, [ean, sku_id]);
   useEffect(() => { dispararParecer(); }, [dispararParecer]); // dispara no mount, em PARALELO com o /info
-  const ehAlimento = temNut || !!grau;
+  const ehAlimento = temNut || !!nsCalc;
   const marcaViaEan = info?.marca_via === 'ean_empresa'; // marca veio do prefixo do EAN (voto), não de uma fonte
   const marcaP = info?.marca || info?.off?.marca || info?.vlm?.marca || info?.base?.marca || null;
   const tamanhoP = fmtTamanho(info?.tamanho || info?.off?.quantidade || info?.vlm?.quantidade || info?.base?.quantidade || null);
