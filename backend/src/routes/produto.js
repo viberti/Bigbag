@@ -149,7 +149,7 @@ async function upsertBaseLocal(pool, ean, f, ptOk = true) {
        alergenios=COALESCE(VALUES(alergenios), alergenios),
        nutricao=COALESCE(VALUES(nutricao), nutricao),
        ingredientes=COALESCE(VALUES(ingredientes), ingredientes)`,
-    [ean, lim(f.nome, 255), lim(f.marca, 120), lim(formatarMedida(f.quantidade), 80), lim(f.categoria, 120),
+    [ean, lim(f.nome, 255), lim(f.marca, 120), lim(f.quantidade, 80), lim(f.categoria, 120),
       lim(f.alergenios, 255), f.nutricao ? JSON.stringify(f.nutricao) : null,
       f.ingredientes ? String(f.ingredientes).slice(0, 1200) : null,
       ptOk ? 'uso' : 'uso_es'],

@@ -414,6 +414,18 @@ function fmtMedida(qtd, unidade) {
   if (unidade === 'L') return n < 1 ? `${Math.round(n * 1000)} ml` : `${v(Math.round(n * 1000) / 1000)} L`;
   return `${v(n)} ${unidade || ''}`.trim();
 }
+// Formata um TAMANHO em texto (canónico "1000 g"/"250 ml" OU já amigo "1 kg") para exibição:
+// ≥1000 g → kg, ≥1000 ml → L; abaixo fica g/ml. Idempotente (mantém o que já está amigo).
+function fmtTamanho(s) {
+  if (!s) return s;
+  const m = String(s).match(/^(\d+(?:[.,]\d+)?)\s*(g|ml|un)$/i);
+  if (!m) return s;
+  const val = parseFloat(m[1].replace(',', '.')); const u = m[2].toLowerCase();
+  const n = (x) => (Number.isInteger(x) ? String(x) : String(Math.round(x * 1000) / 1000)).replace('.', ',');
+  if (u === 'g') return val >= 1000 ? `${n(val / 1000)} kg` : `${Math.round(val)} g`;
+  if (u === 'ml') return val >= 1000 ? `${n(val / 1000)} L` : `${Math.round(val)} ml`;
+  return `${Math.round(val)} un`;
+}
 
 // Ovos contam-se por DÚZIA (convenção; produto popular — enriquecimento especial permitido). 1 pack = 1 dúzia.
 // Exclui o que não é ovo-de-galinha à dúzia (chocolate/líquido/pó/codorniz/páscoa).
@@ -465,7 +477,7 @@ function ItemLista({ it, cor, onApanhar, onRemover, onDelta, onDeltaMedida, qtd,
         title={it.adicionado_por ? `adicionado por ${it.adicionado_por}` : undefined}>
         <div className="ib" onClick={() => { if (g.current.horiz || riscaCor) return; onApanhar(it, true); }}>
           <div className="iname">{nomeTalao(it.nome)}</div>
-          <div className="isub">{[it.marca && limparMarca(it.marca), it.tamanho, precoLista(it)].filter(Boolean).join(' · ')}</div>
+          <div className="isub">{[it.marca && limparMarca(it.marca), fmtTamanho(it.tamanho), precoLista(it)].filter(Boolean).join(' · ')}</div>
           {(levar || formas) && (
             <div className="ichips">
               {levar && <button className="ichip lv" onClick={(e) => { e.stopPropagation(); onLevar(it); }}><Ico name="plus" size={11} stroke={2.8} color="var(--leaf-d)" />levar {it.qtd_habitual}</button>}
@@ -775,7 +787,7 @@ function Lista({ go, back, destaque }) {
                 {sug.map((s, i) => (
                   <button type="button" className={`acitem ${s.generico ? 'gen' : ''}`} key={`${s.nome}-${s.ean || i}`} onClick={() => escolherSug(s)}>
                     <span className="acnome">{nomeTalao(s.nome)}</span>
-                    {(s.marca || s.tamanho) && <span className="acsub">{[s.marca && limparMarca(s.marca), s.tamanho].filter(Boolean).join(' · ')}</span>}
+                    {(s.marca || s.tamanho) && <span className="acsub">{[s.marca && limparMarca(s.marca), fmtTamanho(s.tamanho)].filter(Boolean).join(' · ')}</span>}
                     {s.tem_nutricao && <span className="acnut" title="Tem informação nutricional" />}
                   </button>
                 ))}
@@ -1149,7 +1161,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
   const ehAlimento = temNut || !!grau;
   const marcaViaEan = info?.marca_via === 'ean_empresa'; // marca veio do prefixo do EAN (voto), não de uma fonte
   const marcaP = info?.marca || info?.off?.marca || info?.vlm?.marca || info?.base?.marca || null;
-  const tamanhoP = info?.tamanho || info?.off?.quantidade || info?.vlm?.quantidade || info?.base?.quantidade || null;
+  const tamanhoP = fmtTamanho(info?.tamanho || info?.off?.quantidade || info?.vlm?.quantidade || info?.base?.quantidade || null);
   // NOTA: não mostramos "categoria" no layout não-alimento — o classificador (grupoDeNome)
   // é orientado a alimentos e erra em não-alimentos ("Leite de Proteção Solar"→Laticínios).
   // Uma categoria fiável p/ não-alimentos precisa do campo product_type (ver backlog).
@@ -1197,7 +1209,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
               {sug.confirmada_imagem && sug.imagem_url && <img src={sug.imagem_url} alt="" />}
               <div className="sug-t">
                 <div className="sug-n">{nomeTalao(sug.nome)}{sug.marca ? ` · ${limparMarca(sug.marca)}` : ''}</div>
-                <div className="sug-d">{[sug.tamanho, sug.nutricao_100g ? 'com tabela nutricional' : null, (sug.confirmada_imagem && sug.imagem_url) ? 'foto confirmada' : null].filter(Boolean).join(' · ')}</div>
+                <div className="sug-d">{[fmtTamanho(sug.tamanho), sug.nutricao_100g ? 'com tabela nutricional' : null, (sug.confirmada_imagem && sug.imagem_url) ? 'foto confirmada' : null].filter(Boolean).join(' · ')}</div>
               </div>
             </div>
             <button className="sug-btn" disabled={adotando} onClick={adotar}>{adotando ? 'A aplicar…' : (sug.confirmada_imagem ? 'Usar a nutrição e a foto deste' : 'Usar a nutrição deste')}</button>
@@ -1308,7 +1320,7 @@ function Texto({ go, back }) {
                   <span className="fdot" style={{ background: '#e8eef3', overflow: 'hidden', padding: 0 }}>
                     {p.imagem ? <img src={p.imagem} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : inicial(p.nome)}
                   </span>
-                  <div className="fb"><div className="fn">{nomeTalao(p.nome)}</div><div className="fs">{[p.marca && limparMarca(p.marca), p.tamanho].filter(Boolean).join(' · ')}</div></div>
+                  <div className="fb"><div className="fn">{nomeTalao(p.nome)}</div><div className="fs">{[p.marca && limparMarca(p.marca), fmtTamanho(p.tamanho)].filter(Boolean).join(' · ')}</div></div>
                   <span style={{ color: 'var(--ink-3)' }}>›</span>
                 </div>
               ))}
@@ -1333,7 +1345,7 @@ function ItemDespensa({ it, onAbrir, onRemover }) {
       <div className="swrow-bg"><Ico name="close" size={18} /></div>
       <div className="item" style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform .18s' }} {...touch}
         onClick={() => { if (g.current.horiz) return; onAbrir(it); }}>
-        <div className="ib"><div className="iname">{nomeTalao(it.nome)}</div><div className="isub">{it.tamanho || (it.marca && limparMarca(it.marca)) || ''}</div></div>
+        <div className="ib"><div className="iname">{nomeTalao(it.nome)}</div><div className="isub">{fmtTamanho(it.tamanho) || (it.marca && limparMarca(it.marca)) || ''}</div></div>
       </div>
     </div>
   );
