@@ -207,17 +207,42 @@ export function limparQuantidade(q) {
   // 1.ª medida = número + unidade (tolera letra colada "ge"/"kge"/"cle" e ausência de espaço "0.25kg")
   const m = s.match(/(\d+(?:[.,]\d+)?)\s*(kg|mg|ml|cl|dl|lt|cc|gr|g|l|un)e?\b/i);
   if (m) {
-    let u = m[2].toLowerCase();
-    if (u === 'lt') u = 'l';
-    if (u === 'gr') u = 'g';
-    if (u === 'l') u = 'L';
-    return `${m[1].replace('.', ',')} ${u}`;
+    const u = m[2].toLowerCase();
+    const val = parseFloat(m[1].replace(',', '.'));
+    if (Number.isFinite(val)) {
+      // ARMAZENAMENTO CANÓNICO (dono, 2026-06-28): peso SEMPRE em gramas, volume SEMPRE em ml,
+      // contagem em un — para a comparação interna ser trivial. A formatação amiga (≥1 kg→kg,
+      // ≥1 L→L) faz-se só na EXIBIÇÃO, com formatarMedida().
+      if (u === 'kg') return `${Math.round(val * 1000)} g`;
+      if (u === 'mg') return `${String(Math.round(val) / 1000).replace('.', ',')} g`;
+      if (u === 'g' || u === 'gr') return `${Math.round(val)} g`;
+      if (u === 'l' || u === 'lt') return `${Math.round(val * 1000)} ml`;
+      if (u === 'cl') return `${Math.round(val * 10)} ml`;
+      if (u === 'dl') return `${Math.round(val * 100)} ml`;
+      if (u === 'ml' || u === 'cc') return `${Math.round(val)} ml`;
+      if (u === 'un') return `${Math.round(val)} un`;
+    }
   }
   // contagem com palavras pelo meio ("20 Pyramid un" → "20 un")
   const un = s.match(/^(\d+)\b/);
   if (un && /\bun\b/i.test(s)) return `${un[1]} un`;
   s = s.replace(/\s+e$/i, '').replace(/\s+/g, ' ').trim();
   return s || null;
+}
+
+// EXIBIÇÃO: a partir do valor CANÓNICO (g/ml/un), mostra na unidade amiga — ≥1000 g → kg,
+// ≥1000 ml → L; abaixo fica em g/ml (dono, 2026-06-28). Idempotente sobre valores já amigos.
+export function formatarMedida(canonica) {
+  if (!canonica) return canonica;
+  const m = String(canonica).match(/^(\d+(?:[.,]\d+)?)\s*(g|ml|un)$/i);
+  if (!m) return canonica;
+  const val = parseFloat(m[1].replace(',', '.'));
+  if (!Number.isFinite(val)) return canonica;
+  const u = m[2].toLowerCase();
+  const num = (x) => (Number.isInteger(x) ? String(x) : String(Math.round(x * 1000) / 1000)).replace('.', ',');
+  if (u === 'g') return val >= 1000 ? `${num(val / 1000)} kg` : `${Math.round(val)} g`;
+  if (u === 'ml') return val >= 1000 ? `${num(val / 1000)} L` : `${Math.round(val)} ml`;
+  return `${Math.round(val)} un`;
 }
 
 export async function fundirFichaEan(pool, ean, { extra = {}, atual = null } = {}) {
