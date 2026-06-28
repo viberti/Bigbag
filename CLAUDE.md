@@ -68,6 +68,7 @@ Mantém atualizados **após cada alteração que mude o que neles está** (não 
 - **Extração = `gemini-2.5-flash`** (`OPENROUTER_MODEL_EXTRACAO`); verificação = `gemini-3-flash-preview`. Custo é não-fator (<$0,01/nota); o barato perde itens.
 - **~97% do custo é a ingestão** (metade leitura-VLM, metade normalização item-a-item). A alavanca é o **catálogo determinístico** (item resolvido sem LLM corta canonicalizar+mestre). A aba **Custos** mede por feature.
 - Comparações de preço usam sempre `preco_por_base` (€/kg, €/L, €/un); filtrar `is_clearance`/`is_non_product`.
+- **Quantidade/tamanho — ARMAZENAR canónico, FORMATAR na borda (dono, 2026-06-28):** guarda-se sempre peso em **g**, volume em **ml**, contagem em **un** (`limparQuantidade` no fusor; `produto_ean` e `base_local` canónicos) — comparação interna trivial. A unidade amiga (≥1 kg→kg, ≥1 L→L) só na EXIBIÇÃO: backend `formatarMedida` no `/info`, frontend `fmtTamanho` (agnóstico à unidade, idempotente, formata até legados da base_local). A planilha de export fica em g/ml puros (tabela de comparação). Detalhe em `Normalizacao.md §5.3`.
 - **Preço de catálogo (online) é só referência, NUNCA critério** (dono, 2026-06-11): no matching entra só como bónus de desempate; o histórico de preços vem exclusivamente dos talões (facto).
 
 ---

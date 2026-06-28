@@ -384,6 +384,29 @@ Tudo determinístico e PARTILHADO front/back; gate no golden (`grupoDe`/`grupoDe
 testes próprios de família (`test/familia.test.mjs`). A planilha de export usa exatamente
 estas funções → o que está na app e na planilha bate.
 
+### 5.3 Quantidade/tamanho — ARMAZENAR canónico, FORMATAR na borda (dono, 2026-06-28)
+
+Princípio: **a quantidade guarda-se sempre na mesma unidade** — peso em **gramas**, volume em
+**mililitros**, contagem em **un** — para a comparação interna ser trivial (não há que converter
+kg↔g ou L↔cl ao comparar). A unidade "amiga" (kg/L) só aparece na **exibição**.
+
+- **Escrita/armazenamento (`limparQuantidade` em `normaliza/fichaEan.js`):** corre no fusor e
+  normaliza tudo para canónico — `1 kg`→`1000 g`, `0,25 kg`→`250 g`, `25 cl`→`250 ml`, `1 L`→
+  `1000 ml`, `500 mg`→`0,5 g`. Também extrai a 1.ª medida válida de strings sujas (parênteses de
+  breakdown `(6x125g)`, `neto`/`bruto`, `Unidades`/`teabags`, letra colada `150 ge`/`25 cle`).
+  `produto_ean.quantidade` e `base_local.quantidade` ficam ambos canónicos.
+- **Exibição (regra: ≥1000 g → kg, ≥1000 ml → L; abaixo fica g/ml):**
+  - Backend: `formatarMedida` (em `fichaEan.js`) aplicado no `/info` (`consolidarProduto`) →
+    a ficha online já vem amiga (`1000 g`→`1 kg`).
+  - Frontend: `fmtTamanho` (em `v2/AppV2.jsx`) em TODOS os pontos onde o tamanho aparece
+    (listas, ficha, sugestões). É **agnóstico à unidade de entrada** e **idempotente** — formata
+    tanto o canónico como qualquer valor legado da `base_local` (`0,25 kg`→`250 g`) sem precisar
+    de re-limpar a tabela.
+- **Planilha de export:** mantém-se em **g/ml puros** (não aplica a regra ≥1000) — é uma tabela de
+  COMPARAÇÃO, não de leitura individual; tudo na mesma unidade facilita ordenar/comparar.
+- **Casos que ficam como estão:** bare-numbers sem unidade ("250", "500") e comprimentos ("80 m",
+  rolos de alumínio) — não são peso/volume.
+
 ## 6. Problemas em aberto
 
 1. ~~**Unidade adivinhada errada**~~ **resolvido** (ver 4.2): peso/volume explícito
