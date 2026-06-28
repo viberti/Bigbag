@@ -60,13 +60,6 @@ ssh pitacos-prod "set -e
     cd frontend && sudo -u dev npm run build -s >/dev/null && echo 'frontend BUILT' && cd ..
   fi
   sudo systemctl restart bigbag-backend
-  # rede de segurança: matar backends do BigBag que NÃO sejam o MainPID do systemd. Arranques fora do
-  # systemd escapam ao cgroup e acumulam (zombies) → fugas de conexões à BD → /info lento. Filtro por
-  # CWD p/ NÃO tocar no 1417 (também corre como 'dev' com 'node src/server.js').
-  sleep 1; MAIN=\$(systemctl show bigbag-backend -p MainPID --value)
-  for p in \$(pgrep -u dev -f 'node src/server.js' 2>/dev/null || true); do
-    if [ \"\$p\" != \"\$MAIN\" ] && sudo readlink /proc/\$p/cwd 2>/dev/null | grep -q '/home/dev/bigbag'; then sudo kill -9 \$p 2>/dev/null || true; echo \"backend órfão morto: \$p\"; fi
-  done
   for i in 1 2 3 4 5 6; do sleep 2
     h=\$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4200/health)
     if [[ \"\$h\" == \"200\" ]]; then echo 'health OK — deploy concluído'; exit 0; fi
