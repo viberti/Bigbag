@@ -1196,7 +1196,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
               </span>
             )}
           </div>
-          {nsCalc && <span className="ns-calc" title="Nutri-Score que calculamos (algoritmo 2023) — pontos: menos é mais saudável" style={{ background: NS_COR[nsCalc.grau] || '#9ec93f' }}>{nsCalc.pontos > 0 ? '+' : ''}{nsCalc.pontos}</span>}
+          {nsCalc && <span className="ns-calc" title={`Nutri-Score (algoritmo 2023) — nota de 0 a 100, maior é mais saudável (letra ${nsCalc.grau})`} style={{ background: NS_COR[nsCalc.grau] || '#9ec93f' }}>{nsCalc.nota100 ?? (nsCalc.pontos > 0 ? '+' : '') + nsCalc.pontos}</span>}
         </div>
 
         {sug && !temNut && (
@@ -1243,7 +1243,7 @@ function Ficha({ go, back, ean, sku_id, nome }) {
                 const preco = a.eur_base ?? a.preco_por_base;
                 return (
                   <div className="altx" key={a.sku_id ?? a.ean ?? i} onClick={() => go('ficha', { ean: a.ean, sku_id: a.sku_id, nome: a.nome })}>
-                    <div className="alt-top"><span className="alt-n">{nomeTalao(a.nome)}{a.nutriscore && <span className="ns-calc sm" style={{ background: NS_COR[a.nutriscore.grau] || '#9ec93f' }}>{a.nutriscore.pontos > 0 ? '+' : ''}{a.nutriscore.pontos}</span>}</span>{preco != null && <span className="alt-p">{eur(preco)}/{a.unidade_base || 'kg'}</span>}</div>
+                    <div className="alt-top"><span className="alt-n">{nomeTalao(a.nome)}{a.nutriscore && <span className="ns-calc sm" title={`Nutri-Score 0–100 (maior = mais saudável) · letra ${a.nutriscore.grau}`} style={{ background: NS_COR[a.nutriscore.grau] || '#9ec93f' }}>{a.nutriscore.nota100 ?? (a.nutriscore.pontos > 0 ? '+' : '') + a.nutriscore.pontos}</span>}</span>{preco != null && <span className="alt-p">{eur(preco)}/{a.unidade_base || 'kg'}</span>}</div>
                     <Pills prot={v('proteina')} sat={v('gordura_saturada', 'saturados')} acu={v('acucares', 'acucar')} />
                   </div>
                 );

@@ -83,3 +83,17 @@ test('gordura sem gordura total conhecida → cai p/ sólidos (não rebenta)', (
   const r = nutriScore({ energia_kcal: 822, gordura: null, gordura_saturada: 15.3, acucares: 0, sal: 0 }, { classe: 'gordura' });
   assert.ok(r && r.grau); // calcula na escala de sólidos
 });
+
+// ── NOTA 0–100 (apresentação NOSSA, maior = mais saudável; ancorada nas fronteiras das letras)
+test('nota100: ancorada nas bandas das letras (maior = mais saudável)', () => {
+  // leguminosa A (pontos −7, sólido) → banda A (80..100): ~89
+  assert.equal(nutriScore({ energia_kcal: 116, acucares: 1, gordura_saturada: 0.1, sal: 0.02, fibra: 8, proteina: 9 }).nota100, 89);
+  // produto mau E (pontos 31, sólido) → banda E (0..20): ~8
+  assert.equal(nutriScore({ energia_kcal: 525, acucares: 40, gordura_saturada: 8, sal: 1.5, fibra: 1, proteina: 5 }).nota100, 8);
+  // leite B (pontos −1, bebida) → banda B (60..80): 75
+  assert.equal(nutriScore({ energia_kcal: 48, acucares: 4.9, gordura_saturada: 1, sal: 0.1, fibra: 0, proteina: 3.4 }, { classe: 'bebida' }).nota100, 75);
+  // azeite C (pontos 6, gordura) → banda C (40..60): 50
+  assert.equal(nutriScore({ energia_kcal: 822, gordura: 91.6, gordura_saturada: 15.3, acucares: 0, sal: 0, fibra: 0, proteina: 0 }, { classe: 'gordura' }).nota100, 50);
+  // água → 100
+  assert.equal(nutriScore({ energia_kcal: 0, acucares: 0, gordura_saturada: 0, sal: 0 }, { classe: 'agua' }).nota100, 100);
+});

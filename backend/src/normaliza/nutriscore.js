@@ -31,6 +31,32 @@
 
 const pts = (v, limites) => { for (let i = 0; i < limites.length; i++) if (v <= limites[i]) return i; return limites.length; };
 
+// ── NOTA 0–100 (apresentação NOSSA, MAIOR = mais saudável) ──────────────────────────────────────
+// O Nutri-Score oficial não tem escala 0–100; só a letra A–E e os PONTOS (escala com sinal, ~−15..+40,
+// MENOR=melhor). Como "+5" confunde, mapeamos os pontos para 0–100 INVERTIDO e ANCORADO nas fronteiras
+// das letras (cada banda = 20 pontos da escala 0–100), interpolando linearmente dentro da banda. Assim
+// o número fica sempre coerente com a letra e a cor, e funciona p/ sólido/bebida/gordura (cada classe
+// tem as SUAS fronteiras). Bebidas nunca chegam a 100 (só a água é A). Inspirado nas bandas do Yuka.
+function interp(x, xs, ys) {
+  if (x <= xs[0]) return ys[0];
+  if (x >= xs[xs.length - 1]) return ys[ys.length - 1];
+  for (let i = 1; i < xs.length; i++) {
+    if (x <= xs[i]) { const t = (x - xs[i - 1]) / (xs[i] - xs[i - 1]); return ys[i - 1] + t * (ys[i] - ys[i - 1]); }
+  }
+  return ys[ys.length - 1];
+}
+const Y_BANDAS = [100, 80, 60, 40, 20, 0]; // âncoras A→E (cada letra = uma fatia de 20)
+// breakpoints em PONTOS por classe (ascendente; alinhados com os cortes de letra de `nutriScore`)
+const BREAKS_SOLIDO  = [-15, 0, 2, 10, 18, 40];  // A≤0 · B≤2 · C≤10 · D≤18 · E>18
+const BREAKS_GORDURA = [-15, -6, 2, 10, 18, 40]; // A≤−6 · B≤2 · C≤10 · D≤18 · E>18
+const BREAKS_BEBIDA  = [-2, 2, 6, 9, 13];        // (sem A) B≤2 · C≤6 · D≤9 · E>9 → âncoras 80..0
+function notaCem(pontos, classe) {
+  if (classe === 'agua') return 100;
+  if (classe === 'bebida') return Math.round(interp(pontos, BREAKS_BEBIDA, [80, 60, 40, 20, 0]));
+  const breaks = classe === 'gordura' ? BREAKS_GORDURA : BREAKS_SOLIDO;
+  return Math.round(interp(pontos, breaks, Y_BANDAS));
+}
+
 // ── Tabelas oficiais 2023 — ALIMENTOS SÓLIDOS GERAIS (cada array = limites superiores; índice = pontos)
 const L_ENERGIA  = [335, 670, 1005, 1340, 1675, 2010, 2345, 2680, 3015, 3350];                                  // kJ → 0..10 (inalterada)
 const L_ACUCAR   = [3.4, 6.8, 10, 14, 17, 20, 24, 27, 31, 34, 37, 41, 44, 48, 51];                              // g  → 0..15 (NOVA)
@@ -87,5 +113,6 @@ export function nutriScore(n, opts = {}) {
   else if (bebida) grau = pontos <= 2 ? 'B' : pontos <= 6 ? 'C' : pontos <= 9 ? 'D' : 'E'; // bebidas: nunca A
   else if (gordura) grau = pontos <= -6 ? 'A' : pontos <= 2 ? 'B' : pontos <= 10 ? 'C' : pontos <= 18 ? 'D' : 'E'; // gorduras: A exige ≤−6
   else grau = pontos <= 0 ? 'A' : pontos <= 2 ? 'B' : pontos <= 10 ? 'C' : pontos <= 18 ? 'D' : 'E'; // sólidos
-  return { pontos, grau };
+  const classeNota = opts.classe === 'agua' ? 'agua' : bebida ? 'bebida' : gordura ? 'gordura' : 'solido';
+  return { pontos, grau, nota100: notaCem(pontos, classeNota) };
 }
