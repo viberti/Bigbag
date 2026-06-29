@@ -163,7 +163,7 @@ Vertical de remédios BR, **foco = comparação de preço**. Reaproveita a arqui
 
 ### Avisos e backlog vivos
 - **Auth própria (Zitadel removido, 2026-06-29):** código pronto, **falta implantar no netcup** — `AUTH_JWT_SECRET` no `.env`, migr. 094, build/restart, dono corre `set_senha.mjs` p/ gviberti3@gmail.com + suerocha@gmail.com. Login quebrado até lá. Ver §Autenticação.
-- **Migração p/ netcup (2026-06-29) — a repor:** crontab (backup diário, monitor 4h, refresh farmácias, CMED, Continente); rclone + credenciais R2 do backup off-site (perdidas; a passphrase GPG sobreviveu no `.env`); `deploy.sh`/`backup_db.sh`/`rollback.sh` a apontar p/ `netcup-prod` + MySQL docker. Backup de emergência: `app_bigbag_2026-06-29_1643.sql.gz` (no servidor + PC).
+- **Migração p/ netcup (2026-06-29) — a repor:** crontab (backup diário, monitor 4h, refresh farmácias, CMED, Continente); rclone + credenciais R2 do backup off-site (perdidas; a passphrase GPG sobreviveu no `.env`); `deploy.sh`/`backup_db.sh`/`rollback.sh` a apontar p/ `netcup-prod` + MySQL docker. Backup de emergência: `app_bigbag_2026-06-29_1643.sql.gz` (no servidor + PC). **CORRIGIDO:** as pastas de upload `UPLOAD_DIR_FATURAS`/`UPLOAD_DIR_VOZ` (=`/var/lib/bigbag/{comprovantes,notas_voz}`) tinham ficado `root:root` → a ingestão de TODAS as notas falhava com `EACCES mkdir` (job nem era criado). Repostas como `dev:dev` 750. **TODO:** o provisionamento/`deploy.sh` deve garantir estas pastas com `chown dev`.
 - **Sudo temporário** `90-bigbag-nopasswd` ainda ativo (instalação não terminou).
 - **Continente scrape** bloqueado por anti-bot → cron noturno gota-a-gota (19,1k temos).
 - **EANs do talão (Makro) válidos-mas-errados** (VLM troca dígito → outro EAN real); cruzar com a descrição (backlog).
