@@ -79,9 +79,25 @@ test('óleo de COCO (muito saturado) → E mesmo na escala de gorduras', () => {
   assert.equal(r.grau, 'E');
 });
 
-test('gordura sem gordura total conhecida → cai p/ sólidos (não rebenta)', () => {
+test('gordura SEM gordura total → null (não adivinha; o rácio é o que decide)', () => {
+  // sem a gordura total não há rácio saturada/total → não dá p/ classificar um óleo. NULL é honesto
+  // (antes caía p/ sólidos e dava um E injusto). MENOS info NUNCA pode dar uma nota.
   const r = nutriScore({ energia_kcal: 822, gordura: null, gordura_saturada: 15.3, acucares: 0, sal: 0 }, { classe: 'gordura' });
-  assert.ok(r && r.grau); // calcula na escala de sólidos
+  assert.equal(r, null);
+});
+
+test('AZEITE sem açúcar/sal na ficha → assume 0 (são ~0 no óleo) e dá nota CONSISTENTE', () => {
+  // bug real: 40 azeites davam null só porque açúcar/sal estavam a NULL. Num óleo puro são 0 →
+  // assume-se 0 (verdade, não palpite) e a nota fica igual à dos azeites com a ficha completa.
+  const completo = nutriScore({ energia_kcal: 822, gordura: 91, gordura_saturada: 13, acucares: 0, sal: 0 }, { classe: 'gordura' });
+  const semAcSal = nutriScore({ energia_kcal: 822, gordura: 91, gordura_saturada: 13, acucares: null, sal: null }, { classe: 'gordura' });
+  assert.ok(completo && semAcSal);
+  assert.equal(semAcSal.nota100, completo.nota100); // MESMA nota → consistência entre azeites
+});
+
+test('SÓLIDO/BEBIDA sem açúcar ou sal → null (negativos relevantes, não se assume 0)', () => {
+  assert.equal(nutriScore({ energia_kcal: 400, gordura_saturada: 2, acucares: null, sal: 0.5 }), null);
+  assert.equal(nutriScore({ energia_kcal: 42, gordura_saturada: 0, acucares: 10, sal: null }, { classe: 'bebida' }), null);
 });
 
 // ── NOTA 0–100 (apresentação NOSSA, maior = mais saudável; ancorada nas fronteiras das letras)

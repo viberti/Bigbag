@@ -82,13 +82,22 @@ const L_SAT_RATIO    = [10, 16, 22, 28, 34, 40, 46, 52, 58, 64];             // 
 // Nutrição esperada (por 100 g/ml): { energia_kcal, acucares, gordura_saturada, sal, fibra, proteina, gordura }.
 // opts.classe: 'agua' (→ A) | 'bebida' (escala de bebidas) | 'gordura' (gorduras/óleos) | outro/undefined (sólidos).
 export function nutriScore(n, opts = {}) {
-  if (!n || n.energia_kcal == null || n.gordura_saturada == null || n.acucares == null || n.sal == null) return null;
+  if (!n || n.energia_kcal == null || n.gordura_saturada == null) return null;
+  const ehGorduraCl = opts.classe === 'gordura';
+  // DADOS EM FALTA NUNCA PODEM MELHORAR A NOTA — assumir 0 num componente NEGATIVO ausente
+  // inflaria a nota (era o bug do azeite: faltava açúcar/sal → desistia, ou faltava info → nota alta).
+  //  • GORDURAS/ÓLEOS: a nota decide-se pela SATURADA e pela GORDURA TOTAL (rácio saturada/total) →
+  //    AMBAS obrigatórias (sem elas, null — nunca adivinhar). Já o açúcar e o sal são ~0 por natureza
+  //    num óleo puro, logo PODEM assumir 0 sem inflar (é a verdade do produto, não um palpite).
+  //  • SÓLIDOS/BEBIDAS: o açúcar e o sal são negativos relevantes → continuam obrigatórios.
+  if (ehGorduraCl) { if (n.gordura == null || Number(n.gordura) <= 0) return null; }
+  else if (n.acucares == null || n.sal == null) return null;
   const num = (x) => (x == null ? 0 : Number(x));
   const bebida = opts.classe === 'bebida' || opts.classe === 'agua';
   const sat = num(n.gordura_saturada);
   const gorduraTotal = num(n.gordura);
-  // GORDURAS/ÓLEOS só com a gordura total conhecida (precisa do rácio); senão cai p/ sólidos.
-  const gordura = opts.classe === 'gordura' && gorduraTotal > 0;
+  const gordura = ehGorduraCl; // a gordura total >0 já foi garantida acima
+
   let A, ptProt;
   const ptFibra = n.fibra != null ? pts(num(n.fibra), L_FIBRA) : 0; // 0..5
   if (gordura) {
