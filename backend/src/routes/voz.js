@@ -64,7 +64,7 @@ vozRouter.post('/lista', requireAuth, upload.single('audio'), async (req, res) =
           content: [
             {
               type: 'text',
-              text: 'O áudio dita itens para uma lista de compras de supermercado (português). Extrai os PRODUTOS e as QUANTIDADES ditadas e devolve SÓ JSON: {"produtos": [{"nome": "...", "quantidade": N}]}. Regras: nome curto com a 1.ª letra maiúscula, SEM a embalagem nem a quantidade no nome ("2 latas de coca-cola" → nome "Coca-Cola", quantidade 2; "3 dúzias de ovos" → nome "Ovos", quantidade 3; "3 cervejas" → nome "Cerveja", quantidade 3). Sem quantidade dita → 1. Se não houver produtos no áudio, {"produtos": []}.',
+              text: 'O áudio dita itens para uma lista de compras de supermercado (português). Extrai os PRODUTOS e as QUANTIDADES ditadas e devolve SÓ JSON: {"produtos": [{"nome": "...", "quantidade": N}]}. Regras: nome curto com a 1.ª letra maiúscula, SEM a embalagem nem a quantidade no nome ("2 latas de coca-cola" → nome "Coca-Cola", quantidade 2; "3 dúzias de ovos" → nome "Ovos", quantidade 3; "3 cervejas" → nome "Cerveja", quantidade 3). Sem quantidade dita → 1. IMPORTANTE: um produto e o seu QUALIFICADOR (tipo/variedade/sabor) são UM ÚNICO item, NUNCA dois — "café descafeinado" → 1 item {"nome":"Café descafeinado"} (NÃO "Café" + "Descafeinado"); "leite meio gordo" → {"nome":"Leite meio gordo"}; "atum em óleo" → {"nome":"Atum em óleo"}; "iogurte natural" → {"nome":"Iogurte natural"}. Só separa em vários itens quando são produtos DISTINTOS (ex.: "café e açúcar" → 2 itens). Se não houver produtos no áudio, {"produtos": []}.',
             },
             { type: 'input_audio', input_audio: { data: req.file.buffer.toString('base64'), format: formatoDeMime(mime) } },
           ],
