@@ -95,6 +95,15 @@ test('AZEITE sem açúcar/sal na ficha → assume 0 (são ~0 no óleo) e dá not
   assert.equal(semAcSal.nota100, completo.nota100); // MESMA nota → consistência entre azeites
 });
 
+test('DADOS IMPOSSÍVEIS → null: macro negativo ou saturada > gordura total', () => {
+  // saturada negativa (lixo do OFF, "Azeite 2l" sat=-1)
+  assert.equal(nutriScore({ energia_kcal: 822, gordura: 91, gordura_saturada: -1, acucares: 0, sal: 0 }, { classe: 'gordura' }), null);
+  // saturada (72) maior que a gordura total (13) — impossível (total mal metido no campo da saturada)
+  assert.equal(nutriScore({ energia_kcal: 822, gordura: 13, gordura_saturada: 72, acucares: 0, sal: 0 }, { classe: 'gordura' }), null);
+  // açúcar negativo num sólido
+  assert.equal(nutriScore({ energia_kcal: 400, gordura_saturada: 2, acucares: -5, sal: 0.5 }), null);
+});
+
 test('SÓLIDO/BEBIDA sem açúcar ou sal → null (negativos relevantes, não se assume 0)', () => {
   assert.equal(nutriScore({ energia_kcal: 400, gordura_saturada: 2, acucares: null, sal: 0.5 }), null);
   assert.equal(nutriScore({ energia_kcal: 42, gordura_saturada: 0, acucares: 10, sal: null }, { classe: 'bebida' }), null);

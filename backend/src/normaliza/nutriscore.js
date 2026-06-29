@@ -92,6 +92,11 @@ export function nutriScore(n, opts = {}) {
   //  • SÓLIDOS/BEBIDAS: o açúcar e o sal são negativos relevantes → continuam obrigatórios.
   if (ehGorduraCl) { if (n.gordura == null || Number(n.gordura) <= 0) return null; }
   else if (n.acucares == null || n.sal == null) return null;
+  // DADOS IMPOSSÍVEIS → null (não inventar nota com lixo do OFF): nenhum macro pode ser NEGATIVO,
+  // e a SATURADA não pode exceder a GORDURA TOTAL (não se é mais saturado que o total). Apanha
+  // sat=−1 e sat=72 num óleo de 13 g (total mal metido no campo da saturada). É GERAL, não por-produto.
+  if ([n.energia_kcal, n.gordura_saturada, n.gordura, n.acucares, n.sal].some((v) => v != null && Number(v) < 0)) return null;
+  if (n.gordura != null && Number(n.gordura_saturada) > Number(n.gordura) + 0.01) return null;
   const num = (x) => (x == null ? 0 : Number(x));
   const bebida = opts.classe === 'bebida' || opts.classe === 'agua';
   const sat = num(n.gordura_saturada);
