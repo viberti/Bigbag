@@ -36,18 +36,12 @@ export const config = {
     maxCorrecoes: Math.max(0, Number(process.env.OPENROUTER_MAX_CORRECOES ?? 2)),
   },
   auth: {
-    googleClientId: process.env.GOOGLE_CLIENT_ID || '',
-    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || '',
-    superuserEmail: process.env.SUPERUSER_EMAIL || '',
-    sessionSecret: process.env.SESSION_SECRET || '',
-    // Portão temporário (até o login OIDC estar 100%). Ver auth.js.
+    // Auth PRÓPRIA (email+senha → JWT nosso, HS256). Segredo só no .env; sem isto o login não assina.
+    jwtSecret: process.env.AUTH_JWT_SECRET || '',
+    tokenTtl: process.env.AUTH_TOKEN_TTL || '30d',
+    // Test-auth (Basic) — rede de segurança para os e2e (ENABLE_TEST_AUTH=true). Off em produção.
     enableTestAuth: String(process.env.ENABLE_TEST_AUTH || '').toLowerCase() === 'true',
     testUsers: parseTestUsers(process.env.TEST_USERS),
-    // OIDC (Zitadel self-host) — valida o access token JWT via JWKS do issuer.
-    oidcIssuer: process.env.OIDC_ISSUER || 'https://auth.hal9klabs.com',
-    // Allowlist de emails autorizados a entrar no BigBag (camada 2; só pré-cadastrados).
-    allowlist: String(process.env.AUTH_ALLOWLIST || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   },
   uploads: {
     faturas: process.env.UPLOAD_DIR_FATURAS || './uploads/comprovantes',

@@ -1,6 +1,6 @@
-// Cliente da API. Auth: login OIDC (Zitadel) → Bearer JWT; HTTP Basic (test-auth)
-// fica como fallback durante a migração. O backend valida o JWT + allowlist.
-import { oidcAccessToken } from './auth/oidc.js';
+// Cliente da API. Auth PRÓPRIA: login email+senha → o nosso JWT (Bearer). HTTP Basic
+// (test-auth) fica como fallback para os e2e. O backend valida o JWT.
+import { getToken, clearToken } from './auth/local.js';
 
 const AUTH_KEY = 'bigbag_auth';
 
@@ -10,12 +10,12 @@ export const clearAuth = () => localStorage.removeItem(AUTH_KEY);
 
 async function call(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
-  const bearer = await oidcAccessToken();           // login OIDC tem prioridade
-  if (bearer) headers.Authorization = `Bearer ${bearer}`;
+  const token = getToken();                          // o nosso JWT tem prioridade
+  if (token) headers.Authorization = `Bearer ${token}`;
   else { const auth = getAuth(); if (auth) headers.Authorization = `Basic ${auth}`; }
   const res = await fetch(path, { ...opts, headers });
-  if (res.status === 401) { clearAuth(); throw new Error('401'); } // token/credenciais inválidos
-  if (res.status === 403) throw new Error('403');                  // autenticado mas SEM acesso (fora da allowlist)
+  if (res.status === 401) { clearToken(); clearAuth(); throw new Error('401'); } // token/credenciais inválidos
+  if (res.status === 403) throw new Error('403');                  // autenticado mas SEM acesso
   return res;
 }
 

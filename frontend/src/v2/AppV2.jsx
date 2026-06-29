@@ -24,7 +24,7 @@ import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLoca
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
 import { ICON } from './icons.js';
 import { BIGBAG_MARK } from './brand.js';
-import { oidcLogin, oidcLogout, oidcUser } from '../auth/oidc.js';
+import { login as loginLocal, logout as logoutLocal, getToken } from '../auth/local.js';
 import './cartoon.css';
 
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -142,8 +142,8 @@ export default function AppV2() {
   useEffect(() => {
     verificarSessao().then((s) => { setMoeda(s?.user?.moeda); setSessao(s); }).catch((e) => setSessao(String(e?.message) === '403' ? { semAcesso: true } : null));
   }, []);
-  // sair: limpa o test-auth e, se houver sessão OIDC, encerra-a no Zitadel (SSO).
-  const sair = async () => { clearAuth(); if (await oidcUser()) oidcLogout(); else { setSessao(null); window.location.replace('/'); } };
+  // sair: limpa o token (e o test-auth) e volta ao login.
+  const sair = () => { logoutLocal(); clearAuth(); setSessao(null); window.location.replace('/'); };
   if (sessao === undefined) return <div className="v2"><div className="v2-load">…</div></div>;
   if (sessao?.semAcesso) return <SemAcesso onSair={sair} />;
   if (!sessao) return <LoginV2 onEntrar={setSessao} />;
@@ -177,27 +177,24 @@ function SemAcesso({ onSair }) {
 }
 
 function LoginV2({ onEntrar }) {
-  const [user, setUser] = useState(''); const [pass, setPass] = useState('');
+  const [email, setEmail] = useState(''); const [pass, setPass] = useState('');
   const [erro, setErro] = useState(''); const [aEntrar, setAEntrar] = useState(false);
-  const [teste, setTeste] = useState(false);
   async function submeter(e) {
-    e.preventDefault(); setErro(''); setAEntrar(true); setAuth(user.trim(), pass);
-    try { onEntrar(await verificarSessao()); } catch { clearAuth(); setErro('Usuário ou senha inválidos.'); } finally { setAEntrar(false); }
+    e.preventDefault(); setErro(''); setAEntrar(true);
+    try { await loginLocal(email, pass); onEntrar(await verificarSessao()); }
+    catch (err) { setErro(err?.message || 'Email ou senha inválidos.'); }
+    finally { setAEntrar(false); }
   }
   return (
     <div className="v2"><Motif />
       <div className="v2-login">
         <Mk size={64} /><h1>BigBag</h1><div className="ver">v{APP_VERSION}</div>
-        <button className="cbtn cbtn-leaf" style={{ width: '100%' }} onClick={() => oidcLogin()}>Entrar</button>
-        <button onClick={() => setTeste((v) => !v)} style={{ background: 0, border: 0, color: 'var(--ink-3)', font: '600 12px var(--font)', marginTop: 12, cursor: 'pointer' }}>acesso de teste</button>
-        {teste && (
-          <form onSubmit={submeter} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 4 }}>
-            <input placeholder="Usuário" value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" />
-            <input placeholder="Senha" type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
-            {erro && <div className="v2-err">{erro}</div>}
-            <button className="cbtn cbtn-leaf" disabled={aEntrar || !user || !pass}>{aEntrar ? '…' : 'Entrar (teste)'}</button>
-          </form>
-        )}
+        <form onSubmit={submeter} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 8 }}>
+          <input placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoCapitalize="none" autoComplete="username" />
+          <input placeholder="Senha" type="password" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="current-password" />
+          {erro && <div className="v2-err">{erro}</div>}
+          <button className="cbtn cbtn-leaf" disabled={aEntrar || !email || !pass}>{aEntrar ? '…' : 'Entrar'}</button>
+        </form>
       </div>
     </div>
   );
@@ -2262,7 +2259,7 @@ function Remedios({ back, standalone }) {
   const tmr = useRef(null);
 
   // sessão (para o "acompanhar"); ver é livre, isto não bloqueia nada
-  useEffect(() => { let on = true; oidcUser().then((u) => { if (on) setUsuario(u && !u.expired ? u : null); }).catch(() => {}); return () => { on = false; }; }, []);
+  useEffect(() => { let on = true; if (getToken()) verificarSessao().then((s) => { if (on) setUsuario(s?.user || null); }).catch(() => { if (on) setUsuario(null); }); else setUsuario(null); return () => { on = false; }; }, []);
   useEffect(() => { if (!toast) return undefined; const id = setTimeout(() => setToast(''), 2600); return () => clearTimeout(id); }, [toast]);
 
   function limpar() { setQ(''); setSug([]); setMarca(null); setCat(null); setAberta(null); setVerSemOferta(false); setInfo(null); setErro(''); }
@@ -2386,7 +2383,7 @@ function Remedios({ back, standalone }) {
 
       {folha && <FolhaAcompanhar folha={folha} marca={cat?.marca || marca?.produto}
         onClose={() => setFolha(null)} onToast={setToast}
-        onEntrar={() => { try { sessionStorage.setItem('bigbag_post_login', '/remedios'); } catch { /* noop */ } oidcLogin(); }} />}
+        onEntrar={() => { window.location.href = '/'; }} />}
       {toast && <div className="rx-toast">{toast}</div>}
     </>
   );

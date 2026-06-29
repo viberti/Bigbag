@@ -14,7 +14,7 @@ import { perfilRouter } from './routes/perfil.js';
 import { listaRouter } from './routes/lista.js';
 import { medicamentoRouter } from './routes/medicamento.js';
 import { receitasRouter } from './routes/receitas.js';
-import { requireAuth, invalidarLocale } from './auth.js';
+import { requireAuth, invalidarLocale, assinarToken, verificarSenha, resolveLocale } from './auth.js';
 import { telemetriaApi, registarEventos } from './telemetria.js';
 
 const app = express();
@@ -47,6 +47,20 @@ app.get('/health', (_req, res) => {
     service: 'bigbag-backend',
     env: config.nodeEnv,
   });
+});
+
+// LOGIN PRÓPRIO (email+senha → o nosso JWT). Público. Mensagem genérica (não revela se o
+// email existe). Só entram utilizadores com senha definida (scripts/set_senha.mjs).
+app.post('/api/auth/login', async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const senha = String(req.body?.senha || '');
+  if (!email || !senha) return res.status(400).json({ erro: 'Informe email e senha.' });
+  try {
+    const [[u]] = await getPool().query('SELECT email, nome, senha_hash FROM usuario WHERE email = ?', [email]);
+    if (!u || !verificarSenha(senha, u.senha_hash)) return res.status(401).json({ erro: 'Email ou senha inválidos.' });
+    const token = await assinarToken({ email: u.email, nome: u.nome });
+    res.json({ token, user: { id: u.email, email: u.email, nome: u.nome || null, via: 'local', ...(await resolveLocale(u.email)) } });
+  } catch (e) { console.error('[auth/login]', e.message); res.status(500).json({ erro: 'Falha no login.' }); }
 });
 
 // Validação de sessão (usado pelo login da PWA).

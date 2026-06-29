@@ -1,15 +1,46 @@
-// Portão de autenticação. Aceita, por ordem:
-//  1) Bearer JWT do Zitadel (login OIDC real) — valida assinatura via JWKS do issuer,
-//     confirma o issuer/expiração, e exige que o EMAIL esteja na allowlist do BigBag
-//     (camada 2: só utilizadores pré-cadastrados/autorizados a ESTE app).
-//  2) HTTP Basic + TEST_USERS (ENABLE_TEST_AUTH) — rede de segurança durante a
-//     migração; remover quando o OIDC estiver 100%.
+// Portão de autenticação — AUTH PRÓPRIA (sem IdP externo; só 2 utilizadores).
+//  1) Bearer = o NOSSO JWT (HS256, assinado com AUTH_JWT_SECRET). Emitido por POST
+//     /api/auth/login (email+senha verificada por hash scrypt na tabela `usuario`).
+//  2) HTTP Basic + TEST_USERS (ENABLE_TEST_AUTH) — rede de segurança para os e2e.
 // A app está exposta à internet: nenhuma rota que gaste a chave OpenRouter ou
 // escreva na BD pode ficar anónima.
-import { timingSafeEqual } from 'node:crypto';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { timingSafeEqual, scryptSync, randomBytes } from 'node:crypto';
+import { SignJWT, jwtVerify } from 'jose';
 import { config, paisCfg } from './config.js';
 import { getPool } from './db.js';
+
+// ── SENHA: hash scrypt (sem dependências). Formato "scrypt$<saltHex>$<hashHex>".
+export function hashSenha(senha) {
+  const salt = randomBytes(16);
+  const hash = scryptSync(String(senha), salt, 64);
+  return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
+export function verificarSenha(senha, armazenado) {
+  if (!armazenado || typeof armazenado !== 'string' || !armazenado.startsWith('scrypt$')) return false;
+  const [, saltHex, hashHex] = armazenado.split('$');
+  if (!saltHex || !hashHex) return false;
+  const esperado = Buffer.from(hashHex, 'hex');
+  const teste = scryptSync(String(senha), Buffer.from(saltHex, 'hex'), 64);
+  return esperado.length === teste.length && timingSafeEqual(esperado, teste);
+}
+
+// ── JWT próprio (HS256). O segredo vive só no .env.
+const segredo = () => new TextEncoder().encode(config.auth.jwtSecret);
+export async function assinarToken({ email, nome }) {
+  if (!config.auth.jwtSecret) throw new Error('AUTH_JWT_SECRET em falta');
+  return new SignJWT({ email, nome: nome || null })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(email).setIssuedAt().setExpirationTime(config.auth.tokenTtl)
+    .sign(segredo());
+}
+async function checkBearer(req) {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ') || !config.auth.jwtSecret) return null;
+  try {
+    const { payload } = await jwtVerify(header.slice(7).trim(), segredo());
+    return { email: payload.email || payload.sub, nome: payload.nome || null };
+  } catch { return null; } // assinatura/expiração inválidas
+}
 
 // PAÍS+LOCALE do utilizador (cacheado): resolve por email na tabela `usuario`; cria a
 // linha (default PT) na 1.ª vez. Decide moeda/símbolo/fontes de preço (paisCfg). Sem
@@ -49,65 +80,19 @@ function checkBasic(req) {
   return match ? match.u : null;
 }
 
-// JWKS remoto do Zitadel (cacheado pela própria jose). Só se houver issuer.
-const JWKS = config.auth.oidcIssuer ? createRemoteJWKSet(new URL(`${config.auth.oidcIssuer}/oauth/v2/keys`)) : null;
-const perfilCache = new Map(); // sub → { email, nome } (evita /userinfo repetido)
-
-// Primeiro nome legível a partir das claims OIDC: `given_name` (Google dá-o), senão a 1.ª
-// palavra de `name`. null se nada utilizável (cai no email no frontend).
-function primeiroNome({ given_name: dado, name: completo } = {}) {
-  const n = (dado || (completo ? String(completo).trim().split(/\s+/)[0] : '') || '').trim();
-  return n || null;
-}
-
-// email+nome do utilizador: do próprio token, senão do /userinfo (1× por sub, cacheado).
-async function perfilDoToken(payload, token) {
-  let email = payload.email ? String(payload.email).toLowerCase() : null;
-  let nome = primeiroNome(payload);
-  if (email && nome) return { email, nome };
-  const sub = payload.sub;
-  if (perfilCache.has(sub)) { const c = perfilCache.get(sub); return { email: email || c.email, nome: nome || c.nome }; }
-  try {
-    const r = await fetch(`${config.auth.oidcIssuer}/oidc/v1/userinfo`, { headers: { Authorization: `Bearer ${token}` } });
-    if (r.ok) {
-      const u = await r.json();
-      email = email || ((u.email || '').toLowerCase() || null);
-      nome = nome || primeiroNome(u);
-      perfilCache.set(sub, { email, nome });
-    }
-  } catch { /* rede falhou */ }
-  return { email, nome };
-}
-
-async function checkBearer(req) {
-  const header = req.headers.authorization || '';
-  if (!header.startsWith('Bearer ') || !JWKS) return null;
-  const token = header.slice(7).trim();
-  try {
-    const { payload } = await jwtVerify(token, JWKS, { issuer: config.auth.oidcIssuer });
-    return { sub: payload.sub, ...(await perfilDoToken(payload, token)) };
-  } catch { return null; } // assinatura/issuer/expiração inválidos
-}
-
 export async function requireAuth(req, res, next) {
-  // 1) login OIDC real (Zitadel) + allowlist
+  // 1) o nosso JWT (login email+senha)
   const b = await checkBearer(req);
-  if (b) {
-    const al = config.auth.allowlist;
-    if (al.length && (!b.email || !al.includes(b.email))) {
-      return res.status(403).json({ erro: 'Conta sem acesso ao BigBag.', email: b.email || null });
-    }
-    req.user = { id: b.email || b.sub, email: b.email, nome: b.nome || null, sub: b.sub, via: 'oidc', ...(await resolveLocale(b.email)) };
+  if (b && b.email) {
+    req.user = { id: b.email, email: b.email, nome: b.nome || null, via: 'local', ...(await resolveLocale(b.email)) };
     return next();
   }
-  // 2) rede de segurança: test-auth (Basic) durante a migração
+  // 2) rede de segurança: test-auth (Basic) para os e2e
   if (config.auth.enableTestAuth) {
     const u = checkBasic(req);
     if (u) { req.user = { id: u, via: 'test-auth', ...(await resolveLocale(u.includes('@') ? u : null)) }; return next(); }
   }
-  // SEM `WWW-Authenticate: Basic` — esse header fazia o BROWSER abrir o diálogo
-  // nativo de Basic Auth ao 1.º /api 401, sequestrando o ecrã ANTES do login OIDC
-  // da app aparecer. A app trata a auth pela sua UI ("Entrar" → Zitadel; ou o form
-  // de teste, que manda o Basic no header). 401 limpo → a app mostra o login.
+  // SEM `WWW-Authenticate: Basic` — esse header faria o BROWSER abrir o diálogo nativo de
+  // Basic Auth ao 1.º /api 401, tapando a UI de login da app. 401 limpo → a app mostra o login.
   return res.status(401).json({ erro: 'Autenticação necessária' });
 }

@@ -8,28 +8,14 @@ import Explorar from './Explorar.jsx';
 import DiagScanner from './DiagScanner.jsx';
 import './styles.css';
 
-// Rota simples por caminho: /callback → retorno do login OIDC (troca código→tokens);
-// /admin → operador; /explorar → comprador; /diag → diagnóstico; /v1 → app ANTIGO
-// congelado; /v2 = alias do default. RAIZ → app v2 (design cartoon, DEFAULT).
+// Rota simples por caminho: /admin → operador; /explorar → comprador; /diag → diagnóstico;
+// /v1 → app ANTIGO congelado; /v2 = alias do default. RAIZ → app v2 (design cartoon, DEFAULT).
+// /callback é legado do antigo login OIDC (Zitadel removido) → só redireciona p/ a raiz.
 const caminho = window.location.pathname.replace(/\/+$/, '');
 const root = createRoot(document.getElementById('root'));
 
 if (caminho === '/callback') {
-  // Volta do Zitadel: finaliza o login e regressa à origem do login. Sem React app aqui.
-  // DEFAULT byte-idêntico ao anterior: sem `bigbag_post_login` gravado → volta a '/'.
-  // Surfaces que iniciam login fora da raiz (ex.: /remedios) gravam o caminho antes do
-  // redirect; só um valor que comece por '/' é honrado (evita open-redirect).
-  root.render(<div style={{ font: '600 16px system-ui', padding: 40, textAlign: 'center', color: '#3b4a30' }}>A entrar…</div>);
-  let destino = '/';
-  try {
-    const guardado = sessionStorage.getItem('bigbag_post_login');
-    sessionStorage.removeItem('bigbag_post_login');
-    if (guardado && /^\/(?!\/)/.test(guardado)) destino = guardado; // só caminho relativo interno
-  } catch { /* sessionStorage indisponível → default '/' */ }
-  import('./auth/oidc.js')
-    .then(({ oidcCallback }) => oidcCallback())
-    .catch(() => {})
-    .finally(() => window.location.replace(destino));
+  window.location.replace('/');
 } else {
   const Pagina = caminho === '/admin' ? Admin
     : caminho === '/dash' ? Dashboard
