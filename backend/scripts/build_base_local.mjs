@@ -133,6 +133,11 @@ await pool.query('DROP TEMPORARY TABLE IF EXISTS bl_cat');
 const { limparNutricaoBaseLocal } = await import('./limpar_nutricao_base_local.mjs');
 await limparNutricaoBaseLocal(pool);
 
+// Limpeza por CONSENSO DE NOME: outlier ALTO num grupo de mesmo-nome apertado = erro (apanha o que
+// o Atwater/envelope não apanham, ex.: "leite meio-gordo" a 560 kcal). DEPOIS do Atwater.
+const { limparPorConsenso } = await import('./limpar_nutricao_consenso.mjs');
+await limparPorConsenso(pool);
+
 // Nutri-Score numérico materializado (migr. 095) — cache regenerável p/ auditoria. DEPOIS da limpeza.
 const { calcularNutriscoreBaseLocal } = await import('./calcular_nutriscore_base_local.mjs');
 await calcularNutriscoreBaseLocal(pool);
