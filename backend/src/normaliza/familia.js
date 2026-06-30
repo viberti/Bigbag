@@ -248,3 +248,16 @@ export function classeNutriScore(familiaSlug) {
   if (FAM_GORDURA.has(familiaSlug)) return 'gordura';
   return 'solido';
 }
+
+// Famílias de alimento INTEIRO naturalmente SEM açúcar (ovos, carnes e peixes frescos). Quando o
+// açúcar vem em FALTA nestas, pode assumir-se 0 — é a VERDADE do produto, não palpite (mesma lógica
+// do açúcar/sal nos óleos) — para não ficar SEM nota só porque uma fonte omitiu o açúcar. EXCLUI
+// charcutaria (fiambre/enchidos podem ter açúcar adicionado). Tabela curada (dono, 2026-06-30).
+const FAM_SEM_ACUCAR = new Set([
+  'ovos',
+  'frango', 'boi', 'porco', 'peru', 'pato', 'cordeiro', 'carne_misto',
+  'salmao', 'bacalhau', 'atum', 'pescada', 'dourada', 'robalo', 'sardinha', 'cavala', 'polvo', 'lulas', 'marisco', 'truta',
+]);
+export function acucarAssumivelZero(familiaSlug) {
+  return FAM_SEM_ACUCAR.has(familiaSlug);
+}

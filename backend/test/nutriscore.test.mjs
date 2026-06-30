@@ -109,6 +109,16 @@ test('SÓLIDO/BEBIDA sem açúcar ou sal → null (negativos relevantes, não se
   assert.equal(nutriScore({ energia_kcal: 42, gordura_saturada: 0, acucares: 10, sal: null }, { classe: 'bebida' }), null);
 });
 
+test('OVO/carne/peixe: açúcar em falta assume 0 (acucarZero) → tem nota; sem o flag → null', () => {
+  // ovo de galinha (TACO): açúcar NUNCA reportado, mas é ~0. Sem o flag → null; com → nota.
+  const ovo = { energia_kcal: 143, gordura: 8.9, gordura_saturada: 2.6, acucares: null, sal: 0.42, proteina: 13, fibra: 0 };
+  assert.equal(nutriScore(ovo, { classe: 'solido' }), null);                 // açúcar null → sem nota
+  const r = nutriScore(ovo, { classe: 'solido', acucarZero: true });          // alimento sem açúcar → 0
+  assert.ok(r && (r.grau === 'A' || r.grau === 'B'));                          // ovo dá A/B (saudável)
+  // o SAL continua exigido mesmo com acucarZero (sódio natural não é 0)
+  assert.equal(nutriScore({ ...ovo, sal: null }, { classe: 'solido', acucarZero: true }), null);
+});
+
 // ── NOTA 0–100 (apresentação NOSSA, maior = mais saudável; ancorada nas fronteiras das letras)
 test('nota100: ancorada nas bandas das letras (maior = mais saudável)', () => {
   // leguminosa A (pontos −7, sólido) → banda A (80..100): ~89

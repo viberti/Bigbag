@@ -91,7 +91,13 @@ export function nutriScore(n, opts = {}) {
   //    num óleo puro, logo PODEM assumir 0 sem inflar (é a verdade do produto, não um palpite).
   //  • SÓLIDOS/BEBIDAS: o açúcar e o sal são negativos relevantes → continuam obrigatórios.
   if (ehGorduraCl) { if (n.gordura == null || Number(n.gordura) <= 0) return null; }
-  else if (n.acucares == null || n.sal == null) return null;
+  else {
+    // açúcar é obrigatório nos sólidos/bebidas, EXCETO em alimento inteiro sem açúcar (ovos/carnes/
+    // peixes, opts.acucarZero): aí o açúcar em falta assume-se 0 (verdade, não palpite — como o óleo).
+    // O sal continua sempre exigido (a carne/peixe tem sódio natural, não é 0).
+    if (n.acucares == null && !opts.acucarZero) return null;
+    if (n.sal == null) return null;
+  }
   // DADOS IMPOSSÍVEIS → null (não inventar nota com lixo do OFF): nenhum macro pode ser NEGATIVO,
   // e a SATURADA não pode exceder a GORDURA TOTAL (não se é mais saturado que o total). Apanha
   // sat=−1 e sat=72 num óleo de 13 g (total mal metido no campo da saturada). É GERAL, não por-produto.

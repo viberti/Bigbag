@@ -5,7 +5,7 @@
 //   sudo -u dev node --env-file=.env scripts/calcular_nutriscore_base_local.mjs          # recalcular
 //   sudo -u dev node --env-file=.env scripts/calcular_nutriscore_base_local.mjs --auditar  # + relatório
 import { getPool, parseJsonCol } from '../src/db.js';
-import { familiaPorNome, classeNutriScore } from '../src/normaliza/familia.js';
+import { familiaPorNome, classeNutriScore, acucarAssumivelZero } from '../src/normaliza/familia.js';
 import { nutriScore } from '../src/normaliza/nutriscore.js';
 
 export async function calcularNutriscoreBaseLocal(pool) {
@@ -20,7 +20,7 @@ export async function calcularNutriscoreBaseLocal(pool) {
         const n = parseJsonCol(r.nutricao);
         const familia = familiaPorNome(r.nome || '') || null;
         const classe = classeNutriScore(familia);
-        const ns = nutriScore(n, { classe });
+        const ns = nutriScore(n, { classe, acucarZero: acucarAssumivelZero(familia) });
         if (ns) comNota++; else semNota++;
         return conn.query(
           'UPDATE base_local SET ns_nota100=?, ns_grau=?, ns_pontos=?, ns_classe=?, ns_familia=? WHERE ean=?',
