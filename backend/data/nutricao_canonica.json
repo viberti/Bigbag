@@ -1,0 +1,26 @@
+{
+  "_doc": "Nutrição CANÓNICA por família(+variante) de commodity — valores TACO/USDA, FORMA VENDIDA (cru/seco, NUNCA cozido). Tabela curada (dono, 2026-06-30). Tier 1 = força agressivo; ver Nutricao_Canonica_Commodities.md. `quebra` = palavras no nome que mudam o perfil → NÃO força (mantém retail). `match`=null → variante default.",
+  "ovos": {
+    "tier": 1,
+    "quebra": ["omega", "enriquec", "cozid", "frit", "codorn", "pasteuriz", "liquid", "clara", "gema", "pudim", "preparad"],
+    "variantes": [
+      { "match": null, "nut": { "energia_kcal": 143, "proteina": 13, "gordura": 8.9, "gordura_saturada": 2.6, "hidratos": 1.6, "fibra": 0, "sal": 0.42, "acucares": 0.5 } }
+    ]
+  },
+  "arroz": {
+    "tier": 1,
+    "quebra": ["cozid", "preparad", "pronto", "risotto", "risoto", "doce", "frito"],
+    "variantes": [
+      { "match": ["integral"], "nut": { "energia_kcal": 360, "proteina": 7.3, "gordura": 1.9, "gordura_saturada": 0.3, "hidratos": 77.5, "fibra": 4.8, "sal": 0, "acucares": 0.5 } },
+      { "match": null, "nut": { "energia_kcal": 358, "proteina": 7.2, "gordura": 0.3, "gordura_saturada": 0.1, "hidratos": 78.8, "fibra": 1.6, "sal": 0, "acucares": 0.2 } }
+    ]
+  },
+  "farinha_acucar": {
+    "tier": 1,
+    "quebra": ["baunilha", "amido", "fermento", "preparad", "mistura", "bolo", "panqueca"],
+    "variantes": [
+      { "match": ["acucar", "refinado", "cristal", "branco e meio", "mascavo"], "nut": { "energia_kcal": 387, "proteina": 0.3, "gordura": 0, "gordura_saturada": 0, "hidratos": 99.6, "fibra": 0, "sal": 0, "acucares": 99.6 } },
+      { "match": ["farinha"], "nut": { "energia_kcal": 360, "proteina": 9.8, "gordura": 1.4, "gordura_saturada": 0.3, "hidratos": 75.1, "fibra": 2.4, "sal": 0, "acucares": 0.4 } }
+    ]
+  }
+}
