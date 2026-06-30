@@ -9,7 +9,7 @@
 ## Parte I — Como calculamos o Nutri-Score hoje
 
 ### 1. Origem e âmbito
-Implementamos o **algoritmo oficial Nutri-Score 2023** (em vigor desde 31/12/2023, o que França/Alemanha/Bélgica/Países Baixos/Suíça adotaram e o Open Food Facts usa). É **determinístico** e corre a partir da **nutrição por 100 g/ml** que temos na ficha fundida do produto (`nutricao_100g`: `energia_kcal`, `gordura_saturada`, `gordura`, `acucares`, `sal`, `fibra`, `proteina`).
+Implementamos o **algoritmo oficial Nutri-Score 2023** (em vigor desde 31/12/2023, o que França/Alemanha/Bélgica/Países Baixos/Suíça adotaram e o Open Food Facts usa), tal como publicado pelo **comité científico internacional** (*Merz et al., Nutri-Score 2023 update*, **Nature Food** 5, 102–110, 2024 — ver Fontes). É **determinístico** e corre a partir da **nutrição por 100 g/ml** que temos na ficha fundida do produto (`nutricao_100g`: `energia_kcal`, `gordura_saturada`, `gordura`, `acucares`, `sal`, `fibra`, `proteina`). As fórmulas exatas da escala de gorduras (saturada como rácio saturada/total, energia da saturada `SFA × 37 kJ/g`, exclusão da proteína quando os negativos são altos) reproduzem a **referência técnica FSA-NPS 2023** (ver Fontes) — não são aproximação nossa.
 
 O código vive em **`backend/src/normaliza/nutriscore.js`**, função `nutriScore(n, opts)`. O `/info` chama-a uma vez por ficha:
 ```js
@@ -83,6 +83,8 @@ A função `notaCem(pontos, classe)` usa breakpoints por classe (`BREAKS_SOLIDO`
 
 ### 1. O princípio (regra dura do dono)
 > **Dados em falta NUNCA podem MELHORAR a nota.** Assumir 0 num componente *negativo* ausente tornaria o produto artificialmente mais saudável. Isso era um bug real (ver o caso do azeite, §4).
+
+Esta postura defensiva é a recomendada para o **Open Food Facts**, fonte crowdsourced de completude desigual (análises apontam **só ~⅔ das entradas com macronutrientes completos**, ⚠️*nº exato a confirmar*; o próprio OFF avisa que não garante exatidão e que o utilizador assume o risco). Codificar a verificar a presença do campo antes de confiar nele — e a guarda de plausibilidade (§3) — são essa camada de validação (ver Fontes).
 
 A leitura disto separa os campos em dois tipos:
 - **Negativos** (energia, saturada, açúcar, sal): em falta → **não se assume 0**; ou se exige, ou se devolve `null` (sem nota), conforme a classe.
@@ -214,24 +216,36 @@ impacto_pts = direção × teto_pts × clamp( (valor − limiar_seguro) / (limia
 ```
 - **direção** `+1` penaliza (soma pontos ao A: sal, açúcar, saturada, energia) · `−1` bonifica (subtrai pontos: fibra, proteína).
 - **`teto_pts` em PONTOS** (a moeda do base), não em nota100 (ver §4.1).
-- **Limiares ancorados no que JÁ temos:** o `SF_LIMIARES` do `App.jsx` (bandas semáforo front-of-pack) — sal `[0.3, 1.5]`, gordura saturada `[1.5, 5.0]`, açúcares `[5.0, 22.5]`, gordura `[3.0, 17.5]`. O **limiar seguro** = início da banda ("baixo"); o **limiar alto** = início do "alto". Não inventamos números — *mas ver o aviso abaixo, que é o cerne da feature.*
+- **Limiares ENERGIA-RELATIVOS, ancorados na OMS/PAHO** (correção 2026-06-30 — ver §4.4): o `valor` da regra **não** é g/100 g absoluto (como o `SF_LIMIARES`), mas a **fração de energia** do produto (saturada e açúcar como % da energia; sódio como mg por kcal). É a base do **modelo de perfil de nutrientes da PAHO**, "ajustado às necessidades energéticas, não um valor fixo/dia" — o que permite **deslocar o limiar por condição** (a substância da feature).
 - **O multiplicador é um caso particular** desta forma (rampa que começa em 0 e nunca satura) → não perdemos expressividade, ganhamos.
 
-> **⚠️ O limiar POR CONDIÇÃO é a substância da feature, não afinação (correção 2026-06-30).** Reusar a banda geral `[0.3, 1.5]` do sal para um hipertenso faz a penalização pessoal disparar **no mesmo nível** em que o universal (via `L_SAL`) já penaliza → só acrescenta **magnitude** na mesma região ("conta mais"), mas não **desloca o limiar**. Ora, o conteúdo clínico de "pior para si" é precisamente que o limiar seguro do hipertenso é **mais apertado** — ele devia ser penalizado em sal *moderado* que a população geral pode ignorar ("mais cedo", não só "mais forte"). **Sem deslocar o limiar seguro para baixo por condição, a camada pessoal é, em boa parte, dupla contagem da mesma banda** e aproxima-se de um multiplicador disfarçado. Logo: cada condição traz o **seu** par `(seguro, alto)` deslocado (ex.: hipertenso `[0.1, 0.8]` em vez de `[0.3, 1.5]`), não a banda geral. *Nuance:* amplificar magnitude não é nulo (inclina o gradiente e muda o ranking alto/baixo sal), mas é a metade fraca; o "mais cedo" é o coração. → promovido de questão aberta a requisito de desenho (era §10.7).
+> **⚠️ O limiar POR CONDIÇÃO é a substância da feature, não afinação.** Reusar a banda geral para um hipertenso faz a penalização disparar **no mesmo nível** em que o universal já penaliza → só acrescenta **magnitude** ("conta mais"), não **desloca o limiar**. O conteúdo clínico de "pior para si" é que o limiar do hipertenso é **mais apertado** — penalizar sal *moderado* que a população geral ignora ("mais cedo", não só "mais forte"). A solução com **respaldo citável** (não o `SF_LIMIARES` front-of-pack, que é genérico) é ancorar nas **metas de ingestão OMS** e **apertá-las por condição** com a diretriz clínica respetiva (§4.4). *Nuance:* amplificar magnitude não é nulo (muda o gradiente), mas é a metade fraca; o "mais cedo" é o coração.
 
-#### 4.4 Mapa inicial de regras (curado, conservador — informação, NÃO prescrição)
-| Condição / objetivo (faceta) | Nutriente | seguro → alto | teto (pts) | dir |
+#### 4.4 Limiares ancorados na OMS/PAHO (energia-relativos) + aperto por condição
+**(a) Âncoras GERAIS** (população geral — o `alto` = cutoff de "excesso" da PAHO; o `seguro` = meta ideal OMS):
+
+| Nutriente | Base (energia-relativa) | seguro | alto | Fonte (verificada 2026-06-30) |
 |---|---|---|---|---|
-| Hipertensão / "reduzir sal" | sal | 0,3 → 1,5 g | 8 | + |
-| Diabetes / pré-diabetes | açúcares | 5 → 22,5 g | 8 | + |
-| Diabetes (energia densa) | energia | ref. da classe | 3 | + |
-| Dislipidemia / colesterol alto | gordura saturada | 1,5 → 5,0 g | 6 | + |
-| Objetivo perda de peso | energia | ref. da classe | 5 | + |
-| "Mais fibra" / saúde intestinal | fibra | 3,0 → 6,0 g | 4 | − |
-| Objetivo massa muscular / "+proteína" | proteína | 8 → 20 g | 5 | − |
-| **Doença renal crónica** | — | — | — | **SÓ aviso textual, SEM nota numérica** (ver ⚠️) |
+| Açúcares (livres) | `açúcar_g×17kJ / energia_kJ` | **5 %E** | **10 %E** | OMS livres <10 % (ideal <5 %) · PAHO excesso ≥10 %E |
+| Gordura saturada | `sat_g×37kJ / energia_kJ` | **5 %E** | **10 %E** | OMS saturada <10 %E · PAHO excesso ≥10 %E |
+| Sódio | `Na_mg / kcal` (sal_g×400 / kcal) | **0,5** | **1,0** | PAHO excesso ≥ 1 mg/kcal (rácio 1:1) |
+| Gordura total | `gordura_g×37kJ / energia_kJ` | 15 %E | **30 %E** | PAHO excesso ≥30 %E |
 
-> ⚠️ **Doença renal crónica (DRC) — não dar nota numérica.** A necessidade de proteína **inverte-se** com o estágio: pré-diálise *restringe*, diálise *incrementa*. O editor de perfil v2 só capta "Condições" genéricas, **sem distinguir o estágio** → qualquer nota numérica seria adivinhação perigosa. Postura segura (clínica e juridicamente): **suprimir a nota pessoal** e disparar só **avisos textuais** ("tens DRC; o sódio e a proteína deste produto merecem atenção — confirma com o teu médico"). Os tetos das outras regras são pontos de partida a **calibrar** (§10.1).
+**(b) APERTO por condição** (desloca `seguro`/`alto` para baixo pelo fator da diretriz clínica):
+
+| Condição / objetivo (faceta) | Nutriente | seguro → alto (apertado) | fator vs geral | Fonte do aperto | teto (pts) | dir |
+|---|---|---|---|---|---|---|
+| Hipertensão | sódio | **0,375 → 0,75** mg/kcal | ×0,75 | DASH baixo-sódio **1500** vs 2000 mg/dia | 8 | + |
+| Diabetes / pré-diabetes | açúcares | **2,5 → 5 %E** | ×0,5 | OMS condicional **<5 %E** (vs <10 %) | 8 | + |
+| Dislipidemia / colesterol alto | saturada | **3 → 6 %E** | ×0,6 | AHA **~6 %E** p/ baixar LDL ⚠️*nº exato a confirmar* | 6 | + |
+| Objetivo perda de peso | energia | densidade calórica (kcal/100 g) ⚠️*âncora a definir* | — | — | 5 | + |
+| "Mais fibra" / intestinal | fibra | ancorar em OMS **>25 g/dia** ⚠️*a converter p/ porção* | — | OMS fibra ≥25 g/dia | 4 | − |
+| Objetivo massa muscular | proteína | ancorar na RDA **0,8 g/kg** ⚠️*a converter* (c/ cap §4.1) | — | RDA proteína | 5 | − |
+| **Doença renal crónica** | — | **SÓ aviso textual, SEM nota** | — | ver ⚠️ DRC | — | — |
+
+> **Notas:** (1) as âncoras de **penalização** (sódio/açúcar/saturada/gordura) têm fonte sólida (PAHO/OMS); as de **bónus/objetivo** (fibra/proteína/energia) ainda **não têm âncora energia-relativa fechada** — marcadas ⚠️ *a definir*, ficam por agora com tetos modestos. (2) Os **fatores de aperto** vêm de cada diretriz (DASH, OMS, AHA), não de palpite — é o que tira da "calibração subjetiva do dono" para "calibração ancorada e citável". (3) Os `teto_pts` (magnitude) continuam a calibrar (§10.8); os **limiares** já não são inventados.
+
+> ⚠️ **Doença renal crónica (DRC) — não dar nota numérica.** A necessidade de proteína **inverte-se** com o estágio (pré-diálise *restringe*, diálise *incrementa*); o perfil v2 só capta "Condições" genéricas → adivinhação perigosa. **E há conflito ENTRE condições:** o **DASH** (padrão-ouro da hipertensão, que a nossa regra de sódio empurraria) é **contraindicado em DRC** pelo teor de potássio/fósforo/proteína — a mesma comida que a regra de hipertensão recomendaria é contraindicada se a pessoa também tiver DRC. Uma nota "para si" única apontaria na direção clinicamente errada. Postura: **suprimir a nota pessoal e só avisos textuais** — a decisão mais defensável do documento.
 
 #### 4.5 Flags DUROS (dieta/alergia) — sobrepõem as regras graduadas
 Antes das regras graduadas corre uma camada **binária** para o que não admite gradação — ambos **bloqueio TOTAL** (não "penalização forte"):
@@ -278,7 +292,7 @@ Cada `motivo` traz o **valor real**, o **limiar** e o **efeito em pontos** → o
 - O **parecer em texto** (já existe) = LLM, que passa a **fundamentar-se na saída do motor** (não inventa o juízo; verbaliza-o). Evita o LLM dar uma "nota" inconsistente.
 
 ### 8. Faseamento de implementação (proposta, NÃO executar ainda)
-- **P0 — Tabela de regras curada.** O mapa de §4.4 como dados (`config`, versionada com data+dono): por condição/objetivo, `{nutriente, limiar_seguro, limiar_alto, teto_pts, direção, grupo}`, ancorado no `SF_LIMIARES`. Inclui os flags duros (alergia/dieta) de §4.5 e a exclusão da DRC.
+- **P0 — Tabela de regras curada.** O mapa de §4.4 como dados (`config`, versionada com data+dono): por condição/objetivo, `{nutriente, base_energia, limiar_seguro, limiar_alto, teto_pts, direção, grupo, fonte}`, **ancorado nas metas OMS/PAHO energia-relativas** (não no `SF_LIMIARES`), com a **fonte de cada número**. Inclui os flags duros (alergia/dieta) de §4.5 e a exclusão da DRC.
 - **P1 — Motor `nutriScorePessoal`** (puro, testável): regras graduadas em pontos (§4.1) + flags duros + composição com cap-por-grupo (§4.6) + dados-em-falta/confiança (§5). Golden de **perfis sintéticos** (`hipertenso_moderado`, `diabetico_tipo2_obeso`, `atleta_vegetariano`, `renal`…) × produtos conhecidos, ouro auditado; testar explicitamente a **ausência de precipício** (1,19 vs 1,21) e o **bloqueio** (dieta/alergénio).
 - **P0.5 — Gate de SUFICIÊNCIA DE DADOS (antes de P1).** Medir em que **fração dos scans/fichas reais** a nota pessoal teria os nutrientes críticos presentes (§5). Se for baixa, a feature nasce esparsa → repensar âmbito antes de investir no motor.
 - **P1.5 — Teste de ESTABILIDADE de ordenação** (antes da UI): correr o motor contra um catálogo de **~1000 produtos** por perfil e procurar **anomalias de ranking**. Classe de teste **obrigatória: "alimento integral vs reformulado"** — um produto com **adoçantes/substitutos de sal** a saltar à frente de um **alimento simples/integral** (o viés direcional das §§ Limitação 1/2 + gaming, §9). Se aparecer, o score precisa de guarda.
@@ -300,20 +314,37 @@ Cada `motivo` traz o **valor real**, o **limiar** e o **efeito em pontos** → o
 **As grandes primeiro (determinam se a feature significa algo):**
 1. **Haver ou não NÚMERO pessoal** (§9) — escalar 0–100 "para si" vs só **flags + reordenação + parecer** (número só no universal). É a decisão de enquadramento mais importante; a favor de não-número joga a falsa autoridade sem oráculo. *(aberta — a mais importante)*
 2. **Gate de suficiência de dados** (§5/§8 P0.5) — medir a cobertura real antes de construir o motor. *(a fazer antes de P1)*
-3. ~~Limiares por condição~~ — **PROMOVIDO a requisito (não é afinação):** cada condição traz o seu par `(seguro, alto)` **deslocado**, não a banda geral do `SF_LIMIARES` ("mais cedo", não só "mais forte" — §4.3). *Os valores* deslocados por condição ficam a calibrar.
+3. ~~Limiares por condição~~ — **PROMOVIDO a requisito E ancorado (2026-06-30):** limiares **energia-relativos** das metas **OMS/PAHO**, apertados por condição com a diretriz clínica (DASH/OMS/AHA) — §4.4. Tira-os de "palpite" para "citável". *Falta:* fechar as âncoras de **bónus** (fibra/proteína/energia, ⚠️ a definir) e confirmar o nº exato da AHA (saturada p/ dislipidemia).
 
 **Fechadas (2026-06-30):**
 4. **Unidade do impacto** — em **PONTOS**, somados ao base, re-mapeados por `notaCem`; ranking e calibração em pontos (§4.1).
 5. **Bloqueio de dieta/alergénio** — **bloqueio TOTAL** (não penalização), fora da ordenação (§4.5).
 6. **Composição** — cap **por grupo de nutrientes concorrentes**; energia **não** é grupo próprio (é check derivado) (§4.6).
 7. **Cap-proteína ↔ bónus pessoal** — base capado ⇒ bónus pessoal de proteína suprimido (§4.1).
+8. **Base dos limiares** — **energia-relativa OMS/PAHO** (não o `SF_LIMIARES` front-of-pack), apertada por condição (§4.4).
 
 **Afinação / menores:**
-8. **Magnitude dos `teto_pts`** — começar suave, calibrar contra o golden do dono (§8 P3). *(aberta)*
-9. **Política de exibição da confiança** — limiar de completude para mostrar a nota vs só avisos (§5). *(aberta)*
-10. Onde corre o motor — servidor primeiro; cliente/`base_local` depois se compensar. *(proposta)*
-11. **Ordenação** — pessoal por defeito **com *toggle*** para a universal (§6). *(proposta)*
-12. **Demografia** — *como* idade/sexo/peso ajustam está **indefinido** (§5), diferido. *(aberta)*
+9. **Magnitude dos `teto_pts`** — começar suave, calibrar contra o golden do dono (§8 P3). *(aberta)*
+10. **Política de exibição da confiança** — limiar de completude para mostrar a nota vs só avisos (§5). *(aberta)*
+11. Onde corre o motor — servidor primeiro; cliente/`base_local` depois se compensar. *(proposta)*
+12. **Ordenação** — pessoal por defeito **com *toggle*** para a universal (§6). *(proposta)*
+13. **Demografia** — *como* idade/sexo/peso ajustam está **indefinido** (§5), diferido. *(aberta)*
+
+---
+
+### Fontes (literatura) — estado de verificação
+> Política: **só se cita o que foi verificado**; o que ainda não foi está marcado ⚠️ *a confirmar* e NÃO deve ser apresentado como autoridade até verificação.
+
+**Verificadas (2026-06-30, pesquisa direta):**
+- **Algoritmo oficial 2023** — Merz et al., *Nutri-Score 2023 update*, **Nature Food** 5, 102–110 (2024): [nature.com/articles/s43016-024-00920-3](https://www.nature.com/articles/s43016-024-00920-3). Confirma açúcar/sal mais severos e "água = única bebida A".
+- **Fórmulas FSA-NPS 2023** (escala de gorduras: rácio saturada/total, `SFA×37 kJ/g`, exclusão de proteína quando N≥7): [eclarion.com/nutriscore-calculator/methodology](https://www.eclarion.com/nutriscore-calculator/methodology/).
+- **Modelo de Perfil de Nutrientes PAHO/WHO** (cutoffs de "excesso" energia-relativos, base = metas de ingestão OMS ajustadas à energia): [paho.org/en/nutrient-profile-model](https://www.paho.org/en/nutrient-profile-model) + ["PAHO defines excess levels…"](https://www.paho.org/en/news/19-2-2016-paho-defines-excess-levels-sugar-salt-and-fat-processed-food-and-drink-products-0). Cutoffs: açúcar ≥10 %E · saturada ≥10 %E · gordura total ≥30 %E · trans ≥1 %E · sódio ≥1 mg/kcal.
+- **Metas OMS** (adultos): açúcares livres <10 %E (ideal <5 %E); saturada <10 %E; sódio <2 g/dia (<5 g sal): [who.int/news/item/17-07-2023](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates).
+- **DASH baixo-sódio 1500 mg/dia para hipertensão** — StatPearls: [ncbi.nlm.nih.gov/books/NBK482514](https://www.ncbi.nlm.nih.gov/books/NBK482514/).
+
+**⚠️ A confirmar antes de citar como autoridade** (vieram da síntese, ainda não verificadas uma a uma): AHA saturada ~5–6 %E para baixar LDL (nº exato); completude do OFF "~67 % macros" (estudo 2021); modelos PFS / Nestlé-NNA / PepsiCo-PNC (existência + uso de rampa graduada); "Chile +15 % adoçantes não-nutritivos"; "DASH contraindicado em DRC" (afirmação clínica geral, mas falta a fonte primária); crítica ao NOVA em *Proceedings of the Nutrition Society* (2025).
+
+> **Enquadramento honesto:** estas fontes **ancoram** os limiares (tira-os de "palpite do dono" para "diretriz citável"), mas **não dão um oráculo de saúde** para os nossos `teto_pts` por condição — esses validam-se contra o golden do dono (§9). Âncora ≠ validação de desfecho.
 
 ---
 
