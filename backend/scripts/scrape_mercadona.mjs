@@ -99,6 +99,14 @@ async function main() {
         const pi = d.price_instructions || {};
         const unidade = UNIDADE[String(pi.size_format || '').toLowerCase()] || null;
         const ean = String(d.ean || '').replace(/\D/g, '') || null;
+        // HISTÓRICO DE PREÇO (regra do dono): se o preço mudou ou é novo, regista (append-only).
+        const precoM = num(pi.unit_price);
+        if (precoM != null) {
+          const [[prev]] = await pool.query("SELECT preco FROM catalogo_produto WHERE fonte='mercadona' AND sku_fonte=?", [String(id)]);
+          if (!prev || Number(prev.preco) !== Number(precoM)) {
+            await pool.query("INSERT INTO catalogo_preco_hist (fonte, sku_fonte, ean, preco, moeda, preco_por_base, visto_em) VALUES ('mercadona',?,?,?,'EUR',?,NOW())", [String(id), ean, precoM, num(pi.reference_price)]);
+          }
+        }
         await pool.query(
           `INSERT INTO catalogo_produto
              (fonte, sku_fonte, ean, nome, marca, categoria_path, categoria, cat_n1, cat_n2, cat_n3,

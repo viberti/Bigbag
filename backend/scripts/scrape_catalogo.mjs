@@ -285,6 +285,17 @@ const FONTES = {
 };
 
 async function upsert(pool, fonte, sku, url, f) {
+  // HISTÓRICO DE PREÇO (regra do dono): lê o preço ANTERIOR e, se mudou ou é novo, regista no
+  // catalogo_preco_hist (append-only — o anterior NUNCA se perde). Mesmo padrão dos harvesters VTEX.
+  if (f.preco != null) {
+    const [[prev]] = await pool.query('SELECT preco FROM catalogo_produto WHERE fonte=? AND sku_fonte=?', [fonte, sku]);
+    if (!prev || Number(prev.preco) !== Number(f.preco)) {
+      await pool.query(
+        'INSERT INTO catalogo_preco_hist (fonte, sku_fonte, ean, preco, moeda, preco_por_base, visto_em) VALUES (?,?,?,?,?,?,NOW())',
+        [fonte, sku, f.ean, f.preco, f.moeda, f.preco_por_base],
+      );
+    }
+  }
   await pool.query(
     `INSERT INTO catalogo_produto
        (fonte, sku_fonte, ean, nome, marca, descricao_curta, categoria_path, categoria, cat_n1, cat_n2, cat_n3, cat_n4,
