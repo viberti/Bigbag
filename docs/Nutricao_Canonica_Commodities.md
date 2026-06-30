@@ -34,6 +34,8 @@ A chave canónica é **família + qualificador**; sem o qualificador certo, NÃO
 ### 3.4 Onde no pipeline
 No **fusor** (`fichaEan.js`), acrescenta-se uma fonte **`canonico`**. A prioridade depende do **tier** (§6.1): **Tier 1** → canónico vence tudo exceto `manual`; **Tier 2** → o fabricante-confirmado vence, o canónico só bate OFF/VLM/estimativa. Proveniência em `fusao` (auditável, reversível). Idempotente.
 
+> **AUTO-PROTEÇÃO do override (aprendido do validador P1.5, 2026-06-30):** o override só se aplica quando a nutrição existente **já está PERTO do canónico** (dentro da tolerância do validador — energia ≤25 %, etc.) — aí "encaixa" no canónico e limpa o ruído. Se **diverge** (ex.: "Arroz de Pato" 212 kcal, "Sericaia" — prato/doce mal classificado como `arroz`/`farinha_acucar`), **NÃO se força** → vai para revisão. Isto torna o override **self-guarding**: nunca achata um produto que NÃO é a commodity, mesmo que o `quebra` (lista de palavras-chave, frágil — nomes de pratos são infinitos) o deixe passar. O `quebra` deixa de ser o único guarda.
+
 ### 3.5 Combina com o (2)
 A TACO **não traz açúcar** → a nutrição canónica do ovo tem açúcar=null. O fix (2) (`acucarAssumivelZero`) faz isso virar 0 → a nota canónica calcula. As duas peças juntas: **todos os ovos de galinha → A (80)**.
 
