@@ -17,6 +17,14 @@ import { facetasDe } from '../normaliza/facetas.js';
 import { fundirFichaEan, formatarMedida } from '../normaliza/fichaEan.js';
 import { acharPorNomeMarca, acharGemeo, nomeCondizGemeo } from '../normaliza/resolverPorNome.js';
 import { nutricaoPlausivel } from '../normaliza/validadores.js';
+import { confiancaNutricao } from '../normaliza/confiancaNutricao.js';
+import { readFileSync } from 'node:fs';
+
+// Envelopes nutricionais por família (camada C2), gerados por scripts/envelopes_nutricao.mjs.
+// Carregados UMA vez no arranque; ausentes (dev/sem artefacto) → a confiança ignora a suspeita de família.
+let ENVELOPES_NUT = null;
+try { ENVELOPES_NUT = JSON.parse(readFileSync(new URL('../../data/envelopes_nutricao.json', import.meta.url), 'utf8')); }
+catch { ENVELOPES_NUT = null; }
 import { alertasDoPerfil, avaliarParaPerfil, compararProdutosLLM } from '../ingest/perfil.js';
 import { tituloProduto } from '../normaliza/titulo.js';
 import { garantirFichaPT, pareceEstrangeiro } from '../ingest/traduz.js';
@@ -510,13 +518,17 @@ export async function consolidarProduto({ itemId, eanQ, skuId: skuParam, pais })
   const nutFicha = parseJson(rows.find((r) => r.nutricao)?.nutricao);
   const nutricaoDisplay = temV(nutFicha) ? nutFicha : (off?.nutricao_100g || vlm?.nutricao_100g || base?.nutricao_100g || generico?.nutricao_100g || null);
   const tamanhoFicha = (rows.find((r) => r.quantidade && String(r.quantidade).trim())?.quantidade) || off?.quantidade || vlm?.quantidade || base?.quantidade || null;
+  // CONFIANÇA da nutrição (camada F): corroborada se há ficha de catálogo/OFF (confirmada=1) ou OFF tem nutrição.
+  const nutConfirmada = rows.some((r) => r.nutricao && r.nutricao_confirmada === 1) || !!off?.nutricao_100g;
+  const nutConfianca = confiancaNutricao(nutricaoDisplay, { familia: familiaSlug, confirmada: nutConfirmada, envelopes: ENVELOPES_NUT });
   return { ean, vlm, off, base, generico, skuId, nome, fonte, fotos, imagem_catalogo: imagemCatalogo,
     ingredientes: ingredientesFicha, alergenios: alergeniosFicha, nutricao_100g: nutricaoDisplay, tamanho: formatarMedida(tamanhoFicha), nutricao_provisoria: nutricaoProvisoria, tipo, tipo_via: tipoVia, familia: familiaSlug, familia_label: familiaLabel, familia_via: famR.via, catalogo_categoria: categoriaPt || catalogoCategoria, sugestao_nome: sugestaoNome, nome_ref: refNome, preco_catalogo: precoCatalogo, moeda: cfgPais.moeda, pais: (pais || config.paisDefault).toUpperCase(), analise_ean: analiseEanInfo, marca: marcaResolvida, marca_via: marcaVia, existe: rows.length > 0 || temGenericoNut,
     // ficha MAGRA = nem nutrição nem imagem: não temos como mostrar nada útil. Mesmo que haja um
     // nome/marca (talvez só DECODIFICADO do EAN), o scan deve pedir FOTOS (VLM) em vez de abrir
     // uma ficha inútil. (sugestão de gémeo já passa pelo gate de precisão `nomeCondizGemeo`.)
     ficha_magra: !temNutFinal && !imagemCatalogo,
-    nutriscore_calc: nutriScore(nutricaoDisplay, { classe: classeNutriScore(familiaSlug) }) };
+    nutriscore_calc: nutriScore(nutricaoDisplay, { classe: classeNutriScore(familiaSlug) }),
+    nutriscore_confianca: nutConfianca };
 }
 
 const MAX_FOTOS = 10;
