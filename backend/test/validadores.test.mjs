@@ -1,7 +1,7 @@
 // Guardas de atribuição ao Mestre: unidade · €/base · marca-afinidade. Pura.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { unidadeCompativel, precoPlausivel, marcaCompativel, validarAtribuicao, nutricaoPlausivel } from '../src/normaliza/validadores.js';
+import { unidadeCompativel, precoPlausivel, marcaCompativel, validarAtribuicao, nutricaoPlausivel, problemasNutricao } from '../src/normaliza/validadores.js';
 
 // ───────── unidade ─────────
 test('unidade: un vs L é incompatível (ovos vs caldo)', () => {
@@ -68,4 +68,24 @@ test('nutricaoPlausivel (3.6): fisica do rotulo', () => {
   assert.ok(!nutricaoPlausivel({ gordura: 60, hidratos: 60, proteina: 20 }));// soma >105
   assert.ok(!nutricaoPlausivel({}));                                         // vazio nao e nutricao
   assert.ok(!nutricaoPlausivel(null));
+});
+
+test('nutricaoPlausivel — ATWATER (energia baixa demais p/ as macros)', () => {
+  // azeite com kcal=8,84 mas 91 g de gordura → as macros implicam ~819 kcal → IMPOSSÍVEL
+  assert.ok(!nutricaoPlausivel({ energia_kcal: 8.84, gordura: 91, gordura_saturada: 13, hidratos: 0, proteina: 0 }));
+  // kcal=137 mas 23,3 g de gordura (≈210 kcal só de gordura) → declarada baixa demais
+  assert.ok(!nutricaoPlausivel({ energia_kcal: 137, gordura: 23.3, hidratos: 2, proteina: 10.3, gordura_saturada: 8 }));
+  // azeite CORRETO (kcal bate com a gordura) → plausível
+  assert.ok(nutricaoPlausivel({ energia_kcal: 822, gordura: 91, gordura_saturada: 14, hidratos: 0, proteina: 0 }));
+  // VINHO: kcal=83 mas macros quase 0 (energia vem do ÁLCOOL, não das macros) → NÃO penalizar (direção inversa)
+  assert.ok(nutricaoPlausivel({ energia_kcal: 83, gordura: 0, hidratos: 2.6, proteina: 0.1 }));
+  // produto de baixa energia com pequeno desvio → não falsos positivos (gap < 50 kcal)
+  assert.ok(nutricaoPlausivel({ energia_kcal: 30, gordura: 0, hidratos: 4, proteina: 0.5 }));
+});
+
+test('problemasNutricao devolve os códigos certos', () => {
+  assert.deepEqual(problemasNutricao({ energia_kcal: 822, gordura: 91, hidratos: 0, proteina: 0 }), []);
+  assert.ok(problemasNutricao({ energia_kcal: 8.84, gordura: 91, hidratos: 0, proteina: 0 }).includes('energia_baixa_vs_macros'));
+  assert.ok(problemasNutricao({ gordura: 5, gordura_saturada: 30 }).includes('saturada>gordura'));
+  assert.ok(problemasNutricao({ proteina: -1 }).includes('macro_negativa_ou_>100'));
 });

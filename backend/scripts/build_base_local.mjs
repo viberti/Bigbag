@@ -127,6 +127,12 @@ await pool.query('DROP TEMPORARY TABLE IF EXISTS bl_merge');
 
 await pool.query('DROP TEMPORARY TABLE IF EXISTS bl_cat');
 
+// GATE de qualidade: a materialização por SQL não passa pelo `nutricaoPlausivel` do fusor →
+// limpa a nutrição implausível (kcal incoerente com macros, saturada>gordura, negativos…)
+// para não materializar lixo nos telefones. Idempotente. (validadores.js, 2026-06-30.)
+const { limparNutricaoBaseLocal } = await import('./limpar_nutricao_base_local.mjs');
+await limparNutricaoBaseLocal(pool);
+
 // Relatório
 const [[tot]] = await pool.query(
   `SELECT COUNT(*) total,

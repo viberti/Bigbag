@@ -49,27 +49,47 @@ export function validarAtribuicao({ unidade, precoBase, categoria } = {}, ctx = 
   return { ok: motivos.length === 0, motivos };
 }
 
-// Plausibilidade da NUTRIÇÃO por 100 g/ml (revisão 3.6, 2026-06-13): o peso lido
-// por VLM tem guarda (pesoPlausivel) mas a nutrição lida do rótulo não tinha —
-// um OCR de "3590 kcal" entrava na ficha. Gates físicos simples: kcal ≤950/100g
-// (azeite ≈900), macros 0–100 g/100g, açúcares ≤ hidratos, saturada ≤ gordura,
-// soma de macros ≤105. null/ausente não invalida (valida-se o que há).
-export function nutricaoPlausivel(n) {
-  if (!n || typeof n !== 'object') return false;
+// Plausibilidade da NUTRIÇÃO por 100 g/ml (revisão 3.6, 2026-06-13; Atwater 2026-06-30):
+// o peso lido por VLM tem guarda (pesoPlausivel) mas a nutrição lida do rótulo não tinha —
+// um OCR de "3590 kcal" entrava na ficha. `problemasNutricao` devolve a LISTA de problemas
+// (vazia = ok); `nutricaoPlausivel` = sem problemas e com ≥1 valor. null/ausente não invalida.
+// Códigos de problema: 'vazio', 'macro_negativa_ou_>100', 'kcal_fora', 'acucar>hidratos',
+//   'saturada>gordura', 'soma_macros>105', 'energia_baixa_vs_macros' (Atwater).
+//
+// ATWATER (reconciliação de energia): a energia declarada não pode ser MUITO MENOR que a
+// que as macros implicam (4·prot + 4·hidratos + 9·gordura + 2·fibra kcal/g) — não se tem
+// menos energia que a soma dos macronutrientes. Só se sinaliza esta direção (declarada baixa
+// demais → quase sempre dado errado, ex.: azeite kcal=8,84). A direção INVERSA (declarada >
+// prevista) NÃO se penaliza: álcool (7 kcal/g) e polióis não entram nas macros e explicam-na
+// legitimamente (vinho/cerveja, rebuçados sem açúcar). Tolerância generosa (×1,5 e gap >50 kcal)
+// para apanhar só erros grosseiros, não arredondamentos nem diferenças regionais (fibra-nos-hidratos).
+export function problemasNutricao(n) {
+  if (!n || typeof n !== 'object') return ['vazio'];
   const v = (x) => (n[x] == null ? null : Number(n[x]));
+  const probs = [];
   const kcal = v('energia_kcal');
-  const campos = ['gordura', 'gordura_saturada', 'hidratos', 'acucares', 'proteina', 'fibra', 'sal'];
   let algum = kcal != null;
-  for (const c of campos) {
+  for (const c of ['gordura', 'gordura_saturada', 'hidratos', 'acucares', 'proteina', 'fibra', 'sal']) {
     const x = v(c);
     if (x == null) continue;
     algum = true;
-    if (!Number.isFinite(x) || x < 0 || x > 100) return false;
+    if (!Number.isFinite(x) || x < 0 || x > 100) { probs.push('macro_negativa_ou_>100'); break; }
   }
-  if (kcal != null && (!Number.isFinite(kcal) || kcal < 0 || kcal > 950)) return false;
-  if (v('acucares') != null && v('hidratos') != null && v('acucares') > v('hidratos') + 1) return false;
-  if (v('gordura_saturada') != null && v('gordura') != null && v('gordura_saturada') > v('gordura') + 1) return false;
-  const soma = (v('gordura') || 0) + (v('hidratos') || 0) + (v('proteina') || 0);
-  if (soma > 105) return false;
-  return algum; // objeto sem nenhum valor não é "nutrição plausível"
+  if (kcal != null && (!Number.isFinite(kcal) || kcal < 0 || kcal > 950)) probs.push('kcal_fora');
+  if (v('acucares') != null && v('hidratos') != null && v('acucares') > v('hidratos') + 1) probs.push('acucar>hidratos');
+  if (v('gordura_saturada') != null && v('gordura') != null && v('gordura_saturada') > v('gordura') + 1) probs.push('saturada>gordura');
+  if ((v('gordura') || 0) + (v('hidratos') || 0) + (v('proteina') || 0) > 105) probs.push('soma_macros>105');
+  // Atwater (assimétrico): energia declarada baixa demais p/ as macros.
+  const prot = v('proteina'), carb = v('hidratos'), fat = v('gordura'), fib = v('fibra');
+  if (kcal != null && kcal > 0 && prot != null && carb != null && fat != null) {
+    const pred = 4 * prot + 4 * carb + 9 * fat + 2 * (fib || 0);
+    if (pred > kcal * 1.5 && pred - kcal > 50) probs.push('energia_baixa_vs_macros');
+  }
+  if (!algum) probs.push('vazio');
+  return probs;
+}
+
+export function nutricaoPlausivel(n) {
+  if (!n || typeof n !== 'object') return false;
+  return problemasNutricao(n).length === 0;
 }
