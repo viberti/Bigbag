@@ -1052,7 +1052,10 @@ function Regua({ label, val, tipo }) {
   const cols = ['#7ec46a', '#cdb83e', '#e6a23c', '#e0734f'];
   const n = nivel(tipo, val);
   const lvl = n ? n[0] : -1;
-  const txt = fmtNut(val);
+  // SAL: a sub-grama importa (banda muda em 0,3/1,5) → 1 casa decimal, senão "0,35 g" virava "0 g"
+  // e parecia incoerente com a banda (ex.: ovo sal=0,35 → "0 g moderado"). Restantes macros: inteiro.
+  const txt = (tipo === 'sal' && val != null && !Number.isNaN(Number(val)))
+    ? Number(val).toFixed(1).replace('.', ',') : fmtNut(val);
   return (
     <div className="rgrow">
       <span className="rg-l">{label}</span>
