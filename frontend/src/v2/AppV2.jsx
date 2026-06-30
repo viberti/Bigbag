@@ -1197,6 +1197,9 @@ function Ficha({ go, back, ean, sku_id, nome }) {
             )}
           </div>
           {nsCalc && <span className="ns-calc" title={`Nutri-Score (algoritmo 2023) — nota de 0 a 100, maior é mais saudável (letra ${nsCalc.grau})`} style={{ background: NS_COR[nsCalc.grau] || '#9ec93f' }}>{nsCalc.nota100 ?? (nsCalc.pontos > 0 ? '+' : '') + nsCalc.pontos}</span>}
+          {nsCalc && info?.nutriscore_confianca && info.nutriscore_confianca.nivel !== 'alto' && info.nutriscore_confianca.nivel !== 'nenhum' && (
+            <span className="ns-conf" title={`Dados a confirmar: ${(info.nutriscore_confianca.motivos || []).join('; ') || 'fonte por corroborar'}`}>dados a confirmar</span>
+          )}
         </div>
 
         {sug && !temNut && (
