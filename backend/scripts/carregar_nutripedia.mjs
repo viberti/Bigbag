@@ -9,8 +9,9 @@
 // Mapa id->macro DERIVADO por triangulacao (scripts/derive, 102/120 cruzados com off_full;
 // votos decisivos). Base nutricional = por 100 <unidade> (g/ml), vinda do campo `unidade`.
 //
-// Idempotente: DELETE fonte='nutripedia' + INSERT. Uso (no servidor):
-//   sudo -u dev node --env-file=.env scripts/carregar_nutripedia.mjs /tmp/nutripedia.ndjson
+// Idempotente e INCREMENTAL (UPSERT, nunca DELETE — regra do dono): atualiza os campos do NDJSON,
+// preserva os enriquecidos e os produtos que saíram do NDJSON. Uso (no servidor):
+//   sudo -u dev node --env-file=.env scripts/carregar_nutripedia.mjs /home/dev/nutripedia.ndjson
 import { readFileSync } from 'node:fs';
 import { getPool, closePool } from '../src/db.js';
 import { tituloProduto } from '../src/normaliza/titulo.js';
@@ -56,11 +57,17 @@ async function main() {
     });
   }
   console.log(`[nutripedia] linhas a inserir: ${eansTot} (${comNut} produtos c/ nutricao, ${comImg} c/ imagem).`);
-  await pool.query('DELETE FROM catalogo_produto WHERE fonte = ?', [FONTE]);
+  // UPSERT — NUNCA apaga (regra do dono): atualiza os campos do NDJSON e PRESERVA os enriquecidos
+  // (product_type, nome_pt, nutricao_confirmada, vetor_em… não estão no INSERT → intactos); os
+  // produtos que saíram do NDJSON ficam. nutrição/ingredientes via COALESCE (não apaga bom com null).
   for (let i = 0; i < vals.length; i += 500) {
     await pool.query(
       'INSERT INTO catalogo_produto (fonte, sku_fonte, ean, nome, marca, ingredientes, nutricao, nutricao_base, url, imagem_url, scraped_at) VALUES ' +
-        vals.slice(i, i + 500).map(() => '(?,?,?,?,?,?,?,?,?,?,NOW())').join(','),
+        vals.slice(i, i + 500).map(() => '(?,?,?,?,?,?,?,?,?,?,NOW())').join(',') +
+        ' ON DUPLICATE KEY UPDATE ean=VALUES(ean), nome=VALUES(nome), marca=VALUES(marca),' +
+        ' ingredientes=COALESCE(VALUES(ingredientes), ingredientes), nutricao=COALESCE(VALUES(nutricao), nutricao),' +
+        ' nutricao_base=COALESCE(VALUES(nutricao_base), nutricao_base), url=VALUES(url),' +
+        ' imagem_url=COALESCE(VALUES(imagem_url), imagem_url), scraped_at=NOW()',
       vals.slice(i, i + 500).flat(),
     );
   }
