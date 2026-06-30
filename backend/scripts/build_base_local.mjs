@@ -133,6 +133,10 @@ await pool.query('DROP TEMPORARY TABLE IF EXISTS bl_cat');
 const { limparNutricaoBaseLocal } = await import('./limpar_nutricao_base_local.mjs');
 await limparNutricaoBaseLocal(pool);
 
+// Nutri-Score numérico materializado (migr. 095) — cache regenerável p/ auditoria. DEPOIS da limpeza.
+const { calcularNutriscoreBaseLocal } = await import('./calcular_nutriscore_base_local.mjs');
+await calcularNutriscoreBaseLocal(pool);
+
 // Relatório
 const [[tot]] = await pool.query(
   `SELECT COUNT(*) total,
