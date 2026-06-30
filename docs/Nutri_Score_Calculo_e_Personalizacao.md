@@ -237,13 +237,13 @@ impacto_pts = direção × teto_pts × clamp( (valor − limiar_seguro) / (limia
 |---|---|---|---|---|---|---|
 | Hipertensão | sódio | **0,375 → 0,75** mg/kcal | ×0,75 | DASH baixo-sódio **1500** vs 2000 mg/dia | 8 | + |
 | Diabetes / pré-diabetes | açúcares | **2,5 → 5 %E** | ×0,5 | OMS condicional **<5 %E** (vs <10 %) | 8 | + |
-| Dislipidemia / colesterol alto | saturada | **3 → 6 %E** | ×0,6 | AHA **~6 %E** p/ baixar LDL ⚠️*nº exato a confirmar* | 6 | + |
-| Objetivo perda de peso | energia | densidade calórica (kcal/100 g) ⚠️*âncora a definir* | — | — | 5 | + |
-| "Mais fibra" / intestinal | fibra | ancorar em OMS **>25 g/dia** ⚠️*a converter p/ porção* | — | OMS fibra ≥25 g/dia | 4 | − |
-| Objetivo massa muscular | proteína | ancorar na RDA **0,8 g/kg** ⚠️*a converter* (c/ cap §4.1) | — | RDA proteína | 5 | − |
+| Dislipidemia / colesterol alto | saturada | **3 → 6 %E** | ×0,6 | AHA **<5–6 %E** p/ baixar LDL | 6 | + |
+| Objetivo perda de peso | densidade energética | **150 → 400** kcal/100 g | — | Rolls 2003 (médio→alto) | 5 | + |
+| "Mais fibra" / intestinal | fibra | **3 → 6** g/100 g | — | UE 1924/2006 "fonte"→"alto teor" | 4 | − |
+| Objetivo massa muscular | proteína | **12 → 20 %E** | — | UE 1924/2006 "fonte"→"alto teor" (c/ cap §4.1) | 5 | − |
 | **Doença renal crónica** | — | **SÓ aviso textual, SEM nota** | — | ver ⚠️ DRC | — | — |
 
-> **Notas:** (1) as âncoras de **penalização** (sódio/açúcar/saturada/gordura) têm fonte sólida (PAHO/OMS); as de **bónus/objetivo** (fibra/proteína/energia) ainda **não têm âncora energia-relativa fechada** — marcadas ⚠️ *a definir*, ficam por agora com tetos modestos. (2) Os **fatores de aperto** vêm de cada diretriz (DASH, OMS, AHA), não de palpite — é o que tira da "calibração subjetiva do dono" para "calibração ancorada e citável". (3) Os `teto_pts` (magnitude) continuam a calibrar (§10.8); os **limiares** já não são inventados.
+> **Notas:** (1) **todas as regras têm agora âncora citável** — penalização nas metas OMS/PAHO, bónus/objetivo nas claims UE 1924/2006 (fibra/proteína) e na densidade energética de Rolls (perda de peso). (2) Os **fatores de aperto** vêm de cada diretriz (DASH, OMS, AHA), não de palpite — é o que tira da "calibração subjetiva do dono" para "calibração ancorada e citável". (3) Só os `teto_pts` (a **magnitude**) continuam a calibrar (§10.9); os **limiares** já não são inventados.
 
 > ⚠️ **Doença renal crónica (DRC) — não dar nota numérica.** A necessidade de proteína **inverte-se** com o estágio (pré-diálise *restringe*, diálise *incrementa*); o perfil v2 só capta "Condições" genéricas → adivinhação perigosa. **E há conflito ENTRE condições:** o **DASH** (padrão-ouro da hipertensão, que a nossa regra de sódio empurraria) é **contraindicado em DRC** pelo teor de potássio/fósforo/proteína — a mesma comida que a regra de hipertensão recomendaria é contraindicada se a pessoa também tiver DRC. Uma nota "para si" única apontaria na direção clinicamente errada. Postura: **suprimir a nota pessoal e só avisos textuais** — a decisão mais defensável do documento.
 
@@ -332,6 +332,66 @@ Cada `motivo` traz o **valor real**, o **limiar** e o **efeito em pontos** → o
 
 ---
 
+## Parte IV — Especificação de cálculo COMPLETA (implementável)
+
+> Consolida as Partes I–III num algoritmo único e sem ambiguidade — a fonte-de-verdade para implementar (P1). O universal é o que JÁ corre (`nutriscore.js`); o pessoal é a proposta. Todas as tabelas e limiares estão aqui ou referenciados.
+
+### IV.0 Entradas
+- `n` = nutrição por 100 g/ml: `{ energia_kcal, gordura_saturada, gordura, acucares, sal, fibra, proteina }` (g; energia em kcal).
+- `classe` ∈ `{solido, bebida, agua, gordura}` = `classeNutriScore(familiaSlug)`.
+- `perfil` (opcional) = condições/objetivos ativos + alergénios/dieta + demografia.
+
+### IV.1 Tabelas universais (limites superiores; índice = pontos). `pts(v, T)` = nº de limites de `T` que `v` excede.
+```
+L_ENERGIA   = [335,670,1005,1340,1675,2010,2345,2680,3015,3350]            // kJ → 0..10
+L_ACUCAR    = [3.4,6.8,10,14,17,20,24,27,31,34,37,41,44,48,51]             // g  → 0..15
+L_SATURADA  = [1,2,3,4,5,6,7,8,9,10]                                       // g  → 0..10
+L_SAL       = [0.2,0.4,0.6,0.8,1.0,1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6,3.8,4.0] // g → 0..20
+L_FIBRA     = [3.0,4.1,5.2,6.3,7.4]                                        // g  → 0..5
+L_PROTEINA  = [2.4,4.8,7.2,9.6,12,14,17]                                   // g  → 0..7
+L_ENERGIA_BEB=[30,90,150,210,240,270,300,330,360,390]                     // kJ → 0..10 (bebida)
+L_ACUCAR_BEB =[0.5,2,3.5,5,6,7,8,9,10,11]                                  // g  → 0..10 (bebida)
+L_PROTEINA_BEB=[1.2,1.5,1.8,2.1,2.4,2.7,3.0]                              // g  → 0..7  (bebida)
+L_ENERGIA_SAT=[120,240,360,480,600,720,840,960,1080,1200]                // kJ da saturada → 0..10 (gordura)
+L_SAT_RATIO  =[10,16,22,28,34,40,46,52,58,64]                            // % saturada/total → 0..10 (gordura)
+```
+
+### IV.2 Passo UNIVERSAL (devolve `{pontos, grau, nota100}` ou `null`)
+1. **Exigências/guardas (Parte II):** `null` se faltar `energia_kcal` ou `gordura_saturada`. Se `classe=gordura`: `null` se `gordura` ausente/≤0. Senão (sólido/bebida): `null` se faltar `acucares` ou `sal`. `null` se **qualquer macro < 0** ou **saturada > gordura total**. *(óleo: açúcar/sal ausentes assumem 0.)*
+2. **Negativos `A`:**
+   - `gordura`: `A = pts(sat×37, L_ENERGIA_SAT) + pts(sat/gordura×100, L_SAT_RATIO) + pts(acucares, L_ACUCAR) + pts(sal, L_SAL)`
+   - sólido/bebida: `A = pts(energia_kcal×4.184, L_ENERGIA[_BEB]) + pts(acucares, L_ACUCAR[_BEB]) + pts(sat, L_SATURADA) + pts(sal, L_SAL)`
+3. **Positivos:** `ptFibra = pts(fibra, L_FIBRA)`; `ptProt = pts(proteina, L_PROTEINA[_BEB])`.
+4. **Cap da proteína:** `cap = (classe=gordura ? 7 : 11)`. `pontos = (A ≥ cap && fruta<5) ? A − ptFibra : A − ptFibra − ptProt`. (fruta = 0, ver Limitação 1.) **Guardar `capAtivo = (A ≥ cap)`** para a camada pessoal.
+5. **Grau:** água→A; bebida→`≤2 B,≤6 C,≤9 D, senão E`; gordura→`≤−6 A,≤2 B,≤10 C,≤18 D, senão E`; sólido→`≤0 A,≤2 B,≤10 C,≤18 D, senão E`.
+6. **`nota100 = notaCem(pontos, classe)`** — interpolação linear-por-troços, `Y=[100,80,60,40,20,0]` sobre breakpoints: sólido `[-15,0,2,10,18,40]`, gordura `[-15,-6,2,10,18,40]`, bebida `[-2,2,6,9,13]`+`Y=[80,60,40,20,0]`, água→100.
+
+### IV.3 Passo PESSOAL (devolve `pessoal` + `motivos` + `confianca` + `bloqueio`, ou suprime)
+> Corre **só se** o universal deu `pontos_base ≠ null`. Tudo em **PONTOS**, somado ao base.
+
+1. **Bloqueios duros (binários, antes de tudo):** alergénio do perfil na ficha **ou** incompatibilidade de dieta → `bloqueio` preenchido, **sem nota pessoal**, fora da ordenação.
+2. **DRC no perfil → suprimir nota pessoal**, só `alertas` textuais (§4.4 ⚠️).
+3. **Métricas energia-relativas** do produto: `%E_sat = sat×37 / (kcal×4.184) ×100`; `%E_sug = acucares×17 / (kcal×4.184) ×100`; `%E_prot = proteina×17 / (kcal×4.184) ×100`; `Na_mg_kcal = sal×400 / kcal`; `dens = kcal` (por 100 g).
+4. **Para cada regra ativa** (tabela §4.4, limiares já apertados por condição): `impacto_pts = dir × teto × clamp((valor − seguro)/(alto − seguro), 0, 1)`. `dir=+1` penaliza, `−1` bonifica. **Se `capAtivo` e a regra é o bónus de proteína → impacto = 0** (não re-creditar o que o cap recusou, §4.1).
+5. **Composição:** somar os `impacto_pts`, com **cap por grupo concorrente** (sódio / açúcares / gorduras) — a energia é check derivado, não grupo. `pontos_pessoal = clamp(pontos_base + Σ impacto, faixa válida da classe)`.
+6. **`grau`/`nota100` pessoal** = mesmas funções do passo IV.2.5–6 sobre `pontos_pessoal`.
+7. **Confiança** `= {presentes, relevantes}` = quantos dos nutrientes que as regras ativas usam estão presentes em `n`. Política de exibição: §10.10. Se um nutriente crítico falta → `alerta`, e a regra correspondente não dispara.
+
+### IV.4 Dois exemplos ponta-a-ponta (com a matemática)
+**A. Queijo salgado para um HIPERTENSO** — `n = {kcal 350, sat 18, gordura 28, acucares 1, sal 1.8, fibra 0, proteina 22}`, classe sólido.
+- Universal: kJ 1464→**4**; açúcar 1→0; sat 18→**10**; sal 1.8→**8** ⇒ `A=22`. `A≥11` ⇒ proteína não conta; `pontos_base = 22 − 0 = 22` ⇒ **E**, `nota100 = 16`. `capAtivo=true`.
+- Pessoal (sódio): `Na_mg_kcal = 1.8×400/350 = 2.06`; regra hipertensão `seguro 0.375 → alto 0.75`; `2.06 > 0.75` ⇒ clamp 1 ⇒ `impacto = +1×8×1 = +8`. `pontos_pessoal = 30` ⇒ **E**, `nota100 = 9`. `delta_pts = +8`. Motivo: "sódio 2,06 mg/kcal ≫ 0,75 → +8". Confiança 1/1.
+- Leitura: já era E; para si é **ainda pior** (16→9) — o sódio domina.
+
+**B. Cereal açucarado para um DIABÉTICO** — `n = {kcal 380, sat 1, gordura 3, acucares 22, sal 0.4, fibra 6, proteina 8}`, classe sólido.
+- Universal: kJ 1590→**4**; açúcar 22→**6**; sat 1→0; sal 0.4→**1** ⇒ `A=11`. `A≥11` ⇒ proteína não conta; fibra 6→3; `pontos_base = 11 − 3 = 8` ⇒ **C**, `nota100 = 45`. `capAtivo=true`.
+- Pessoal (açúcar): `%E_sug = 22×17/1590×100 = 23.5`; regra diabetes `seguro 2.5 → alto 5`; `23.5 > 5` ⇒ clamp 1 ⇒ `impacto = +8`. `pontos_pessoal = 16` ⇒ **D**, `nota100 = 25`. `delta_pts = +8`. Motivo: "açúcar 23,5 %E ≫ 5 %E → +8 (C→D)". Confiança 1/1.
+- Leitura: universal **C** mas para o diabético desce a **D** — o açúcar pesa-lhe mais, e a régua exprime-o.
+
+> **Estado:** o **universal (IV.1–IV.2) está implementado e em produção** (`nutriscore.js`, 15 testes). O **pessoal (IV.3) é especificação** — pronto para P0/P1 (tabela de regras em config + motor puro + golden de perfis), **depois** do gate de suficiência de dados (§8 P0.5) e da decisão "haver número?" (§10.1).
+
+---
+
 ### Fontes (literatura) — estado de verificação
 > Política: **só se cita o que foi verificado**; o que ainda não foi está marcado ⚠️ *a confirmar* e NÃO deve ser apresentado como autoridade até verificação.
 
@@ -341,8 +401,11 @@ Cada `motivo` traz o **valor real**, o **limiar** e o **efeito em pontos** → o
 - **Modelo de Perfil de Nutrientes PAHO/WHO** (cutoffs de "excesso" energia-relativos, base = metas de ingestão OMS ajustadas à energia): [paho.org/en/nutrient-profile-model](https://www.paho.org/en/nutrient-profile-model) + ["PAHO defines excess levels…"](https://www.paho.org/en/news/19-2-2016-paho-defines-excess-levels-sugar-salt-and-fat-processed-food-and-drink-products-0). Cutoffs: açúcar ≥10 %E · saturada ≥10 %E · gordura total ≥30 %E · trans ≥1 %E · sódio ≥1 mg/kcal.
 - **Metas OMS** (adultos): açúcares livres <10 %E (ideal <5 %E); saturada <10 %E; sódio <2 g/dia (<5 g sal): [who.int/news/item/17-07-2023](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates).
 - **DASH baixo-sódio 1500 mg/dia para hipertensão** — StatPearls: [ncbi.nlm.nih.gov/books/NBK482514](https://www.ncbi.nlm.nih.gov/books/NBK482514/).
+- **AHA — saturada <5–6 %E para baixar LDL** (dislipidemia): [heart.org · Saturated Fats](https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/fats/saturated-fats).
+- **Claims UE 1924/2006** (bónus fibra/proteína): "fonte de fibra" ≥3 g/100 g, "alto teor" ≥6 g/100 g; "fonte de proteína" ≥12 %E, "alto teor" ≥20 %E: [EUR-Lex 32006R1924](https://eur-lex.europa.eu/eli/reg/2006/1924/oj/eng).
+- **Densidade energética (Rolls 2003)** — médio 151–225, alto 226–400 kcal/100 g (objetivo perda de peso): categorias amplamente usadas em gestão de peso (ver [CDC low-energy-dense foods](https://www.k-state.edu/fns/assets/course_3/dont_lost_your_balance/appendices/APPENDIX%203-%20CDC%20Article%20Low%20Energy%20Dense%20Foods.pdf)).
 
-**⚠️ A confirmar antes de citar como autoridade** (vieram da síntese, ainda não verificadas uma a uma): AHA saturada ~5–6 %E para baixar LDL (nº exato); completude do OFF "~67 % macros" (estudo 2021); modelos PFS / Nestlé-NNA / PepsiCo-PNC (existência + uso de rampa graduada); "Chile +15 % adoçantes não-nutritivos"; "DASH contraindicado em DRC" (afirmação clínica geral, mas falta a fonte primária); crítica ao NOVA em *Proceedings of the Nutrition Society* (2025).
+**⚠️ A confirmar antes de citar como autoridade** (vieram da síntese, ainda não verificadas uma a uma): completude do OFF "~67 % macros" (estudo 2021); modelos PFS / Nestlé-NNA / PepsiCo-PNC (existência + uso de rampa graduada); "Chile +15 % adoçantes não-nutritivos"; "DASH contraindicado em DRC" (afirmação clínica geral plausível, mas falta a fonte primária); crítica ao NOVA em *Proceedings of the Nutrition Society* (2025).
 
 > **Enquadramento honesto:** estas fontes **ancoram** os limiares (tira-os de "palpite do dono" para "diretriz citável"), mas **não dão um oráculo de saúde** para os nossos `teto_pts` por condição — esses validam-se contra o golden do dono (§9). Âncora ≠ validação de desfecho.
 
