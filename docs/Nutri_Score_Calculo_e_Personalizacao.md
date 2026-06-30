@@ -103,9 +103,10 @@ A leitura disto separa os campos em dois tipos:
 Em falta um obrigatório → **`nutriScore` devolve `null`** (a ficha não mostra nota, honestamente) em vez de inventar.
 
 ### 3. Guarda de plausibilidade — dados impossíveis → `null`
-Além de "em falta", há dados **errados** (lixo do Open Food Facts crowdsourced). Rejeitamos os fisicamente impossíveis, de forma **geral** (não por produto):
-- Qualquer macro **negativo** (ex.: `saturada = −1`).
-- **Saturada > gordura total** (não se pode ser mais saturado que o total; ex.: `sat=72` num óleo com `gordura=13`, em que alguém meteu a total no campo da saturada).
+Além de "em falta", há dados **errados** (lixo do Open Food Facts crowdsourced). Rejeitamos os fisicamente impossíveis, de forma **geral** (não por produto) — `problemasNutricao`/`nutricaoPlausivel` em `validadores.js`, o gate que o fusor (`fichaEan.js`) já aplica a cada fonte:
+- Qualquer macro **negativo** ou >100 g/100 g; `kcal` fora de [0, 950]; açúcares > hidratos; **saturada > gordura total** (`sat=72` num óleo com `gordura=13`); soma de macros > 105 g.
+- **Reconciliação de ENERGIA (Atwater, 2026-06-30):** a energia declarada não pode ser **muito menor** que a que as macros implicam (`4·prot + 4·hidratos + 9·gordura + 2·fibra` kcal/g) — apanha o azeite `kcal=8,84`. **Assimétrico:** a direção inversa (declarada > prevista) **não** penaliza (álcool 7 kcal/g e polióis não entram nas macros e explicam-na — vinho, rebuçados sem açúcar).
+- **Medição do corpus (2026-06-30):** na `base_local` (54 391 c/ nutrição), **3,3 %** eram impossíveis (1 052 macro negativa, 580 Atwater, 129 kcal fora, 77 soma>105, 58 saturada>gordura, 55 açúcar>hidratos) → **limpos** (`nutricao→NULL`; "sem nota > nota errada"). A `base_local` é materializada por SQL fora do fusor, por isso o gate corre também no `build_base_local` + backfill (`scripts/limpar_nutricao_base_local.mjs`).
 
 **Envelope de plausibilidade POR FAMÍLIA (a acrescentar).** A guarda genérica não apanha um azeite com `saturada = 72 %` (palm/coco existem, logo `72 < total` é "possível" no geral). Mas como **já ramificamos por família** para escolher a escala, podemos ter **envelopes por família** — ex.: azeite com saturada **fora de ~[10, 25] %** é dado suspeito → `null`. Isto **não viola** a regra "geral, não por produto" (a família é tão geral quanto a classe), apanha o `sat=72` que sobra hoje, e limita o estrago da má classificação ("croutons com azeite") sem a resolver. Custo: multiplica config; fica como melhoria da Parte II.
 
