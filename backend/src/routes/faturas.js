@@ -89,6 +89,46 @@ faturasRouter.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// ITENS COMPRADOS (achatados) para a BUSCA LOCAL no cliente: o telefone replica o
+// histórico de itens (produto, loja, data, preço) e pesquisa OFFLINE, sem ir ao servidor.
+// Incremental por cursor de `item.id` (AUTO_INCREMENT, monotónico) — só desce o que é novo.
+// Nome resolvido barato (produto_ean por EAN → sku canónico → descrição do talão); a marca
+// idem. (Antes de '/:id' para não colidir com o parâmetro.)
+faturasRouter.get('/itens', requireAuth, async (req, res) => {
+  try {
+    const desde = Number(req.query.desde) || 0;
+    const limite = Math.min(Math.max(Number(req.query.limite) || 1500, 1), 3000);
+    const [itens] = await getPool().query(
+      `SELECT i.id, i.fatura_id,
+              f.data_compra AS data,
+              COALESCE(l.cadeia, l.nome) AS loja,
+              COALESCE(
+                (SELECT pe.nome FROM produto_ean pe
+                    WHERE pe.ean = i.ean AND pe.nome IS NOT NULL AND pe.nome <> ''
+                    ORDER BY pe.id LIMIT 1),
+                s.nome_canonico, i.descricao_original) AS produto,
+              (SELECT pe.marca FROM produto_ean pe
+                  WHERE pe.ean = i.ean AND pe.marca IS NOT NULL AND pe.marca <> ''
+                  ORDER BY pe.id LIMIT 1) AS marca,
+              i.quantidade, i.preco_liquido AS preco, i.preco_por_base,
+              s.unidade_base, s.grupo, i.ean, i.sku_id
+         FROM item i
+         JOIN fatura f ON f.id = i.fatura_id
+         JOIN loja l ON l.id = f.loja_id
+         LEFT JOIN sku_normalizado s ON s.id = i.sku_id
+        WHERE i.is_non_product = 0 AND i.id > ?
+        ORDER BY i.id
+        LIMIT ?`,
+      [desde, limite],
+    );
+    const cursor = itens.length ? itens[itens.length - 1].id : desde;
+    res.json({ itens, cursor, fim: itens.length < limite });
+  } catch (e) {
+    console.error('[faturas/itens] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a listar itens comprados' });
+  }
+});
+
 // Resumo de GASTOS para a análise doméstica: mês corrente, anterior, média, série
 // mensal e repartição por loja do mês corrente. (Antes de '/:id' para não colidir.)
 faturasRouter.get('/gastos', requireAuth, async (req, res) => {

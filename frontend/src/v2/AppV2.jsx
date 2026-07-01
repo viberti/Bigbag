@@ -21,6 +21,7 @@ import {
 } from '../api.js';
 import { lerCodigoBarras } from '../leitorCodigo.js';
 import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLocal.js';
+import { sincronizarCompras, buscarCompras, sugestoesCompras, normBusca } from '../compras.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
 import { ICON } from './icons.js';
 import { BIGBAG_MARK } from './brand.js';
@@ -263,6 +264,8 @@ function Shell({ nome, onSair, pais }) {
   // BASE LOCAL: pré-carrega as fichas (identificação+nutrição de ~63k EANs PT+Mercadona-ES)
   // para o scan responder instantâneo/offline. Fire-and-forget, auto-limitada a 1x/hora.
   useEffect(() => { sincronizarFichasBulk(); }, []);
+  // BUSCA LOCAL: replica o histórico de itens comprados no telefone (pesquisa offline). F&F.
+  useEffect(() => { sincronizarCompras(); }, []);
   const go = useCallback((id, p = {}, opts = {}) => {
     if (TABS.has(id)) setCmp([]); // aba principal → a comparação recomeça limpa
     setView((cur) => {
@@ -298,7 +301,7 @@ function Shell({ nome, onSair, pais }) {
     home: Home, lista: Lista, historico: Historico, perfil: Perfil,
     notas: Notas, gastos: Gastos, gastoscat: GastosCat, ficha: Ficha, comparar: Comparar,
     texto: Texto, despensa: Despensa, recibo: Recibo, receitas: Receitas, perfilsaude: PerfilSaude,
-    scanner: Scanner, voz: Voz,
+    scanner: Scanner, voz: Voz, busca: Busca,
   }[view.id] || Home;
   return (
     <div className="v2"><Motif />
@@ -336,7 +339,8 @@ function Home({ go, user, abrirConta }) {
           {[['recipe', 'Receitas', () => { primeReceitas(); go('receitas'); }, 'var(--coral)'],
             ['compare', 'Comparar', () => go('comparar'), undefined],
             ['talao', 'Despensa', () => go('despensa'), 'var(--amber-d)'],
-            ['chart', 'Gastos', () => go('gastos'), '#3b86c4']].map(([ic, lb, on, col]) => (
+            ['chart', 'Gastos', () => go('gastos'), '#3b86c4'],
+            ['search', 'Buscar', () => go('busca'), 'var(--leaf-d)']].map(([ic, lb, on, col]) => (
             <button key={lb} className="round-act" onClick={on}>
               <span className="circ" style={col ? { color: col } : undefined}><Ico name={ic} size={24} stroke={2} /></span><b>{lb}</b>
             </button>
@@ -358,6 +362,112 @@ function Home({ go, user, abrirConta }) {
               <div className="fb"><div className="fn">{n.loja || n.mercado || 'Compra'}</div><div className="fs">{dataCurta(n.data)}{n.n_itens ? ` · ${n.n_itens} itens` : ''}</div></div>
               <span className="fp">{eur(n.total)}</span>
             </div>); })}
+      </div>
+    </>
+  );
+}
+
+/* ── BUSCA nas compras (LOCAL) ───────────────────────────────────────────── */
+// Pesquisa o histórico de itens comprados (réplica offline no telefone, ver compras.js):
+// "o que comprei, onde, quando e quanto paguei". Campo no topo + autocomplete + realce do
+// termo no nome. Cada resultado = UMA compra (ocorrência) → toca p/ abrir o talão.
+const ACENTOS_RE = { a: '[aáàâãä]', e: '[eéèêë]', i: '[iíìîï]', o: '[oóòôõö]', u: '[uúùûü]', c: '[cç]' };
+// padrão que realça os termos no nome ORIGINAL (com acentos), embora o utilizador digite sem.
+function padraoRealce(termos) {
+  const partes = (termos || []).filter(Boolean).map((t) => t.split('').map((ch) => (
+    ACENTOS_RE[ch] || ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  )).join(''));
+  if (!partes.length) return null;
+  try { return new RegExp(`(${partes.join('|')})`, 'gi'); } catch { return null; }
+}
+function Realce({ texto, re }) {
+  const s = String(texto || '');
+  if (!re) return s;
+  const out = []; let last = 0; re.lastIndex = 0; let m;
+  while ((m = re.exec(s))) {
+    if (m.index > last) out.push(s.slice(last, m.index));
+    out.push(<mark className="bhl" key={m.index}>{m[0]}</mark>);
+    last = m.index + m[0].length;
+    if (m.index === re.lastIndex) re.lastIndex += 1; // nunca ciclo infinito
+  }
+  if (last < s.length) out.push(s.slice(last));
+  return out;
+}
+function Busca({ go, back }) {
+  const [q, setQ] = useState('');
+  const [res, setRes] = useState(null);   // ocorrências (compras) — null = ainda a computar
+  const [sug, setSug] = useState([]);     // autocomplete: nomes distintos
+  const [chips, setChips] = useState(['Leite', 'Café', 'Pão', 'Banana']); // exemplos (estado vazio)
+  useEffect(() => {
+    sincronizarCompras();
+    sugestoesCompras('', 4).then((s) => { if (s && s.length) setChips(s); }).catch(() => {});
+  }, []);
+  useEffect(() => {
+    const termo = q.trim();
+    if (!termo) { setRes(null); setSug([]); return undefined; }
+    let vivo = true;
+    Promise.all([buscarCompras(termo), sugestoesCompras(termo, 5)]).then(([r, s]) => {
+      if (!vivo) return;
+      setRes(r);
+      setSug((s || []).filter((x) => x.toLowerCase() !== termo.toLowerCase()).slice(0, 4));
+    }).catch(() => { if (vivo) { setRes([]); setSug([]); } });
+    return () => { vivo = false; };
+  }, [q]);
+  const termos = useMemo(() => normBusca(q).trim().split(/\s+/).filter(Boolean), [q]);
+  const re = useMemo(() => padraoRealce(termos), [termos]);
+  return (
+    <>
+      <div className="ctop busca-top">
+        <button className="bk" onClick={back} aria-label="Voltar"><Ico name="back" size={24} stroke={2.2} /></button>
+        <input className="busca-in" value={q} onChange={(e) => setQ(e.target.value)} autoFocus
+          placeholder="busque produtos nas notas" inputMode="search" enterKeyHint="search"
+          autoComplete="off" autoCorrect="off" spellCheck={false} aria-label="Buscar produto" />
+        {q && <button className="busca-x" onClick={() => setQ('')} aria-label="Limpar"><Ico name="close" size={20} stroke={2.2} /></button>}
+      </div>
+      <div className="scrollarea">
+        {!q.trim() ? (
+          <div className="busca-empty">
+            <span className="be-ic"><Ico name="search" size={54} stroke={1.6} color="#c2cdca" /></span>
+            <div className="be-t">Busque um produto</div>
+            <div className="be-s">Digite o nome de um item para encontrá-lo em todas as suas notas — ex.: arroz, café, remédio.</div>
+            <div className="be-chips">{chips.map((c) => (
+              <button key={c} className="be-chip" onClick={() => setQ(nomeTalao(c))}>{nomeTalao(c)}</button>
+            ))}</div>
+          </div>
+        ) : (
+          <>
+            {sug.length > 0 && (
+              <div className="busca-sug">
+                {sug.map((s) => (
+                  <button key={s} className="bsug" onClick={() => setQ(s)}>
+                    <Ico name="search" size={13} stroke={2.2} color="var(--ink-2)" />
+                    <span><Realce texto={nomeTalao(s)} re={re} /></span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {res == null ? <p className="empty">…</p>
+              : res.length === 0 ? <p className="empty">Nada encontrado para “{q.trim()}”.</p>
+                : (
+                  <>
+                    <div className="busca-count">{res.length} {res.length === 1 ? 'resultado' : 'resultados'}</div>
+                    {res.map((it) => {
+                      const [c, ini] = lojaCor(it.loja); const marca = limparMarca(it.marca);
+                      return (
+                        <div className="frow" key={it.id} onClick={() => go('recibo', { id: it.fatura_id })}>
+                          <span className="fdot" style={{ background: c }}>{ini}</span>
+                          <div className="fb">
+                            <div className="fn"><Realce texto={nomeTalao(it.produto)} re={re} />{marca && <em className="ri-marca">{marca}</em>}</div>
+                            <div className="fs">{it.loja || 'Compra'} · {dataCurta(it.data)}</div>
+                          </div>
+                          <span className="fp">{eur(it.preco)}</span>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+          </>
+        )}
       </div>
     </>
   );

@@ -128,6 +128,14 @@ export async function detalhesNota(id) {
   return r.json(); // { nota, itens }
 }
 
+// Itens comprados (achatados) p/ a BUSCA LOCAL — replicados no telefone e pesquisados
+// offline. Incremental por cursor de item.id. Devolve { itens, cursor, fim }.
+export async function itensComprados(desde = 0, limite = 1500) {
+  const r = await call(`/api/faturas/itens?desde=${Number(desde) || 0}&limite=${limite}`);
+  if (!r.ok) throw new Error(`itens ${r.status}`);
+  return r.json();
+}
+
 export async function identificarProduto({ ean, skuId, itemId, fotos }) {
   const fd = new FormData();
   if (ean) fd.append('ean', ean);

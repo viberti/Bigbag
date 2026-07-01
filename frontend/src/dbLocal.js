@@ -4,8 +4,9 @@
 //   capturas — fila de capturas por identificar (scan+fotos), chave item_id
 //   fichas   — base local de produtos RICA (nutrição/análise), chave ean
 //   catalogo — índice nome→EAN do catálogo (sem nutrição), chave ean
+//   compras  — itens comprados (histórico) p/ a BUSCA LOCAL, chave id (item)
 const DB = 'bigbag';
-const VERSAO = 2;
+const VERSAO = 3;
 
 let _db = null;
 export function abrirDb() {
@@ -17,6 +18,7 @@ export function abrirDb() {
       if (!db.objectStoreNames.contains('capturas')) db.createObjectStore('capturas', { keyPath: 'item_id' });
       if (!db.objectStoreNames.contains('fichas')) db.createObjectStore('fichas', { keyPath: 'ean' });
       if (!db.objectStoreNames.contains('catalogo')) db.createObjectStore('catalogo', { keyPath: 'ean' });
+      if (!db.objectStoreNames.contains('compras')) db.createObjectStore('compras', { keyPath: 'id' });
     };
     req.onsuccess = () => { _db = req.result; resolve(_db); };
     req.onerror = () => reject(req.error);

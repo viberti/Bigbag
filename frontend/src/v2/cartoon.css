@@ -205,7 +205,7 @@
 .v2 .web-det-prep p{font:500 14.5px var(--font);color:var(--ink);line-height:1.5;margin-bottom:9px}
 .v2 .web-det-acts{display:flex;gap:10px;margin-top:20px}
 .v2 .cbtn-ghost{background:var(--card);border:2px solid #e7e1d5;color:var(--ink-2)}
-.v2 .quick{display:flex;justify-content:space-between;gap:3px;padding:16px 0 4px}
+.v2 .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 3px;padding:16px 0 4px}
 .v2 .quick .round-act{flex:1;min-width:0;gap:6px}
 .v2 .quick .round-act b{font-size:10.5px;letter-spacing:-.02em}
 .v2 .quick .circ{width:48px;height:48px}
@@ -822,3 +822,24 @@
 .v2 .rx-sheet-fine{font:500 10.5px var(--font);color:var(--ink-3);line-height:1.45;text-align:center;margin:10px 4px 0}
 .v2 .rx-sheet .rx-btn-leaf.wide{margin-bottom:6px}
 .v2 .rx-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;background:var(--leaf-ink);color:#fff;font:700 13px var(--font);padding:11px 18px;border-radius:var(--r-pill);box-shadow:var(--sh-md);animation:rxUp .18s ease-out}
+
+/* ── BUSCA nas compras (histórico local) ─────────────────────────────────── */
+.v2 .busca-top{gap:8px;padding-bottom:8px}
+.v2 .busca-in{flex:1;min-width:0;border:0;background:transparent;font:700 20px var(--disp);color:var(--ink);padding:6px 2px}
+.v2 .busca-in::placeholder{color:var(--ink-3);font-weight:600}
+.v2 .busca-in:focus{outline:none}
+.v2 .busca-x{height:36px;width:36px;border:0;background:none;color:var(--ink-2);display:grid;place-items:center;border-radius:50%;cursor:pointer;flex:0 0 auto}
+.v2 .busca-x:active{transform:scale(.92)}
+.v2 .busca-empty{text-align:center;padding:60px 24px 0}
+.v2 .be-ic{display:grid;place-items:center;width:108px;height:108px;margin:0 auto 18px;border-radius:50%;background:var(--card);box-shadow:var(--sh-sm)}
+.v2 .be-t{font:800 22px var(--disp);color:var(--ink);margin-bottom:8px}
+.v2 .be-s{font:600 14px/1.5 var(--font);color:var(--ink-2);max-width:330px;margin:0 auto 22px}
+.v2 .be-chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.v2 .be-chip{border:0;background:var(--card);box-shadow:var(--sh-sm);color:var(--leaf-d);font:800 15px var(--disp);padding:9px 18px;border-radius:22px;cursor:pointer}
+.v2 .be-chip:active{transform:scale(.96)}
+.v2 .busca-sug{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.v2 .bsug{display:inline-flex;align-items:center;gap:6px;max-width:100%;border:0;background:var(--leaf-soft);color:var(--ink);font:700 13.5px var(--font);padding:7px 12px;border-radius:16px;cursor:pointer}
+.v2 .bsug span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v2 .bsug:active{transform:scale(.97)}
+.v2 .busca-count{font:800 11.5px var(--font);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin:2px 0 10px}
+.v2 mark.bhl{background:#cfe9bf;color:inherit;border-radius:4px;padding:0 1px;font-weight:800}
