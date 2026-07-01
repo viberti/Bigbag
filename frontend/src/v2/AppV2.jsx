@@ -1593,7 +1593,7 @@ function Notas({ go, back, partilhado, scanNotas }) {
             ) : (
               <>
                 <span className="jc-fail"><Ico name="close" size={17} stroke={2.6} /></span>
-                <div className="jc-b"><div className="jc-t">Não consegui ler</div><div className="jc-s">tente outra foto ou repita</div></div>
+                <div className="jc-b"><div className="jc-t">Não consegui ler</div><div className="jc-s">{j.erro || 'tente outra foto ou repita'}</div></div>
                 <button className="jc-retry" onClick={() => repetir(j.id)}>Repetir</button>
               </>
             )}

@@ -58,7 +58,8 @@ export async function processarJob(pool, jobId) {
   } catch (e) {
     // Falha hoje, acerta amanhã: até MAX_TENT volta a 'em_analise' (a varredura repete
     // após o lease expirar); a partir daí fica 'falhou' com a mensagem, p/ o user repetir.
-    const falhou = (job.tentativas || 1) >= MAX_TENT;
+    // `semRetry` (ex.: talão sem valores) é determinístico → falha JÁ, sem gastar tentativas.
+    const falhou = e.semRetry === true || (job.tentativas || 1) >= MAX_TENT;
     console.error('[filaNotas] job', jobId, falhou ? 'FALHOU:' : 'erro (vai repetir):', e.message);
     await pool.query(
       'UPDATE fatura_job SET estado = ?, erro = ?, lease_em = NULL WHERE id = ?',

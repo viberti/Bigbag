@@ -18,6 +18,7 @@ import { guardarMensagem } from '../historico.js';
 import { enriquecerEansFatura } from './enriquecer.js';
 import { reconciliarListaComFatura } from './reconciliarLista.js';
 import { verificarNomesFatura } from './verificarNomes.js';
+import { talaoSemValores, MSG_TALAO_SEM_VALORES } from './talaoValores.js';
 
 export async function processarNotaDeFicheiro(
   pool,
@@ -88,6 +89,16 @@ export async function processarNotaDeFicheiro(
     if (it.is_non_product) { it.preco_por_base = null; continue; }
     const f = extrairFormato([it.descricao_original, it.linha_peso].filter(Boolean).join(' '));
     it.preco_por_base = precoPorBase({ preco_liquido: it.preco_liquido, quantidade: it.quantidade }, f);
+  }
+
+  // Guard: talão SEM valores (resumo LidlPlus de cupões/pontos, cópia de reembolso ou foto
+  // cortada) — não criar uma "compra" de 0 € (poluiria o histórico). Falha SEM retry (é
+  // determinístico: repetir o VLP daria o mesmo) → o utilizador recebe o aviso e reenvia
+  // o talão com os itens e preços.
+  if (talaoSemValores(dados)) {
+    const err = new Error(MSG_TALAO_SEM_VALORES);
+    err.semRetry = true;
+    throw err;
   }
 
   // 2) persistir (com deduplicação) — a imagem já foi gravada pelo chamador
