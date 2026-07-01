@@ -5,7 +5,7 @@
 //
 // O servidor NÃO alcança dados.anvisa.gov.br → baixar no PC e enviar:
 //   curl -L -o anvisa_med.csv https://dados.anvisa.gov.br/dados/DADOS_ABERTOS_MEDICAMENTOS.csv
-//   scp anvisa_med.csv pitacos-prod:/tmp/
+//   scp anvisa_med.csv netcup-prod:/tmp/
 // Uso (no SERVIDOR):
 //   sudo -u dev node --env-file=.env scripts/carregar_anvisa.mjs [/tmp/anvisa_med.csv]
 // CSV: separador ';', valores entre aspas, codificação LATIN1 (ISO-8859-1).

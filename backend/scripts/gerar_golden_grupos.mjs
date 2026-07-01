@@ -1,6 +1,6 @@
 // Regenera o GOLDEN SET da classificação (test/fixtures/golden_grupos.json).
 // Corre NO SERVIDOR (precisa da BD) e escreve o JSON no stdout; do PC:
-//   ssh pitacos-prod "cd /home/dev/bigbag/backend && sudo -u dev node scripts/gerar_golden_grupos.mjs" \
+//   ssh netcup-prod "cd /home/dev/bigbag/backend && sudo -u dev node scripts/gerar_golden_grupos.mjs" \
 //     > backend/test/fixtures/golden_grupos.json
 // Usar DEPOIS de uma mudança intencional de vocabulário + backfill_grupos.mjs —
 // o diff do fixture commitado é a documentação da mudança. As FONTES (query) são
