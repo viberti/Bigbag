@@ -18,17 +18,18 @@ git rev-parse -q --verify "$REF^{commit}" >/dev/null || { echo "ref '$REF' não 
 read -r -p "Rollback do SERVIDOR para '$REF'${FRONT:+ (com rebuild do frontend)}. Confirmas? [s/N] " ok
 [[ "$ok" == "s" || "$ok" == "S" ]] || { echo "cancelado."; exit 1; }
 
+STAGE="$(dirname "$DEST")/.bigbag-stage"   # staging FORA de $DEST (senão o --delete auto-apaga-se)
 echo "a enviar $REF ($(git rev-parse --short "$REF")) para $HOST:$DEST …"
-ssh "$HOST" "sudo -u dev rm -rf $DEST/.deploy-stage && sudo -u dev mkdir -p $DEST/.deploy-stage"
-git archive --format=tar "$REF" | ssh "$HOST" "sudo -u dev tar -x -C $DEST/.deploy-stage"
+ssh "$HOST" "sudo -u dev rm -rf $STAGE && sudo -u dev mkdir -p $STAGE"
+git archive --format=tar "$REF" | ssh "$HOST" "sudo -u dev tar -x -C $STAGE"
 ssh "$HOST" "set -e
   sudo -u dev rsync -a --delete \
     --exclude='.env' --exclude='.env.*' --exclude='node_modules/' \
     --exclude='/frontend/dist' --exclude='/frontend/dist.bak-*' \
     --exclude='/backend/uploads' --exclude='/logs' --exclude='/bigbag.db' \
     --exclude='/Notas pessoais' \
-    $DEST/.deploy-stage/ $DEST/
-  sudo -u dev rm -rf $DEST/.deploy-stage
+    $STAGE/ $DEST/
+  sudo -u dev rm -rf $STAGE
   sudo -u dev npm --prefix $DEST/backend install --no-audit --no-fund -s
   if [ $FRONT -eq 1 ]; then
     (cd $DEST/frontend && sudo -u dev npm run build -s >/dev/null && echo 'frontend BUILT')

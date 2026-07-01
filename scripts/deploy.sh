@@ -52,10 +52,12 @@ if ! git rev-parse -q --verify "refs/tags/$VER" >/dev/null; then
   git tag -a "$VER" -m "deploy $(date +%F)" && git push -q origin "$VER" && echo "tag $VER criada"
 fi
 
-# 3) servidor: recebe o tar do HEAD para uma staging e ESPELHA com rsync.
+# 3) servidor: recebe o tar do HEAD para uma staging FORA de $DEST (senão o rsync
+# --delete apaga a própria staging enquanto a lê) e ESPELHA com rsync.
+STAGE="$(dirname "$DEST")/.bigbag-stage"   # ex.: /home/dev/.bigbag-stage
 echo "a enviar HEAD ($(git rev-parse --short HEAD)) para $HOST:$DEST …"
-ssh "$HOST" "sudo -u dev rm -rf $DEST/.deploy-stage && sudo -u dev mkdir -p $DEST/.deploy-stage"
-git archive --format=tar HEAD | ssh "$HOST" "sudo -u dev tar -x -C $DEST/.deploy-stage"
+ssh "$HOST" "sudo -u dev rm -rf $STAGE && sudo -u dev mkdir -p $STAGE"
+git archive --format=tar HEAD | ssh "$HOST" "sudo -u dev tar -x -C $STAGE"
 # rsync-mirror: --delete apaga o que saiu do repo (ex.: auth/oidc.js), mas os excludes
 # PRESERVAM os ficheiros de runtime que não vivem no git (.env, uploads, dist, node_modules).
 ssh "$HOST" "set -e
@@ -64,8 +66,8 @@ ssh "$HOST" "set -e
     --exclude='/frontend/dist' --exclude='/frontend/dist.bak-*' \
     --exclude='/backend/uploads' --exclude='/logs' --exclude='/bigbag.db' \
     --exclude='/Notas pessoais' \
-    $DEST/.deploy-stage/ $DEST/
-  sudo -u dev rm -rf $DEST/.deploy-stage
+    $STAGE/ $DEST/
+  sudo -u dev rm -rf $STAGE
   sudo -u dev npm --prefix $DEST/backend install --no-audit --no-fund -s
   if [ $FRONT -eq 1 ]; then
     sudo -u dev npm --prefix $DEST/frontend install --no-audit --no-fund -s
