@@ -1,0 +1,5 @@
+[
+  { "fonte": "cobasi", "host": "www.cobasi.com.br", "nota": "VTEX, EAN — Cobasi (Grupo Petz Cobasi, líder pet BR). API de catálogo aberta." },
+  { "fonte": "petz", "host": "www.petz.com.br", "geo": "BR", "nota": "VTEX — Petz (mesmo grupo da Cobasi). Cloudflare bloqueia o domínio a datacenter (incl. API) → precisa de --proxy BR." },
+  { "fonte": "petlove", "host": "www.petlove.com.br", "geo": "BR", "nota": "VTEX — Petlove. Cloudflare bloqueia a datacenter → --proxy BR." }
+]
