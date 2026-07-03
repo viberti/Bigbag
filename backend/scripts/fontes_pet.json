@@ -1,5 +1,6 @@
 [
   { "fonte": "cobasi", "host": "www.cobasi.com.br", "nota": "VTEX, EAN — Cobasi (Grupo Petz Cobasi, líder pet BR). API de catálogo aberta." },
+  { "fonte": "americanas-pet", "host": "www.americanas.com.br", "cats": "3714", "nota": "VTEX — só a categoria Pet shop (id 3714) do marketplace Americanas (~56k, ~92% EAN). Corre com --fundo (>2500)." },
   { "fonte": "petz", "host": "www.petz.com.br", "geo": "BR", "nota": "VTEX — Petz (mesmo grupo da Cobasi). Cloudflare bloqueia o domínio a datacenter (incl. API) → precisa de --proxy BR." },
   { "fonte": "petlove", "host": "www.petlove.com.br", "geo": "BR", "nota": "VTEX — Petlove. Cloudflare bloqueia a datacenter → --proxy BR." }
 ]
