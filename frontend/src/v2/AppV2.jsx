@@ -47,9 +47,19 @@ const fmtPreco = (v, moeda = MOEDA) => {
 };
 const eur = (v) => fmtPreco(v);
 const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+// Data-CALENDÁRIO (dia da compra): parseia a parte YYYY-MM-DD como data LOCAL, sem
+// conversão de fuso. O `data_compra` é um DIA, não um instante — sem isto, uma data como
+// 2026-07-01 (vinda como ISO/UTC) recuava para 30-jun em fusos negativos (BR). O backend
+// já devolve 'YYYY-MM-DD'; aqui reconstrói-se localmente para não voltar a deslocar.
+function parseDia(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 function dataCurta(s) {
   if (!s) return '';
-  const d = new Date(s); if (Number.isNaN(d.getTime())) return String(s).slice(0, 10);
+  const d = parseDia(s); if (!d) return String(s).slice(0, 10);
   const a = new Date(d); a.setHours(0, 0, 0, 0); const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const dias = Math.round((hoje - a) / 86400000);
   if (dias === 0) return 'Hoje'; if (dias === 1) return 'Ontem';
@@ -1548,7 +1558,7 @@ function Notas({ go, back, partilhado, scanNotas }) {
   const nomeLoja = (n) => n.loja || n.mercado || 'Outro';
   // se a loja guardada já não tem compras, volta a "todas" (evita lista vazia)
   useEffect(() => { if (filtro !== 'todas' && notas && !notas.some((n) => nomeLoja(n) === filtro)) setFiltro('todas'); }, [notas]); // eslint-disable-line react-hooks/exhaustive-deps
-  const mesDe = (n) => { const d = new Date(n.data); return Number.isNaN(d.getTime()) ? { k: -1, l: '—' } : { k: d.getFullYear() * 12 + d.getMonth(), l: MESF[d.getMonth()] }; };
+  const mesDe = (n) => { const d = parseDia(n.data); return !d ? { k: -1, l: '—' } : { k: d.getFullYear() * 12 + d.getMonth(), l: MESF[d.getMonth()] }; };
   // chips por loja, ordenados por nº de compras
   const cont = {}; lista.forEach((n) => { const k = nomeLoja(n); cont[k] = (cont[k] || 0) + 1; });
   const chips = [['todas', 'Todas', null, lista.length], ...Object.entries(cont).sort((a, b) => b[1] - a[1]).map(([nm, c]) => [nm, nm, lojaCor(nm)[0], c])];

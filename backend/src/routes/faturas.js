@@ -77,7 +77,7 @@ faturasRouter.post('/jobs/:id/retry', requireAuth, async (req, res) => {
 faturasRouter.get('/', requireAuth, async (req, res) => {
   try {
     const [notas] = await getPool().query(`
-      SELECT f.id, f.data_compra AS data, COALESCE(l.cadeia, l.nome) AS loja,
+      SELECT f.id, DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data, COALESCE(l.cadeia, l.nome) AS loja,
              f.total_impresso AS total,
              (SELECT COUNT(*) FROM item i WHERE i.fatura_id = f.id AND i.is_non_product = 0) AS n_itens
         FROM fatura f JOIN loja l ON l.id = f.loja_id
@@ -100,7 +100,7 @@ faturasRouter.get('/itens', requireAuth, async (req, res) => {
     const limite = Math.min(Math.max(Number(req.query.limite) || 1500, 1), 3000);
     const [itens] = await getPool().query(
       `SELECT i.id, i.fatura_id,
-              f.data_compra AS data,
+              DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data,
               COALESCE(l.cadeia, l.nome) AS loja,
               COALESCE(
                 (SELECT pe.nome FROM produto_ean pe
@@ -206,7 +206,7 @@ faturasRouter.get('/:id', requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [[nota]] = await getPool().query(
-      `SELECT f.id, f.data_compra AS data, COALESCE(l.cadeia, l.nome) AS loja, f.total_impresso AS total
+      `SELECT f.id, DATE_FORMAT(f.data_compra, '%Y-%m-%d') AS data, COALESCE(l.cadeia, l.nome) AS loja, f.total_impresso AS total
          FROM fatura f JOIN loja l ON l.id = f.loja_id WHERE f.id = ?`,
       [id],
     );
