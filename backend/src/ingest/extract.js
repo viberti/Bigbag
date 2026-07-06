@@ -33,7 +33,7 @@ Esquema exato:
       "taxa_iva": number|null,      // TAXA de IVA deste produto em DECIMAL (0.06, 0.13, 0.23). Resolve-a pelo código no fim da linha + a legenda no corpo da fatura (ver regra). null se não der.
       "desconto_direto": number,    // "Poupança" impressa SOB este item; 0 se não houver
       "is_clearance": boolean,      // true se a linha "Aprox. fim prazo validade" estiver associada a este item
-      "is_non_product": boolean     // true para saco, taxa, depósito — não é produto
+      "is_non_product": boolean     // true SÓ para: saco de TRANSPORTE da caixa (o saco que se paga para levar as compras), taxa/depósito/tara/arredondamento. FALSE para sacos que SÃO o produto comprado — sacos do lixo, de congelação, doggybag, ziplock, etc. são produtos NORMAIS (is_non_product=false)
     }
   ]
 }
