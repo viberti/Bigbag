@@ -6,6 +6,7 @@
 // ──────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { norm as normCat, singularizar, grupoDeNome, seccaoLista } from '../../../backend/src/normaliza/categoria.js';
+import { parseDia } from '../../../backend/src/normaliza/dia.js';
 import {
   verificarSessao, setAuth, clearAuth, enviarFatura,
   obterLista, atualizarListaItem, listarNotas, listarJobsNota, repetirLeitura, detalhesNota, resumoGastos, gastosCategoria, listarDespensa, removerDespensa,
@@ -47,16 +48,8 @@ const fmtPreco = (v, moeda = MOEDA) => {
 };
 const eur = (v) => fmtPreco(v);
 const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-// Data-CALENDÁRIO (dia da compra): parseia a parte YYYY-MM-DD como data LOCAL, sem
-// conversão de fuso. O `data_compra` é um DIA, não um instante — sem isto, uma data como
-// 2026-07-01 (vinda como ISO/UTC) recuava para 30-jun em fusos negativos (BR). O backend
-// já devolve 'YYYY-MM-DD'; aqui reconstrói-se localmente para não voltar a deslocar.
-function parseDia(s) {
-  if (!s) return null;
-  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+// `parseDia` (data-calendário como Date LOCAL, sem deslocar o dia por fuso) vem do módulo
+// partilhado normaliza/dia.js — testado no gate.
 function dataCurta(s) {
   if (!s) return '';
   const d = parseDia(s); if (!d) return String(s).slice(0, 10);

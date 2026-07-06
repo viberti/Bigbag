@@ -19,6 +19,12 @@ export function getPool() {
       charset: 'utf8mb4',
       // DECIMAL como número (e não string) para as somas/comparações de preço.
       decimalNumbers: true,
+      // Colunas DATE (data-CALENDÁRIO: dia, sem hora nem fuso — ex.: fatura.data_compra)
+      // devolvidas como STRING 'YYYY-MM-DD', NUNCA como Date. Sem isto, o mysql2 fazia um
+      // Date à hora local do servidor (Europe/Berlin) e a serialização JSON recuava o dia
+      // em fusos negativos (BR) → a compra de 1-jul aparecia como 30-jun. Os TIMESTAMP
+      // (instantes: criado_em, scraped_at) ficam Date normais — esses TÊM fuso.
+      dateStrings: ['DATE'],
     });
   }
   return pool;
