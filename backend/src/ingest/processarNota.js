@@ -19,6 +19,7 @@ import { enriquecerEansFatura } from './enriquecer.js';
 import { reconciliarListaComFatura } from './reconciliarLista.js';
 import { verificarNomesFatura } from './verificarNomes.js';
 import { talaoSemValores, MSG_TALAO_SEM_VALORES } from './talaoValores.js';
+import { dataCompraSuspeita } from '../normaliza/dia.js';
 
 export async function processarNotaDeFicheiro(
   pool,
@@ -102,7 +103,11 @@ export async function processarNotaDeFicheiro(
   }
 
   // 2) persistir (com deduplicação) — a imagem já foi gravada pelo chamador
-  const needsReview = !rec.extracaoBate || linhasInc.length > 0;
+  // Data implausível (ano/dia mal lido numa foto cortada) → NÃO aceitar em silêncio: a
+  // compra ficaria arquivada no passado e sumia do histórico. Marca para revisão.
+  const dataSusp = dataCompraSuspeita(dados.data_compra, new Date().toISOString().slice(0, 10), metodo);
+  if (dataSusp) console.warn(`[nota] data suspeita: ${dados.data_compra} — ${dataSusp}`);
+  const needsReview = !rec.extracaoBate || linhasInc.length > 0 || !!dataSusp;
   const resultado = await persistirFatura(pool, dados, {
     ficheiroOriginal,
     metodo,

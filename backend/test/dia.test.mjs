@@ -38,3 +38,28 @@ test('parseDia: nulos/lixo → null', () => {
   assert.equal(parseDia(''), null);
   assert.equal(parseDia('xxxx'), null);
 });
+
+// --- guard de plausibilidade da data da compra (caso real: foto cortada → ano 2023) ---
+import { dataCompraSuspeita } from '../src/normaliza/dia.js';
+
+test('dataCompraSuspeita: caso real 2023-08-07 fotografado em 2026-08-07 → SUSPEITA', () => {
+  const r = dataCompraSuspeita('2023-08-07', '2026-08-07', 'vlm');
+  assert.ok(r && /mal lido/.test(r), `esperado suspeita, obtido: ${r}`);
+});
+
+test('dataCompraSuspeita: talão de ontem fotografado hoje → OK', () => {
+  assert.equal(dataCompraSuspeita('2026-08-06', '2026-08-07', 'vlm'), null);
+});
+
+test('dataCompraSuspeita: PDF antigo importado (ocr_llm) → OK, não sinaliza', () => {
+  assert.equal(dataCompraSuspeita('2024-02-09', '2026-06-06', 'ocr_llm'), null);
+});
+
+test('dataCompraSuspeita: data no futuro → SUSPEITA', () => {
+  const r = dataCompraSuspeita('2026-09-01', '2026-08-07', 'vlm');
+  assert.ok(r && /FUTURO/.test(r));
+});
+
+test('dataCompraSuspeita: sem dados → null (não bloqueia)', () => {
+  assert.equal(dataCompraSuspeita(null, '2026-08-07', 'vlm'), null);
+});

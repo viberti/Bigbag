@@ -214,7 +214,9 @@ function toMysqlDate(iso) {
   // data_compra é uma data-CALENDÁRIO (coluna DATE): devolve só 'YYYY-MM-DD' — a hora do
   // talão não se usa e, guardada, só reabria a porta a deslocações de fuso. Manipulação de
   // STRING (nunca `new Date(iso)`, que converteria e podia recuar o dia).
-  if (!iso) return null;
+  // data ilegível/cortada → o prompt manda devolver null; a coluna é NOT NULL e o dia da
+  // CAPTURA é a melhor aproximação (o talão é fotografado no próprio dia ou no seguinte).
+  if (!iso) return new Date().toISOString().slice(0, 10);
   const dia = String(iso).replace('T', ' ').slice(0, 10); // 'YYYY-MM-DD'
   // GUARDA contra data ABSURDA lida pelo VLM (ano futuro/muito antigo): uma data inválida
   // (caso real 2088) tornava-se o "mês mais recente" e desnorteava gastos/ordenação/preços.
