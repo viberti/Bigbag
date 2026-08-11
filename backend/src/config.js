@@ -30,6 +30,12 @@ export const config = {
     // inútil). Votos cross-família (Google + OpenAI) discordam na alucinação → o gate dispara.
     modelTraducaoAlt: process.env.OPENROUTER_MODEL_TRADUCAO_ALT || 'openai/gpt-4o-mini',
     timeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS) || 20000,
+    // EXTRAÇÃO de talão (VLM/PDF) tem timeout PRÓPRIO e generoso: corre no worker em FUNDO
+    // (ninguém está à espera — a app já respondeu 202) e um talão denso leva 20-60 s. Com os
+    // 20 s interativos, talões grandes abortavam ("This operation was aborted") e o job
+    // esgotava as 3 tentativas → "Não consegui ler" num talão perfeitamente legível
+    // (caso real 2026-08-11: job 53 levou 19 s, à beira; o 55 passou e falhou 3×).
+    timeoutExtracaoMs: Number(process.env.OPENROUTER_TIMEOUT_EXTRACAO_MS) || 120000,
     // Voz: modelo de transcrição (áudio é sensível; manter um modelo forte).
     sttModel: process.env.OPENROUTER_STT_MODEL || 'google/gemini-2.5-flash',
     // Auto-correção da extração: nº MÁXIMO de re-tentativas quando não reconcilia.

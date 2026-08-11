@@ -91,7 +91,7 @@ export async function extrairFatura({ imageBase64, mime, model, timeoutMs, corre
       imageBase64,
       mime,
       model: model || config.openrouter.modelExtracao, // imagem → modelo forte
-      timeoutMs,
+      timeoutMs: timeoutMs || config.openrouter.timeoutExtracaoMs, // fundo: generoso (ver config)
       responseFormat: { type: 'json_object' },
       contexto: 'extracao_imagem',
     });
@@ -117,7 +117,7 @@ export async function extrairFaturaDeTexto(texto, { model, timeoutMs, correcao }
       { role: 'user', content: `${PROMPT}${atencao}\n\nEis o TEXTO de uma fatura (já extraído do PDF):\n"""\n${texto}\n"""` },
     ],
     model,
-    timeoutMs,
+    timeoutMs: timeoutMs || config.openrouter.timeoutExtracaoMs, // fundo: generoso (ver config)
     responseFormat: { type: 'json_object' },
     contexto: 'extracao_texto',
   });
