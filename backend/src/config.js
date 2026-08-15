@@ -24,7 +24,7 @@ export const config = {
     modelConsulta: process.env.OPENROUTER_MODEL_CONSULTA || 'google/gemini-2.5-flash',
     // Extração de fatura por IMAGEM (VLM): modelo mais forte (precisão em
     // térmicas amassadas vale mais que a economia).
-    modelExtracao: process.env.OPENROUTER_MODEL_EXTRACAO || 'google/gemini-2.5-flash',
+    modelExtracao: process.env.OPENROUTER_MODEL_EXTRACAO || 'google/gemini-3.7-flash',
     // Tradução PT — 2.º voto numa FAMÍLIA DIFERENTE do gemini. Modelos da MESMA família alucinam
     // da MESMA maneira (caso real: "Cottage Cheese"→"Ricota" igual nos 2 votos gemini → consenso
     // inútil). Votos cross-família (Google + OpenAI) discordam na alucinação → o gate dispara.
