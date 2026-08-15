@@ -105,8 +105,16 @@ export async function processarNotaDeFicheiro(
   // 2) persistir (com deduplicação) — a imagem já foi gravada pelo chamador
   // Data implausível (ano/dia mal lido numa foto cortada) → NÃO aceitar em silêncio: a
   // compra ficaria arquivada no passado e sumia do histórico. Marca para revisão.
-  const dataSusp = dataCompraSuspeita(dados.data_compra, new Date().toISOString().slice(0, 10), metodo);
-  if (dataSusp) console.warn(`[nota] data suspeita: ${dados.data_compra} — ${dataSusp}`);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const dataSusp = dataCompraSuspeita(dados.data_compra, hoje, metodo);
+  if (dataSusp) {
+    console.warn(`[nota] data suspeita: ${dados.data_compra} — ${dataSusp} → uso a data da captura`);
+    // NÃO basta marcar para revisão: gravada com a data errada, a compra afunda no
+    // histórico e o utilizador não a encontra (foi o bug relatado). Uma data implausível
+    // numa FOTO trata-se como data ILEGÍVEL — vale a da captura, que erra no máximo um
+    // dia. O valor lido pelo VLM não se perde: fica no extracaoJson para a revisão.
+    dados.data_compra = hoje;
+  }
   const needsReview = !rec.extracaoBate || linhasInc.length > 0 || !!dataSusp;
   const resultado = await persistirFatura(pool, dados, {
     ficheiroOriginal,
