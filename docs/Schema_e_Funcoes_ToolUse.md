@@ -316,6 +316,46 @@ CREATE TABLE perfil_membro (
   - **CRESCE COM O USO:** todo o EAN resolvido FORA do cliente (um MISS) entra na `base_local` PARTILHADA via `upsertBaseLocal` dentro do `consultarOuGuardar` (origem `uso`) → vira HIT na próxima sync de TODOS. Por isso a sync é por **`seq` monotónico** (068), não por `ean` (o cursor por ean não descia uma inserção viva com ean menor). Limitação: ENRIQUECER uma linha existente (ganhar nutrição) não re-sincroniza até um rebuild (o `seq` não muda no UPDATE).
   - **`base_local_evento`** (`id` PK, `ean`, `hit` TINYINT, `origem`, `em`): telemetria — cada scan regista **hit** (resolvido no telefone) vs **miss** (foi ao servidor). Mede a cobertura e, pelos misses, o que falta. Medição: `scripts/taxa_base_local.mjs` (CLI) **ou** aba **`/admin` "Base local"**.
 
+### 1e. Índice das migrações 058–097 (movido do CLAUDE.md em 2026-09-29)
+Uma linha por migração, da mais recente para a mais antiga; DDL nas próprias migrações (`backend/migrations/`). Aditivas por regra. *(`off_full` e `ean_lookup` foram criadas por script, não por migração numerada — ver §1d e abaixo.)*
+
+- **097** — `fatura.data_compra` DATETIME→**DATE** — a data da compra é um DIA-calendário, não um instante (bug real: servidor Europe/Berlin + browser BR recuava a compra 1 dia). Par com `db.js` `dateStrings:['DATE']` (colunas DATE voltam `'YYYY-MM-DD'`, nunca `Date`) e `normaliza/dia.js` `parseDia` partilhado front/back (teste corre sob `TZ=America/Sao_Paulo` e UTC)
+- **096** — `nutricao_auditoria`, veredictos da **auditoria de nutrição por LLM** ANTES da revisão humana — gemini-flash julga os suspeitos determinísticos [envelope C2, `sal=0` em família salgada] e dá ok|erro|incerto + campo errado + valor típico [`ingest/auditarNutricaoLLM.js`, `scripts/auditar_nutricao_llm.mjs`]; NÃO altera dados, só analisa; ex.: "Gouda sal=0→erro, ~1,8 g"
+- **095** — `base_local.ns_nota100`/`ns_grau`/`ns_pontos`/`ns_classe`/`ns_familia`, Nutri-Score numérico **materializado** p/ AUDITORIA — cache regenerável (`scripts/calcular_nutriscore_base_local.mjs`, chamada no fim do `build_base_local`), NUNCA canónica (a verdade é `nutriScore()` on-the-fly no `/info`); auditar inconsistências = `SELECT … GROUP BY LOWER(nome) HAVING MAX(ns_nota100)-MIN(ns_nota100) grande`
+- **094** — `usuario.senha_hash`/`nome`, auth própria — ver §Autenticação
+- **093** — collation `historico_produto`→unicode_ci
+- **092** — `fatura_job`, fila do talão ASSÍNCRONO — ver Pipeline
+- **085-091** — receitas/foto/imagem/idx, ver `migrations/`
+- **084** — `programa_sinal`, sinal QUALITATIVO de programa de laboratório por EAN×fonte (postura 2): VLM só detecta existência+nome do programa (nunca preço/percentual), validação obrigatória (estruturado/texto→VALIDADO; só-VLM→≥2 capturas), expira_em=ultima_confirmacao+14d, percentual_indicativo NULL (porta p/ regras curadas); só schema, captura/cron/UI = tarefas seguintes
+- **083** — `alerta_log.preco_cond`+`preco_cond_fonte`+`preco_cond_obs`, PBM informativo no alerta do Trilho A — o motor de gatilho dispara só sobre TABELA, captura o condicional p/ informar
+- **082** — `usuario_monitor`+`alerta_log`, monitor de preço GLP-1 POR USUÁRIO — schema do Trilho A: baseline declarado/sugerido, gatilho limiar 8% E piso R$80, FK→usuario(email) CASCADE p/ exclusão LGPD; motor de gatilho+push = tarefas seguintes
+- **081** — `medicamento_curado`, override curado de força clínica+qtd da classe GLP-1 (Cluster 2, aditivo; a equivalência lê COALESCE(curado,medicamento))
+- **080** — `medicamento_monitor_hist.preco_cond`, PBM no histórico do monitor
+- **079** — `catalogo_produto.preco_cond`/`preco_cond_obs`, preço condicional (desconto do laboratório/PBM)
+- **078** — `medicamento_monitorado` + `medicamento_monitor_hist`, monitor 4/4h de preço+estoque dos remédios monitorados — ver §Medicamentos
+- **077** — `medicamento_explicacao`, cache do "para que serve" LLM
+- **076** — `anvisa_registro` + `medicamento.categoria_anvisa`/`principio_ativo`, enriquecimento oficial ANVISA Dados Abertos — ver §Medicamentos
+- **075** — `medicamento`, vertical de remédios BR — ver abaixo
+- **074** — `catalogo_preco_hist`, histórico de preço do catálogo append-only — ver harvest
+- **073** — `lista_item.unidade`/`qtd_medida`, quantidade por peso
+- **072** — `nutricao_usda`, USDA SR Legacy/FoodData Central — ~6,5k alimentos GENÉRICOS por 100g, DOMÍNIO PÚBLICO, 3.º nível do matcher (cauda longa)
+- **071** — `nutricao_fao`, FAO/INFOODS uFiSh+uPulses — 100 alimentos globais por 100g (peixes+leguminosas), COMPLEMENTA a TACO (tapa pescados/leguminosas que a TACO cobre mal), licença CC BY-NC-SA permite uso não-comercial
+- **070** — `nutricao_taco`, TACO/NEPA-UNICAMP — 591 alimentos GENÉRICOS BR por 100g, nutrição AUTORITATIVA grátis p/ arroz/feijão/frango/frutas que o OFF/retalho BR não cobre
+- **069** — `catalogo_produto.pdp_em` (timestamp do enriquecimento PDP Pão de Açúcar)
+- **068** — `base_local.seq` AUTO_INCREMENT, sync por seq monotónico p/ apanhar crescimento vivo
+- **067** — `base_local` + `base_local_evento`, base de identificação+nutrição pré-construída p/ o telefone + telemetria hit/miss
+- **066** — `perfil_membro.saude_estado` JSON, editor de saúde
+- **065** — `fila_vetorizar`, fila de vetorização em fundo
+- **064** — FULLTEXT `catalogo_produto(nome,marca)`
+- **063** — `ean_empresa`, prefixo→marca
+- **062** — `usuario`, país/locale
+- **061** — `categoria_ancora`
+- **060** — `marca_perfil`
+- **059** — `produto_busca`
+- **058** — `catalogo_produto.product_type`
+
+- **`ean_lookup` (tabela materializada, sem migração — `scripts/build_ean_lookup.mjs`, 2026-07-02) + vista `v_ean_lookup`:** EAN → (`nome`, `marca`, `categoria`, `grupo`, **`vertical`** mercearia|pet|farmacia) para **consulta cross-projeto** (a Noteca lê-a). Fonte: `catalogo_produto` deduplicado + `medicamento`; `grupo` via `grupoDeNome`; ração → `grupo='pet'`. Rebuild **manual** (não está no cron) — correr após colheitas grandes.
+
 ### Notas de design
 - **`preco_por_base` é o que faz a comparação funcionar.** Para itens por peso (fruta a granel), `preco_liquido` sozinho não é comparável; `preco_por_base` (€/kg) é. Para itens por unidade, é o preço por unidade. As funções de comparação consultam sempre `preco_por_base`.
 - **`preco_liquido` = preço impresso na linha, NÃO raspado pelo desconto de cartão.** O desconto global ("Desconto Cartão Utilizado") é um desconto da NOTA aplicado no pagamento, não atribuível a produtos — espalhá-lo cêntimo a cêntimo distorcia cada preço (um sumo de 2,49 aparecia como 2,37). Fica só em `fatura.desconto_global`. Consequência: `Σ preco_liquido` = subtotal (valor dos produtos), não o total pago; a diferença é o benefício do cartão.

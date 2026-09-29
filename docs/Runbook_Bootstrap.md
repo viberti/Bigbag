@@ -2,7 +2,9 @@
 
 > **Fonte de verdade dos passos de servidor.** Este ficheiro vai a commit e **não contém credenciais**: valores reais (passwords MySQL, chave OpenRouter, segredos OAuth) vivem só no `backend/.env` (chmod 600), nunca aqui nem no repositório.
 >
-> **Servidor partilhado.** Produção em `85.25.46.6`, host partilhado com `pitacos.ai` e `1417`. Tudo o que toque em serviços partilhados (MySQL global, Apache, systemd, UFW, certbot) ou seja DDL destrutiva é **paragem obrigatória**: os comandos são mostrados e confirmados antes de correr (ver `CLAUDE.md`).
+> ⚠️ **ATUALIZAÇÃO 2026-09-29 — partes deste runbook são HISTÓRICAS.** O servidor `85.25.46.6` morreu (2026-06-29); a produção está no **netcup `89.58.29.220`** (alias SSH `netcup-prod`), com **MySQL/qdrant/infer em Docker**. O deploy **não** é por `git pull`: é `bash scripts/deploy.sh` (modelo PUSH). A auth **não** é Google OAuth nem Zitadel: é própria (email+senha → JWT). Onde este ficheiro divergir, vale o `CLAUDE.md` (§Deploy, §Estado/Infra, §Autenticação). Os passos de Apache/systemd/BD continuam válidos como padrão de provisionamento.
+>
+> **Servidor partilhado (histórico).** Produção era em `85.25.46.6`, host partilhado com `pitacos.ai` e `1417`. Tudo o que toque em serviços partilhados (MySQL global, Apache, systemd, UFW, certbot) ou seja DDL destrutiva é **paragem obrigatória**: os comandos são mostrados e confirmados antes de correr (ver `CLAUDE.md`).
 
 ---
 

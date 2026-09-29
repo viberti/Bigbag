@@ -80,7 +80,7 @@ O runbook com credenciais reais **nunca** entra no repositório; só a versão l
 
 ## Segredos — regra dura
 
-- O `.env` (chaves OpenRouter, Google OAuth) **nunca** é versionado. Está no `.gitignore` desde o primeiro commit.
+- O `.env` (chave OpenRouter, segredo do JWT, password da BD) **nunca** é versionado. Está no `.gitignore` desde o primeiro commit.
 - Segredos vivem só em variáveis de ambiente no servidor (`backend/.env`, chmod 600).
 - O runbook com valores reais fica apenas na máquina local; a versão que pode ir ao repo é a "limpa", sem credenciais.
 
@@ -92,11 +92,10 @@ Padrão herdado do projeto 1417:
 
 1. Trabalho num branch a partir de `main`.
 2. Commits claros (em português).
-3. `push` do branch → abrir Pull Request no GitHub.
-4. Merge para `main` é decisão minha (não automático).
-5. No servidor: `git pull --ff-only origin main` para atualizar produção.
+3. `git push` (livre, incluindo `main`).
+4. Deploy: `bash scripts/deploy.sh` (`-f` se o frontend mudou) — corre os testes puros como gate, etiqueta a versão e **empurra** o HEAD para o servidor (`git archive` → rsync), sem `git pull` no servidor. Rollback: `bash scripts/rollback.sh <tag>`.
 
-`push` direto a `main` e reescrita de histórico são **paragens obrigatórias** definidas no `CLAUDE.md`.
+Reescrita de histórico partilhado é **paragem obrigatória** definida no `CLAUDE.md`.
 
 ---
 
@@ -105,10 +104,10 @@ Padrão herdado do projeto 1417:
 A infraestrutura está fechada (servidor, BD, systemd, Apache, HTTPS) e os três blocos principais funcionam: ingestão de faturas, consulta por texto/voz e o conselheiro de saúde alimentar (EAN/fotos, nutrição factual, perfis). O detalhe vivo do estado fica no `CLAUDE.md` (secção "Estado atual"); os passos de servidor no `docs/Runbook_Bootstrap.md`.
 
 ### Pendências em aberto
-- **Auth:** ainda em **portão temporário** `ENABLE_TEST_AUTH` (HTTP Basic); o Google OAuth está configurado no `.env` mas a aguardar o redirect URI na Google Console.
+- **Auth:** auth própria (email+senha → JWT) implantada; falta concluir a ativação (ver `CLAUDE.md`).
 - Revogar o sudo temporário de instalação no servidor.
 
 ### Decisões ainda em aberto (ver documento de conceito)
 - Transcrição: STT separado vs. áudio-direto ao LLM (v1 em uso: áudio-direto).
 - ~~Leitura de fatura: VLM direto vs. OCR+LLM~~ **fechada (2026-06-07):** VLM para imagem, texto-do-PDF+LLM para PDF.
-- ~~Autenticação~~ **fechada (2026-06-04):** servidor exposto à internet → Google OAuth + `SUPERUSER_EMAIL`.
+- ~~Autenticação~~ **fechada:** Google OAuth (2026-06-04) → Zitadel → **auth própria email+senha → JWT** (2026-06-29, sem IdP externo).

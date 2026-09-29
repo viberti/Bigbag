@@ -122,6 +122,25 @@ Comparámos 5 VLMs na **mesma imagem** (20 talões), medindo reconciliação (Σ
 
 **Alavanca de custo (simulada, NÃO implementada).** Estratégia "barato-primeiro, escala-quando-falha": 1ª passada com `gemini-3.1-flash-lite` e, só quando a reconciliação falha, 2ª passada com `gemini-2.5-flash` (o loop de auto-correção). Simulação sobre os mesmos 20 talões: **$0,45 vs $0,70 por 100 notas (−36%)**, com **5/20 escalações** e **0 itens perdidos sem escalar** — a fraqueza do lite (perder itens) é neutralizada porque, quando perde, também falha a reconciliação e escala. Qualidade equivalente à atual. **Adiada** porque a poupança absoluta é trivial (~$0,15 na vida das 58 notas atuais) e não compensa a complexidade de um loop com dois modelos + dependência extra. **É um padrão para escala** (público, milhares de notas/mês), não para utilizador único. Re-considerar se o volume crescer.
 
+### 4.4 Troca de VLM para `gemini-3.7-flash` + guards da leitura (2026-08)
+
+**Benchmark (2026-08-15).** `gemini-3-flash-preview` (em uso) vs `gemini-3.7-flash` (lançado 2026-08-13), **mesmas imagens**, 8 talões reais de 4 cadeias (Continente/Mercadona/Makro/Aldi, 104 itens), com a reconciliação do próprio projeto (`distribuirDesconto` + `validarLinhas`) como critério objetivo, + 2.ª prova só de NOMES nos 4 talões mais densos (79 itens).
+
+| | 3-flash-preview | 3.7-flash |
+|---|---|---|
+| itens / totais / reconcilia | 8/8 iguais ao guardado | 8/8 iguais ao guardado |
+| nomes (79) | 77 iguais; 2 diferem só em acentos (1 para cada lado) | |
+| latência (soma dos 8) | **94 s** | 117 s (+24%) |
+| custo no consumo real de 30 d | $0,164 | **$0,108 (−34%)** |
+| estado | `preview` (pode sumir) | **estável** |
+
+**Decisão:** trocar — pela **estabilidade**, não pelo preço (a precisão empatou). **Limite honesto:** os 8 talões eram casos que o modelo antigo já lia bem → o teste prova **não-regressão**, não melhoria. Talões mal lidos daqui em diante devem ser guardados como casos difíceis do banco de provas.
+
+**Guards acrescentados à leitura (causas reais):**
+- **Data da compra (2026-08-11/15).** Foto cortada na linha da data → o VLM inventou o ano (2023 em vez de 2026) → a compra arquivou-se 3 anos atrás e "desapareceu"; o reenvio saiu como duplicado, reforçando a impressão de "não lido". O prompt passou a dizer "linha do terminal = AA-MM-DD; ilegível → null", mas **o modelo não é determinístico** (o 3.7 deu `null` numa passagem e `2023-08-07` noutra no MESMO talão). Por isso a garantia está no código: `dataCompraSuspeita` (futuro, ou >60 dias antes da captura numa foto) → **usa a data da captura** + `precisa_revisao`; a leitura original fica no `extracao_json`. PDFs antigos (arquivo) não sinalizam.
+- **Timeout próprio da extração (2026-08-11):** 120 s (`OPENROUTER_TIMEOUT_EXTRACAO_MS`) em vez dos 20 s interativos — um talão denso levou 23 s e falhava 3× com "operation was aborted".
+- **Talão sem valores (2026-07-01):** total ≤0 e nenhum item com preço (resumo LidlPlus, foto cortada) → falha sem retry e sem persistir uma compra de 0 €.
+
 ---
 
 ## 5. Subsistema B — Consulta por nota de voz (o foco)
@@ -244,6 +263,11 @@ Padrão do 1417, sem quebrar os projetos vizinhos (pitacos.ai, 1417):
    - **A base CRESCE COM O USO.** Todo o EAN resolvido FORA do cliente (um miss, buscado no servidor) entra na `base_local` **partilhada de todos**, com nutrição/ingredientes (`upsertBaseLocal` no `consultarOuGuardar`, origem `uso`) → vira HIT na próxima sync. A 1.ª vez que se scaneia um LIDL/ALDI (ou qualquer produto novo), ele entra — a base **converge no que esta casa compra**. Sync por `seq` monotónico (migr. 068, o cursor por `ean` não apanhava inserções vivas). Detalhe no Schema (067-068) e no CLAUDE.md.
    - **Gémeo (sugestão "mesmo produto sob outro EAN") a 3 SINAIS.** O dono apanhou sugestões erradas que só partilhavam a marca + uma palavra genérica (Páprica *Doce*→Milho *Doce*; Filtros de *Café*→cápsulas de *Café*), e a foto do candidato era mostrada mesmo sem parecer. Fechado: (1) **nome/termos** condizem (`nomeCondizGemeo`); (2) **família** tem de bater + **nunca em não-alimento**; (3) **confirmação por IMAGEM** (CLIP, `confirmarGemeoPorImagem`) — a foto do candidato **só se mostra com `confirmada_imagem`** (score≥0.72 contra uma foto do utilizador); sem foto de referência (scan de código) fica escondida. A nutrição da sugestão continua (texto fiável). Detalhe no Schema + CLAUDE.md.
    - **Local-first sem "pisca" de nome.** A ficha v2 abre instantânea da base local; ao chegar o `/info`, **preserva o nome/marca** já mostrados (é o mesmo produto) e só enriquece nutrição/imagem/parecer. O parecer personalizado lê o `avaliacao.resumo` (era lido de um campo inexistente → cartão "Para X" vinha vazio). Ecrã "Consultar produto" ganhou a régua de navegação e o método "Produto" passou a "Foto".
+
+10. **Decisões fechadas 2026-07 → 2026-09:**
+   - **Data da compra é DATA-CALENDÁRIO, não instante** (2026-07-06, migr. 097): `DATE` na BD, string `'YYYY-MM-DD'` no transporte (`dateStrings`), `parseDia` no cliente. Compras só em PT por agora → a data impressa é a verdade, sem fuso.
+   - **VLM = `gemini-3.7-flash`** (2026-08-15) — ver §4.4. A leitura de data é protegida por código, não pelo prompt.
+   - **Jev (TypeSafe) avaliado e NÃO adotado** (2026-09-29). É um classificador não-generativo (escolha entre ≤255 opções / sim-não / escala; só texto; $0,042/M tokens de entrada, saída grátis; inglês primeiro, outras línguas "não tão bem"; sem fine-tuning; API própria `alpha/decisions`, não chat). No BigBag ~85% do gasto é leitura de imagem (fora do alcance do Jev); as chamadas que ele poderia fazer (`confirmar`, `classificar_tipo`, `match_produto`) custaram <$0,01 em 90 dias e correm em fundo → **sem ganho de custo nem de latência**. Único interesse real: **probabilidades calibradas** (hoje a `confianca` do `match_produto` é auto-declarada pelo LLM) como sinal pesado do fusor de categoria. **Reabrir** só com teste no golden set (precisão + calibração na escolha de família, em PT de talão).
 
 ### Eixo "saúde" — princípios já fechados (v0.75)
 - **Factual, não clínico.** A análise descreve (Nutri-Score, NOVA, semáforo, E-números) com base em *standards* de rotulagem; **não diagnostica nem prescreve**.
