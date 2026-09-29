@@ -24,6 +24,7 @@
 | **Nutripédia (carregador)** | **Dom 05:00** | `carregar_nutripedia.mjs` (cond. ao NDJSON) | PT nutrição |
 | CMED | Qua 01:30 | `carregar_cmed.mjs` | identidade remédios BR |
 | Captura programa lab | diário/semanal | `diag/captura_prod.mjs` | sinal de programa |
+| `ean_lookup` (Noteca) | **diário 06:30** | `build_ean_lookup.mjs` (rebuild atómico + guard) | deriva de `catalogo_produto` + `medicamento` |
 | Pet shops BR | Sáb 03:00 | `refresh_fontes.mjs --manifesto=fontes_pet.json --only=cobasi,americanas-pet` | Cobasi + americanas-pet (~56k, ~92% EAN); Petz/Petlove geo → esperam proxy |
 
 > As linhas a **negrito** foram **criadas em 2026-06-30** (não tinham cron — catálogos de supermercado 2-3 semanas velhos). As outras foram repostas com o crontab pós-migração.
@@ -41,7 +42,7 @@
 - **off_full (~4,5 M OFF):** import ÚNICO (DuckDB do dump CSV); última importação ~15 jun. Re-importar é operação grande à parte, não cron.
 - **Nutrição genérica** (`nutricao_taco` 591, `nutricao_fao` 100, `nutricao_usda` 6 514, `off_produto` 27 k): **referência estática** — carregadas uma vez, não precisam refresh.
 - **ANVISA** (registos): manual (o servidor não alcança a ANVISA → baixar no PC + `scp` + `carregar_anvisa.mjs`).
-- **`ean_lookup`** (lookup EAN→nome/marca/grupo/vertical lido pela **Noteca**): materializado por `build_ean_lookup.mjs` — **manual, NÃO está no cron** → envelhece após cada colheita. Candidato a entrar no fim do cron semanal.
+- **`ean_lookup`** (lookup EAN→nome/marca/grupo/vertical lido pela **Noteca**): materializado por `build_ean_lookup.mjs` — **cron diário 06:30** (depois das colheitas noturnas). Rebuild numa tabela nova + troca atómica; se a construção encolher >10% aborta e mantém a atual (exit 1 no log `logs/ean_lookup.log`).
 - **base_local** (réplica do telefone): materializada por `build_base_local.mjs` (idempotente; inclui limpeza A/B + materialização do Nutri-Score) — correr após mudanças grandes.
 
 ## Como auditar a frescura (1 query)

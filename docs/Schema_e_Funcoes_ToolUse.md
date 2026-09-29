@@ -355,7 +355,7 @@ Uma linha por migração, da mais recente para a mais antiga; DDL nas próprias 
 - **059** — `produto_busca`
 - **058** — `catalogo_produto.product_type`
 
-- **`ean_lookup` (tabela materializada, sem migração — `scripts/build_ean_lookup.mjs`, 2026-07-02) + vista `v_ean_lookup`:** EAN → (`nome`, `marca`, `categoria`, `grupo`, **`vertical`** mercearia|pet|farmacia) para **consulta cross-projeto** (a Noteca lê-a). Fonte: `catalogo_produto` deduplicado + `medicamento`; `grupo` via `grupoDeNome`; ração → `grupo='pet'`. Rebuild **manual** (não está no cron) — correr após colheitas grandes.
+- **`ean_lookup` (tabela materializada, sem migração — `scripts/build_ean_lookup.mjs`, 2026-07-02) + vista `v_ean_lookup`:** EAN → (`nome`, `marca`, `categoria`, `grupo`, **`vertical`** mercearia|pet|farmacia) para **consulta cross-projeto** (a Noteca lê-a). Fonte: `catalogo_produto` deduplicado + `medicamento`; `grupo` via `grupoDeNome`; ração → `grupo='pet'`. Rebuild no **cron diário 06:30** (2026-09-29): tabela nova + `RENAME TABLE` atómico (o grant da Noteca, user `lerqrcode`, é só na VISTA, que resolve o nome por query → nunca vê vazio) + guard de encolhimento (<90% → aborta, `--forcar` passa por cima).
 
 ### Notas de design
 - **`preco_por_base` é o que faz a comparação funcionar.** Para itens por peso (fruta a granel), `preco_liquido` sozinho não é comparável; `preco_por_base` (€/kg) é. Para itens por unidade, é o preço por unidade. As funções de comparação consultam sempre `preco_por_base`.
