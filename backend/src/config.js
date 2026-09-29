@@ -29,6 +29,10 @@ export const config = {
     // da MESMA maneira (caso real: "Cottage Cheese"→"Ricota" igual nos 2 votos gemini → consenso
     // inútil). Votos cross-família (Google + OpenAI) discordam na alucinação → o gate dispara.
     modelTraducaoAlt: process.env.OPENROUTER_MODEL_TRADUCAO_ALT || 'openai/gpt-4o-mini',
+    // Verificação de NOMES da leitura (2.ª opinião, verificarNomes.js) — VLM de OUTRA
+    // família que o extrator (mesma regra dos votos cross-família). Escolha por banco de
+    // provas em talões reais (Conceito §4.5).
+    modelVerificacao: process.env.OPENROUTER_MODEL_VERIFICACAO || 'anthropic/claude-sonnet-5',
     timeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS) || 20000,
     // EXTRAÇÃO de talão (VLM/PDF) tem timeout PRÓPRIO e generoso: corre no worker em FUNDO
     // (ninguém está à espera — a app já respondeu 202) e um talão denso leva 20-60 s. Com os

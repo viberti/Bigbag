@@ -41,7 +41,8 @@ export async function processarJob(pool, jobId) {
     });
     const estado = r.needs_review ? 'precisa_revisao' : 'pronto';
     await pool.query(
-      `UPDATE fatura_job SET estado = ?, fatura_id = ?, duplicada = ?, n_itens = ?, loja_nome = ?, total = ?, data_compra = ?, erro = NULL
+      `UPDATE fatura_job SET estado = ?, fatura_id = ?, duplicada = ?, n_itens = ?, loja_nome = ?, total = ?, data_compra = ?, erro = NULL,
+              verificacao_nomes = ?
          WHERE id = ?`,
       [
         estado,
@@ -51,6 +52,7 @@ export async function processarJob(pool, jobId) {
         (r.loja?.cadeia || r.loja?.nome || null)?.slice(0, 120) || null,
         r.total_impresso ?? null,
         r.data_compra ? String(r.data_compra).slice(0, 10) : null,
+        r.verificacao_nomes || null,
         jobId,
       ],
     );

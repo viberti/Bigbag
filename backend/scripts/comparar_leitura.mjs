@@ -17,7 +17,7 @@ const [faturas] = await pool.query(`
    WHERE f.metodo_extracao = 'vlm' AND f.ficheiro_original IS NOT NULL AND f.ficheiro_original NOT LIKE '%.pdf'
    ORDER BY f.id`);
 
-let totSusp = 0, totCorr = 0, totDuv = 0, comSusp = 0;
+let totSusp = 0, totCorr = 0, totDuv = 0, comSusp = 0, naoVer = 0;
 const correcoes = [];
 console.log(`${APLICAR ? 'A APLICAR' : 'DRY-RUN'} — 2.ª opinião sobre ${faturas.length} talões de imagem\n`);
 for (const f of faturas) {
@@ -26,6 +26,7 @@ for (const f of faturas) {
   catch (e) { console.error(`  fatura ${f.id}: erro ${e.message}`); continue; }
   if (!r.suspeitos) continue;
   comSusp++;
+  if (r.estado === 'nao_verificado') { naoVer += r.suspeitos; console.log(`  fatura ${f.id}: ⚠ NÃO VERIFICADA (${r.suspeitos} suspeitos) — ${r.erro}`); continue; }
   totSusp += r.suspeitos; totCorr += r.corrigidos.length; totDuv += r.duvidas;
   for (const c of r.corrigidos) correcoes.push({ fatura: f.id, cadeia: f.cadeia, dia: f.dia, ...c });
   console.log(`  fatura ${f.id} (${f.cadeia} ${f.dia.toISOString().slice(0, 10)}): ${r.suspeitos} suspeito(s) · ${r.corrigidos.length} corrigido(s) · ${r.duvidas} dúvida(s)`);
@@ -33,7 +34,7 @@ for (const f of faturas) {
 
 console.log(`\n=== RESUMO (novo método vs anterior) ===`);
 console.log(`Talões de imagem: ${faturas.length} · com suspeitos: ${comSusp}`);
-console.log(`Nomes suspeitos analisados: ${totSusp}`);
+console.log(`Nomes suspeitos analisados: ${totSusp}${naoVer ? ` · ⚠ ${naoVer} NÃO verificados (2.ª opinião falhou)` : ''}`);
 console.log(`  ✔ a 2.ª opinião + catálogo CORRIGE: ${totCorr}`);
 console.log(`  ? ficam em dúvida (fica o lido):    ${totDuv}`);
 console.log(`  = confirmados (leitura estava certa): ${totSusp - totCorr - totDuv}`);

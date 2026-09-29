@@ -146,7 +146,10 @@ export async function processarNotaDeFicheiro(
     verificacao = await verificarNomesFatura(pool, fatura_id);
     if (verificacao?.corrigidos?.length)
       console.log(`[nota] nomes corrigidos: ${verificacao.corrigidos.map((c) => `"${c.de}"→"${c.para}"`).join(', ')}`);
-  } catch (e) { console.error('[nota] verificar nomes:', e.message); }
+  } catch (e) {
+    console.error('[nota] verificar nomes:', e.message);
+    verificacao = { estado: 'nao_verificado', corrigidos: [], erro: String(e.message || e).slice(0, 200) };
+  }
   await recomputarPpbFatura(pool, fatura_id).catch((e) => console.error('[nota] recomputar ppb:', e.message));
   await autoCorrigirOutliers(pool, { aplicar: true }).catch((e) => console.error('[nota] auto-correção ppb:', e.message));
   try {
@@ -183,5 +186,6 @@ export async function processarNotaDeFicheiro(
     n_itens,
     lista_comprados: listaRec?.comprados || [],
     nomes_corrigidos: verificacao?.corrigidos || [],
+    verificacao_nomes: verificacao?.estado || null,
   };
 }

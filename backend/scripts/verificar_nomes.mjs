@@ -14,7 +14,8 @@ const APLICAR = process.argv.includes('--aplicar');
 
 if (args[0]) {
   const r = await verificarNomesFatura(pool, Number(args[0]), { aplicar: APLICAR });
-  console.log(`Fatura ${args[0]}: ${r.suspeitos} suspeitos · ${r.corrigidos.length} corrigidos${APLICAR ? '' : ' (dry-run: registado mas SEM alterar itens)'} · ${r.duvidas} dúvidas`);
+  if (r.estado === 'nao_verificado') console.log(`Fatura ${args[0]}: ⚠ NÃO VERIFICADA — ${r.suspeitos} suspeito(s), 2.ª opinião falhou: ${r.erro}`);
+  else console.log(`Fatura ${args[0]} [${r.estado}]: ${r.suspeitos} suspeitos · ${r.corrigidos.length} corrigidos${APLICAR ? '' : ' (dry-run: registado mas SEM alterar itens)'} · ${r.duvidas} dúvidas`);
   for (const c of r.corrigidos) console.log(`   ✔ "${c.de}" → "${c.para}"`);
 } else {
   const [fats] = await pool.query(`
