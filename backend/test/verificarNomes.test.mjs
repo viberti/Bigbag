@@ -100,3 +100,9 @@ test('código de IVA "(A) " na opinião é ignorado', () => {
   const d = decidirNome({ lido: 'REAM CRACKER', opiniao: '(C) CREAM CRACKER', scoreOpiniao: 0.9 });
   assert.deepEqual([d.resultado, d.nome], ['corrigido', 'CREAM CRACKER']);
 });
+
+test('interpretarOpiniao: nº de nomes ≠ nº de linhas pedidas → lança (desalinhado, não dúvidas falsas)', () => {
+  assert.deepEqual(interpretarOpiniao('{"nomes":["A","B"]}', 2), ['A', 'B']);
+  assert.throws(() => interpretarOpiniao('{"nomes":["A","B","C"]}', 4), /3 nomes para 4 linhas/);
+  assert.throws(() => interpretarOpiniao('{"nomes":["A","B"]}', 1));
+});

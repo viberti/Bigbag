@@ -26,12 +26,15 @@ const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-
 
 // Camada 1 — itens desta fatura cujo nome não é confirmável por nenhuma fonte.
 export async function detetarSuspeitos(pool, faturaId, cadeia) {
+  // TODAS as linhas (incl. depósito/saco): o ordinal "N.ª linha com este preço" tem de
+  // contar o que está IMPRESSO, e o VLM também vê as não-produto. Só produtos são suspeitos.
   const [itens] = await pool.query(
-    'SELECT id, descricao_original, preco_liquido FROM item WHERE fatura_id = ? AND is_non_product = 0 ORDER BY id',
+    'SELECT id, descricao_original, preco_liquido, is_non_product FROM item WHERE fatura_id = ? ORDER BY id',
     [faturaId],
   );
   const out = [];
   for (const it of itens) {
+    if (it.is_non_product) continue;
     // (a) já visto em faturas ANTERIORES → leitura consistente entre compras
     const [[rep]] = await pool.query(
       'SELECT COUNT(*) n FROM item WHERE descricao_original = ? AND fatura_id <> ?',
@@ -47,7 +50,8 @@ export async function detetarSuspeitos(pool, faturaId, cadeia) {
     if (hit) continue;
     // âncora p/ a 2.ª opinião cega: ordinal entre as linhas com o MESMO preço
     const mesmos = itens.filter((x) => Number(x.preco_liquido) === Number(it.preco_liquido));
-    out.push({ ...it, score_lido: 0, ordem_preco: mesmos.indexOf(it) + 1, n_mesmo_preco: mesmos.length });
+    const { is_non_product: _np, ...linha } = it;
+    out.push({ ...linha, score_lido: 0, ordem_preco: mesmos.indexOf(it) + 1, n_mesmo_preco: mesmos.length });
   }
   return out;
 }
@@ -71,13 +75,19 @@ Responde SÓ JSON: {"nomes": ["...", ...]} pela MESMA ordem; usa null se não en
 
 // Resposta do VLM → array de nomes. LANÇA se não for interpretável (o chamador
 // transforma isso em 'nao_verificado'); só um array válido conta como opinião.
-export function interpretarOpiniao(txt) {
+// Com `esperado`, o nº de nomes tem de bater: um a mais/menos significa que o modelo
+// saltou ou reordenou linhas → as posições desalinham e cada opinião iria parar ao
+// suspeito errado. Melhor 'nao_verificado' honesto do que dúvidas falsas.
+export function interpretarOpiniao(txt, esperado = null) {
   const bruto = String(txt && typeof txt === 'object' ? txt.content : txt || '').replace(/```(json)?/g, '');
   const ini = bruto.indexOf('{');
   const fim = bruto.lastIndexOf('}');
   if (ini < 0 || fim < ini) throw new Error(`resposta sem JSON: ${bruto.slice(0, 80)}`);
   const j = JSON.parse(bruto.slice(ini, fim + 1));
   if (!Array.isArray(j.nomes)) throw new Error('JSON sem array "nomes"');
+  if (esperado != null && j.nomes.length !== esperado) {
+    throw new Error(`resposta com ${j.nomes.length} nomes para ${esperado} linhas (desalinhada)`);
+  }
   return j.nomes.map((n) => (n == null ? null : String(n)));
 }
 
@@ -88,7 +98,7 @@ export async function segundaOpiniao(ficheiro, suspeitos, { model = config.openr
     prompt: montarPromptOpiniao(suspeitos), imageBase64: buf.toString('base64'), mime,
     model, responseFormat: { type: 'json_object' }, contexto: 'verificar_nomes', timeoutMs: 45000,
   });
-  return interpretarOpiniao(txt);
+  return interpretarOpiniao(txt, suspeitos.length);
 }
 
 // Semelhança de caracteres 0..1 (1 − Levenshtein/comprimento) entre nomes normalizados.
@@ -166,34 +176,50 @@ export async function verificarNomesFatura(pool, faturaId, { aplicar = true } = 
     return { estado: 'nao_verificado', suspeitos: suspeitos.length, corrigidos: [], duvidas: 0, erro };
   }
 
-  const [todos] = await pool.query('SELECT id, descricao_original FROM item WHERE fatura_id = ?', [faturaId]);
+  const [todos] = await pool.query('SELECT id, descricao_original, preco_liquido FROM item WHERE fatura_id = ?', [faturaId]);
   const corrigidos = [];
   let duvidas = 0;
-  for (let i = 0; i < suspeitos.length; i++) {
-    const s = suspeitos[i];
-    const outrosNomes = todos.filter((t) => t.id !== s.id).map((t) => t.descricao_original);
-    const opiniao = limparOpiniao(nomes[i]) || null;
-    let scoreOpiniao = 0;
-    if (opiniao && norm(opiniao) !== norm(s.descricao_original)) {
-      try { scoreOpiniao = (await buscarCatalogo(pool, opiniao, { cadeia: f.cadeia, limiar: 0.55 }))?.score || 0; } catch { /* fica 0 */ }
+  let feitos = 0; // suspeitos já registados — a partir daqui a verificação CORREU (mesmo que pare a meio)
+  try {
+    for (let i = 0; i < suspeitos.length; i++) {
+      const s = suspeitos[i];
+      // linhas com o MESMO preço ficam fora da salvaguarda "outra linha": o mesmo produto
+      // passado 2× no talão tem o mesmo nome e preço — a leitura certa do mal-lido É o
+      // nome do gémeo, e isso não é troca de linha (seria bloquear a correção certa).
+      const outrosNomes = todos
+        .filter((t) => t.id !== s.id && Number(t.preco_liquido) !== Number(s.preco_liquido))
+        .map((t) => t.descricao_original);
+      const opiniao = limparOpiniao(nomes[i]) || null;
+      let scoreOpiniao = 0;
+      if (opiniao && norm(opiniao) !== norm(s.descricao_original)) {
+        try { scoreOpiniao = (await buscarCatalogo(pool, opiniao, { cadeia: f.cadeia, limiar: 0.55 }))?.score || 0; } catch { /* fica 0 */ }
+      }
+      const d = decidirNome({ lido: s.descricao_original, opiniao, scoreLido: s.score_lido, scoreOpiniao, outrosNomes });
+      if (d.resultado === 'duvida') duvidas++;
+      await pool.query(
+        'INSERT INTO verificacao_nome (fatura_id, item_id, lido, opiniao, score_lido, score_opiniao, resultado, motivo, modelo) VALUES (?,?,?,?,?,?,?,?,?)',
+        [faturaId, s.id, s.descricao_original, opiniao ? String(opiniao).slice(0, 200) : null, s.score_lido, scoreOpiniao, d.resultado, d.motivo || null, modelo],
+      );
+      feitos++;
+      if (d.resultado === 'corrigido' && aplicar) {
+        // duas fontes independentes concordam (2.ª leitura + catálogo) → corrige e
+        // re-resolve o SKU para o nome certo (o ppb recomputa-se a seguir na rota).
+        await pool.query('UPDATE item SET descricao_original = ?, sku_id = NULL WHERE id = ?', [String(d.nome).slice(0, 200), s.id]);
+        try {
+          const r = await resolverSku(pool, d.nome, { cadeia: f.cadeia });
+          if (r.sku_id) await pool.query('UPDATE item SET sku_id = ? WHERE id = ?', [r.sku_id, s.id]);
+        } catch (e) { console.error('[verificarNomes] re-resolver:', e.message); }
+        corrigidos.push({ de: s.descricao_original, para: d.nome });
+        console.log(`[verificarNomes] corrigido: "${s.descricao_original}" → "${d.nome}"`);
+      }
     }
-    const d = decidirNome({ lido: s.descricao_original, opiniao, scoreLido: s.score_lido, scoreOpiniao, outrosNomes });
-    if (d.resultado === 'duvida') duvidas++;
-    await pool.query(
-      'INSERT INTO verificacao_nome (fatura_id, item_id, lido, opiniao, score_lido, score_opiniao, resultado, motivo, modelo) VALUES (?,?,?,?,?,?,?,?,?)',
-      [faturaId, s.id, s.descricao_original, opiniao ? String(opiniao).slice(0, 200) : null, s.score_lido, scoreOpiniao, d.resultado, d.motivo || null, modelo],
-    );
-    if (d.resultado === 'corrigido' && aplicar) {
-      // duas fontes independentes concordam (2.ª leitura + catálogo) → corrige e
-      // re-resolve o SKU para o nome certo (o ppb recomputa-se a seguir na rota).
-      await pool.query('UPDATE item SET descricao_original = ?, sku_id = NULL WHERE id = ?', [String(d.nome).slice(0, 200), s.id]);
-      try {
-        const r = await resolverSku(pool, d.nome, { cadeia: f.cadeia });
-        if (r.sku_id) await pool.query('UPDATE item SET sku_id = ? WHERE id = ?', [r.sku_id, s.id]);
-      } catch (e) { console.error('[verificarNomes] re-resolver:', e.message); }
-      corrigidos.push({ de: s.descricao_original, para: d.nome });
-      console.log(`[verificarNomes] corrigido: "${s.descricao_original}" → "${d.nome}"`);
-    }
+  } catch (e) {
+    // Erro DEPOIS da opinião (BD a meio do registo): não é "o verificador não correu".
+    // Se já registou algum suspeito, a verificação correu (e pode já ter corrigido itens)
+    // → 'verificado' com `parcial`; se não registou nenhum, nada ficou verificado.
+    const erro = String(e.message || e).slice(0, 200);
+    console.error(`[verificarNomes] fatura ${faturaId}: erro após a 2.ª opinião (${feitos}/${suspeitos.length} registados): ${erro}`);
+    return { estado: feitos ? 'verificado' : 'nao_verificado', parcial: true, suspeitos: suspeitos.length, corrigidos, duvidas, erro };
   }
   return { estado: 'verificado', suspeitos: suspeitos.length, corrigidos, duvidas };
 }
