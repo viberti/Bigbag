@@ -729,7 +729,7 @@ listaRouter.get('/habituais', async (req, res) => {
   try {
     const { produtos_habituais } = await import('../queries.js');
     const pool = getPool();
-    const periodo_inicio = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
+    const periodo_inicio = new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10);
     const hab = await produtos_habituais(pool, { min_idas: 2, periodo_inicio });
     // + o que se PÕE NA LISTA com frequência (dono 2026-10-16: os nomes repetem-se de lista para
     // lista). Apanha o que se compra sem talão lido (mercado, padaria) e usa a grafia da casa.
@@ -738,9 +738,19 @@ listaRouter.get('/habituais', async (req, res) => {
       `SELECT SUBSTRING_INDEX(GROUP_CONCAT(nome ORDER BY criado_em DESC SEPARATOR '\n'), '\n', 1) AS produto,
               COUNT(DISTINCT DATE(criado_em)) AS dias, MIN(ean IS NOT NULL) AS so_scan
          FROM lista_item WHERE criado_em >= NOW() - INTERVAL 180 DAY
-        GROUP BY LOWER(nome) HAVING dias >= 3 ORDER BY dias DESC, MAX(criado_em) DESC LIMIT 20`);
-    const escritos = new Set(daLista.filter((x) => !Number(x.so_scan)));
-    res.json({ produtos: await generalizar(pool, [...daLista, ...hab], 'produto', (x) => escritos.has(x)) });
+        GROUP BY LOWER(nome) HAVING dias >= 2 ORDER BY dias DESC, MAX(criado_em) DESC LIMIT 40`);
+    // MAIS COMPRADOS À FRENTE (dono 2026-10-16): `vezes` = idas em que foi comprado (talões, 6 meses)
+    // + dias em que foi posto na lista, somados por produto (na forma geral). Ordena por isso.
+    const porChave = new Map();
+    const somar = (produto, vezes) => {
+      const k = chaveItemLista(produto); if (!k) return;
+      const e = porChave.get(k) || porChave.set(k, { produto, vezes: 0 }).get(k);
+      e.vezes += vezes;
+    };
+    for (const x of daLista) somar(Number(x.so_scan) ? await nomeGeral(pool, x.produto) : x.produto, Number(x.dias) || 1); // escrito pela casa fica como está
+    for (const h of hab) somar(await nomeGeral(pool, h.produto), Number(h.idas) || 1);
+    const produtos = [...porChave.values()].sort((a, b) => b.vezes - a.vezes).slice(0, 40);
+    res.json({ produtos });
   } catch (e) {
     console.error('[lista/habituais] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar os habituais' });

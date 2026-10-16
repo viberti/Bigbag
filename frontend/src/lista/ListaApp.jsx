@@ -374,11 +374,19 @@ function Lista({ sessao, onSair }) {
   const talvez = useMemo(() => {
     const k = (n) => nomeTalao(String(n || '')).toLowerCase();
     const naLista = new Set(itens.map((x) => k(x.nome)));
+    // MAIS COMPRADOS À FRENTE (dono 2026-10-16): os habituais vêm do servidor já ordenados por vezes
+    // (talões + listas). Os que "estão na altura" (cadência) ficam MARCADOS no seu lugar, com a qtd
+    // habitual; se algum não estiver nos habituais, entra no fim.
+    const porCad = new Map(cad.map((c) => [k(c.nome), c]));
     const out = []; const vistos = new Set();
-    for (const s of cad) { const kk = k(s.nome); if (!naLista.has(kk) && !vistos.has(kk)) { vistos.add(kk); out.push({ nome: s.nome, quantidade: s.quantidade || 1, cad: true }); } }
-    let n = 0;
-    for (const h of hab) { if (n >= 6) break; const kk = k(h.produto); if (!naLista.has(kk) && !vistos.has(kk)) { vistos.add(kk); out.push({ nome: h.produto, quantidade: 1 }); n += 1; } }
-    return out.slice(0, 10);
+    const juntar1 = (nome, extra = {}) => {
+      const kk = k(nome); if (!kk || naLista.has(kk) || vistos.has(kk)) return;
+      vistos.add(kk); const c = porCad.get(kk);
+      out.push({ nome, quantidade: c?.quantidade || 1, cad: !!c, ...extra });
+    };
+    for (const h of hab) juntar1(h.produto);
+    for (const c of cad) juntar1(c.nome);
+    return out.slice(0, 30);
   }, [cad, hab, itens]);
 
   if (perfis.length > 1 && !(membro && perfis.some((p) => semAc(p.nome) === semAc(membro)))) {
