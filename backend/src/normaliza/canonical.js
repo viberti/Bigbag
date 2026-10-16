@@ -51,6 +51,25 @@ Operadores como "com", "sem", "para" no nome sao conectores de facetas (ex.: "Sa
 O nome_canonico NUNCA inclui a marca nem o formato/peso. Dois produtos iguais de
 marcas diferentes partilham o mesmo nome_canonico (distinguem-se pela marca).`;
 
+// ROTULO DE SECÇÃO inventado (2026-10-16): o talão Mercadona diz "+ PROTEINAS NATURAL" e o LLM,
+// para dar sentido ao "+", devolveu "Laticínios + Proteínas Natural" — o nome da SECÇÃO não é o
+// produto (e virou um chip "Laticínios + …" na lista). Regra GERAL: se o nome canónico COMEÇA por um
+// rótulo de secção/corredor que NÃO está na descrição do talão, esse rótulo sai. Exportado p/ teste.
+const ROTULOS_SECCAO = ['lacticinios', 'laticinios', 'mercearia salgada', 'mercearia doce', 'mercearia', 'talho', 'charcutaria',
+  'padaria', 'pastelaria', 'peixaria', 'bebidas', 'congelados', 'higiene', 'limpeza', 'frutas e legumes', 'frutas', 'legumes',
+  'frescos', 'take-away', 'take away', 'drogaria', 'perfumaria'];
+const semAcento = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+export function semRotuloDeSeccao(nome, descricao) {
+  const n = semAcento(nome); const d = semAcento(descricao);
+  for (const r of ROTULOS_SECCAO) {
+    if (!(n === r || n.startsWith(r + ' '))) continue;
+    if (new RegExp(`(^|[^a-z])${r.split(' ')[0]}`).test(d)) return nome; // está mesmo no talão
+    const resto = String(nome).slice(r.length).replace(/^[\s+\-–:·,]+/, '').trim();
+    return resto ? resto.charAt(0).toUpperCase() + resto.slice(1) : nome;
+  }
+  return nome;
+}
+
 function parseJson(txt) {
   let s = String(txt).trim();
   const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -116,7 +135,7 @@ export async function canonicalizar(descricao, { model, timeoutMs, cadeia, pista
   }
   if (!c || !c.nome_canonico) throw new Error('Canonicalização sem nome_canonico');
   return {
-    nome_canonico: String(c.nome_canonico).trim(),
+    nome_canonico: semRotuloDeSeccao(String(c.nome_canonico).trim(), descricao),
     marca: c.marca ? String(c.marca).trim() : null,
     categoria: c.categoria ? String(c.categoria).trim() : null,
     unidade_base: ['un', 'kg', 'L'].includes(c.unidade_base) ? c.unidade_base : 'un',
