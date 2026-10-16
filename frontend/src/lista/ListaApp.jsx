@@ -5,7 +5,7 @@
 // código de barras. Otimista + fila offline (estado.js): no mercado a rede falha.
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  verificarSessao, login, obterLista, adicionar, adicionarLote, atualizar, remover, limpar, restaurar,
+  verificarSessao, login, obterLista, adicionar, adicionarLote, atualizar, remover, limpar, restaurar, concluir,
   sair, sugestoes as sugestoesCadencia, habituais, autocompleteProduto, consultarProdutoEan, vozParaLista,
 } from './api.js';
 import { enfileirar, aplicar, novaMedida } from './estado.js';
@@ -166,6 +166,7 @@ function Lista({ sessao, onSair }) {
           else if (op.op === 'marcar') await atualizar(id, { marcado: op.marcado });
           else if (op.op === 'nome') await atualizar(id, { nome: op.nome });
           else if (op.op === 'remover') await remover(id);
+          else if (op.op === 'concluir') await concluir();
         } catch (e) {
           if (e?.message === '401' || e?.message === '403') { onSair(); return; }
           if (/\s4\d\d$/.test(e?.message || '')) { /* pedido inválido → descarta e segue */ }
@@ -243,7 +244,7 @@ function Lista({ sessao, onSair }) {
   }
   function tirarRiscados() {
     setMenu(false);
-    itens.filter((x) => x.estado === 'carrinho').forEach((x) => fazer({ op: 'remover', id: x.id }));
+    fazer({ op: 'concluir' }); // ficam como COMPRADOS no histórico (não 'removidos')
   }
   async function esvaziar() {
     setMenu(false);

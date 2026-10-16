@@ -732,7 +732,15 @@ listaRouter.get('/habituais', async (req, res) => {
     const pool = getPool();
     const periodo_inicio = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
     const hab = await produtos_habituais(pool, { min_idas: 2, periodo_inicio });
-    res.json({ produtos: await generalizar(pool, hab, 'produto') });
+    // + o que se PÕE NA LISTA com frequência (dono 2026-10-16: os nomes repetem-se de lista para
+    // lista). Apanha o que se compra sem talão lido (mercado, padaria) e usa a grafia da casa.
+    // Listado em ≥3 DIAS diferentes nos últimos 6 meses; vem primeiro (é hábito de lista explícito).
+    const [daLista] = await pool.query(
+      `SELECT SUBSTRING_INDEX(GROUP_CONCAT(nome ORDER BY criado_em DESC SEPARATOR '\n'), '\n', 1) AS produto,
+              COUNT(DISTINCT DATE(criado_em)) AS dias
+         FROM lista_item WHERE criado_em >= NOW() - INTERVAL 180 DAY
+        GROUP BY LOWER(nome) HAVING dias >= 3 ORDER BY dias DESC, MAX(criado_em) DESC LIMIT 20`);
+    res.json({ produtos: await generalizar(pool, [...daLista, ...hab], 'produto') });
   } catch (e) {
     console.error('[lista/habituais] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar os habituais' });
@@ -992,6 +1000,23 @@ listaRouter.post('/limpar', async (req, res) => {
   } catch (e) {
     console.error('[lista/limpar] erro:', e.message);
     res.status(500).json({ erro: 'Falha a limpar' });
+  }
+});
+
+// CONCLUIR a ida às compras: os RISCADOS (no carrinho) passam a 'comprado' — antes saíam como
+// 'removido' e o histórico perdia que foram comprados (só um talão lido os marcava comprados).
+// O histórico de listas (o que se repete de lista para lista) e o "costuma pôr na lista"
+// passam a distinguir comprado de apagado. Devolve os ids (para Desfazer).
+listaRouter.post('/concluir', async (req, res) => {
+  try {
+    const pool = getPool();
+    const lista = listaDe(req);
+    const [riscados] = await pool.query("SELECT id FROM lista_item WHERE lista = ? AND estado = 'carrinho'", [lista]);
+    if (riscados.length) await pool.query("UPDATE lista_item SET estado = 'comprado' WHERE lista = ? AND estado = 'carrinho'", [lista]);
+    res.json({ ok: true, comprados: riscados.map((r) => r.id) });
+  } catch (e) {
+    console.error('[lista/concluir] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a concluir' });
   }
 });
 

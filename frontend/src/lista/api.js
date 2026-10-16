@@ -38,6 +38,10 @@ export async function atualizar(id, dados) {
 export async function remover(id) {
   return ok(await call(`/api/lista/${id}`, comLista({ method: 'DELETE' })), 'remover');
 }
+// Concluir a ida às compras: os riscados passam a 'comprado' (histórico), não a 'removido'.
+export async function concluir() {
+  return ok(await call('/api/lista/concluir', comLista({ method: 'POST' })), 'concluir');
+}
 export async function limpar() {
   return ok(await call('/api/lista/limpar', comLista({ method: 'POST' })), 'limpar');
 }

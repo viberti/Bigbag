@@ -1,6 +1,7 @@
 // Identificar/enriquecer um produto: o utilizador envia FOTOS dos rótulos + (op.)
 // o EAN. Corre o VLM sobre as fotos E consulta o OFF pelo EAN, guarda e devolve
 // AMBOS — em ambiente de teste, para ver o que se obtém de cada fonte.
+import { juntarSugestoes } from '../sugestoesCasa.js';
 import { Router } from 'express';
 import multer from 'multer';
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
@@ -1137,10 +1138,24 @@ produtoRouter.get('/autocomplete', requireAuth, async (req, res) => {
         ORDER BY score DESC, MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) DESC
         LIMIT 8`,
       [wb, last, q, normAlfa(q).split(' ').map(singularizar).join(' '), bool, bool]); // plural escrito casa o genérico singular ('cereais' → 'Cereal')
-    res.json({ sugestoes: rows.map((r) => ({
+    const catalogo = rows.map((r) => ({
       generico: !!r.generico, nome: r.nome, marca: r.marca || null,
       tamanho: r.tamanho || null, ean: r.ean || null, tem_nutricao: !!r.tem_nutricao,
-    })) });
+    }));
+    if (modo !== 'lista') return res.json({ sugestoes: catalogo });
+    // NOMES QUE A CASA JÁ ESCREVEU (ao vivo, das duas listas): cada palavra escrita tem de começar
+    // uma palavra do nome; ordena por em quantos DIAS foi listado e quão recente. A grafia mostrada
+    // é a mais recente. (O produto_busca só os tinha com ≤2 palavras e só após rebuild manual.)
+    const conds = toks.map(() => "(li.nome LIKE CONCAT(?, '%') OR li.nome LIKE CONCAT('% ', ?, '%'))").join(' AND ');
+    const [casa] = await getPool().query(
+      `SELECT SUBSTRING_INDEX(GROUP_CONCAT(li.nome ORDER BY li.criado_em DESC SEPARATOR '
+'), '
+', 1) AS nome,
+              COUNT(DISTINCT DATE(li.criado_em)) AS dias, MAX(li.criado_em) AS ultima
+         FROM lista_item li WHERE ${conds}
+        GROUP BY LOWER(li.nome) ORDER BY dias DESC, ultima DESC LIMIT 6`,
+      toks.flatMap((t) => [t, t]));
+    res.json({ sugestoes: juntarSugestoes(casa, catalogo) });
   } catch (e) {
     console.error('[produto/autocomplete] erro:', e.message);
     res.json({ sugestoes: [] });

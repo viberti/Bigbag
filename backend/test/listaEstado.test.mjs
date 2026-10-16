@@ -62,3 +62,12 @@ test('novaMedida: passos de 50 g abaixo de 1 kg, 250 g acima, nunca abaixo de 50
   assert.equal(novaMedida(1.25, -1), 1);
   assert.equal(novaMedida(0.05, -1), 0.05);
 });
+
+test('concluir: tira os riscados do ecrã e vai para o fim da fila (depois das marcações)', () => {
+  const ini = [{ id: 1, nome: 'Pão', estado: 'carrinho' }, { id: 2, nome: 'Sal', estado: 'ativo' }];
+  assert.deepEqual(aplicar(ini, { op: 'concluir' }).map((x) => x.id), [2]);
+  let f = enfileirar([], { op: 'marcar', id: 2, marcado: true });
+  f = enfileirar(f, { op: 'concluir' });
+  f = enfileirar(f, { op: 'concluir' });
+  assert.deepEqual(f.map((x) => x.op), ['marcar', 'concluir']);
+});

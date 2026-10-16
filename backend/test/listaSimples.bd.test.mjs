@@ -96,3 +96,22 @@ test('sugestões respondem na lista "simples"', async () => {
   assert.equal(r.status, 200);
   assert.ok(Array.isArray(r.dados.sugestoes));
 });
+
+test('concluir: riscados passam a COMPRADO (não removido) só na própria lista', async (t) => {
+  // o concluir atua em TODOS os riscados da lista: se o utilizador tem riscados reais, não arrisca
+  const [[r0]] = await pool.query("SELECT COUNT(*) n FROM lista_item WHERE lista = 'simples' AND estado = 'carrinho'");
+  if (Number(r0.n) > 0) { t.skip('há riscados reais na lista simples — não toca'); return; }
+  const a = await api('/api/lista', { metodo: 'POST', corpo: { nome: 'ZZ Teste Lista Concluir' } });
+  criados.push(a.dados.id);
+  await api(`/api/lista/${a.dados.id}`, { metodo: 'PATCH', corpo: { marcado: true } });
+  const r = await api('/api/lista/concluir', { metodo: 'POST' });
+  assert.ok(r.dados.comprados.includes(a.dados.id));
+  assert.equal((await estadoDe(a.dados.id)).estado, 'comprado');
+});
+
+test('autocomplete sugere primeiro o que a casa já escreveu na lista', async () => {
+  const r = await api('/api/produto/autocomplete?q=zz%20teste%20lista%20conc&modo=lista', { lista: null });
+  assert.equal(r.status, 200);
+  assert.equal(r.dados.sugestoes[0]?.nome, 'ZZ Teste Lista Concluir');
+  assert.equal(r.dados.sugestoes[0]?.casa, true);
+});

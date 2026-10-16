@@ -10,6 +10,11 @@ import { coalescar } from '../listaOutbox.js';
 import { grupoDeNome } from '../../../backend/src/normaliza/categoria.js';
 
 export function enfileirar(fila, op) {
+  // 'concluir' (tirar os riscados como comprados) aplica-se ao estado do servidor naquele momento:
+  // vai para o fim da fila, depois das marcações pendentes; dois seguidos valem um.
+  if (op.op === 'concluir') {
+    return fila.length && fila[fila.length - 1].op === 'concluir' ? fila.map((x) => ({ ...x })) : [...fila, { ...op }];
+  }
   if (op.op === 'medida') {
     // valor absoluto → só o último conta
     return [...fila.filter((x) => !(x.op === 'medida' && String(x.id) === String(op.id))), { ...op }];
@@ -50,6 +55,8 @@ export function aplicar(itens, op, quem = null) {
         ? { ...x, estado: op.marcado ? 'carrinho' : 'ativo', marcado_por: op.marcado ? quem : null } : x));
     case 'remover':
       return itens.filter((x) => !mesmo(x.id, op.id));
+    case 'concluir':
+      return itens.filter((x) => x.estado !== 'carrinho');
     default:
       return itens;
   }
