@@ -864,6 +864,25 @@ const nomeValido = (n) => n && n.length >= 2 && !/\[object|^undefined$|^null$/i.
 // ativo (nova necessidade). Partilhado pelo POST unitário e pelo /lote.
 // Nome do MEMBRO ativo (perfil_membro ativo) — é "quem adicionou/riscou" na lista
 // partilhada (cor por membro). Sem perfil ativo → null (cai no user de auth).
+// QUEM fez a ação (cor por membro na lista: quem acrescentou / quem riscou). Antes era o "membro
+// ATIVO" do perfil — um só para a casa toda: o que o Gustavo acrescentava pelo telemóvel dele saía
+// com a cor da Sue se ela fosse o perfil ativo. Agora é QUEM TEM A SESSÃO, casado com o perfil pelo
+// nome (JWT: nome definido no set_senha; Basic de teste: o utilizador) ou pelo início do email
+// (suerocha@… → Sue). Sem correspondência → o membro ativo, como antes. Puro: exportado p/ teste.
+export function membroDoUtilizador(user, perfis) {
+  const n = (x) => norm(String(x || '')).trim();
+  const local = n(String(user?.email || user?.id || '').split('@')[0]);
+  const cands = [user?.nome, user?.id].map(n).filter(Boolean);
+  for (const p of perfis) if (cands.includes(n(p.nome))) return p.nome;
+  for (const p of perfis) { const pn = n(p.nome); if (pn.length >= 3 && local.startsWith(pn)) return p.nome; }
+  return null;
+}
+async function membroDoPedido(pool, req) {
+  try {
+    const [perfis] = await pool.query('SELECT nome FROM perfil_membro');
+    return membroDoUtilizador(req.user, perfis) || await nomeMembroAtivo(pool);
+  } catch { return nomeMembroAtivo(pool); }
+}
 async function nomeMembroAtivo(pool) {
   try { const [[m]] = await pool.query('SELECT nome FROM perfil_membro WHERE ativo = 1 LIMIT 1'); return m?.nome || null; } catch { return null; }
 }
@@ -892,7 +911,7 @@ listaRouter.post('/', async (req, res) => {
     const nome = String(req.body?.nome || '').trim().slice(0, 160);
     if (!nomeValido(nome)) return res.status(400).json({ erro: 'nome inválido' });
     const categoria = String(req.body?.categoria || '').trim().slice(0, 80) || null;
-    const membro = await nomeMembroAtivo(getPool());
+    const membro = await membroDoPedido(getPool(), req);
     const r = await adicionarConsolidado(getPool(), { nome, quantidade: req.body?.quantidade, categoria, ean: req.body?.ean, user: req.user.id, membro, lista: listaDe(req) });
     res.json({ ok: true, id: r.id, existia: r.consolidado, consolidado: r.consolidado });
   } catch (e) {
@@ -908,7 +927,7 @@ listaRouter.post('/lote', async (req, res) => {
   try {
     const pool = getPool();
     const pedidos = Array.isArray(req.body?.produtos) ? req.body.produtos.slice(0, 20) : [];
-    const membro = await nomeMembroAtivo(pool);
+    const membro = await membroDoPedido(pool, req);
     const lista = listaDe(req);
     const adicionados = [];
     for (const p of pedidos) {
@@ -957,7 +976,7 @@ listaRouter.patch('/:id', async (req, res) => {
     }
     if ('marcado' in (req.body || {})) {
       if (req.body.marcado) {
-        const membro = await nomeMembroAtivo(getPool());
+        const membro = await membroDoPedido(getPool(), req);
         sets.push("estado = 'carrinho'", 'marcado_por = ?');
         vals.push(membro || req.user.id);
       } else {

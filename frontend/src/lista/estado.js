@@ -42,7 +42,7 @@ export function aplicar(itens, op, quem = null) {
       }
       return [...itens, {
         id: op.tmp, nome: op.nome, ean: op.ean || null, quantidade: op.quantidade || 1,
-        estado: 'ativo', grupo: grupoDeNome(op.nome) || 'outros', pendente: true,
+        estado: 'ativo', grupo: grupoDeNome(op.nome) || 'outros', pendente: true, adicionado_por: quem,
       }];
     }
     case 'inc':

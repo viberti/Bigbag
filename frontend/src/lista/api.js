@@ -5,7 +5,7 @@
 import { call, clearAuth } from '../api.js';
 import { logout } from '../auth/local.js';
 
-export { verificarSessao, autocompleteProduto, consultarProdutoEan, vozParaLista } from '../api.js';
+export { verificarSessao, autocompleteProduto, consultarProdutoEan, vozParaLista, listarPerfis } from '../api.js';
 export { login } from '../auth/local.js';
 
 const LISTA = 'simples';

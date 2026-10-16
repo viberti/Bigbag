@@ -53,13 +53,18 @@ html, body { margin: 0; background: #ffffff; }
   text-align: left; padding: 9px 6px 9px 20px; }
 .ls-check { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--tinta-3);
   display: grid; place-items: center; color: var(--acento-tinta); transition: background .15s, border-color .15s; }
-.ls-check.on { background: var(--acento); border-color: var(--acento); }
+.ls-check.on { background: var(--cor-risco, var(--acento)); border-color: var(--cor-risco, var(--acento)); }
 .ls-item-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .ls-nome { font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
 .ls-sub { font-size: 12.5px; color: var(--tinta-2); overflow-wrap: anywhere; }
 .ls-item.pendente .ls-nome::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px;
   border-radius: 50%; background: var(--acento); vertical-align: middle; opacity: .7; }
-.ls-item.feito .ls-nome { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--tinta-3); }
+.ls-item.feito .ls-nome { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: var(--cor-risco, var(--tinta-3)); color: var(--tinta-3); }
+/* quem ACRESCENTOU: barra fina à esquerda, na cor do membro (discreta) */
+.ls-item::after { content: ''; position: absolute; left: 6px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--cor-quem, transparent); opacity: .85; }
+.ls-legenda { display: flex; gap: 14px; padding: 10px 12px 6px; margin-top: 4px; border-top: 1px solid var(--linha); font-size: 13px; color: var(--tinta-2); }
+.ls-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.ls-legenda i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .ls-stepper { flex: none; display: flex; align-items: center; background: var(--sup); border-radius: 999px; height: 34px; }
 .ls-stepper button { width: 34px; height: 34px; display: grid; place-items: center; color: var(--tinta-2); border-radius: 50%; }
 .ls-stepper button:active { background: var(--linha); color: var(--tinta); }

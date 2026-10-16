@@ -70,8 +70,16 @@ export function ehOvoDuzia(nome) {
 }
 
 export function precoLista(it) {
-  // OVOS → preço por DÚZIA (o pack é a dúzia): mostra o preço pago/de mercado por pack, rotulado /dúzia.
-  if (ehOvoDuzia(it.nome)) { const p = it.preco_pago ?? it.melhor_preco ?? it.preco_mercado; return p != null ? `${eur(p)}/dúzia` : 'sem preço'; }
+  // OVOS → preço por DÚZIA = €/ovo × 12. Antes mostrava o preço do PACOTE rotulado "/dúzia" — mas o
+  // pacote mais barato por ovo era de 24 ("OVOS CLASSE M 24UN" 4,99 €) e saía "4,99 €/dúzia" (é 2,50).
+  // O €/ovo só vale se plausível (0,08–0,80 €): compras sem contagem no nome têm "€/un" = preço do
+  // pacote. Sem €/ovo fiável → preço do pacote SEM o rótulo de dúzia (não se sabe quantos tem).
+  if (ehOvoDuzia(it.nome)) {
+    const porOvo = it.unidade_base === 'un' ? (it.preco_mercado ?? it.melhor_preco) : null;
+    if (porOvo != null && porOvo >= 0.08 && porOvo <= 0.8) return `${eur(porOvo * 12)}/dúzia`;
+    const pacote = it.preco_pago ?? null;
+    return pacote != null ? eur(pacote) : 'sem preço';
+  }
   // €/base (€/kg) SÓ para itens vendidos a PESO (it.unidade = modo peso). Tudo o resto — EAN, embalado, OU
   // um kg-genérico em PACOTE FIXO (rúcula "EMB.100GR") — mostra o PREÇO DO PACOTE pago (facto do talão),
   // nunca €/kg. O €/kg de um pacote de 100 g ("9,9/kg") era enganador; o utilizador compra o pacote.

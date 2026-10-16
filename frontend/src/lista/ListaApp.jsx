@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   verificarSessao, login, obterLista, adicionar, adicionarLote, atualizar, remover, limpar, restaurar, concluir,
-  sair, sugestoes as sugestoesCadencia, habituais, autocompleteProduto, consultarProdutoEan, vozParaLista,
+  sair, sugestoes as sugestoesCadencia, habituais, listarPerfis, autocompleteProduto, consultarProdutoEan, vozParaLista,
 } from './api.js';
 import { enfileirar, aplicar, novaMedida } from './estado.js';
 import { resolverId } from '../listaOutbox.js';
@@ -17,6 +17,19 @@ import { t, detetarLocale } from '../i18n.js';
 import './lista.css';
 
 detetarLocale('pt-BR');
+
+// COR POR MEMBRO (discreta): barra fina à esquerda = quem acrescentou; círculo/risco = quem riscou.
+// Ordem estável por id do perfil. Paleta própria da Lista (não a do BigBag).
+const CORES_MEMBRO = ['#0ea5e9', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', '#14b8a6'];
+const semAc = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+// o meu membro (para a cor otimista): mesmo critério do servidor (membroDoUtilizador em routes/lista.js)
+function meuMembro(sessao, perfis) {
+  const local = semAc(String(sessao?.email || sessao?.id || '').split('@')[0]);
+  const cands = [sessao?.nome, sessao?.id].map(semAc).filter(Boolean);
+  return perfis.find((p) => cands.includes(semAc(p.nome)))?.nome
+    || perfis.find((p) => semAc(p.nome).length >= 3 && local.startsWith(semAc(p.nome)))?.nome
+    || (perfis.find((p) => p.ativo) || perfis[0])?.nome || null;
+}
 
 const K_FILA = 'lista_simples_fila';
 const K_CACHE = 'lista_simples_cache';
@@ -93,11 +106,12 @@ function Scanner({ onCodigo, onFechar }) {
 }
 
 /* ── Linha de um item ───────────────────────────────────────────────────── */
-function Item({ it, onMarcar, onMais, onMenos }) {
+function Item({ it, onMarcar, onMais, onMenos, corDe }) {
   const noCarrinho = it.estado === 'carrinho';
   const sub = noCarrinho ? null : [it.marca && limparMarca(it.marca), fmtTamanho(it.tamanho), precoLista(it)].filter(Boolean).join(' · ');
   return (
-    <li className={`ls-item ${noCarrinho ? 'feito' : ''} ${it.pendente ? 'pendente' : ''}`}>
+    <li className={`ls-item ${noCarrinho ? 'feito' : ''} ${it.pendente ? 'pendente' : ''}`}
+      style={{ '--cor-quem': corDe(it.adicionado_por), '--cor-risco': corDe(it.marcado_por) }}>
       <button className="ls-item-corpo" onClick={() => onMarcar(it, !noCarrinho)} aria-pressed={noCarrinho}>
         <span className={`ls-check ${noCarrinho ? 'on' : ''}`} aria-hidden="true">{noCarrinho && <Ico d={ICO.check} size={14} />}</span>
         <span className="ls-item-txt">
@@ -149,7 +163,15 @@ function Lista({ sessao, onSair }) {
   const enviando = useRef(false);
   const remapRef = useRef(ler(K_REMAP, {}));
   const gravador = useRef(null);
-  const quem = sessao?.nome || sessao?.email || null;
+  const [perfis, setPerfis] = useState([]);
+  useEffect(() => { listarPerfis().then((ps) => setPerfis(ps || [])).catch(() => {}); }, []);
+  const corMembro = useMemo(() => {
+    const m = new Map();
+    [...perfis].sort((a, b) => a.id - b.id).forEach((p, i) => m.set(semAc(p.nome), CORES_MEMBRO[i % CORES_MEMBRO.length]));
+    return m;
+  }, [perfis]);
+  const corDe = useCallback((nome) => corMembro.get(semAc(nome)) || undefined, [corMembro]); // sem membro → CSS cai no acento
+  const quem = meuMembro(sessao, perfis) || sessao?.nome || sessao?.email || null;
 
   const avisar = useCallback((txt, desfazer) => {
     setAviso({ txt, desfazer, k: Date.now() });
@@ -356,6 +378,11 @@ function Lista({ sessao, onSair }) {
               <button onClick={tirarRiscados} disabled={!carrinho.length}>{t('lista.tirarRiscados')}</button>
               <button onClick={esvaziar} disabled={!itens.length}>{t('lista.esvaziar')}</button>
               <button onClick={onSair}>{t('lista.sair')}</button>
+              {perfis.length > 1 && (
+                <div className="ls-legenda">
+                  {[...perfis].sort((x, y) => x.id - y.id).map((p) => <span key={p.id}><i style={{ background: corDe(p.nome) }} />{p.nome}</span>)}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -376,13 +403,13 @@ function Lista({ sessao, onSair }) {
         {grupos.map((g) => (
           <section key={g.s} className="ls-seccao">
             <h2>{g.s}</h2>
-            <ul>{g.itens.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} />)}</ul>
+            <ul>{g.itens.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} corDe={corDe} />)}</ul>
           </section>
         ))}
         {carrinho.length > 0 && (
           <section className="ls-seccao ls-carrinho">
             <h2>{t('lista.carrinho', { n: carrinho.length })}</h2>
-            <ul>{carrinho.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} />)}</ul>
+            <ul>{carrinho.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} corDe={corDe} />)}</ul>
           </section>
         )}
       </main>
