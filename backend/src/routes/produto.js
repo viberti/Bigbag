@@ -1,6 +1,7 @@
 // Identificar/enriquecer um produto: o utilizador envia FOTOS dos rótulos + (op.)
 // o EAN. Corre o VLM sobre as fotos E consulta o OFF pelo EAN, guarda e devolve
 // AMBOS — em ambiente de teste, para ver o que se obtém de cada fonte.
+import { formaGeral } from '../nomeGeral.js';
 import { juntarSugestoes } from '../sugestoesCasa.js';
 import { Router } from 'express';
 import multer from 'multer';
@@ -1155,7 +1156,11 @@ produtoRouter.get('/autocomplete', requireAuth, async (req, res) => {
          FROM lista_item li WHERE ${conds}
         GROUP BY LOWER(li.nome) ORDER BY dias DESC, ultima DESC LIMIT 6`,
       toks.flatMap((t) => [t, t]));
-    res.json({ sugestoes: juntarSugestoes(casa, catalogo) });
+    // forma GERAL (dono): o que entrou por código de barras traz o nome completo do produto
+    // ("Leite UHT Meio Gordo Continente", "24 OVOS Frescos") → "Leite UHT Meio Gordo", "Ovos Frescos"
+    const casaGeral = [];
+    for (const c of casa) casaGeral.push({ ...c, nome: await formaGeral(getPool(), c.nome) });
+    res.json({ sugestoes: juntarSugestoes(casaGeral, catalogo) });
   } catch (e) {
     console.error('[produto/autocomplete] erro:', e.message);
     res.json({ sugestoes: [] });

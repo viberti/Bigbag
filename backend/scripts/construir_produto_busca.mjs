@@ -3,8 +3,8 @@
 // off_full (4,5M). Genéricos = substantivo-cabeça por frequência + histórico da casa.
 //   sudo -u dev node --env-file=.env scripts/construir_produto_busca.mjs
 import { getPool } from '../src/db.js';
-import { normAlfa, singularizar, nomeSemMarca, marcaEhTipo } from '../src/normaliza/categoria.js';
-import { marcaDeterministica } from '../src/normaliza/marca.js';
+import { normAlfa, singularizar } from '../src/normaliza/categoria.js';
+import { formaGeral } from '../src/nomeGeral.js';
 
 const pool = getPool();
 const FONTES = ['continente', 'auchan', 'pingodoce', 'lidl', 'mercadona', 'lidl-fr'];
@@ -81,9 +81,7 @@ const [comprados] = await pool.query(`
 let nMulti = 0;
 for (const { nome, idas } of comprados) {
   if (!nome) continue;
-  const md = (await marcaDeterministica(pool, nome).catch(() => null))?.marca || null;
-  let geral = md && !marcaEhTipo(md) ? nomeSemMarca(nome, md) : nome;
-  geral = geral.replace(/\b\d+([.,]\d+)?\s*(x\s*\d+\s*)?(kg|g|gr|grs|ml|cl|l|lt|un|uni|unid)\b\.?/gi, '').replace(/\s{2,}/g, ' ').trim();
+  const geral = await formaGeral(pool, nome); // fonte única (src/nomeGeral.js)
   const pal = geral.split(/\s+/).filter(Boolean);
   if (pal.length < 2 || pal.length > 4) continue;
   const k = normAlfa(geral);

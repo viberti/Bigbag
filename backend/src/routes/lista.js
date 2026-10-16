@@ -3,6 +3,7 @@
 // updates otimistas. Cada item guarda quem o adicionou e quem o riscou (cor do
 // membro na UI). Preços: melhor preço unitário das ÚLTIMAS 3 compras do produto
 // (e onde), + último preço no mercado selecionado (?mercado=) quando existe.
+import { formaGeral } from '../nomeGeral.js';
 import { Router } from 'express';
 import { createHash } from 'crypto';
 import { requireAuth } from '../auth.js';
@@ -709,10 +710,7 @@ async function sugestoesCadencia(pool, lista) {
 // escreve-se "café" ou "café descafeinado", raramente "café descafeinado Nestlé" — a marca é
 // opcional. As sugestões vêm de nomes de SKU (com marca: "Iogurte Natural Oikos") → tira-se a
 // marca quando o detetor a reconhece com confiança (marcaPlausivelNoNome) e não é um TIPO.
-async function nomeGeral(pool, nome) {
-  const md = (await marcaDeterministica(pool, nome).catch(() => null))?.marca || null;
-  return md && !marcaEhTipo(md) ? nomeSemMarca(nome, md) : nome;
-}
+const nomeGeral = formaGeral; // fonte única: src/nomeGeral.js (marca + tamanhos + MAIÚSCULAS)
 // Generaliza e deduplica uma lista de nomes (o 1.º de cada forma geral fica, mantém a ordem).
 export async function generalizar(pool, itens, campo) {
   const vistos = new Set(); const out = [];
