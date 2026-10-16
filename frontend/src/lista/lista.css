@@ -46,9 +46,15 @@ html, body { margin: 0; background: #ffffff; }
 .ls-seccao h2 { position: sticky; top: 0; z-index: 1; margin: 0; padding: 14px 20px 6px; background: var(--bg);
   font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-3); }
 .ls-seccao ul { list-style: none; margin: 0; padding: 0; }
-.ls-item { position: relative; display: flex; align-items: center; gap: 4px; padding-right: 10px; min-height: 54px; }
+.ls-item { position: relative; overflow: hidden; touch-action: pan-y; }
+.ls-item-conteudo { position: relative; z-index: 1; display: flex; align-items: center; gap: 4px; padding-right: 10px;
+  min-height: 54px; background: var(--bg); will-change: transform; }
+/* fundo revelado ao deslizar para a esquerda */
+.ls-apagar-fundo { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 24px;
+  background: var(--perigo); color: #fff; }
+.ls-item:not(.a-deslizar) .ls-apagar-fundo { visibility: hidden; }
 /* separador a toda a largura, recuado até ao nome (estilo iOS) */
-.ls-item + .ls-item::before { content: ''; position: absolute; top: 0; left: 56px; right: 0; border-top: 1px solid var(--linha); }
+.ls-item + .ls-item::before { content: ''; position: absolute; z-index: 2; top: 0; left: 56px; right: 0; border-top: 1px solid var(--linha); }
 .ls-item-corpo { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 14px;
   text-align: left; padding: 9px 6px 9px 20px; }
 .ls-check { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--tinta-3);
@@ -61,7 +67,7 @@ html, body { margin: 0; background: #ffffff; }
   border-radius: 50%; background: var(--acento); vertical-align: middle; opacity: .7; }
 .ls-item.feito .ls-nome { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: var(--cor-risco, var(--tinta-3)); color: var(--tinta-3); }
 /* quem ACRESCENTOU: barra fina à esquerda, na cor do membro (discreta) */
-.ls-item::after { content: ''; position: absolute; left: 6px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--cor-quem, transparent); opacity: .85; }
+.ls-item-conteudo::after { content: ''; position: absolute; left: 6px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--cor-quem, transparent); opacity: .85; }
 .ls-legenda { display: flex; gap: 14px; padding: 10px 12px 6px; margin-top: 4px; border-top: 1px solid var(--linha); font-size: 13px; color: var(--tinta-2); }
 .ls-legenda span { display: inline-flex; align-items: center; gap: 6px; }
 .ls-legenda i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }

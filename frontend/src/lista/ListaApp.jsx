@@ -49,6 +49,7 @@ const ICO = {
   mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3',
   barras: 'M4 6v12M7 6v12M11 6v12M14 6v12M17 6v12M20 6v12',
   lista: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
+  lixo: 'M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   menos: 'M5 12h14',
 };
@@ -123,12 +124,46 @@ function Scanner({ onCodigo, onFechar }) {
 }
 
 /* ── Linha de um item ───────────────────────────────────────────────────── */
-function Item({ it, onMarcar, onMais, onMenos, corDe }) {
+// DESLIZAR PARA APAGAR (dono 2026-10-16): arrastar o item para a ESQUERDA revela o fundo vermelho;
+// passado o limite (25% da largura, mín. 80 px) o item sai (com Desfazer). Eventos de ponteiro +
+// `touch-action: pan-y`: o deslize vertical continua a ser scroll; só o horizontal é nosso.
+function useDeslizarApagar(onApagar) {
+  const [dx, setDx] = useState(0);
+  const [aArrastar, setAArrastar] = useState(false);
+  const g = useRef({ x0: 0, y0: 0, ativo: false, horiz: false, larg: 300, arrastou: false });
+  const onPointerDown = (e) => {
+    if (e.target.closest('.ls-stepper')) return; // os botões −/+ não iniciam o gesto
+    g.current = { x0: e.clientX, y0: e.clientY, ativo: true, horiz: false, larg: e.currentTarget.offsetWidth || 300, arrastou: false };
+  };
+  const onPointerMove = (e) => {
+    const r = g.current; if (!r.ativo) return;
+    const ddx = e.clientX - r.x0, ddy = e.clientY - r.y0;
+    if (!r.horiz) {
+      if (Math.abs(ddy) > 10 && Math.abs(ddy) > Math.abs(ddx)) { r.ativo = false; return; } // é scroll
+      if (Math.abs(ddx) > 10 && Math.abs(ddx) > Math.abs(ddy)) { r.horiz = true; setAArrastar(true); e.currentTarget.setPointerCapture?.(e.pointerId); }
+    }
+    if (r.horiz) { r.arrastou = true; setDx(Math.min(0, ddx)); }
+  };
+  const fim = () => {
+    const r = g.current; if (!r.ativo) return; r.ativo = false; setAArrastar(false);
+    if (r.horiz && -dxRef.current > Math.max(80, r.larg * 0.25)) { setDx(-r.larg); setTimeout(onApagar, 160); }
+    else setDx(0);
+  };
+  const dxRef = useRef(0); dxRef.current = dx;
+  // depois de um arrasto, o "click" que o browser dispara não pode riscar o item
+  const engolirClique = (e) => { if (g.current.arrastou) { e.preventDefault(); e.stopPropagation(); g.current.arrastou = false; } };
+  return { dx, aArrastar, handlers: { onPointerDown, onPointerMove, onPointerUp: fim, onPointerCancel: fim, onClickCapture: engolirClique } };
+}
+
+function Item({ it, onMarcar, onMais, onMenos, onApagar, corDe }) {
   const noCarrinho = it.estado === 'carrinho';
+  const { dx, aArrastar, handlers } = useDeslizarApagar(() => onApagar(it));
   const sub = noCarrinho ? null : [it.marca && limparMarca(it.marca), fmtTamanho(it.tamanho), precoLista(it)].filter(Boolean).join(' · ');
   return (
-    <li className={`ls-item ${noCarrinho ? 'feito' : ''} ${it.pendente ? 'pendente' : ''}`}
-      style={{ '--cor-quem': corDe(it.adicionado_por), '--cor-risco': corDe(it.marcado_por) }}>
+    <li className={`ls-item ${noCarrinho ? 'feito' : ''} ${it.pendente ? 'pendente' : ''} ${dx ? 'a-deslizar' : ''}`}
+      style={{ '--cor-quem': corDe(it.adicionado_por), '--cor-risco': corDe(it.marcado_por) }} {...handlers}>
+      <span className="ls-apagar-fundo" aria-hidden="true"><Ico d={ICO.lixo} size={20} /></span>
+      <span className="ls-item-conteudo" style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: aArrastar ? 'none' : 'transform .18s' }}>
       <button className="ls-item-corpo" onClick={() => onMarcar(it, !noCarrinho)} aria-pressed={noCarrinho}>
         <span className={`ls-check ${noCarrinho ? 'on' : ''}`} aria-hidden="true">{noCarrinho && <Ico d={ICO.check} size={14} />}</span>
         <span className="ls-item-txt">
@@ -145,6 +180,7 @@ function Item({ it, onMarcar, onMais, onMenos, corDe }) {
             <button onClick={() => onMais(it)} aria-label="+"><Ico d={ICO.plus} size={16} /></button>
           </span>
         )}
+      </span>
     </li>
   );
 }
@@ -297,7 +333,10 @@ function Lista({ sessao, onSair }) {
       else fazer({ op: 'inc', id: it.id, inc: -1 });
       return;
     }
-    // "−" no mínimo = tirar da lista (com Desfazer)
+    removerItem(it); // "−" no mínimo = tirar da lista
+  }
+  // tirar da lista com Desfazer — usado pelo "−" no mínimo e pelo deslizar para apagar
+  function removerItem(it) {
     fazer({ op: 'remover', id: it.id });
     if (!ehTmp(it.id)) {
       avisar(t('lista.removido', { nome: nomeTalao(it.nome) }), async () => {
@@ -439,13 +478,13 @@ function Lista({ sessao, onSair }) {
         {grupos.map((g) => (
           <section key={g.s} className="ls-seccao">
             <h2>{g.s}</h2>
-            <ul>{g.itens.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} corDe={corDe} />)}</ul>
+            <ul>{g.itens.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} onApagar={removerItem} corDe={corDe} />)}</ul>
           </section>
         ))}
         {carrinho.length > 0 && (
           <section className="ls-seccao ls-carrinho">
             <h2>{t('lista.carrinho', { n: carrinho.length })}</h2>
-            <ul>{carrinho.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} corDe={corDe} />)}</ul>
+            <ul>{carrinho.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} onApagar={removerItem} corDe={corDe} />)}</ul>
           </section>
         )}
       </main>
