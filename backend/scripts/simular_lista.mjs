@@ -36,7 +36,10 @@ async function autocomplete(q) {
   const limpa = (t) => t.replace(/[^a-z0-9áàâãéêíóôõúüç]/gi, '');
   const toks = q.toLowerCase().split(/\s+/).map(limpa).filter(Boolean).slice(0, 6);
   if (!toks.length) return [];
-  const bool = toks.map((t, i) => `+${t}${i === toks.length - 1 ? '*' : ''}`).join(' ');
+  // última palavra: PREFIXO como escrita OU a forma SINGULAR como palavra inteira ('cereais' → +(cereais* cereal)
+  // apanha o genérico 'Cereal'; inteira e não prefixo p/ 'maçãs'→'maca' não trazer 'macarrão')
+  const singular = (t) => singularizar(normAlfa(t));
+  const bool = toks.map((t, i) => (i < toks.length - 1 ? `+${t}` : (singular(t) && singular(t) !== normAlfa(t) ? `+(${t}* ${singular(t)})` : `+${t}*`))).join(' ');
   const last = toks[toks.length - 1];
   const [rows] = await pool.query(
     `SELECT generico, nome, marca, tamanho, ean,

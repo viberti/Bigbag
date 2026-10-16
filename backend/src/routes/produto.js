@@ -1115,7 +1115,10 @@ produtoRouter.get('/autocomplete', requireAuth, async (req, res) => {
     const limpa = (t) => t.replace(/[^a-z0-9áàâãéêíóôõúüç]/gi, '');
     const toks = q.split(/\s+/).map(limpa).filter((t) => t.length >= 1).slice(0, 6);
     if (!toks.length || q.length < 2) return res.json({ sugestoes: [] });
-    const bool = toks.map((t, i) => `+${t}${i === toks.length - 1 ? '*' : ''}`).join(' ');
+    // última palavra: PREFIXO como escrita OU a forma SINGULAR como palavra inteira ('cereais' → +(cereais* cereal)
+  // apanha o genérico 'Cereal'; inteira e não prefixo p/ 'maçãs'→'maca' não trazer 'macarrão')
+  const singular = (t) => singularizar(normAlfa(t));
+  const bool = toks.map((t, i) => (i < toks.length - 1 ? `+${t}` : (singular(t) && singular(t) !== normAlfa(t) ? `+(${t}* ${singular(t)})` : `+${t}*`))).join(' ');
     const last = toks[toks.length - 1];
     const wb = `\\b${last}\\b`; // palavra inteira (REGEXP, word boundary)
     const food = modo === 'lista' ? "+ (product_type='food')*30" : '';
