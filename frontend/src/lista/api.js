@@ -6,7 +6,7 @@ import { call, clearAuth } from '../api.js';
 import { logout } from '../auth/local.js';
 
 export { verificarSessao, autocompleteProduto, consultarProdutoEan, vozParaLista, listarPerfis } from '../api.js';
-export { login } from '../auth/local.js';
+export { login, setToken } from '../auth/local.js';
 
 const LISTA = 'simples';
 // Sair: limpa o token E a credencial Basic antiga (senão uma sessão legada sobrevivia ao "Sair").

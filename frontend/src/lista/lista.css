@@ -160,3 +160,5 @@ html, body { margin: 0; background: #ffffff; }
 .ls-quem-perfil:active .ls-quem-avatar { transform: scale(.97); }
 .ls-quem-nome { font-size: 17px; font-weight: 600; color: var(--tinta-2); }
 .ls-quem-perfil:hover .ls-quem-nome { color: var(--tinta); }
+.ls-link { margin-top: 18px; font-size: 14px; color: var(--tinta-3); text-decoration: underline; text-underline-offset: 3px; }
+.ls-login p { max-width: 300px; line-height: 1.45; }

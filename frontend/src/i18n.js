@@ -361,6 +361,8 @@ const STRINGS = {
     'lista.menu': 'Mais opções',
     'lista.sair': 'Sair',
     'lista.quem': 'Quem está usando?',
+    'lista.semAcesso': 'Esta lista é da casa. Abra neste telemóvel o link de acesso que recebeu.',
+    'lista.entrarComConta': 'Entrar com conta BigBag',
     'lista.trocarPessoa': 'Trocar de pessoa',
     'lista.loginTitulo': 'Lista de compras',
     'lista.loginSub': 'Entre com sua conta BigBag.',

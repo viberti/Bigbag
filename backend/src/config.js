@@ -49,6 +49,9 @@ export const config = {
     // Auth PRÓPRIA (email+senha → JWT nosso, HS256). Segredo só no .env; sem isto o login não assina.
     jwtSecret: process.env.AUTH_JWT_SECRET || '',
     tokenTtl: process.env.AUTH_TOKEN_TTL || '30d',
+    // LINK DE ACESSO DA CASA à app Lista (sem conta). Versão em vigor: mudar no .env ANULA todos os
+    // links anteriores (ex.: um link que se perdeu) — scripts/convite_lista.mjs gera o novo.
+    listaConviteVersao: String(process.env.LISTA_CONVITE_VERSAO || '1'),
     // Test-auth (Basic) — rede de segurança para os e2e (ENABLE_TEST_AUTH=true). Off em produção.
     enableTestAuth: String(process.env.ENABLE_TEST_AUTH || '').toLowerCase() === 'true',
     testUsers: parseTestUsers(process.env.TEST_USERS),

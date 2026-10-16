@@ -40,8 +40,28 @@ async function checkBearer(req) {
   if (!header.startsWith('Bearer ') || !config.auth.jwtSecret) return null;
   try {
     const { payload } = await jwtVerify(header.slice(7).trim(), segredo());
-    return { email: payload.email || payload.sub, nome: payload.nome || null };
+    return { email: payload.email || payload.sub, nome: payload.nome || null, ambito: payload.ambito || null, v: payload.v || null };
   } catch { return null; } // assinatura/expiração inválidas
+}
+
+// ── LINK DE ACESSO DA CASA à app Lista (dono 2026-10-16: "não quero entrar com a conta do
+// BigBag; faz a escolha como a Netflix"). Um token de ÂMBITO 'lista', aberto UMA vez por
+// telemóvel (vai no #fragmento do link → nunca chega aos logs do servidor) e guardado lá; depois
+// a app abre direto no "Quem está usando?". Só abre as rotas da LISTA (não talões/saúde/admin) e
+// é anulável: a versão (`v`) tem de bater com LISTA_CONVITE_VERSAO.
+export const ROTAS_LISTA = [
+  ['GET', /^\/api\/me$/], ['*', /^\/api\/lista(\/|$|\?)/], ['GET', /^\/api\/perfil(\?|$)/],
+  ['GET', /^\/api\/produto\/(autocomplete|consultar)(\?|$)/], ['POST', /^\/api\/voz\/lista$/],
+];
+export function rotaPermitidaLista(metodo, caminho) {
+  const c = String(caminho || '').split('?')[0];
+  return ROTAS_LISTA.some(([m, re]) => (m === '*' || m === metodo) && re.test(c));
+}
+export async function assinarConviteLista() {
+  if (!config.auth.jwtSecret) throw new Error('AUTH_JWT_SECRET em falta');
+  return new SignJWT({ ambito: 'lista', v: config.auth.listaConviteVersao })
+    .setProtectedHeader({ alg: 'HS256' }).setSubject('casa-lista').setIssuedAt().setExpirationTime('3650d')
+    .sign(segredo());
 }
 
 // PAÍS+LOCALE do utilizador (cacheado): resolve por email na tabela `usuario`; cria a
@@ -85,6 +105,12 @@ function checkBasic(req) {
 export async function requireAuth(req, res, next) {
   // 1) o nosso JWT (login email+senha)
   const b = await checkBearer(req);
+  if (b && b.ambito === 'lista') {
+    if (String(b.v) !== config.auth.listaConviteVersao) return res.status(401).json({ erro: 'Link de acesso anulado' });
+    if (!rotaPermitidaLista(req.method, req.originalUrl)) return res.status(403).json({ erro: 'Fora do âmbito da lista' });
+    req.user = { id: 'casa-lista', email: null, nome: null, via: 'lista', ...(await resolveLocale(null)) };
+    return next();
+  }
   if (b && b.email) {
     req.user = { id: b.email, email: b.email, nome: b.nome || null, via: 'local', ...(await resolveLocale(b.email)) };
     return next();

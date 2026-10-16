@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   verificarSessao, login, obterLista, adicionar, adicionarLote, atualizar, remover, limpar, restaurar, concluir,
-  sair, sugestoes as sugestoesCadencia, habituais, listarPerfis, membroGuardado, guardarMembro, autocompleteProduto, consultarProdutoEan, vozParaLista,
+  setToken, sair, sugestoes as sugestoesCadencia, habituais, listarPerfis, membroGuardado, guardarMembro, autocompleteProduto, consultarProdutoEan, vozParaLista,
 } from './api.js';
 import { enfileirar, aplicar, novaMedida } from './estado.js';
 import { resolverId } from '../listaOutbox.js';
@@ -17,6 +17,15 @@ import { t, detetarLocale } from '../i18n.js';
 import './lista.css';
 
 detetarLocale('pt-BR');
+
+// LINK DE ACESSO DA CASA (#casa=<token>, gerado por scripts/convite_lista.mjs): abre-se UMA vez neste
+// telemóvel; o token fica guardado e o endereço é limpo (o fragmento nunca vai ao servidor).
+(function lerConvite() {
+  const m = /[#&]casa=([^&]+)/.exec(window.location.hash || '');
+  if (!m) return;
+  setToken(decodeURIComponent(m[1]));
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+}());
 
 // COR POR MEMBRO (discreta): barra fina à esquerda = quem acrescentou; círculo/risco = quem riscou.
 // Ordem estável por id do perfil. Paleta própria da Lista (não a do BigBag).
@@ -58,6 +67,20 @@ const Ico = ({ d, size = 22 }) => (
     <path d={d} />
   </svg>
 );
+
+/* ── Sem acesso: pede o link da casa (o login fica só como alternativa discreta) ── */
+function SemAcesso({ onEntrar }) {
+  const [comConta, setComConta] = useState(false);
+  if (comConta) return <Login onEntrar={onEntrar} />;
+  return (
+    <div className="ls ls-login">
+      <img src="/lista-icons/lista-192.png" alt="" width="72" height="72" />
+      <h1>{t('lista.loginTitulo')}</h1>
+      <p>{t('lista.semAcesso')}</p>
+      <button className="ls-link" onClick={() => setComConta(true)}>{t('lista.entrarComConta')}</button>
+    </div>
+  );
+}
 
 /* ── Login (mesma conta do BigBag) ─────────────────────────────────────── */
 function Login({ onEntrar }) {
@@ -193,7 +216,7 @@ export default function ListaApp() {
   }, []);
   useEffect(() => { if (sessao?.moeda) setMoeda(sessao.moeda); }, [sessao]);
   if (sessao === undefined) return <div className="ls ls-carregar">…</div>;
-  if (!sessao) return <Login onEntrar={setSessao} />;
+  if (!sessao) return <SemAcesso onEntrar={setSessao} />;
   return <Lista sessao={sessao} onSair={() => { sair(); setSessao(null); }} />;
 }
 
@@ -267,7 +290,7 @@ function Lista({ sessao, onSair }) {
           else if (op.op === 'remover') await remover(id);
           else if (op.op === 'concluir') await concluir();
         } catch (e) {
-          if (e?.message === '401' || e?.message === '403') { onSair(); return; }
+          if (e?.message === '401') { onSair(); return; }
           if (/\s4\d\d$/.test(e?.message || '')) { /* pedido inválido → descarta e segue */ }
           else { setOnline(false); return; } // rede/5xx → tenta mais tarde
         }
@@ -283,7 +306,7 @@ function Lista({ sessao, onSair }) {
       // da outra pessoa ficava escondida até haver outra alteração no servidor
       if (!filaRef.current.length) { etag.current = r.etag; setItens(r.itens || []); } // não pisar mudanças locais por enviar
     } catch (e) {
-      if (e?.message === '401' || e?.message === '403') onSair(); else setOnline(false);
+      if (e?.message === '401') onSair(); else setOnline(false);
     } finally { enviando.current = false; }
   }, [onSair]);
 
@@ -452,7 +475,7 @@ function Lista({ sessao, onSair }) {
               <button onClick={tirarRiscados} disabled={!carrinho.length}>{t('lista.tirarRiscados')}</button>
               <button onClick={esvaziar} disabled={!itens.length}>{t('lista.esvaziar')}</button>
               {perfis.length > 1 && <button onClick={() => { setMenu(false); escolherMembro(null); }}>{t('lista.trocarPessoa')}</button>}
-              <button onClick={onSair}>{t('lista.sair')}</button>
+              {sessao?.via !== 'lista' && <button onClick={onSair}>{t('lista.sair')}</button>} {/* com o link da casa não há 'sair' */}
               {perfis.length > 1 && (
                 <div className="ls-legenda">
                   {[...perfis].sort((x, y) => x.id - y.id).map((p) => <span key={p.id}><i style={{ background: corDe(p.nome) }} />{p.nome}</span>)}
