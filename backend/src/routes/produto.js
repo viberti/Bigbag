@@ -1127,13 +1127,13 @@ produtoRouter.get('/autocomplete', requireAuth, async (req, res) => {
       `SELECT generico, nome, marca, tamanho, ean, tem_nutricao,
               ( (nome REGEXP ?)*100 + (LOWER(nome) LIKE CONCAT(?, '%'))*40
                 + generico*1000 ${food} + LEAST(popularidade, 50)
-                + (LOWER(nome) = ?)*300 - LEAST(CHAR_LENGTH(nome), 60) ) AS score
+                + (LOWER(nome) = ? OR LOWER(nome) = ?)*300 - LEAST(CHAR_LENGTH(nome), 60) ) AS score
          FROM produto_busca
         WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE)
           AND (generico = 1 OR popularidade > 0)
         ORDER BY score DESC, MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) DESC
         LIMIT 8`,
-      [wb, last, q, bool, bool]);
+      [wb, last, q, normAlfa(q).split(' ').map(singularizar).join(' '), bool, bool]); // plural escrito casa o genérico singular ('cereais' → 'Cereal')
     res.json({ sugestoes: rows.map((r) => ({
       generico: !!r.generico, nome: r.nome, marca: r.marca || null,
       tamanho: r.tamanho || null, ean: r.ean || null, tem_nutricao: !!r.tem_nutricao,

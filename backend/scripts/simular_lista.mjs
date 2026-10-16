@@ -9,6 +9,7 @@
 import { getPool, closePool } from '../src/db.js';
 import { resolverItensLista, generalizar } from '../src/routes/lista.js';
 import { produtos_habituais } from '../src/queries.js';
+import { normAlfa, singularizar } from '../src/normaliza/categoria.js';
 import { secDe, fmtTamanho, precoLista, qtdTxt } from '../../frontend/src/listaFormato.js';
 import { limparMarca, nomeTalao } from '../../frontend/src/produtoDisplay.js';
 
@@ -39,10 +40,10 @@ async function autocomplete(q) {
   const last = toks[toks.length - 1];
   const [rows] = await pool.query(
     `SELECT generico, nome, marca, tamanho, ean,
-            ( (nome REGEXP ?)*100 + (LOWER(nome) LIKE CONCAT(?, '%'))*40 + generico*1000 + (product_type='food')*30 + LEAST(popularidade, 50) + (LOWER(nome) = ?)*300 - LEAST(CHAR_LENGTH(nome), 60) ) AS score
+            ( (nome REGEXP ?)*100 + (LOWER(nome) LIKE CONCAT(?, '%'))*40 + generico*1000 + (product_type='food')*30 + LEAST(popularidade, 50) + (LOWER(nome) = ? OR LOWER(nome) = ?)*300 - LEAST(CHAR_LENGTH(nome), 60) ) AS score
        FROM produto_busca WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) AND (generico = 1 OR popularidade > 0)
       ORDER BY score DESC, MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) DESC LIMIT 8`,
-    [`\\b${last}\\b`, last, q.toLowerCase().trim(), bool, bool]);
+    [`\\b${last}\\b`, last, q.toLowerCase().trim(), normAlfa(q).split(' ').map(singularizar).join(' '), bool, bool]);
   return rows;
 }
 for (const q of ESCRITOS) {
