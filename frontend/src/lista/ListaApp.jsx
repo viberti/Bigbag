@@ -28,6 +28,23 @@ const ehTmp = (id) => String(id).startsWith('tmp');
 const utilizador = (r) => r?.user || r || null; // /api/me → { user }
 const naRede = () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false);
 
+/* ── Ícones (SVG em linha, traço 2, 24×24) ──────────────────────────────── */
+const ICO = {
+  mais: 'M12 5.5v.01M12 12v.01M12 18.5v.01',
+  plus: 'M12 5v14M5 12h14',
+  seta: 'M12 19V5M5 12l7-7 7 7',
+  mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3',
+  barras: 'M4 6v12M7 6v12M11 6v12M14 6v12M17 6v12M20 6v12',
+  lista: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  menos: 'M5 12h14',
+};
+const Ico = ({ d, size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={d} />
+  </svg>
+);
+
 /* ── Login (mesma conta do BigBag) ─────────────────────────────────────── */
 function Login({ onEntrar }) {
   const [email, setEmail] = useState(''); const [senha, setSenha] = useState('');
@@ -82,7 +99,7 @@ function Item({ it, onMarcar, onMais, onMenos }) {
   return (
     <li className={`ls-item ${noCarrinho ? 'feito' : ''} ${it.pendente ? 'pendente' : ''}`}>
       <button className="ls-item-corpo" onClick={() => onMarcar(it, !noCarrinho)} aria-pressed={noCarrinho}>
-        <span className={`ls-check ${noCarrinho ? 'on' : ''}`} aria-hidden="true" />
+        <span className={`ls-check ${noCarrinho ? 'on' : ''}`} aria-hidden="true">{noCarrinho && <Ico d={ICO.check} size={14} />}</span>
         <span className="ls-item-txt">
           <span className="ls-nome">{nomeTalao(it.nome)}</span>
           {sub && <span className="ls-sub">{sub}</span>}
@@ -92,9 +109,9 @@ function Item({ it, onMarcar, onMais, onMenos }) {
         ? <span className="ls-qtd-fixa">{qtdTxt(it)}</span>
         : (
           <span className="ls-stepper">
-            <button onClick={() => onMenos(it)} aria-label="−">−</button>
+            <button onClick={() => onMenos(it)} aria-label="−"><Ico d={ICO.menos} size={16} /></button>
             <span className="ls-qtd">{qtdTxt(it)}</span>
-            <button onClick={() => onMais(it)} aria-label="+">+</button>
+            <button onClick={() => onMais(it)} aria-label="+"><Ico d={ICO.plus} size={16} /></button>
           </span>
         )}
     </li>
@@ -126,6 +143,7 @@ function Lista({ sessao, onSair }) {
   const [scan, setScan] = useState(false);
   const [eanPendente, setEanPendente] = useState(null); // scan sem nome → o utilizador escreve
   const [menu, setMenu] = useState(false);
+  const [foco, setFoco] = useState(false); // barra de adicionar focada → mostra as sugestões
   const etag = useRef(null);
   const filaRef = useRef(fila); filaRef.current = fila;
   const enviando = useRef(false);
@@ -321,20 +339,25 @@ function Lista({ sessao, onSair }) {
     return out.slice(0, 10);
   }, [cad, hab, itens]);
 
+  const mostrarSugestoes = !texto && talvez.length > 0 && (foco || !itens.length);
+  const escolher = (nome, quantidade = 1, ean = null) => {
+    juntar(nome, quantidade, ean); setTexto(''); setAc([]); setEanPendente(null);
+  };
   return (
     <div className="ls">
       <header className="ls-topo">
-        <div>
-          <h1>{t('lista.titulo')}</h1>
-          <span className="ls-conta">{t('lista.contagem', { n: ativos.length })}</span>
-        </div>
-        <button className="ls-icone" aria-label={t('lista.menu')} onClick={() => setMenu((m) => !m)}>⋮</button>
+        <h1>{t('lista.titulo')}</h1>
+        {ativos.length > 0 && <span className="ls-conta">{ativos.length}</span>}
+        <button className="ls-icone ls-icone-plano" aria-label={t('lista.menu')} onClick={() => setMenu((m) => !m)}><Ico d={ICO.mais} /></button>
         {menu && (
-          <div className="ls-menu" onClick={(e) => e.stopPropagation()}>
-            <button onClick={tirarRiscados} disabled={!carrinho.length}>{t('lista.tirarRiscados')}</button>
-            <button onClick={esvaziar} disabled={!itens.length}>{t('lista.esvaziar')}</button>
-            <button onClick={onSair}>{t('lista.sair')}</button>
-          </div>
+          <>
+            <div className="ls-menu-fundo" onClick={() => setMenu(false)} />
+            <div className="ls-menu" role="menu">
+              <button onClick={tirarRiscados} disabled={!carrinho.length}>{t('lista.tirarRiscados')}</button>
+              <button onClick={esvaziar} disabled={!itens.length}>{t('lista.esvaziar')}</button>
+              <button onClick={onSair}>{t('lista.sair')}</button>
+            </div>
+          </>
         )}
       </header>
 
@@ -342,70 +365,72 @@ function Lista({ sessao, onSair }) {
         <div className="ls-estado">{!online ? t('lista.offline') : t('lista.pendentes', { n: fila.length })}</div>
       )}
 
-      <form className="ls-entrada" onSubmit={submeter}>
-        <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={t('lista.placeholder')}
-          enterKeyHint="done" autoComplete="off" aria-label={t('lista.placeholder')} />
-        <button type="button" className={`ls-icone ${voz ? 'ativo' : ''}`} onClick={alternarVoz} aria-label={t('lista.voz')} disabled={voz === 'pensar'}>
-          {voz === 'pensar' ? '…' : '🎤'}
-        </button>
-        <button type="button" className="ls-icone" onClick={() => setScan(true)} aria-label={t('lista.scan')}>▥</button>
-        {texto.trim() && <button className="ls-btn ls-btn-mini">{t('lista.adicionar')}</button>}
-      </form>
-      {voz && <div className="ls-estado ls-voz">{voz === 'ouvir' ? t('lista.vozAOuvir') : t('lista.vozAPensar')}</div>}
+      <main className="ls-corpo">
+        {!itens.length && (
+          <div className="ls-vazia">
+            <span className="ls-vazia-ico"><Ico d={ICO.lista} size={30} /></span>
+            <p>{t('lista.vazia')}</p>
+            <small>{t('lista.vaziaDica')}</small>
+          </div>
+        )}
+        {grupos.map((g) => (
+          <section key={g.s} className="ls-seccao">
+            <h2>{g.s}</h2>
+            <ul>{g.itens.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} />)}</ul>
+          </section>
+        ))}
+        {carrinho.length > 0 && (
+          <section className="ls-seccao ls-carrinho">
+            <h2>{t('lista.carrinho', { n: carrinho.length })}</h2>
+            <ul>{carrinho.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} />)}</ul>
+          </section>
+        )}
+      </main>
 
-      {ac.length > 0 && (
-        <ul className="ls-ac">
-          {ac.map((s) => (
-            <li key={`${s.nome}|${s.ean || ''}`}>
-              <button onClick={() => { juntar(s.nome, 1, s.ean || null); setTexto(''); setAc([]); setEanPendente(null); }}>
-                <span className={s.generico ? 'gen' : ''}>{s.nome}</span>
-                {(s.marca || s.tamanho) && <small>{[s.marca && limparMarca(s.marca), fmtTamanho(s.tamanho)].filter(Boolean).join(' · ')}</small>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {!texto && talvez.length > 0 && (
-        <section className="ls-talvez">
-          <h2>{t('lista.talvez')}</h2>
-          <div className="ls-chips">
+      <div className="ls-base">
+        {aviso && (
+          <div className="ls-aviso" key={aviso.k}>
+            <span>{aviso.txt}</span>
+            {aviso.desfazer && <button onClick={() => { const f = aviso.desfazer; setAviso(null); f(); }}>{t('lista.desfazer')}</button>}
+          </div>
+        )}
+        {ac.length > 0 && (
+          <ul className="ls-ac">
+            {ac.map((s) => (
+              <li key={`${s.nome}|${s.ean || ''}`}>
+                <button onMouseDown={(e) => e.preventDefault()} onClick={() => escolher(s.nome, 1, s.ean || null)}>
+                  <span className={s.generico ? 'gen' : ''}>{s.nome}</span>
+                  {(s.marca || s.tamanho) && <small>{[s.marca && limparMarca(s.marca), fmtTamanho(s.tamanho)].filter(Boolean).join(' · ')}</small>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {mostrarSugestoes && (
+          <div className="ls-chips" aria-label={t('lista.talvez')}>
             {talvez.map((s) => (
-              <button key={s.nome} className={s.cad ? 'cad' : ''} onClick={() => juntar(s.nome, s.quantidade)}>
-                + {nomeTalao(s.nome)}{s.quantidade > 1 ? ` ×${s.quantidade}` : ''}
+              <button key={s.nome} className={s.cad ? 'cad' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => juntar(s.nome, s.quantidade)}>
+                <Ico d={ICO.plus} size={14} /> {nomeTalao(s.nome)}{s.quantidade > 1 ? ` ×${s.quantidade}` : ''}
               </button>
             ))}
           </div>
-        </section>
-      )}
-
-      {!itens.length && (
-        <div className="ls-vazia">
-          <p>{t('lista.vazia')}</p>
-          <small>{t('lista.vaziaDica')}</small>
-        </div>
-      )}
-
-      {grupos.map((g) => (
-        <section key={g.s} className="ls-seccao">
-          <h2>{g.s}</h2>
-          <ul>{g.itens.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} />)}</ul>
-        </section>
-      ))}
-
-      {carrinho.length > 0 && (
-        <section className="ls-seccao ls-carrinho">
-          <h2>{t('lista.carrinho', { n: carrinho.length })}</h2>
-          <ul>{carrinho.map((it) => <Item key={it.id} it={it} onMarcar={marcar} onMais={mais} onMenos={menos} />)}</ul>
-        </section>
-      )}
-
-      {aviso && (
-        <div className="ls-aviso" key={aviso.k}>
-          <span>{aviso.txt}</span>
-          {aviso.desfazer && <button onClick={() => { const f = aviso.desfazer; setAviso(null); f(); }}>{t('lista.desfazer')}</button>}
-        </div>
-      )}
+        )}
+        {voz && <div className="ls-voz">{voz === 'ouvir' ? t('lista.vozAOuvir') : t('lista.vozAPensar')}</div>}
+        <form className="ls-entrada" onSubmit={submeter}>
+          <span className="ls-entrada-ico"><Ico d={ICO.plus} /></span>
+          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={t('lista.placeholder')}
+            onFocus={() => setFoco(true)} onBlur={() => setFoco(false)}
+            enterKeyHint="done" autoComplete="off" aria-label={t('lista.placeholder')} />
+          {texto.trim()
+            ? <button className="ls-icone ls-icone-cheio" aria-label={t('lista.adicionar')}><Ico d={ICO.seta} /></button>
+            : (
+              <>
+                <button type="button" className={`ls-icone ${voz ? 'ativo' : ''}`} onClick={alternarVoz} aria-label={t('lista.voz')} disabled={voz === 'pensar'}><Ico d={ICO.mic} /></button>
+                <button type="button" className="ls-icone" onClick={() => setScan(true)} aria-label={t('lista.scan')}><Ico d={ICO.barras} /></button>
+              </>
+            )}
+        </form>
+      </div>
       {scan && <Scanner onCodigo={aoCodigo} onFechar={() => setScan(false)} />}
     </div>
   );
