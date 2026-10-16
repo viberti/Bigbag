@@ -20,12 +20,16 @@ detetarLocale('pt-BR');
 
 // LINK DE ACESSO DA CASA (#casa=<token>, gerado por scripts/convite_lista.mjs): abre-se UMA vez neste
 // telemóvel; o token fica guardado e o endereço é limpo (o fragmento nunca vai ao servidor).
-(function lerConvite() {
+function lerConvite() {
   const m = /[#&]casa=([^&]+)/.exec(window.location.hash || '');
-  if (!m) return;
+  if (!m) return false;
   setToken(decodeURIComponent(m[1]));
   window.history.replaceState(null, '', window.location.pathname + window.location.search);
-}());
+  return true;
+}
+lerConvite();
+// app já aberta e só o #fragmento mudou (o browser não recarrega) → lê o link e recarrega
+window.addEventListener('hashchange', () => { if (lerConvite()) window.location.reload(); });
 
 // COR POR MEMBRO (discreta): barra fina à esquerda = quem acrescentou; círculo/risco = quem riscou.
 // Ordem estável por id do perfil. Paleta própria da Lista (não a do BigBag).
