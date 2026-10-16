@@ -712,10 +712,11 @@ async function sugestoesCadencia(pool, lista) {
 // marca quando o detetor a reconhece com confiança (marcaPlausivelNoNome) e não é um TIPO.
 const nomeGeral = formaGeral; // fonte única: src/nomeGeral.js (marca + tamanhos + MAIÚSCULAS)
 // Generaliza e deduplica uma lista de nomes (o 1.º de cada forma geral fica, mantém a ordem).
-export async function generalizar(pool, itens, campo) {
+// `escrito(x)` = true → o nome foi ESCRITO pela casa: fica como está (só entra na deduplicação).
+export async function generalizar(pool, itens, campo, escrito = () => false) {
   const vistos = new Set(); const out = [];
   for (const x of itens) {
-    const g = await nomeGeral(pool, x[campo]);
+    const g = escrito(x) ? x[campo] : await nomeGeral(pool, x[campo]);
     const k = chaveItemLista(g);
     if (!k || vistos.has(k)) continue;
     vistos.add(k); out.push({ ...x, [campo]: g });
@@ -735,10 +736,11 @@ listaRouter.get('/habituais', async (req, res) => {
     // Listado em ≥3 DIAS diferentes nos últimos 6 meses; vem primeiro (é hábito de lista explícito).
     const [daLista] = await pool.query(
       `SELECT SUBSTRING_INDEX(GROUP_CONCAT(nome ORDER BY criado_em DESC SEPARATOR '\n'), '\n', 1) AS produto,
-              COUNT(DISTINCT DATE(criado_em)) AS dias
+              COUNT(DISTINCT DATE(criado_em)) AS dias, MIN(ean IS NOT NULL) AS so_scan
          FROM lista_item WHERE criado_em >= NOW() - INTERVAL 180 DAY
         GROUP BY LOWER(nome) HAVING dias >= 3 ORDER BY dias DESC, MAX(criado_em) DESC LIMIT 20`);
-    res.json({ produtos: await generalizar(pool, [...daLista, ...hab], 'produto') });
+    const escritos = new Set(daLista.filter((x) => !Number(x.so_scan)));
+    res.json({ produtos: await generalizar(pool, [...daLista, ...hab], 'produto', (x) => escritos.has(x)) });
   } catch (e) {
     console.error('[lista/habituais] erro:', e.message);
     res.status(500).json({ erro: 'Falha a carregar os habituais' });

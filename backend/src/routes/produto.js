@@ -1152,14 +1152,16 @@ produtoRouter.get('/autocomplete', requireAuth, async (req, res) => {
       `SELECT SUBSTRING_INDEX(GROUP_CONCAT(li.nome ORDER BY li.criado_em DESC SEPARATOR '
 '), '
 ', 1) AS nome,
-              COUNT(DISTINCT DATE(li.criado_em)) AS dias, MAX(li.criado_em) AS ultima
+              COUNT(DISTINCT DATE(li.criado_em)) AS dias, MAX(li.criado_em) AS ultima,
+              MIN(li.ean IS NOT NULL) AS so_scan
          FROM lista_item li WHERE ${conds}
         GROUP BY LOWER(li.nome) ORDER BY dias DESC, ultima DESC LIMIT 6`,
       toks.flatMap((t) => [t, t]));
-    // forma GERAL (dono): o que entrou por código de barras traz o nome completo do produto
-    // ("Leite UHT Meio Gordo Continente", "24 OVOS Frescos") → "Leite UHT Meio Gordo", "Ovos Frescos"
+    // forma GERAL (dono) SÓ para o que entrou por CÓDIGO DE BARRAS (traz o nome completo do produto:
+    // "Leite UHT Meio Gordo Continente", "24 OVOS Frescos" → "Leite UHT Meio Gordo", "Ovos Frescos").
+    // O que a casa ESCREVEU fica exatamente como escreveu ("Pao shape" não pode virar "Pão").
     const casaGeral = [];
-    for (const c of casa) casaGeral.push({ ...c, nome: await formaGeral(getPool(), c.nome) });
+    for (const c of casa) casaGeral.push(Number(c.so_scan) ? { ...c, nome: await formaGeral(getPool(), c.nome) } : c);
     res.json({ sugestoes: juntarSugestoes(casaGeral, catalogo) });
   } catch (e) {
     console.error('[produto/autocomplete] erro:', e.message);
