@@ -39,10 +39,10 @@ async function autocomplete(q) {
   const last = toks[toks.length - 1];
   const [rows] = await pool.query(
     `SELECT generico, nome, marca, tamanho, ean,
-            ( (nome REGEXP ?)*100 + (LOWER(nome) LIKE CONCAT(?, '%'))*40 + generico*1000 + (product_type='food')*30 + LEAST(popularidade, 50) ) AS score
+            ( (nome REGEXP ?)*100 + (LOWER(nome) LIKE CONCAT(?, '%'))*40 + generico*1000 + (product_type='food')*30 + LEAST(popularidade, 50) + (LOWER(nome) = ?)*300 - LEAST(CHAR_LENGTH(nome), 60) ) AS score
        FROM produto_busca WHERE MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) AND (generico = 1 OR popularidade > 0)
       ORDER BY score DESC, MATCH(nome, marca) AGAINST(? IN BOOLEAN MODE) DESC LIMIT 8`,
-    [`\\b${last}\\b`, last, bool, bool]);
+    [`\\b${last}\\b`, last, q.toLowerCase().trim(), bool, bool]);
   return rows;
 }
 for (const q of ESCRITOS) {

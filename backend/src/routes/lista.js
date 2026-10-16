@@ -183,8 +183,9 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
 // enganador; com qtd>1, 11 pães a €0,15 apareciam como €1,65. Achado 2026-06-13,
 // talão Makro. Correção de fundo (semântica da coluna) anotada p/ sessão de ingestão.
   const [rows] = await pool.query(
-    `SELECT sku_id, ppb, pu, unidade, loja, data FROM (
+    `SELECT sku_id, ppb, pu, unidade, loja, data, pef FROM (
        SELECT i.sku_id, i.preco_por_base AS ppb, i.preco_unitario/GREATEST(i.quantidade,1) AS pu, s.unidade_base AS unidade, COALESCE(l.cadeia,l.nome) AS loja,
+              i.peso_em_falta AS pef,
               f.data_compra AS data, ROW_NUMBER() OVER (PARTITION BY i.sku_id ORDER BY f.data_compra DESC, i.id DESC) AS rn
          FROM item i JOIN fatura f ON f.id=i.fatura_id JOIN loja l ON l.id=f.loja_id JOIN sku_normalizado s ON s.id=i.sku_id
         WHERE i.sku_id IN (${ph}) AND i.is_non_product=0 AND i.is_clearance=0 AND (i.preco_por_base IS NOT NULL OR i.preco_unitario IS NOT NULL)
@@ -275,7 +276,9 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
     // €/kg: primeiro o do próprio SKU que decidiu o peso, senão o €/kg mais baixo entre os casados.
     // Sem nenhum €/kg → não há como pesar com preço honesto → volta a contagem.
     if (pesoSku && !embalado) {
-      const kg = (rs) => (rs || []).filter((r) => r.unidade === 'kg' && r.ppb != null && num(r.ppb) > 0);
+      // `pef` (peso_em_falta): o talão não trazia o peso → o "€/kg" dessa linha é o preço do pacote
+      // dividido por 1 kg assumido (caso real: "Requeijão 1,03 €/kg", "Queijo 0,92 €/kg"). Não serve.
+      const kg = (rs) => (rs || []).filter((r) => r.unidade === 'kg' && r.ppb != null && num(r.ppb) > 0 && !Number(r.pef));
       let cand = kg(recentePorSku.get(pesoSid));
       if (!cand.length) for (const sid of skuIdsPorItem.get(it.id) || []) cand = cand.concat(kg(recentePorSku.get(sid)));
       if (cand.length) {
@@ -765,7 +768,7 @@ async function montarLista(pool, mercado, lista) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 12; // 12: peso↔preço coerente (€/kg em modo peso) + preço ≤0 ignorado + marca plausível; 11: guard marcaEhTipo (Fiambre não é marca); 10: EAN fabricante→embalado + peso à grelha 500g; 9: modo PESO derivado
+const RESOLVER_V = 13; // 13: €/kg de linhas sem peso (peso_em_falta) não conta; 12: peso↔preço coerente (€/kg em modo peso) + preço ≤0 ignorado + marca plausível; 11: guard marcaEhTipo (Fiambre não é marca); 10: EAN fabricante→embalado + peso à grelha 500g; 9: modo PESO derivado
 function listaSig(itens, mercado, maxItemId, lista = '') {
   const s = `${lista}|${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.unidade || ''}:${i.qtd_medida || ''}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
