@@ -50,7 +50,13 @@ export function normalizarItens(itens) {
     const novo = { ...it };
     // Caminho NOVO: o VLM já devolve peso/€-por-kg em campos próprios → reconstrói
     // o linha_peso canónico (autoritativo). Sem regex, e o nome fica limpo na origem.
-    if (it.peso_kg != null && Number(it.peso_kg) > 0) {
+    // PESO FANTASMA (2026-10-16): a extração de PDF (ocr_llm) devolvia peso_kg=1 + €/kg = valor da
+    // linha em produtos EMBALADOS ("QJ FRS MONTIQJ 200G" → "1 kg x 0,92 EUR/kg"), e o €/kg ficava o
+    // preço do pacote (queijo a 0,92 €/kg na lista). 1 kg exato com €/kg igual ao valor não é uma
+    // pesagem, é o preço copiado → ignora-se; o €/kg vem do tamanho no nome (ou fica em falta).
+    const pesoFantasma = Number(it.peso_kg) === 1 && it.valor != null
+      && (it.preco_base_impresso == null || Math.abs(Number(it.preco_base_impresso) - Number(it.valor)) < 0.01);
+    if (it.peso_kg != null && Number(it.peso_kg) > 0 && !pesoFantasma) {
       const v = (n) => String(n).replace('.', ',');
       const base = it.preco_base_impresso != null ? ` x ${v(it.preco_base_impresso)} EUR/kg` : '';
       novo.linha_peso = `${v(it.peso_kg)} kg${base}`;

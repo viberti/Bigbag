@@ -86,3 +86,19 @@ test('peso sem unidades colado ao nome ("1,170 X 1,29") é separado', () => {
   assert.equal(out[0].descricao_original, 'BANANA');
   assert.equal(out[0].linha_peso, '1,170 X 1,29');
 });
+
+test('peso fantasma (1 kg com €/kg = valor) em embalado NÃO vira linha de peso', () => {
+  const out = normalizarItens([{ descricao_original: 'QJ FRS MONTIQJ 200G', valor: 0.92, desconto_direto: 0, peso_kg: 1, preco_base_impresso: 0.92 }]);
+  assert.equal(out[0].linha_peso ?? null, null);
+  const semBase = normalizarItens([{ descricao_original: 'MERENDA DE CHOCOLATE', valor: 0.89, desconto_direto: 0, peso_kg: 1 }]);
+  assert.equal(semBase[0].linha_peso ?? null, null);
+});
+
+test('pesagem real continua a gerar a linha de peso (incl. 1 kg com €/kg diferente do valor)', () => {
+  const real = normalizarItens([{ descricao_original: 'BANANA', valor: 0.83, desconto_direto: 0, peso_kg: 0.69, preco_base_impresso: 1.2 }]);
+  assert.equal(real[0].linha_peso, '0,69 kg x 1,2 EUR/kg');
+  const umKg = normalizarItens([{ descricao_original: 'MACA ROYAL', valor: 1.99, desconto_direto: 0, peso_kg: 1, preco_base_impresso: 1.99, quantidade: 1 }]);
+  // 1 kg exato com €/kg == valor é indistinguível do fantasma → tratado como fantasma (raro e inofensivo:
+  // sem linha de peso o €/kg fica "em falta", nunca errado)
+  assert.equal(umKg[0].linha_peso ?? null, null);
+});

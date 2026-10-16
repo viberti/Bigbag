@@ -768,7 +768,7 @@ async function montarLista(pool, mercado, lista) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 13; // 13: €/kg de linhas sem peso (peso_em_falta) não conta; 12: peso↔preço coerente (€/kg em modo peso) + preço ≤0 ignorado + marca plausível; 11: guard marcaEhTipo (Fiambre não é marca); 10: EAN fabricante→embalado + peso à grelha 500g; 9: modo PESO derivado
+const RESOLVER_V = 14; // 14: peso fantasma reparado; 13: €/kg de linhas sem peso (peso_em_falta) não conta; 12: peso↔preço coerente (€/kg em modo peso) + preço ≤0 ignorado + marca plausível; 11: guard marcaEhTipo (Fiambre não é marca); 10: EAN fabricante→embalado + peso à grelha 500g; 9: modo PESO derivado
 function listaSig(itens, mercado, maxItemId, lista = '') {
   const s = `${lista}|${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.unidade || ''}:${i.qtd_medida || ''}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
