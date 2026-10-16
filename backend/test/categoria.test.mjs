@@ -105,7 +105,7 @@ test('regressões conhecidas: início de palavra, não substring', () => {
 });
 
 test('fallback pelo nome quando a categoria não diz nada', () => {
-  assert.equal(grupoDe({ categoria: 'X', nome: 'Banana' }), 'outros'); // banana não é termo... fica p/ frescos via categoria
+  assert.equal(grupoDe({ categoria: 'X', nome: 'Banana' }), 'frutas'); // fresco pela CABEÇA (2026-10-16; antes ficava 'outros')
   assert.equal(grupoDe({ categoria: null, nome: 'Iogurte Grego Natural' }), 'lacticinios');
   assert.equal(grupoDe({ categoria: null, nome: 'Sumo de Laranja' }), 'bebidas');
 });
@@ -135,4 +135,26 @@ test('cortarGenerico (3.7a): genérico por-tipo, compostos protegidos', () => {
   assert.equal(j(['Conserva', 'de', 'Atum'], 'conservas'), 'Conserva de Atum');
   assert.equal(j(['Pães'], 'pao'), 'Pães');                                  // nunca esvazia
   assert.equal(j(['Pasta', 'de', 'Dentes'], 'higiene'), 'Pasta de Dentes'); // tipo sem genérico
+});
+
+// fresco pela CABEÇA (app Lista 2026-10-16): decide só como 1.ª palavra e sem transformação
+test('fresco pela cabeça: frescos escritos na lista vão para frutas', () => {
+  for (const n of ['Alface', 'Pepino', 'Alho francês', 'Laranjas', 'Maçãs', 'Tomate cherry', 'Kiwi', 'Feijão verde']) {
+    assert.equal(grupoDeNome(n), 'frutas', n);
+  }
+});
+test('fresco como SABOR ou transformado não rouba o produto', () => {
+  assert.equal(grupoDeNome('Sumo 100% Laranja'), 'bebidas');
+  assert.equal(grupoDeNome('Raviolis Ricotta Espinafres'), 'mercearia');
+  assert.equal(grupoDeNome('Chá Preto Pyramid Limão'), 'mercearia');
+  assert.equal(grupoDeNome('Polpa de tomate'), 'mercearia');
+  assert.equal(grupoDeNome('Pêssego em Calda'), 'mercearia');
+  assert.equal(grupoDeNome('Macarrão'), 'mercearia');
+  assert.notEqual(grupoDeNome('Alho Granulado'), 'frutas');
+  assert.notEqual(grupoDeNome('Cebola em Pó'), 'frutas');
+});
+test('congelado no nome vai para congelados', () => {
+  for (const n of ['Ervilhas congeladas', 'Legumes congelados', 'Batatas fritas congeladas', 'Douradinhos']) {
+    assert.equal(grupoDeNome(n), 'congelados', n);
+  }
 });

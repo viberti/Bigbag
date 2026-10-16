@@ -35,7 +35,10 @@ const BLOQUEADAS = new Set(['fresco', 'fresca', 'natural', 'integral', 'premium'
   'branca', 'branco', 'preta', 'preto', 'negra', 'negro', 'verde', 'vermelha', 'vermelho', 'amarela', 'amarelo', 'doce', 'suave', 'forte', 'leve', 'grande',
   // estilos/variedades de produto (lácteos, dieta) apanhados como "marca" — ex.: "Iogurte Grego Oikos"
   // tinha "Grego" por marca (é estilo; a marca é Oikos). NÃO são marcas em PT/ES.
-  'grego', 'grega', 'magro', 'magra', 'light', 'ligeiro', 'ligeira', 'desnatado', 'desnatada', 'semidesnatado', 'cremoso', 'cremosa', 'zero', 'biologico', 'biologica', 'batido']);
+  'grego', 'grega', 'magro', 'magra', 'light', 'ligeiro', 'ligeira', 'desnatado', 'desnatada', 'semidesnatado', 'cremoso', 'cremosa', 'zero', 'biologico', 'biologica', 'batido',
+  // variedade/origem apanhada como "marca" (app Lista 2026-10-16: "Tomate Cherry" → marca "Cherry";
+  // "Queijo Gouda Holandês" → marca "Holandês"). Revisão: dono, 2026-10-16.
+  'cherry', 'holandes', 'holandesa']);
 
 let _gaz = null;
 // Gazetteer: marca normalizada → display. Cache por processo.
@@ -62,16 +65,43 @@ export async function carregarGazetteer(pool) {
 // `idf` opcional pesa a distintividade dos tokens (sem ele, só comprimento+blocklist).
 const MARCAS_CURTAS_OK = new Set(['w5', 'w4', 'bic', 'cif', 'axe', 'uhu', 'tuc', 'ogx', 'xau']);
 
+// Uma marca do gazetteer só é marca NESTE nome se a posição dela fizer sentido. O gazetteer
+// vem do campo "marca" dos catálogos, onde muitas lojas (sobretudo VTEX BR) põem DESCRITORES
+// ("Carne Bovina", "Forma", "Rolo", "De Laranja", "Pescada"). Casos reais da app Lista
+// (2026-10-16): "carne picada bovina" → nome "picada" + marca "Carne Bovina"; "pão de forma"
+// → "Pão de" + "Forma"; "rolo de cozinha" → "de cozinha" + "Rolo"; "chá" → marca "Chá Chá".
+// Regras GERAIS (não por produto):
+//  1. as palavras da marca aparecem SEGUIDAS e pela ordem (não espalhadas pelo nome);
+//  2. a marca não é o nome inteiro (sobra pelo menos uma palavra que não é ligação);
+//  3. a marca não começa/acaba numa ligação nem está COLADA a uma ("pão DE forma", "rolo DE
+//     cozinha", "sumo DE laranja") — aí é o complemento do produto, não a marca.
+const LIGACOES = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'com', 'em', 'para', 'sem', 'a', 'o', 'ao', 'aos', 'na', 'no', 'y', 'con', 'del']);
+export function marcaPlausivelNoNome(seq, partes) {
+  if (LIGACOES.has(partes[0]) || LIGACOES.has(partes[partes.length - 1])) return false;
+  let ini = -1;
+  for (let i = 0; i + partes.length <= seq.length; i++) {
+    if (partes.every((p, j) => seq[i + j] === p)) { ini = i; break; }
+  }
+  if (ini < 0) return false;                                                    // (1)
+  const fim = ini + partes.length;                                              // exclusivo
+  const resto = [...seq.slice(0, ini), ...seq.slice(fim)].filter((w) => !LIGACOES.has(w));
+  if (!resto.length) return false;                                              // (2)
+  if (LIGACOES.has(seq[ini - 1]) || LIGACOES.has(seq[fim])) return false;       // (3)
+  return true;
+}
+
 export function detetarMarca(descricao, gazetteer, idf = null) {
   const s = String(descricao || '');
   for (const [re, marca] of MARCADORES_CADEIA) {
     if (re.test(s)) return { marca, origem: 'marcador' };
   }
-  const toksDesc = new Set(norm(s).split(' ').filter(Boolean));
+  const seq = norm(s).split(' ').filter(Boolean);
+  const toksDesc = new Set(seq);
   let melhor = null;
   for (const [k, display] of gazetteer) {
     const partes = k.split(' ');
     if (!partes.every((p) => toksDesc.has(p))) continue;
+    if (!marcaPlausivelNoNome(seq, partes)) continue;
     // distintividade: nenhuma parte pode ser palavra comum de produto
     if (partes.some((p) => BLOQUEADAS.has(p))) continue;
     if (idf && partes.every((p) => (idf.w.get(p) ?? idf.max) < 4)) continue; // todas comuns nos nomes → fraco

@@ -234,8 +234,9 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
     let base = null, emb = null;  // {v, loja, unidade}
     const considera = (r, loja) => {
       // `pago` = preço por EMBALAGEM (preco_unitario/qtd) da mesma linha — o que se pagou por 1 item.
-      if (r.ppb != null) { if (!base || num(r.ppb) < base.v) base = { v: num(r.ppb), loja, unidade: r.unidade, pago: r.pu != null ? num(r.pu) : null }; }
-      else if (r.pu != null) { if (!emb || num(r.pu) < emb.v) emb = { v: num(r.pu), loja, unidade: null, pago: num(r.pu) }; }
+      // preço ≤ 0 não é preço (linha de oferta/erro de leitura) — caso real: "Massa · 0,00 €"
+      if (r.ppb != null && num(r.ppb) > 0) { if (!base || num(r.ppb) < base.v) base = { v: num(r.ppb), loja, unidade: r.unidade, pago: r.pu != null && num(r.pu) > 0 ? num(r.pu) : null }; }
+      else if (r.pu != null && num(r.pu) > 0) { if (!emb || num(r.pu) < emb.v) emb = { v: num(r.pu), loja, unidade: null, pago: num(r.pu) }; }
     };
     for (const sid of skuIdsPorItem.get(it.id) || []) {
       for (const r of recentePorSku.get(sid) || []) considera(r, r.loja);
@@ -260,13 +261,27 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
     // (Antes um .some() sobre TODOS os candidatos marcava embalado por uma variante secundária rara — uma
     // banana-embalada tornava a banana, que é pesada, "embalada". Agora ganha o representativo.)
     const eanFab = (e) => { const d = String(e || '').replace(/\D/g, ''); return d.length >= 8 && d[0] !== '2'; };
-    let embalado = eanFab(it.ean), pesoSku = null;
+    let embalado = eanFab(it.ean), pesoSku = null, pesoSid = null;
     if (!embalado) {
       for (const x of compr) { // compr já ordenado por idas DESC → o mais comprado manda
         const pr = pesoPorSku.get(x.sid); if (!pr) continue;
         if (pr.n > 0 && pr.n_ean_real / pr.n >= 0.5) { embalado = true; break; }                    // embalado (EAN real domina)
-        if (pr.unidade === 'kg' && pr.n_peso >= 2 && pr.n_peso / pr.n >= 0.6) { pesoSku = pr; break; } // peso (balcão/sem EAN)
+        if (pr.unidade === 'kg' && pr.n_peso >= 2 && pr.n_peso / pr.n >= 0.6) { pesoSku = pr; pesoSid = x.sid; break; } // peso (balcão/sem EAN)
       }
+    }
+    // COERÊNCIA peso ↔ preço (app Lista 2026-10-16): o modo é decidido pelo SKU MAIS COMPRADO, mas o
+    // preço acima é o MAIS BARATO de TODOS os SKUs casados — podia ser de outro, vendido à unidade
+    // ("Atum · 1,29 €/un · 500 g", "Peito de Frango · 3,58 € · 1 kg"). Em modo PESO o preço tem de ser
+    // €/kg: primeiro o do próprio SKU que decidiu o peso, senão o €/kg mais baixo entre os casados.
+    // Sem nenhum €/kg → não há como pesar com preço honesto → volta a contagem.
+    if (pesoSku && !embalado) {
+      const kg = (rs) => (rs || []).filter((r) => r.unidade === 'kg' && r.ppb != null && num(r.ppb) > 0);
+      let cand = kg(recentePorSku.get(pesoSid));
+      if (!cand.length) for (const sid of skuIdsPorItem.get(it.id) || []) cand = cand.concat(kg(recentePorSku.get(sid)));
+      if (cand.length) {
+        const m = cand.reduce((a, b) => (num(b.ppb) < num(a.ppb) ? b : a));
+        it.melhor_preco = num(m.ppb); it.melhor_loja = m.loja; it.unidade_base = 'kg'; it.preco_pago = null;
+      } else { pesoSku = null; pesoSid = null; }
     }
     if (embalado) {
       it.embalado = true; it.unidade = null; it.qtd_medida = null; // por unidade; descarta modo-peso herdado da BD
@@ -285,6 +300,8 @@ export async function resolverItensLista(pool, itens, mercado, opts = {}) {
       if (!m) continue;
       const mv = m.ppb != null ? num(m.ppb) : (m.pu != null ? num(m.pu) : null);
       const mu = m.ppb != null ? m.unidade : null;
+      if (!(mv > 0)) continue;                     // preço ≤ 0 não é preço
+      if (it.unidade === 'kg' && mu !== 'kg') continue; // em modo peso só serve €/kg (coerência)
       if (mv != null && (it.preco_mercado == null || mv < it.preco_mercado)) { it.preco_mercado = mv; it.unidade_base = mu; if (m.pu != null) it.preco_pago = num(m.pu); }
     }
   }
@@ -678,11 +695,46 @@ async function sugestoesCadencia(pool, lista) {
     // não sugerir o que JÁ está na lista (consolidação pela mesma chave)
     const [ativos] = await pool.query("SELECT nome FROM lista_item WHERE lista = ? AND estado IN ('ativo','carrinho')", [lista]);
     const chavesAtivas = new Set(ativos.map((a) => chaveItemLista(a.nome)));
-    return top.filter((c) => !chavesAtivas.has(chaveItemLista(c.nome)))
+    const gerais = await generalizar(pool, top, 'nome'); // forma geral, sem a marca (dono 2026-10-16)
+    return gerais.filter((c) => !chavesAtivas.has(chaveItemLista(c.nome)))
       .map(({ urgencia, sku_id, ...resto }) => resto);
   }
   return [];
 }
+
+// FORMA GERAL de um nome para SUGERIR na lista (dono, 2026-10-16): numa lista de mercado
+// escreve-se "café" ou "café descafeinado", raramente "café descafeinado Nestlé" — a marca é
+// opcional. As sugestões vêm de nomes de SKU (com marca: "Iogurte Natural Oikos") → tira-se a
+// marca quando o detetor a reconhece com confiança (marcaPlausivelNoNome) e não é um TIPO.
+async function nomeGeral(pool, nome) {
+  const md = (await marcaDeterministica(pool, nome).catch(() => null))?.marca || null;
+  return md && !marcaEhTipo(md) ? nomeSemMarca(nome, md) : nome;
+}
+// Generaliza e deduplica uma lista de nomes (o 1.º de cada forma geral fica, mantém a ordem).
+export async function generalizar(pool, itens, campo) {
+  const vistos = new Set(); const out = [];
+  for (const x of itens) {
+    const g = await nomeGeral(pool, x[campo]);
+    const k = chaveItemLista(g);
+    if (!k || vistos.has(k)) continue;
+    vistos.add(k); out.push({ ...x, [campo]: g });
+  }
+  return out;
+}
+
+// Habituais da casa NA FORMA GERAL (chips "talvez precise de" da app Lista).
+listaRouter.get('/habituais', async (req, res) => {
+  try {
+    const { produtos_habituais } = await import('../queries.js');
+    const pool = getPool();
+    const periodo_inicio = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
+    const hab = await produtos_habituais(pool, { min_idas: 2, periodo_inicio });
+    res.json({ produtos: await generalizar(pool, hab, 'produto') });
+  } catch (e) {
+    console.error('[lista/habituais] erro:', e.message);
+    res.status(500).json({ erro: 'Falha a carregar os habituais' });
+  }
+});
 
 listaRouter.get('/sugestoes', async (req, res) => {
   try {
@@ -713,7 +765,7 @@ async function montarLista(pool, mercado, lista) {
 // compra nova (maxItemId: invalida os preços). É a base do 304.
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
-const RESOLVER_V = 11; // 11: guard marcaEhTipo (Fiambre não é marca); 10: EAN fabricante→embalado + peso à grelha 500g; 9: modo PESO derivado
+const RESOLVER_V = 12; // 12: peso↔preço coerente (€/kg em modo peso) + preço ≤0 ignorado + marca plausível; 11: guard marcaEhTipo (Fiambre não é marca); 10: EAN fabricante→embalado + peso à grelha 500g; 9: modo PESO derivado
 function listaSig(itens, mercado, maxItemId, lista = '') {
   const s = `${lista}|${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.unidade || ''}:${i.qtd_medida || ''}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');

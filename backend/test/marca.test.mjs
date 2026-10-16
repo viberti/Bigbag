@@ -35,3 +35,37 @@ test('palavras de produto NUNCA são evidência de marca (blocklist)', () => {
 test('sem marca → null (fica para o LLM ou "desconhecida")', () => {
   assert.equal(detetarMarca('BANANA', gaz), null);
 });
+
+// --- posição plausível da marca (app Lista 2026-10-16: descritores no campo "marca" dos catálogos) ---
+const gazLixo = new Map([
+  ['carne bovina', 'Carne Bovina'], ['forma', 'Forma'], ['rolo', 'Rolo'], ['de laranja', 'De Laranja'],
+  ['cha cha', 'Chá Chá'], ['pescada', 'Pescada'], ['queijo minas frescal', 'Queijo Minas Frescal'],
+  ['cherry', 'Cherry'], ['holandes', 'Holandês'], ['oikos', 'Oikos'], ['pingo doce', 'Pingo Doce'], ['la molisana', 'La Molisana'],
+]);
+
+test('marca com palavras ESPALHADAS no nome não conta (carne picada bovina)', () => {
+  assert.equal(detetarMarca('carne picada bovina', gazLixo), null);
+});
+test('marca repetida que não está repetida no nome não conta (chá → "Chá Chá")', () => {
+  assert.equal(detetarMarca('Chá', gazLixo), null);
+});
+test('marca = nome inteiro não é marca (Pescada, Queijo Minas Frescal)', () => {
+  assert.equal(detetarMarca('Pescada', gazLixo), null);
+  assert.equal(detetarMarca('Queijo Minas Frescal', gazLixo), null);
+});
+test('marca colada a uma ligação é complemento do produto (pão DE forma, rolo DE cozinha, sumo DE laranja)', () => {
+  assert.equal(detetarMarca('pão de forma', gazLixo), null);
+  assert.equal(detetarMarca('Pão de Forma Integral', gazLixo), null);
+  assert.equal(detetarMarca('rolo de cozinha', gazLixo), null);
+  assert.equal(detetarMarca('sumo de laranja', gazLixo), null);
+});
+test('variedade/origem não é marca (tomate cherry, gouda holandês)', () => {
+  assert.equal(detetarMarca('tomate cherry', gazLixo), null);
+  assert.equal(detetarMarca('Queijo Gouda Holandês', gazLixo), null);
+});
+test('marcas verdadeiras continuam reconhecidas', () => {
+  assert.equal(detetarMarca('Iogurte Natural Oikos', gazLixo)?.marca, 'Oikos');
+  assert.equal(detetarMarca('IOG GREGO OIKOS 4X115G', gazLixo)?.marca, 'Oikos');
+  assert.equal(detetarMarca('Azeitonas Pingo Doce', gazLixo)?.marca, 'Pingo Doce');
+  assert.equal(detetarMarca('PASSATA AL BASILICO LA MOLISANA', gazLixo)?.marca, 'La Molisana');
+});

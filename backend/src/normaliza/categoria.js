@@ -115,6 +115,12 @@ const FRASE_GRUPO = [
   [/(^|[^a-z])(frutos?\s+secos?|frutos?\s+desecad\w*|fruta\s+(seca|desecada|deshidratada|desidratada))/, 'mercearia'],
   [/(^|[^a-z])(milho\s+doce|maiz\s+dulce)/, 'mercearia'],
   [/(^|[^a-z])em\s+calda/, 'mercearia'], // fruta em calda = conserva de prateleira (pêssego, ananás…)
+  // CONGELADO no nome manda para o corredor dos congelados, seja qual for o produto ("Ervilhas congeladas",
+  // "Legumes congelados", "Batatas fritas congeladas") — é onde se vai buscar no mercado.
+  [/(^|[^a-z])(congelad[oa]s?|ultracongelad[oa]s?|douradinhos?)([^a-z]|$)/, 'congelados'],
+  [/(^|[^a-z])feijao\s+verde/, 'frutas'], // feijão-verde é fresco, não leguminosa seca
+  // tomate TRANSFORMADO é conserva de prateleira, não fresco (o 'tomate' entrou no vocabulário dos frescos)
+  [/(^|[^a-z])((polpa|concentrado|passata|pure)\s+de\s+tomate|tomate\s+(pelado|triturado|concentrado|frito|seco))/, 'mercearia'],
 ];
 
 // CONSERVA não é fresco (dono 2026-06-25): peixe/carne ENLATADO/em conserva pertence à MERCEARIA
@@ -236,9 +242,33 @@ export function cortarGenerico(words, tipoId) {
 // devolve o 1.º grupo cujo termo apareça em QUALQUER posição. Tenta primeiro o
 // segmento antes do 1.º conector (de/com/em/para/e); só depois o texto todo.
 // NB: para CATEGORIAS de loja continua o full-text (não têm cabeça única).
+// FRESCO PELA CABEÇA (app Lista 2026-10-16). Na lista escreve-se o produto de forma geral
+// ("Alface", "Tomate cherry", "Laranjas") e, sem histórico de compra, caía em 'Outros'. Pôr estas
+// palavras no vocabulário geral (GRUPOS) era errado: viram SABOR noutros produtos e roubavam-nos
+// ("Sumo 100% Laranja", "Pasta de dentes Gengibre", "Raviolis Espinafres", "Chá Preto Limão" — o
+// golden apanhou). Regra GERAL: um fresco só decide quando é a PALAVRA-CABEÇA (a 1.ª do nome) e não
+// há sinal de transformação (em pó, granulado, desidratado, em calda, moído, polpa…) → frutas.
+// Lista de juízo humano. Revisão: dono, 2026-10-16.
+const FRESCOS_CABECA = new Set([
+  'alface', 'pepino', 'alho', 'cebola', 'tomate', 'courgette', 'curgete', 'espinafre', 'agriao', 'pimento', 'beringela',
+  'couve', 'brocolo', 'rucula', 'coentro', 'hortela', 'gengibre', 'nabo', 'rabanete', 'beterraba', 'espargo', 'alcachofra',
+  'alho-frances', 'cenoura', 'batata', 'abobora', 'cogumelo', 'salsa', 'banana', 'laranja', 'tangerina', 'clementina',
+  'limao', 'lima', 'maca', 'pera', 'kiwi', 'manga', 'ananas', 'abacate', 'papaia', 'mamao', 'morango', 'mirtilo',
+  'framboesa', 'cereja', 'uva', 'ameixa', 'alperce', 'pessego', 'nectarina', 'figo', 'roma', 'melao', 'meloa', 'melancia',
+]);
+const PROCESSADO_RE = /(desidratad|liofiliz|granulad|(^|\s)em\s+po(\s|$)|(^|\s)po(\s|$)|moid[oa]|calda|extrat|polpa|concentrad|pelad|triturad|(^|\s)sec[oa]s?(\s|$)|frasco|compota|xarope|aroma|sabor|congelad|lata|conserva|chips|snack|pizza|molho)/;
+function frescoPelaCabeca(n) {
+  const primeira = n.split(/\s+/).find((w) => w.length >= 3);
+  if (!primeira || !FRESCOS_CABECA.has(singularizar(primeira))) return null;
+  if (PROCESSADO_RE.test(n)) return null;
+  return 'frutas';
+}
+
 export function grupoDeNome(nome) {
   const n = norm(nome);
   if (!n) return GRUPO_OUTROS;
+  const fresco = frescoPelaCabeca(n);
+  if (fresco) return fresco;
   const cabeca = n.split(/\s(?:de|do|da|dos|das|com|em|para|e)\s/)[0].trim();
   if (cabeca && cabeca !== n) {
     const g = grupoDeTexto(cabeca);

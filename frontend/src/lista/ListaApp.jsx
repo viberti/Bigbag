@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   verificarSessao, login, obterLista, adicionar, adicionarLote, atualizar, remover, limpar, restaurar,
-  sair, sugestoes as sugestoesCadencia, carregarHabituais, autocompleteProduto, consultarProdutoEan, vozParaLista,
+  sair, sugestoes as sugestoesCadencia, habituais, autocompleteProduto, consultarProdutoEan, vozParaLista,
 } from './api.js';
 import { enfileirar, aplicar, novaMedida } from './estado.js';
 import { resolverId } from '../listaOutbox.js';
@@ -199,7 +199,7 @@ function Lista({ sessao, onSair }) {
   // sugestões: cadência ("está na altura") + habituais (uma vez por abertura)
   useEffect(() => {
     sugestoesCadencia().then(setCad).catch(() => {});
-    carregarHabituais().then((h) => setHab(h || [])).catch(() => {});
+    habituais().then((h) => setHab(h || [])).catch(() => {});
   }, []);
 
   // ── mutações (otimistas) ──

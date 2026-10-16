@@ -5,7 +5,7 @@
 import { call, clearAuth } from '../api.js';
 import { logout } from '../auth/local.js';
 
-export { verificarSessao, autocompleteProduto, consultarProdutoEan, vozParaLista, carregarHabituais } from '../api.js';
+export { verificarSessao, autocompleteProduto, consultarProdutoEan, vozParaLista } from '../api.js';
 export { login } from '../auth/local.js';
 
 const LISTA = 'simples';
@@ -47,4 +47,10 @@ export async function restaurar(itens) {
 export async function sugestoes() {
   const d = await ok(await call('/api/lista/sugestoes', comLista()), 'sugestoes');
   return d.sugestoes || [];
+}
+
+// Habituais da casa na FORMA GERAL (sem marca, sem repetidos) — chips "talvez precise de".
+export async function habituais() {
+  const d = await ok(await call('/api/lista/habituais', comLista()), 'habituais');
+  return d.produtos || [];
 }

@@ -3,7 +3,8 @@
 // off_full (4,5M). Genéricos = substantivo-cabeça por frequência + histórico da casa.
 //   sudo -u dev node --env-file=.env scripts/construir_produto_busca.mjs
 import { getPool } from '../src/db.js';
-import { normAlfa, singularizar } from '../src/normaliza/categoria.js';
+import { normAlfa, singularizar, nomeSemMarca, marcaEhTipo } from '../src/normaliza/categoria.js';
+import { marcaDeterministica } from '../src/normaliza/marca.js';
 
 const pool = getPool();
 const FONTES = ['continente', 'auchan', 'pingodoce', 'lidl', 'mercadona', 'lidl-fr'];
@@ -42,14 +43,55 @@ console.log('específicos:', e1.n);
 const [specs] = await pool.query('SELECT nome FROM produto_busca WHERE generico=0');
 const cabeca = (nome) => { const t = normAlfa(nome).split(' ').filter((w) => w.length >= 3); return t.length ? singularizar(t[0]) : null; };
 const freq = new Map();
-for (const { nome } of specs) { const h = cabeca(nome); if (h) freq.set(h, (freq.get(h) || 0) + 1); }
+// GRAFIA de exibição do genérico: a chave `h` é normalizada (sem acentos) — exibi-la dava
+// "Maca", "Pao", "Acucar", "Chourico" no autocomplete (app Lista, 2026-10-16; "Maca" ≠ maçã).
+// Guarda-se a grafia ORIGINAL mais frequente da palavra-cabeça que já esteja no singular
+// (normaliza exatamente para `h`); sem nenhuma → cai para a chave.
+const grafias = new Map(); // h -> Map(grafia minúscula -> contagem)
+for (const { nome } of specs) {
+  const h = cabeca(nome); if (!h) continue;
+  freq.set(h, (freq.get(h) || 0) + 1);
+  const orig = String(nome).split(/\s+/).map((w) => w.toLowerCase().replace(/[^a-zà-ÿ]/g, '')).find((w) => normAlfa(w).length >= 3);
+  if (orig && normAlfa(orig) === h) {
+    const g = grafias.get(h) || grafias.set(h, new Map()).get(h);
+    g.set(orig, (g.get(orig) || 0) + 1);
+  }
+}
+const grafiaDe = (h) => {
+  const g = grafias.get(h); if (!g) return h;
+  // catálogos misturam MAIÚSCULAS sem acento e PT correto: uma grafia acentuada vista ≥2× ganha
+  const ord = [...g.entries()].sort((a, b) => b[1] - a[1]);
+  return (ord.find(([w, c]) => /[à-ÿ]/.test(w) && c >= 2) || ord[0])[0];
+};
 const gen = new Map(); // chave normalizada -> { nome, pop }
-for (const [h, f] of freq) if (f >= 8) gen.set(h, { nome: cap(h), pop: f });
+for (const [h, f] of freq) if (f >= 8) gen.set(h, { nome: cap(grafiaDe(h)), pop: f });
 const [hist] = await pool.query('SELECT ANY_VALUE(nome) nome, COUNT(*) c FROM lista_item GROUP BY LOWER(nome)');
 for (const { nome, c } of hist) {
   const k = normAlfa(nome); if (!k || k.split(' ').length > 2) continue;
   const cur = gen.get(k); gen.set(k, { nome: cap(cur ? cur.nome.toLowerCase() : nome), pop: (cur?.pop || 0) + c * 5 });
 }
+// 3b) GENÉRICOS DE VÁRIAS PALAVRAS = o que a CASA compra, na forma geral (dono 2026-10-16: na lista
+// escreve-se "café descafeinado", raramente "café descafeinado Nestlé" — a marca é opcional). Do nome
+// do SKU comprado tira-se a marca (detetor com posição plausível) e a quantidade; fica se tiver 2-4
+// palavras. Assim o autocomplete oferece "Iogurte Natural" ANTES de "Iogurte Natural Oikos 4x125g".
+const [comprados] = await pool.query(`
+  SELECT COALESCE(s.nome_simplificado, s.nome_canonico) AS nome, COUNT(DISTINCT i.fatura_id) AS idas
+    FROM item i JOIN sku_normalizado s ON s.id = i.sku_id
+   WHERE i.is_non_product = 0 GROUP BY s.id`);
+let nMulti = 0;
+for (const { nome, idas } of comprados) {
+  if (!nome) continue;
+  const md = (await marcaDeterministica(pool, nome).catch(() => null))?.marca || null;
+  let geral = md && !marcaEhTipo(md) ? nomeSemMarca(nome, md) : nome;
+  geral = geral.replace(/\b\d+([.,]\d+)?\s*(x\s*\d+\s*)?(kg|g|gr|grs|ml|cl|l|lt|un|uni|unid)\b\.?/gi, '').replace(/\s{2,}/g, ' ').trim();
+  const pal = geral.split(/\s+/).filter(Boolean);
+  if (pal.length < 2 || pal.length > 4) continue;
+  const k = normAlfa(geral);
+  const cur = gen.get(k);
+  if (!cur) nMulti++;
+  gen.set(k, { nome: cur ? cur.nome : cap(geral), pop: (cur?.pop || 0) + idas * 3 });
+}
+console.log('genéricos de várias palavras (da casa):', nMulti);
 for (const { nome, pop } of gen.values()) {
   await pool.query('INSERT INTO produto_busca (generico, nome, popularidade, product_type) VALUES (1,?,?,?)', [nome.slice(0, 255), pop, 'food']);
 }
