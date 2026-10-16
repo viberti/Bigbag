@@ -11,7 +11,15 @@ export { login } from '../auth/local.js';
 const LISTA = 'simples';
 // Sair: limpa o token E a credencial Basic antiga (senão uma sessão legada sobrevivia ao "Sair").
 export function sair() { logout(); clearAuth(); }
-const comLista = (opts = {}) => ({ ...opts, headers: { ...(opts.headers || {}), 'X-Lista': LISTA } });
+// Pessoa escolhida no ecrã "Quem está usando?" (por telemóvel) → o servidor regista quem
+// acrescentou/riscou (valida que é membro da casa). Guardada no localStorage deste aparelho.
+const K_MEMBRO = 'lista_membro';
+export const membroGuardado = () => { try { return localStorage.getItem(K_MEMBRO) || null; } catch { return null; } };
+export const guardarMembro = (nome) => { try { if (nome) localStorage.setItem(K_MEMBRO, nome); else localStorage.removeItem(K_MEMBRO); } catch { /* privado */ } };
+const comLista = (opts = {}) => {
+  const m = membroGuardado();
+  return { ...opts, headers: { ...(opts.headers || {}), 'X-Lista': LISTA, ...(m ? { 'X-Membro': encodeURIComponent(m) } : {}) } };
+};
 const json = (body) => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 async function ok(r, oque) {

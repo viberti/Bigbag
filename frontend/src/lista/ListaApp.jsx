@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   verificarSessao, login, obterLista, adicionar, adicionarLote, atualizar, remover, limpar, restaurar, concluir,
-  sair, sugestoes as sugestoesCadencia, habituais, listarPerfis, autocompleteProduto, consultarProdutoEan, vozParaLista,
+  sair, sugestoes as sugestoesCadencia, habituais, listarPerfis, membroGuardado, guardarMembro, autocompleteProduto, consultarProdutoEan, vozParaLista,
 } from './api.js';
 import { enfileirar, aplicar, novaMedida } from './estado.js';
 import { resolverId } from '../listaOutbox.js';
@@ -79,6 +79,23 @@ function Login({ onEntrar }) {
         {erro && <div className="ls-erro">{erro}</div>}
         <button className="ls-btn" disabled={aEntrar || !email || !senha}>{aEntrar ? '…' : t('lista.entrar')}</button>
       </form>
+    </div>
+  );
+}
+
+/* ── "Quem está usando?" (estilo Netflix) ─────────────────────────────────── */
+function EscolherMembro({ perfis, corDe, onEscolher }) {
+  return (
+    <div className="ls ls-quem">
+      <h1>{t('lista.quem')}</h1>
+      <div className="ls-quem-grelha">
+        {perfis.map((p) => (
+          <button key={p.id} className="ls-quem-perfil" onClick={() => onEscolher(p.nome)}>
+            <span className="ls-quem-avatar" style={{ background: corDe(p.nome) }}>{String(p.nome).trim().charAt(0).toUpperCase()}</span>
+            <span className="ls-quem-nome">{p.nome}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -171,7 +188,10 @@ function Lista({ sessao, onSair }) {
     return m;
   }, [perfis]);
   const corDe = useCallback((nome) => corMembro.get(semAc(nome)) || undefined, [corMembro]); // sem membro → CSS cai no acento
-  const quem = meuMembro(sessao, perfis) || sessao?.nome || sessao?.email || null;
+  // pessoa escolhida neste telemóvel ("Quem está usando?"); sem escolha → pergunta ao abrir
+  const [membro, setMembro] = useState(() => membroGuardado());
+  const escolherMembro = (nome) => { guardarMembro(nome); setMembro(nome); etag.current = null; };
+  const quem = membro || meuMembro(sessao, perfis) || sessao?.nome || sessao?.email || null;
 
   const avisar = useCallback((txt, desfazer) => {
     setAviso({ txt, desfazer, k: Date.now() });
@@ -361,6 +381,9 @@ function Lista({ sessao, onSair }) {
     return out.slice(0, 10);
   }, [cad, hab, itens]);
 
+  if (perfis.length > 1 && !(membro && perfis.some((p) => semAc(p.nome) === semAc(membro)))) {
+    return <EscolherMembro perfis={[...perfis].sort((x, y) => x.id - y.id)} corDe={corDe} onEscolher={escolherMembro} />;
+  }
   const mostrarSugestoes = !texto && talvez.length > 0 && (foco || !itens.length);
   const escolher = (nome, quantidade = 1, ean = null) => {
     juntar(nome, quantidade, ean); setTexto(''); setAc([]); setEanPendente(null);
@@ -377,6 +400,7 @@ function Lista({ sessao, onSair }) {
             <div className="ls-menu" role="menu">
               <button onClick={tirarRiscados} disabled={!carrinho.length}>{t('lista.tirarRiscados')}</button>
               <button onClick={esvaziar} disabled={!itens.length}>{t('lista.esvaziar')}</button>
+              {perfis.length > 1 && <button onClick={() => { setMenu(false); escolherMembro(null); }}>{t('lista.trocarPessoa')}</button>}
               <button onClick={onSair}>{t('lista.sair')}</button>
               {perfis.length > 1 && (
                 <div className="ls-legenda">

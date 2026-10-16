@@ -16,3 +16,15 @@ test('sem correspondência → null (cai no membro ativo)', () => {
   assert.equal(m({ id: 'gviberti3@gmail.com', email: 'gviberti3@gmail.com', nome: null }, perfis), null);
   assert.equal(m({ id: 'teste-lista@bigbag.test' }, perfis), null);
 });
+
+import { membroEscolhido as esc } from '../src/routes/lista.js';
+test('X-Membro: escolhido no ecrã "Quem está usando?" vale se for membro da casa', () => {
+  assert.equal(esc('Gustavo', perfis), 'Gustavo');
+  assert.equal(esc('sue', perfis), 'Sue');
+  assert.equal(esc(encodeURIComponent('Sue'), perfis), 'Sue');
+});
+test('X-Membro: nome que não é membro é ignorado (não grava nomes arbitrários)', () => {
+  assert.equal(esc('Intruso', perfis), null);
+  assert.equal(esc('', perfis), null);
+  assert.equal(esc(undefined, perfis), null);
+});

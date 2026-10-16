@@ -135,3 +135,16 @@ html, body { margin: 0; background: #ffffff; }
 .ls-login input { height: 48px; border-radius: 14px; border: 0; background: var(--sup); color: var(--tinta); padding: 0 14px; font-size: 16px; outline: none; }
 .ls-login input:focus { box-shadow: 0 0 0 2px var(--acento); }
 .ls-erro { color: var(--perigo); font-size: 14px; }
+
+/* ── "Quem está usando?" (estilo Netflix: avatar grande + nome) ── */
+.ls-quem { align-items: center; justify-content: center; gap: 28px; padding: 24px; }
+.ls-quem h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.02em; text-align: center; }
+.ls-quem-grelha { display: flex; flex-wrap: wrap; justify-content: center; gap: 28px 32px; max-width: 420px; }
+.ls-quem-perfil { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.ls-quem-avatar { width: 112px; height: 112px; border-radius: 24px; display: grid; place-items: center;
+  font-size: 46px; font-weight: 700; color: #fff; background: var(--acento);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .14); transition: transform .15s, box-shadow .15s; }
+.ls-quem-perfil:hover .ls-quem-avatar, .ls-quem-perfil:focus-visible .ls-quem-avatar { transform: translateY(-3px) scale(1.03); box-shadow: 0 14px 30px rgba(15, 23, 42, .2); }
+.ls-quem-perfil:active .ls-quem-avatar { transform: scale(.97); }
+.ls-quem-nome { font-size: 17px; font-weight: 600; color: var(--tinta-2); }
+.ls-quem-perfil:hover .ls-quem-nome { color: var(--tinta); }

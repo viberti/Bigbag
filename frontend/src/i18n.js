@@ -360,6 +360,8 @@ const STRINGS = {
     'lista.fechar': 'Fechar',
     'lista.menu': 'Mais opções',
     'lista.sair': 'Sair',
+    'lista.quem': 'Quem está usando?',
+    'lista.trocarPessoa': 'Trocar de pessoa',
     'lista.loginTitulo': 'Lista de compras',
     'lista.loginSub': 'Entre com sua conta BigBag.',
     'lista.email': 'Email',

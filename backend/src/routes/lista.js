@@ -877,10 +877,18 @@ export function membroDoUtilizador(user, perfis) {
   for (const p of perfis) { const pn = n(p.nome); if (pn.length >= 3 && local.startsWith(pn)) return p.nome; }
   return null;
 }
+export function membroEscolhido(cabecalho, perfis) {
+  const v = norm(decodeURIComponent(String(cabecalho || ''))).trim();
+  if (!v) return null;
+  return perfis.find((p) => norm(String(p.nome)).trim() === v)?.nome || null;
+}
 async function membroDoPedido(pool, req) {
   try {
     const [perfis] = await pool.query('SELECT nome FROM perfil_membro');
-    return membroDoUtilizador(req.user, perfis) || await nomeMembroAtivo(pool);
+    // 1.º a pessoa ESCOLHIDA no ecrã "Quem está usando?" da app (header X-Membro) — só vale se for
+    // mesmo um membro da casa (nunca grava um nome arbitrário vindo do cliente).
+    const escolhido = membroEscolhido(req.get?.('X-Membro'), perfis);
+    return escolhido || membroDoUtilizador(req.user, perfis) || await nomeMembroAtivo(pool);
   } catch { return nomeMembroAtivo(pool); }
 }
 async function nomeMembroAtivo(pool) {
