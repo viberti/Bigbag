@@ -1,32 +1,8 @@
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App.jsx';
-import AppV2, { RemediosApp } from './v2/AppV2.jsx';
-import Admin from './Admin.jsx';
-import Dashboard from './Dashboard.jsx';
-import Explorar from './Explorar.jsx';
-import DiagScanner from './DiagScanner.jsx';
-import './styles.css';
-
-// Rota simples por caminho: /admin → operador; /explorar → comprador; /diag → diagnóstico;
-// /v1 → app ANTIGO congelado; /v2 = alias do default. RAIZ → app v2 (design cartoon, DEFAULT).
-// /callback é legado do antigo login OIDC (Zitadel removido) → só redireciona p/ a raiz.
+// Ponto de entrada. Separa as DUAS apps servidas pelo mesmo build:
+//   /lista → app "Lista" (só a lista de compras; pacote próprio e leve — não carrega o BigBag)
+//   tudo o resto → BigBag (v2, v1, admin, explorar, remédios…), em bigbag.jsx.
+// Import DINÂMICO: o Vite gera um chunk por app, por isso cada uma só descarrega o seu código.
 const caminho = window.location.pathname.replace(/\/+$/, '');
-const root = createRoot(document.getElementById('root'));
 
-if (caminho === '/callback') {
-  window.location.replace('/');
-} else {
-  const Pagina = caminho === '/admin' ? Admin
-    : caminho === '/dash' ? Dashboard
-    : caminho === '/explorar' ? Explorar
-    : caminho === '/remedios' ? RemediosApp // utilidade pública, sem login
-    : caminho === '/diag' ? DiagScanner
-    : caminho === '/v1' ? App
-    : AppV2;
-  root.render(
-    <React.StrictMode>
-      <Pagina />
-    </React.StrictMode>,
-  );
-}
+if (caminho === '/lista') import('./lista/main.jsx');
+else import('./bigbag.jsx');

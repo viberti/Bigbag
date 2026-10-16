@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { createHash } from 'crypto';
 import { requireAuth } from '../auth.js';
+import { listaDe } from '../listaId.js';
 import { getPool } from '../db.js';
 import { grupoDeTexto, grupoDeNome, tokenCasa, singularizar, chaveItemLista, norm, tipoConsumidor, TIPOS_NOME, nomeSemMarca, marcaEhTipo } from '../normaliza/categoria.js';
 import { classificarPorCatalogo } from '../normaliza/classificarCatalogo.js';
@@ -603,7 +604,7 @@ const _refeicoesCache = new Map(); // hash → [{nome, usa, falta}]
 listaRouter.get('/refeicoes', async (req, res) => {
   try {
     const pool = getPool();
-    const [ativos] = await pool.query("SELECT nome FROM lista_item WHERE estado IN ('ativo','carrinho')");
+    const [ativos] = await pool.query("SELECT nome FROM lista_item WHERE lista = ? AND estado IN ('ativo','carrinho')", [listaDe(req)]);
     const nomes = ativos.map((a) => a.nome).filter((n) => grupoDeNome(n) !== 'higiene');
     if (nomes.length < 3) return res.json({ refeicoes: [] });
     const hash = nomes.map(chaveItemLista).sort().join('|');
@@ -636,7 +637,7 @@ Regras: máximo 3 refeições; só onde a lista cobre ≥3 ingredientes PRINCIPA
 // LLM): para cada SKU com ≥3 compras em datas distintas, intervalo MEDIANO entre
 // compras vs dias desde a última. urgência ≥0.85 → sugerir, com a qtd habitual.
 // Alimenta o estado vazio ("✨ Começar por mim") e o cartão no topo da lista.
-async function sugestoesCadencia(pool) {
+async function sugestoesCadencia(pool, lista) {
   const [rows] = await pool.query(`
     SELECT s.id, COALESCE(s.nome_simplificado, s.nome_canonico) AS nome,
            GROUP_CONCAT(DISTINCT DATE(f.data_compra) ORDER BY DATE(f.data_compra)) AS datas
@@ -675,7 +676,7 @@ async function sugestoesCadencia(pool) {
       c.quantidade = h ? Math.max(1, Math.round(h.soma / h.idas)) : 1;
     }
     // não sugerir o que JÁ está na lista (consolidação pela mesma chave)
-    const [ativos] = await pool.query("SELECT nome FROM lista_item WHERE estado IN ('ativo','carrinho')");
+    const [ativos] = await pool.query("SELECT nome FROM lista_item WHERE lista = ? AND estado IN ('ativo','carrinho')", [lista]);
     const chavesAtivas = new Set(ativos.map((a) => chaveItemLista(a.nome)));
     return top.filter((c) => !chavesAtivas.has(chaveItemLista(c.nome)))
       .map(({ urgencia, sku_id, ...resto }) => resto);
@@ -685,7 +686,7 @@ async function sugestoesCadencia(pool) {
 
 listaRouter.get('/sugestoes', async (req, res) => {
   try {
-    res.json({ sugestoes: await sugestoesCadencia(getPool()) });
+    res.json({ sugestoes: await sugestoesCadencia(getPool(), listaDe(req)) });
   } catch (e) {
     console.error('[lista/sugestoes] erro:', e.message);
     res.status(500).json({ erro: 'Falha a calcular sugestões' });
@@ -694,10 +695,11 @@ listaRouter.get('/sugestoes', async (req, res) => {
 
 // Monta a lista completa (itens enriquecidos + lojas) — partilhado pelo GET e
 // pelo POST /lote (que devolve a lista atualizada num só round-trip).
-async function montarLista(pool, mercado) {
+async function montarLista(pool, mercado, lista) {
   const [itens] = await pool.query(
     `SELECT id, nome, ean, quantidade, unidade, qtd_medida, categoria, estado, adicionado_por, marcado_por
-       FROM lista_item WHERE estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
+       FROM lista_item WHERE lista = ? AND estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
+    [lista],
   );
   await resolverItensLista(pool, itens, mercado);
   const [lojas] = await pool.query(
@@ -712,8 +714,8 @@ async function montarLista(pool, mercado) {
 // Versão do RESOLVER: incrementar quando o cálculo derivado (preço/marca/tamanho)
 // muda de lógica — senão clientes com ETag antigo ficam em 304 sem ver o novo output.
 const RESOLVER_V = 11; // 11: guard marcaEhTipo (Fiambre não é marca); 10: EAN fabricante→embalado + peso à grelha 500g; 9: modo PESO derivado
-function listaSig(itens, mercado, maxItemId) {
-  const s = `${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
+function listaSig(itens, mercado, maxItemId, lista = '') {
+  const s = `${lista}|${mercado || ''}|${maxItemId || 0}|p${versaoPesoImg()}|r${RESOLVER_V}|` +
     itens.map((i) => `${i.id}:${i.quantidade}:${i.unidade || ''}:${i.qtd_medida || ''}:${i.estado}:${i.marcado_por || ''}:${i.ean || ''}:${i.nome}`).join(';');
   return createHash('sha1').update(s).digest('base64').slice(0, 22);
 }
@@ -727,13 +729,16 @@ listaRouter.get('/', async (req, res) => {
   try {
     const mercado = String(req.query.mercado || '').trim() || null;
     const pool = getPool();
+    const lista = listaDe(req);
     const [itens] = await pool.query(
       `SELECT id, nome, ean, quantidade, categoria, estado, adicionado_por, marcado_por
-         FROM lista_item WHERE estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
+         FROM lista_item WHERE lista = ? AND estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
+      [lista],
     );
     const [[mx]] = await pool.query('SELECT MAX(id) AS m FROM item');
-    const etag = `"${listaSig(itens, mercado, mx?.m)}"`;
+    const etag = `"${listaSig(itens, mercado, mx?.m, lista)}"`;
     res.set('Cache-Control', 'no-cache');
+    res.set('Vary', 'X-Lista'); // a resposta depende da lista pedida
     res.set('ETag', etag);
     if ((req.headers['if-none-match'] || '') === etag) return res.status(304).end();
     await resolverItensLista(pool, itens, mercado);
@@ -799,12 +804,12 @@ const nomeValido = (n) => n && n.length >= 2 && !/\[object|^undefined$|^null$/i.
 async function nomeMembroAtivo(pool) {
   try { const [[m]] = await pool.query('SELECT nome FROM perfil_membro WHERE ativo = 1 LIMIT 1'); return m?.nome || null; } catch { return null; }
 }
-async function adicionarConsolidado(pool, { nome, quantidade, categoria, ean, user, membro }) {
+async function adicionarConsolidado(pool, { nome, quantidade, categoria, ean, user, membro, lista }) {
   const qtd = Math.max(1, Math.min(99, Number(quantidade) || 1));
   const cod = String(ean || '').replace(/\D/g, '') || null;
   const chave = chaveItemLista(nome);
   const [ativos] = await pool.query(
-    `SELECT id, nome, quantidade, estado FROM lista_item WHERE estado IN ('ativo','carrinho')`);
+    `SELECT id, nome, quantidade, estado FROM lista_item WHERE lista = ? AND estado IN ('ativo','carrinho')`, [lista]);
   const ja = ativos.find((x) => chaveItemLista(x.nome) === chave);
   if (ja) {
     // consolida; se o item ainda não tinha EAN e este scan trouxe um, fixa-o.
@@ -814,8 +819,8 @@ async function adicionarConsolidado(pool, { nome, quantidade, categoria, ean, us
     return { id: ja.id, consolidado: true };
   }
   const [r] = await pool.query(
-    'INSERT INTO lista_item (nome, ean, quantidade, categoria, adicionado_por) VALUES (?,?,?,?,?)',
-    [nome, cod, qtd, categoria || null, membro || user]); // membro ativo (cor na UI), senão o user
+    'INSERT INTO lista_item (lista, nome, ean, quantidade, categoria, adicionado_por) VALUES (?,?,?,?,?,?)',
+    [lista, nome, cod, qtd, categoria || null, membro || user]); // membro ativo (cor na UI), senão o user
   return { id: r.insertId, consolidado: false };
 }
 
@@ -825,7 +830,7 @@ listaRouter.post('/', async (req, res) => {
     if (!nomeValido(nome)) return res.status(400).json({ erro: 'nome inválido' });
     const categoria = String(req.body?.categoria || '').trim().slice(0, 80) || null;
     const membro = await nomeMembroAtivo(getPool());
-    const r = await adicionarConsolidado(getPool(), { nome, quantidade: req.body?.quantidade, categoria, ean: req.body?.ean, user: req.user.id, membro });
+    const r = await adicionarConsolidado(getPool(), { nome, quantidade: req.body?.quantidade, categoria, ean: req.body?.ean, user: req.user.id, membro, lista: listaDe(req) });
     res.json({ ok: true, id: r.id, existia: r.consolidado, consolidado: r.consolidado });
   } catch (e) {
     console.error('[lista POST] erro:', e.message);
@@ -841,15 +846,16 @@ listaRouter.post('/lote', async (req, res) => {
     const pool = getPool();
     const pedidos = Array.isArray(req.body?.produtos) ? req.body.produtos.slice(0, 20) : [];
     const membro = await nomeMembroAtivo(pool);
+    const lista = listaDe(req);
     const adicionados = [];
     for (const p of pedidos) {
       const nome = String(p?.nome || '').trim().slice(0, 160);
       if (!nomeValido(nome)) continue;
-      const r = await adicionarConsolidado(pool, { nome, quantidade: p?.quantidade, categoria: null, ean: p?.ean, user: req.user.id, membro });
+      const r = await adicionarConsolidado(pool, { nome, quantidade: p?.quantidade, categoria: null, ean: p?.ean, user: req.user.id, membro, lista });
       adicionados.push({ id: r.id, nome, quantidade: Math.max(1, Math.min(99, Number(p?.quantidade) || 1)), consolidado: r.consolidado });
     }
     const mercado = String(req.body?.mercado || '').trim() || null;
-    res.json({ ...(await montarLista(pool, mercado)), adicionados });
+    res.json({ ...(await montarLista(pool, mercado, lista)), adicionados });
   } catch (e) {
     console.error('[lista/lote] erro:', e.message);
     res.status(500).json({ erro: 'Falha a adicionar os itens' });
@@ -896,8 +902,8 @@ listaRouter.patch('/:id', async (req, res) => {
       }
     }
     if (!sets.length) return res.status(400).json({ erro: 'nada para atualizar' });
-    vals.push(id);
-    await getPool().query(`UPDATE lista_item SET ${sets.join(', ')} WHERE id = ? AND estado IN ('ativo','carrinho')`, vals);
+    vals.push(id, listaDe(req));
+    await getPool().query(`UPDATE lista_item SET ${sets.join(', ')} WHERE id = ? AND lista = ? AND estado IN ('ativo','carrinho')`, vals);
     res.json({ ok: true });
   } catch (e) {
     console.error('[lista PATCH] erro:', e.message);
@@ -910,7 +916,7 @@ listaRouter.delete('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ erro: 'id inválido' });
-    await getPool().query("UPDATE lista_item SET estado = 'removido' WHERE id = ?", [id]);
+    await getPool().query("UPDATE lista_item SET estado = 'removido' WHERE id = ? AND lista = ?", [id, listaDe(req)]);
     res.json({ ok: true });
   } catch (e) {
     console.error('[lista DELETE] erro:', e.message);
@@ -924,8 +930,9 @@ listaRouter.delete('/:id', async (req, res) => {
 listaRouter.post('/limpar', async (req, res) => {
   try {
     const pool = getPool();
-    const [limpos] = await pool.query("SELECT id, estado FROM lista_item WHERE estado IN ('ativo','carrinho')");
-    await pool.query("UPDATE lista_item SET estado = 'removido' WHERE estado IN ('ativo','carrinho')");
+    const lista = listaDe(req);
+    const [limpos] = await pool.query("SELECT id, estado FROM lista_item WHERE lista = ? AND estado IN ('ativo','carrinho')", [lista]);
+    await pool.query("UPDATE lista_item SET estado = 'removido' WHERE lista = ? AND estado IN ('ativo','carrinho')", [lista]);
     res.json({ ok: true, limpos });
   } catch (e) {
     console.error('[lista/limpar] erro:', e.message);
@@ -940,12 +947,13 @@ listaRouter.post('/restaurar', async (req, res) => {
   try {
     const itens = Array.isArray(req.body?.itens) ? req.body.itens.slice(0, 200) : [];
     const pool = getPool();
+    const lista = listaDe(req);
     let restaurados = 0;
     for (const it of itens) {
       const id = Number(it?.id);
       if (!id) continue;
       const estado = it?.estado === 'carrinho' ? 'carrinho' : 'ativo';
-      const [r] = await pool.query("UPDATE lista_item SET estado = ? WHERE id = ? AND estado = 'removido'", [estado, id]);
+      const [r] = await pool.query("UPDATE lista_item SET estado = ? WHERE id = ? AND lista = ? AND estado = 'removido'", [estado, id, lista]);
       restaurados += r.affectedRows;
     }
     res.json({ ok: true, restaurados });

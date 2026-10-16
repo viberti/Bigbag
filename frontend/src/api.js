@@ -8,7 +8,7 @@ export const getAuth = () => localStorage.getItem(AUTH_KEY);
 export const setAuth = (user, pass) => localStorage.setItem(AUTH_KEY, btoa(`${user}:${pass}`));
 export const clearAuth = () => localStorage.removeItem(AUTH_KEY);
 
-async function call(path, opts = {}) {
+export async function call(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
   const token = getToken();                          // o nosso JWT tem prioridade
   if (token) headers.Authorization = `Bearer ${token}`;

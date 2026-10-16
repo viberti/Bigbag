@@ -24,6 +24,8 @@ export function casaNomeLista(nomeLista, candidatos) {
 }
 
 // Corre no fim da ingestão de cada fatura. Devolve { comprados: [nomes], restantes }.
+// Vale para TODAS as listas (migr. 099: 'bigbag' e 'simples') de propósito — o que o talão
+// prova que se comprou sai de qualquer lista da casa, não só da do BigBag.
 export async function reconciliarListaComFatura(pool, faturaId) {
   const [listaItens] = await pool.query("SELECT id, nome FROM lista_item WHERE estado IN ('ativo','carrinho')");
   if (!listaItens.length) return { comprados: [], restantes: 0 };

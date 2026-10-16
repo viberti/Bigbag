@@ -24,6 +24,7 @@ import { lerCodigoBarras } from '../leitorCodigo.js';
 import { fichaLocal, sincronizarFichasBulk, registarHitLocal } from '../baseLocal.js';
 import { sincronizarCompras, buscarCompras, sugestoesCompras, normBusca } from '../compras.js';
 import { limparMarca, nomeTalao, formatoProduto, agregarItensTalao } from '../produtoDisplay.js';
+import { setMoeda as setMoedaLista, agruparSec, fmtMedida, fmtTamanho, ehOvoDuzia, precoLista } from '../listaFormato.js';
 import { ICON } from './icons.js';
 import { BIGBAG_MARK } from './brand.js';
 import { login as loginLocal, logout as logoutLocal, getToken } from '../auth/local.js';
@@ -39,7 +40,7 @@ const Mk = ({ size = 30, chip }) =>
 // Moeda do utilizador (camada locale): definida no load da sessão (/api/me). `eur`
 // mantém o nome por compatibilidade mas formata na moeda corrente (PT €, BR R$).
 let MOEDA = 'EUR';
-const setMoeda = (m) => { if (m) MOEDA = m; };
+const setMoeda = (m) => { if (m) MOEDA = m; setMoedaLista(m); };
 const fmtPreco = (v, moeda = MOEDA) => {
   if (v == null || Number.isNaN(Number(v))) return '—';
   // ponto de milhar + vírgula decimal (R$ 2.234,99 / 2.234,99 €) — pt-BR e pt-PT partilham a convenção
@@ -64,13 +65,6 @@ const lojaCor = (nome) => { const n = String(nome || '').toLowerCase();
   if (n.includes('lidl')) return ['#0050aa', 'LI']; if (n.includes('aldi')) return ['#1f3a93', 'AL'];
   if (n.includes('minipre')) return ['#e94e1b', 'MP']; if (n.includes('auchan')) return ['#e2231a', 'AU'];
   return ['#67b2c9', (nome || '?').slice(0, 2).toUpperCase()]; };
-// grupo (lente de loja) → rótulo de secção cartoon
-const SEC_LABEL = { frutas: 'Frutas e vegetais', carne: 'Talho e charcutaria', peixe: 'Peixe e marisco',
-  lacticinios: 'Laticínios e ovos', padaria: 'Padaria', congelados: 'Congelados', bebidas: 'Bebidas',
-  doces: 'Doces e snacks', mercearia: 'Mercearia', higiene: 'Higiene e limpeza', outros: 'Outros' };
-const secDe = (it) => SEC_LABEL[it.grupo] || 'Outros';
-const SEC_ORDER = ['Frutas e vegetais', 'Talho e charcutaria', 'Peixe e marisco', 'Padaria', 'Laticínios e ovos', 'Congelados', 'Mercearia', 'Bebidas', 'Doces e snacks', 'Higiene e limpeza', 'Outros'];
-const ordSec = (s) => { const i = SEC_ORDER.indexOf(s); return i < 0 ? 99 : i; };
 // DESPENSA: classificação MAIS FINA que a lista. A lista quer corredores grossos (guiar no mercado);
 // a despensa é o inventário de casa → detalha. seccaoLista divide a mercearia em CONDIMENTOS (azeites/
 // molhos/sal/temperos) e CAFÉ-CHÁ, e separa a CHARCUTARIA — secções próprias com rótulo e ordem.
@@ -91,13 +85,6 @@ function agruparDespensa(itens) {
   const ord = [...itens].sort((a, b) => ((SEC_ORDER_DET.indexOf(secDetId(a)) + 1) || 99) - ((SEC_ORDER_DET.indexOf(secDetId(b)) + 1) || 99));
   const grupos = []; let last = null;
   ord.forEach((it) => { const id = secDetId(it); if (!last || last.id !== id) { last = { id, s: SEC_LABEL_DET[id] || 'Outros', itens: [] }; grupos.push(last); } last.itens.push(it); });
-  return grupos;
-}
-// agrupa itens por secção, ordenando por SEC_ORDER (cada cabeçalho aparece 1×)
-function agruparSec(itens) {
-  const ord = [...itens].sort((a, b) => ordSec(secDe(a)) - ordSec(secDe(b)));
-  const grupos = []; let last = null;
-  ord.forEach((it) => { const s = secDe(it); if (!last || last.s !== s) { last = { s, itens: [] }; grupos.push(last); } last.itens.push(it); });
   return grupos;
 }
 
@@ -508,58 +495,8 @@ const CATALOGO_SAUDE = {
 // Cor por MEMBRO (perfil): cada membro recebe uma cor estável da paleta (por ordem
 // de id, suporta N membros). Sue→verde, Gustavo→azul nos 2 primeiros, como o spec.
 const MEMBRO_CORES = ['#3f7a3f', '#5a6fb0', '#e0734f', '#c8851f', '#8a5fb0', '#3f9a8f'];
-// Os 3 botões da barra ADICIONAM à lista (não consultam): voz (ditado→lote),
-// escrever (nome direto, qualquer produto — não exige ficha nutricional), e
-// código (scan→adiciona). Antes voz/texto caíam na CONSULTA e falhavam p/ não-alimentos.
-// Subtítulo de preço de um item da lista. CORRIGIDO (2026-06-15): a v2 lia
-// it.preco_estimado/it.preco (campos que o backend NUNCA define) → mostrava sempre
-// "sem preço". O backend dá preco_mercado/melhor_preco (FACTO, €/base) e preco_ref
-// (referência de catálogo). Mesma cadeia da v1.
-// Rótulo legível de um peso/volume: qtd_medida vem sempre na unidade-base (kg/L); o display
-// escolhe g/kg (ou ml/L) pela grandeza: <1 kg → "200 g", senão "1,2 kg".
-function fmtMedida(qtd, unidade) {
-  const n = Number(qtd) || 0;
-  const v = (x) => String(x).replace('.', ',');
-  if (unidade === 'kg') return n < 1 ? `${Math.round(n * 1000)} g` : `${v(Math.round(n * 1000) / 1000)} kg`;
-  if (unidade === 'L') return n < 1 ? `${Math.round(n * 1000)} ml` : `${v(Math.round(n * 1000) / 1000)} L`;
-  return `${v(n)} ${unidade || ''}`.trim();
-}
-// Formata um TAMANHO em texto para exibição, AGNÓSTICO à unidade de entrada (canónico "1000 g"/
-// "250 ml", legado "0,25 kg"/"25 cl", ou já amigo "1 kg"): normaliza a peso(g)/volume(ml) e aplica
-// ≥1000 g → kg, ≥1000 ml → L (dono). Idempotente.
-function fmtTamanho(s) {
-  if (!s) return s;
-  const m = String(s).match(/^(\d+(?:[.,]\d+)?)\s*(kg|mg|gr|g|lt|l|dl|cl|ml|cc|un)$/i);
-  if (!m) return s;
-  const val = parseFloat(m[1].replace(',', '.')); const u = m[2].toLowerCase();
-  const n = (x) => (Number.isInteger(x) ? String(x) : String(Math.round(x * 1000) / 1000)).replace('.', ',');
-  let g = null, ml = null;
-  if (u === 'kg') g = val * 1000; else if (u === 'g' || u === 'gr') g = val; else if (u === 'mg') g = val / 1000;
-  else if (u === 'l' || u === 'lt') ml = val * 1000; else if (u === 'dl') ml = val * 100; else if (u === 'cl') ml = val * 10; else if (u === 'ml' || u === 'cc') ml = val;
-  else return `${Math.round(val)} un`;
-  if (g != null) return g >= 1000 ? `${n(g / 1000)} kg` : `${n(g)} g`;
-  return ml >= 1000 ? `${n(ml / 1000)} L` : `${n(ml)} ml`;
-}
 
-// Ovos contam-se por DÚZIA (convenção; produto popular — enriquecimento especial permitido). 1 pack = 1 dúzia.
-// Exclui o que não é ovo-de-galinha à dúzia (chocolate/líquido/pó/codorniz/páscoa).
-function ehOvoDuzia(nome) {
-  const n = String(nome || '').toLowerCase();
-  return /\bovos?\b/.test(n) && !/l[íi]quido|chocolate|p[áa]scoa|kinder|surpresa|\bp[óo]\b|codorn/.test(n);
-}
 
-function precoLista(it) {
-  // OVOS → preço por DÚZIA (o pack é a dúzia): mostra o preço pago/de mercado por pack, rotulado /dúzia.
-  if (ehOvoDuzia(it.nome)) { const p = it.preco_pago ?? it.melhor_preco ?? it.preco_mercado; return p != null ? `${eur(p)}/dúzia` : 'sem preço'; }
-  // €/base (€/kg) SÓ para itens vendidos a PESO (it.unidade = modo peso). Tudo o resto — EAN, embalado, OU
-  // um kg-genérico em PACOTE FIXO (rúcula "EMB.100GR") — mostra o PREÇO DO PACOTE pago (facto do talão),
-  // nunca €/kg. O €/kg de um pacote de 100 g ("9,9/kg") era enganador; o utilizador compra o pacote.
-  if (!it.unidade && it.preco_pago != null) return eur(it.preco_pago);
-  const p = it.preco_mercado ?? it.melhor_preco;
-  if (p != null) return `${eur(p)}${it.unidade_base ? `/${it.unidade_base}` : ''}`;
-  if (it.preco_ref != null) return `~${eur(it.preco_ref)}`;
-  return 'sem preço';
-}
 
 // Gesto SWIPE-PARA-APAGAR (arrasta p/ a direita > 90px → remove). PARTILHADO pela linha activa e pela
 // do carrinho. Devolve dx (translação), g (ref do gesto, p/ o onClick saber se está a arrastar) e os
