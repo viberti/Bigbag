@@ -10,6 +10,7 @@
 //   3) BUSCA por nome/substância (FULLTEXT) para o utilizador achar o remédio.
 //
 // NÃO é aconselhamento médico — só informação e preço (igual ao módulo de saúde).
+import { ipCliente } from '../limites.js';
 import { Router } from 'express';
 import { readFileSync } from 'node:fs';
 import { getPool, parseJsonCol } from '../db.js';
@@ -328,14 +329,41 @@ medicamentoRouter.get('/buscar', async (req, res) => {
 // com timeout curto; quem não responde fica com a cache. Debounce 5 min por (ean,cep).
 // Alimenta o histórico: cada mudança de preço entra em catalogo_preco_hist.
 const _vivo = new Map(); // `${ean}|${cep}` → { at, data }
+const _ultimoPorEan = new Map(); // ean → { at, data } (resposta de recurso quando limitado)
+// TRAVÃO da ronda às farmácias (code-review 2026-10-16): o endpoint é PÚBLICO e cada pedido
+// fora da cache dispara ~17 consultas (algumas pelo proxy BR partilhado). A cache era por
+// (ean, cep) — trocar o CEP contornava-a e um script podia fazer bloquear o IP do servidor/proxy
+// (partindo a colheita semanal e o monitor 4/4h EM SILÊNCIO). Agora: por IP real do cliente,
+// teto global por hora e no máximo 2 rondas em simultâneo.
+const VIVO_POR_IP = 12, VIVO_JANELA_MS = 10 * 60 * 1000, VIVO_GLOBAL_HORA = 240, VIVO_SIMULT = 2;
+const _vivoIp = new Map(); // ip → [timestamps]
+const _vivoGlobal = [];
+let _vivoEmCurso = 0;
+function vivoPermitido(ip) {
+  const agora = Date.now();
+  while (_vivoGlobal.length && agora - _vivoGlobal[0] > 3600e3) _vivoGlobal.shift();
+  const doIp = (_vivoIp.get(ip) || []).filter((t) => agora - t < VIVO_JANELA_MS);
+  if (doIp.length >= VIVO_POR_IP || _vivoGlobal.length >= VIVO_GLOBAL_HORA || _vivoEmCurso >= VIVO_SIMULT) return false;
+  doIp.push(agora); _vivoIp.set(ip, doIp); _vivoGlobal.push(agora);
+  if (_vivoIp.size > 5000) _vivoIp.clear();
+  return true;
+}
 medicamentoRouter.get('/precos-ao-vivo', async (req, res) => {
   try {
     const ean = eanLimpo(req.query.ean);
     if (!ean) return res.status(400).json({ erro: 'EAN inválido' });
-    const cep = String(req.query.cep || '22241040').replace(/\D/g, '').slice(0, 8) || '22241040';
+    const cepQ = String(req.query.cep || '').replace(/\D/g, '');
+    const cep = /^\d{8}$/.test(cepQ) && !/^0+$/.test(cepQ) ? cepQ : '22241040'; // CEP inválido → o de referência
     const key = `${ean}|${cep}`;
     const ja = _vivo.get(key);
     if (ja && Date.now() - ja.at < 5 * 60 * 1000) return res.json({ ...ja.data, cache_ms: Date.now() - ja.at });
+    if (!vivoPermitido(ipCliente(req))) {
+      const ult = _ultimoPorEan.get(ean);
+      if (ult) return res.json({ ...ult.data, cache_ms: Date.now() - ult.at, limitado: true });
+      return res.status(429).json({ erro: 'Muitos pedidos — tente daqui a alguns minutos.' });
+    }
+    _vivoEmCurso++;
+    try {
 
     const vtex = MANIFESTO.filter((f) => (f.motor || 'vtex') === 'vtex');
     const got = await Promise.allSettled(vtex.map((f) => precoVivoVtex(f.host, ean, cep, { proxy: !!f.geo }).then((r) => (r && r.existe ? { fonte: f.fonte, ...r } : null))));
@@ -352,10 +380,12 @@ medicamentoRouter.get('/precos-ao-vivo', async (req, res) => {
     for (const f of fontes) {
       if (f.preco == null || !f.sku) continue;
       try {
-        const [[cur]] = await pool.query('SELECT preco FROM catalogo_produto WHERE fonte=? AND ean=? LIMIT 1', [f.fonte, ean]);
-        const ant = cur && cur.preco != null ? Number(cur.preco) : null;
+        // só a linha DESTE SKU (antes: todas as linhas do EAN nessa farmácia levavam o mesmo preço)
+        const [[cur]] = await pool.query('SELECT preco FROM catalogo_produto WHERE fonte=? AND sku_fonte=? LIMIT 1', [f.fonte, String(f.sku)]);
+        if (!cur) continue; // SKU ainda não colhido → a colheita semanal trata dele (não inventa linha)
+        const ant = cur.preco != null ? Number(cur.preco) : null;
         if (ant === null || ant !== Number(f.preco)) {
-          await pool.query('UPDATE catalogo_produto SET preco=?, scraped_at=NOW() WHERE fonte=? AND ean=?', [f.preco, f.fonte, ean]);
+          await pool.query('UPDATE catalogo_produto SET preco=?, scraped_at=NOW() WHERE fonte=? AND sku_fonte=?', [f.preco, f.fonte, String(f.sku)]);
           await pool.query('INSERT INTO catalogo_preco_hist (fonte, sku_fonte, ean, preco, moeda, visto_em) VALUES (?,?,?,?,?,NOW())', [f.fonte, f.sku, ean, f.preco, 'BRL']);
         }
       } catch { /* write-back é best-effort */ }
@@ -363,8 +393,11 @@ medicamentoRouter.get('/precos-ao-vivo', async (req, res) => {
     const melhor = fontes.find((f) => f.entrega && f.total != null) || fontes[0] || null;
     const data = { ean, cep, agora: new Date().toISOString(), fontes, melhor_entrega: melhor };
     _vivo.set(key, { at: Date.now(), data });
+    _ultimoPorEan.set(ean, { at: Date.now(), data });
     if (_vivo.size > 3000) _vivo.clear();
+    if (_ultimoPorEan.size > 3000) _ultimoPorEan.clear();
     res.json(data);
+    } finally { _vivoEmCurso--; }
   } catch (e) { console.error('[medicamento/precos-ao-vivo]', e); res.status(500).json({ erro: 'erro interno' }); }
 });
 

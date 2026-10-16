@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import ImgAuth from './ImgAuth.jsx';
 import { verificarSessao, setAuth, clearAuth, consultar, enviarFatura, enviarVoz, carregarConversa, carregarHabituais, historicoProduto, listarNotas, detalhesNota, identificarProduto, infoProduto, alternativasProduto, fotoProdutoUrl, analiseProduto, listarDespensa, adicionarDespensa, removerDespensa, resumoGastos, listarPorIdentificar, consultarProdutoEan, consultarProdutoNome, compararProdutos, vozParaLista, obterLista, adicionarListaItem, atualizarListaItem, removerListaItem, limparListaCompras, restaurarLista, variantesLista, adicionarListaLote, sugestoesLista, refeicoesLista, obterListaPessoal, adicionarListaPessoal, removerListaPessoal, lerEanFoto, fotoInteligente, matchFoto, carregarPerfil, listarPerfis, ativarPerfil, avaliacaoPersonalizada, vozParaProduto, registarHistoricoProduto, listarHistoricoProduto } from './api.js';
 import { coalescar, resolverId as resolverIdOutbox } from './listaOutbox.js';
 // CLASSIFICACAO/NORMALIZACAO PARTILHADA com o backend (unificação 2026-06-13 —
@@ -1239,7 +1240,7 @@ function MatchFotoSheet({ estado, onFechar, onEscolher, onRepetir }) {
               {cands.map((c) => (
                 <div key={c.ean} className="mf-card">
                   <button className="mf-card-foto" onClick={() => onEscolher(c)} aria-label={c.nome || c.ean}>
-                    {c.imagem ? <img src={c.imagem} alt="" loading="lazy" /> : <span className="mf-card-noimg"><Ico name="camera" size={44} /></span>}
+                    {c.imagem ? <ImgAuth src={c.imagem} alt="" loading="lazy" /> : <span className="mf-card-noimg"><Ico name="camera" size={44} /></span>}
                     <span className={`mf-card-score ${conf(c.score)}`}>{Math.round(c.score * 100)}%</span>
                   </button>
                   <div className="mf-card-info">

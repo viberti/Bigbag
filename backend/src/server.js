@@ -1,6 +1,7 @@
 // Ponto de entrada do backend Bigbag.
 // MVP do esqueleto: app Express + /health para smoke test (systemd/Apache).
 // Rotas de upload e consulta entram nos Blocos 2 e 3, atrás de auth.
+import { criarLimitador, ipCliente } from './limites.js';
 import express from 'express';
 import { config, paisCfg } from './config.js';
 import { getPool } from './db.js';
@@ -51,13 +52,29 @@ app.get('/health', (_req, res) => {
 
 // LOGIN PRÓPRIO (email+senha → o nosso JWT). Público. Mensagem genérica (não revela se o
 // email existe). Só entram utilizadores com senha definida (scripts/set_senha.mjs).
+// FORÇA BRUTA (code-review 2026-10-16): sem limite, era possível tentar senhas sem fim. Falhas
+// contadas por IP real e por email (15 min); acima do teto → 429 sem sequer verificar a senha.
+// O scrypt corre SEMPRE (hash fictício p/ email inexistente): o tempo de resposta já não revela
+// que emails existem.
+const _loginIp = criarLimitador({ max: 10, janelaMs: 15 * 60 * 1000 });
+const _loginEmail = criarLimitador({ max: 5, janelaMs: 15 * 60 * 1000 });
+const HASH_FICTICIO = 'scrypt$' + '00'.repeat(16) + '$' + '00'.repeat(64);
 app.post('/api/auth/login', async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const senha = String(req.body?.senha || '');
   if (!email || !senha) return res.status(400).json({ erro: 'Informe email e senha.' });
+  const ip = ipCliente(req);
+  if (_loginIp.bloqueado(ip) || _loginEmail.bloqueado(email)) {
+    return res.status(429).json({ erro: 'Muitas tentativas. Tente de novo daqui a 15 minutos.' });
+  }
   try {
     const [[u]] = await getPool().query('SELECT email, nome, senha_hash FROM usuario WHERE email = ?', [email]);
-    if (!u || !verificarSenha(senha, u.senha_hash)) return res.status(401).json({ erro: 'Email ou senha inválidos.' });
+    const ok = verificarSenha(senha, u?.senha_hash || HASH_FICTICIO) && !!u?.senha_hash;
+    if (!ok) {
+      _loginIp.falhou(ip); _loginEmail.falhou(email);
+      return res.status(401).json({ erro: 'Email ou senha inválidos.' });
+    }
+    _loginEmail.limpar(email);
     const token = await assinarToken({ email: u.email, nome: u.nome });
     res.json({ token, user: { id: u.email, email: u.email, nome: u.nome || null, via: 'local', ...(await resolveLocale(u.email)) } });
   } catch (e) { console.error('[auth/login]', e.message); res.status(500).json({ erro: 'Falha no login.' }); }

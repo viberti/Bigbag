@@ -60,8 +60,12 @@ ssh "$HOST" "sudo -u dev rm -rf $STAGE && sudo -u dev mkdir -p $STAGE"
 git archive --format=tar HEAD | ssh "$HOST" "sudo -u dev tar -x -C $STAGE"
 # rsync-mirror: --delete apaga o que saiu do repo (ex.: auth/oidc.js), mas os excludes
 # PRESERVAM os ficheiros de runtime que não vivem no git (.env, uploads, dist, node_modules).
+# `:- .gitignore` (2026-10-16): TUDO o que o git ignora é runtime/gerado e fica protegido do
+# --delete. Antes cada deploy apagava backend/scripts/fretes_gratis.json (gerado pelo cron das
+# farmácias) e o /precos-ao-vivo perdia os limiares de frete grátis até ao cron seguinte.
 ssh "$HOST" "set -e
-  sudo -u dev rsync -a --delete \
+  sudo -u dev rsync -a --delete --filter=':- .gitignore' \
+    --exclude='/backend/.lidlplus_token' \
     --exclude='.env' --exclude='.env.*' --exclude='node_modules/' \
     --exclude='/frontend/dist' --exclude='/frontend/dist.bak-*' \
     --exclude='/backend/uploads' --exclude='/logs' --exclude='/bigbag.db' \

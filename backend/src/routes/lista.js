@@ -786,7 +786,7 @@ listaRouter.get('/', async (req, res) => {
     const pool = getPool();
     const lista = listaDe(req);
     const [itens] = await pool.query(
-      `SELECT id, nome, ean, quantidade, categoria, estado, adicionado_por, marcado_por
+      `SELECT id, nome, ean, quantidade, unidade, qtd_medida, categoria, estado, adicionado_por, marcado_por
          FROM lista_item WHERE lista = ? AND estado IN ('ativo','carrinho') ORDER BY criado_em, id`,
       [lista],
     );

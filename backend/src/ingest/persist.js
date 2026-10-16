@@ -1,3 +1,4 @@
+import { hojeEm } from '../normaliza/dia.js';
 import { classificarLoja } from './classify.js';
 import { eanValido } from './produto.js';
 
@@ -112,13 +113,18 @@ export async function persistirFatura(
 
     if (cadeia && total != null && precos.length) {
       const [cands] = await conn.query(
-        `SELECT f.id, (SELECT COUNT(*) FROM item it WHERE it.fatura_id = f.id) AS n
+        `SELECT f.id, f.numero_fatura, f.data_compra, (SELECT COUNT(*) FROM item it WHERE it.fatura_id = f.id) AS n
            FROM fatura f JOIN loja l ON l.id = f.loja_id
           WHERE l.cadeia = ? AND f.total_impresso = ?
           HAVING n = ?`,
         [cadeia, total, dados.itens.length],
       );
       for (const c of cands) {
+        // COMPRA REPETIDA ≠ duplicado: o mesmo cabaz (pão+leite 1,98 € no mesmo mercado) duas
+        // semanas seguidas tem tudo igual menos o nº do documento e a data. Esta rede ignora a
+        // data de propósito (apanha datas MAL LIDAS), por isso descarta o candidato quando os dois
+        // nºs de documento foram lidos e diferem, ou as duas datas distam mais de 3 dias.
+        if (!candidatoPodeSerDuplicado({ numero, data }, c)) continue;
         const [its] = await conn.query('SELECT preco_liquido FROM item WHERE fatura_id = ?', [c.id]);
         const overlap = sobreposicaoPrecos(precos, its.map((x) => Number(x.preco_liquido)));
         if (overlap >= Math.ceil(precos.length * 0.7)) {
@@ -216,13 +222,25 @@ function toMysqlDate(iso) {
   // STRING (nunca `new Date(iso)`, que converteria e podia recuar o dia).
   // data ilegível/cortada → o prompt manda devolver null; a coluna é NOT NULL e o dia da
   // CAPTURA é a melhor aproximação (o talão é fotografado no próprio dia ou no seguinte).
-  if (!iso) return new Date().toISOString().slice(0, 10);
+  if (!iso) return hojeEm();
   const dia = String(iso).replace('T', ' ').slice(0, 10); // 'YYYY-MM-DD'
   // GUARDA contra data ABSURDA lida pelo VLM (ano futuro/muito antigo): uma data inválida
   // (caso real 2088) tornava-se o "mês mais recente" e desnorteava gastos/ordenação/preços.
   // Cai para HOJE (o talão foi capturado hoje — a melhor aproximação) em vez de gravar lixo.
   const ano = Number(dia.slice(0, 4));
   const anoAgora = new Date().getFullYear();
-  if (!(ano >= 2010 && ano <= anoAgora + 1)) return new Date().toISOString().slice(0, 10);
+  if (!(ano >= 2010 && ano <= anoAgora + 1)) return hojeEm();
   return dia;
+}
+
+// Rede 2 da dedup: um candidato com o mesmo cabaz só pode ser duplicado se nada prova que é
+// outra compra. Exportada para teste.
+const DIAS_DUP = 3;
+export function candidatoPodeSerDuplicado({ numero, data }, cand) {
+  const nA = String(numero || '').trim(), nB = String(cand?.numero_fatura || '').trim();
+  if (nA && nB && nA !== nB) return false;
+  const dA = data ? Date.parse(String(data).slice(0, 10)) : NaN;
+  const dB = cand?.data_compra ? Date.parse(String(cand.data_compra).slice(0, 10)) : NaN;
+  if (Number.isFinite(dA) && Number.isFinite(dB) && Math.abs(dA - dB) / 86400000 > DIAS_DUP) return false;
+  return true;
 }

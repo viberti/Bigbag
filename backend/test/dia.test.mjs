@@ -63,3 +63,11 @@ test('dataCompraSuspeita: data no futuro → SUSPEITA', () => {
 test('dataCompraSuspeita: sem dados → null (não bloqueia)', () => {
   assert.equal(dataCompraSuspeita(null, '2026-08-07', 'vlm'), null);
 });
+
+import { hojeEm } from '../src/normaliza/dia.js';
+test('hojeEm: dia-calendário em Lisboa, não o dia UTC', () => {
+  // 2026-07-01 23:30 UTC = 2 de julho 00:30 em Lisboa (verão, UTC+1)
+  assert.equal(hojeEm('Europe/Lisbon', new Date('2026-07-01T23:30:00Z')), '2026-07-02');
+  // 2026-07-02 01:30 UTC = 1 de julho 22:30 em São Paulo
+  assert.equal(hojeEm('America/Sao_Paulo', new Date('2026-07-02T01:30:00Z')), '2026-07-01');
+});

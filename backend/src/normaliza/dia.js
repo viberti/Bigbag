@@ -34,3 +34,10 @@ export function dataCompraSuspeita(dataCompra, dataCaptura, metodo = 'vlm', maxD
   if (metodo === 'vlm' && dias > maxDias) return `data ${dias} dias antes da captura (ano/data mal lido?)`;
   return null;
 }
+
+// "HOJE" como DIA-CALENDÁRIO num fuso (as compras são em Portugal → Europe/Lisbon por omissão).
+// new Date().toISOString().slice(0,10) dava o dia UTC: um talão enviado às 00:30 em Lisboa (verão)
+// ficava com a data de ontem. Devolve 'YYYY-MM-DD'.
+export function hojeEm(tz = 'Europe/Lisbon', agora = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(agora);
+}

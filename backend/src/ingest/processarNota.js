@@ -19,7 +19,7 @@ import { enriquecerEansFatura } from './enriquecer.js';
 import { reconciliarListaComFatura } from './reconciliarLista.js';
 import { verificarNomesFatura } from './verificarNomes.js';
 import { talaoSemValores, MSG_TALAO_SEM_VALORES } from './talaoValores.js';
-import { dataCompraSuspeita } from '../normaliza/dia.js';
+import { dataCompraSuspeita, hojeEm } from '../normaliza/dia.js';
 
 export async function processarNotaDeFicheiro(
   pool,
@@ -105,8 +105,10 @@ export async function processarNotaDeFicheiro(
   // 2) persistir (com deduplicação) — a imagem já foi gravada pelo chamador
   // Data implausível (ano/dia mal lido numa foto cortada) → NÃO aceitar em silêncio: a
   // compra ficaria arquivada no passado e sumia do histórico. Marca para revisão.
-  const hoje = new Date().toISOString().slice(0, 10);
-  const dataSusp = dataCompraSuspeita(dados.data_compra, hoje, metodo);
+  const hoje = hojeEm(); // dia em Portugal, não o dia UTC
+  // data ILEGÍVEL (o VLM devolveu null, como o prompt manda) também vai para revisão — antes passava
+  // calada (gravava 'hoje' sem aviso), contra a regra documentada "data suspeita/null → captura + revisão".
+  const dataSusp = dados.data_compra ? dataCompraSuspeita(dados.data_compra, hoje, metodo) : 'data ilegível no talão';
   if (dataSusp) {
     console.warn(`[nota] data suspeita: ${dados.data_compra} — ${dataSusp} → uso a data da captura`);
     // NÃO basta marcar para revisão: gravada com a data errada, a compra afunda no
@@ -139,7 +141,40 @@ export async function processarNotaDeFicheiro(
   const { fatura_id, loja_id, n_itens } = resultado;
 
   // 3) camadas pós-persistência (best-effort, idênticas à ingestão síncrona)
-  await normalizarItensFatura(pool, fatura_id, { cadeia: dados.loja?.cadeia }).catch((e) =>
+  const { verificacao, listaRec } = await posPersistencia(pool, fatura_id, { cadeia: dados.loja?.cadeia });
+
+  // registo na conversa (contexto do assistente), só com utilizador conhecido
+  if (userId) {
+    const dataCurta = String(dados.data_compra || '').slice(0, 10);
+    await guardarMensagem(
+      userId, 'assistant',
+      `📄 ${dados.loja?.cadeia || dados.loja?.nome}, ${dataCurta}, total ${Number(dados.total_impresso).toFixed(2).replace('.', ',')} €, ${n_itens} itens.${rec.extracaoBate ? '' : ' (em revisão — diferença a confirmar)'}`,
+    ).catch(() => {});
+  }
+
+  return {
+    duplicada: false,
+    fatura_id,
+    loja_id,
+    metodo_extracao: metodo,
+    loja: dados.loja,
+    data_compra: dados.data_compra,
+    total_impresso: dados.total_impresso,
+    needs_review: needsReview,
+    n_itens,
+    lista_comprados: listaRec?.comprados || [],
+    nomes_corrigidos: verificacao?.corrigidos || [],
+    verificacao_nomes: verificacao?.estado || null,
+  };
+}
+
+// Passos DEPOIS de a fatura estar gravada (canonicalização, verificação de nomes, €/base,
+// EANs, reconciliação com a lista). Exportado para o worker RETOMAR uma fatura cujo
+// processamento foi interrompido depois de gravar (reinício do serviço a meio): sem isto a
+// nova tentativa via-a como duplicada e estes passos nunca corriam (itens sem produto, lista
+// por riscar). Best-effort: cada passo falha sozinho.
+export async function posPersistencia(pool, fatura_id, { cadeia } = {}) {
+  await normalizarItensFatura(pool, fatura_id, { cadeia }).catch((e) =>
     console.error('[nota] canonicalização:', e.message));
   let verificacao = null;
   try {
@@ -165,27 +200,5 @@ export async function processarNotaDeFicheiro(
     if (listaRec.comprados.length) console.log(`[nota] lista: saíram ${listaRec.comprados.length} (${listaRec.comprados.join(', ')})`);
   } catch (e) { console.error('[nota] reconciliar lista:', e.message); }
 
-  // registo na conversa (contexto do assistente), só com utilizador conhecido
-  if (userId) {
-    const dataCurta = String(dados.data_compra || '').slice(0, 10);
-    await guardarMensagem(
-      userId, 'assistant',
-      `📄 ${dados.loja?.cadeia || dados.loja?.nome}, ${dataCurta}, total ${Number(dados.total_impresso).toFixed(2).replace('.', ',')} €, ${n_itens} itens.${rec.extracaoBate ? '' : ' (em revisão — diferença a confirmar)'}`,
-    ).catch(() => {});
-  }
-
-  return {
-    duplicada: false,
-    fatura_id,
-    loja_id,
-    metodo_extracao: metodo,
-    loja: dados.loja,
-    data_compra: dados.data_compra,
-    total_impresso: dados.total_impresso,
-    needs_review: needsReview,
-    n_itens,
-    lista_comprados: listaRec?.comprados || [],
-    nomes_corrigidos: verificacao?.corrigidos || [],
-    verificacao_nomes: verificacao?.estado || null,
-  };
+  return { verificacao, listaRec };
 }

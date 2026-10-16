@@ -4,6 +4,8 @@
 //  2) HTTP Basic + TEST_USERS (ENABLE_TEST_AUTH) — rede de segurança para os e2e.
 // A app está exposta à internet: nenhuma rota que gaste a chave OpenRouter ou
 // escreva na BD pode ficar anónima.
+import { criarLimitador, ipCliente } from './limites.js';
+const _basicIp = criarLimitador({ max: 10, janelaMs: 15 * 60 * 1000 });
 import { timingSafeEqual, scryptSync, randomBytes } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { config, paisCfg } from './config.js';
@@ -88,8 +90,12 @@ export async function requireAuth(req, res, next) {
     return next();
   }
   // 2) rede de segurança: test-auth (Basic) para os e2e
-  if (config.auth.enableTestAuth) {
+  if (config.auth.enableTestAuth && (req.headers.authorization || '').startsWith('Basic ')) {
+    // mesmo travão de força bruta do login (falhas por IP real, 15 min)
+    const ip = ipCliente(req);
+    if (_basicIp.bloqueado(ip)) return res.status(429).json({ erro: 'Muitas tentativas. Tente mais tarde.' });
     const u = checkBasic(req);
+    if (!u) _basicIp.falhou(ip);
     if (u) { req.user = { id: u, via: 'test-auth', ...(await resolveLocale(u.includes('@') ? u : null)) }; return next(); }
   }
   // SEM `WWW-Authenticate: Basic` — esse header faria o BROWSER abrir o diálogo nativo de

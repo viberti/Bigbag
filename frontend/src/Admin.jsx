@@ -2,6 +2,7 @@
 //  • Produtos: gerir SKUs canónicos (renomear, associar/dissociar descrições, fundir).
 //  • Notas: rever a leitura de cada nota (imagem + itens) e marcar certa/errada.
 import { useEffect, useRef, useState } from 'react';
+import ImgAuth from './ImgAuth.jsx';
 import { verificarSessao, setAuth, clearAuth } from './api.js';
 import * as adm from './adminApi.js';
 
@@ -2451,7 +2452,7 @@ function TabElos() {
                   <span className={`adm-elo-sin ${e.peso_estado}`}>peso {e.peso_estado}</span>
                 </div>
                 <figure className="adm-elo-prod">
-                  <img src={`/api/produto/foto-catalogo/${e.c_id}`} alt="" loading="lazy" />
+                  <ImgAuth src={`/api/produto/foto-catalogo/${e.c_id}`} alt="" loading="lazy" />
                   <figcaption>
                     <b>{e.c_marca || '—'}</b><br />{e.c_nome}<br /><span>{e.c_fmt || ''} · {e.c_fonte}</span>
                   </figcaption>

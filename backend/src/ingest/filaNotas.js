@@ -4,9 +4,11 @@
 // Tolerância a falhas: cada tentativa marca lease_em+tentativas; um job preso (reinício do
 // serviço a meio) é re-apanhado por varrerPendentes; após MAX_TENT erros fica 'falhou'.
 import { readFile } from 'node:fs/promises';
-import { processarNotaDeFicheiro } from './processarNota.js';
+import { processarNotaDeFicheiro, posPersistencia } from './processarNota.js';
 
 const MAX_TENT = 3;
+const LEASE_MIN = 4;          // lease mais velho que isto = worker morreu → outro pode pegar
+const RENOVA_MS = 60_000;     // enquanto processa, renova o lease (talão denso pode passar dos 4 min)
 
 // Cria o job 'em_analise' (a imagem já foi gravada no disco pelo chamador). Devolve o id.
 export async function criarJob(pool, { ficheiro, mime, metodo = 'vlm', origemCaptura = null, userId = null }) {
@@ -18,18 +20,43 @@ export async function criarJob(pool, { ficheiro, mime, metodo = 'vlm', origemCap
   return r.insertId;
 }
 
-// Processa UM job. Idempotente por estado: só age se ainda 'em_analise'. A 1.ª linha
-// "arrenda" o job (lease + tentativas++) numa escrita atómica — duas chamadas concorrentes
-// (fire-and-forget + varredura) não o processam duas vezes.
+// Processa UM job. A 1.ª linha "arrenda" o job numa escrita atómica que SÓ pega um job livre
+// (sem lease, ou com lease velho = worker morreu) — duas chamadas concorrentes (POST/retry +
+// varredura) não o processam duas vezes. (Antes só testava o estado: as duas pegavam — caso
+// real job 131, 2026-10-16: duas leituras VLM pagas.) Enquanto processa, renova o lease.
 export async function processarJob(pool, jobId) {
   const [upd] = await pool.query(
-    "UPDATE fatura_job SET lease_em = NOW(), tentativas = tentativas + 1 WHERE id = ? AND estado = 'em_analise'",
-    [jobId],
+    `UPDATE fatura_job SET lease_em = NOW(), tentativas = tentativas + 1
+      WHERE id = ? AND estado = 'em_analise' AND (lease_em IS NULL OR lease_em < (NOW() - INTERVAL ? MINUTE))`,
+    [jobId, LEASE_MIN],
   );
-  if (!upd.affectedRows) return; // já não está em_analise (processado/arrendado por outro)
+  if (!upd.affectedRows) return; // já não está em_analise, ou outro worker tem-no em mãos
   const [[job]] = await pool.query('SELECT * FROM fatura_job WHERE id = ?', [jobId]);
   if (!job) return;
+  const renova = setInterval(() => {
+    pool.query("UPDATE fatura_job SET lease_em = NOW() WHERE id = ? AND estado = 'em_analise'", [jobId]).catch(() => {});
+  }, RENOVA_MS);
+  renova.unref?.();
   try {
+    // RETOMAR: já há uma fatura gravada a partir DESTE ficheiro → a tentativa anterior morreu
+    // depois de gravar. Não re-extrai (não paga o VLM outra vez) nem a trata como duplicada:
+    // corre só os passos pós-gravação que podem ter ficado por fazer.
+    const [[ja]] = await pool.query(
+      `SELECT f.id, f.needs_review, f.total_impresso, f.data_compra, COALESCE(l.cadeia, l.nome) AS loja,
+              (SELECT COUNT(*) FROM item i WHERE i.fatura_id = f.id) AS n_itens
+         FROM fatura f JOIN loja l ON l.id = f.loja_id WHERE f.ficheiro_original = ? LIMIT 1`,
+      [job.ficheiro_original]);
+    if (ja) {
+      const { verificacao } = await posPersistencia(pool, ja.id, { cadeia: ja.loja });
+      const estado = ja.needs_review ? 'precisa_revisao' : 'pronto';
+      await pool.query(
+        `UPDATE fatura_job SET estado = ?, fatura_id = ?, duplicada = 0, n_itens = ?, loja_nome = ?, total = ?, data_compra = ?,
+                erro = NULL, verificacao_nomes = ? WHERE id = ?`,
+        [estado, ja.id, ja.n_itens, String(ja.loja || '').slice(0, 120) || null, ja.total_impresso, String(ja.data_compra).slice(0, 10),
+          verificacao?.estado || null, jobId]);
+      console.log(`[filaNotas] job ${jobId}: fatura ${ja.id} já gravada — retomados os passos pós-gravação`);
+      return estado;
+    }
     const buffer = await readFile(job.ficheiro_original);
     const r = await processarNotaDeFicheiro(pool, {
       buffer,
@@ -68,12 +95,21 @@ export async function processarJob(pool, jobId) {
       [falhou ? 'falhou' : 'em_analise', String(e.message || 'erro').slice(0, 255), jobId],
     );
     return falhou ? 'falhou' : 'em_analise';
+  } finally {
+    clearInterval(renova);
   }
 }
 
 // Varre jobs 'em_analise' PRESOS (sem lease ou com lease velho → reinício do worker) e
 // re-processa-os. Lote pequeno + baixa frequência (custo controlado; o VLM é CPU/€ partilhado).
-export async function varrerPendentes(pool, { lote = 2, presoMin = 4 } = {}) {
+export async function varrerPendentes(pool, { lote = 2, presoMin = LEASE_MIN } = {}) {
+  // Job que MORREU na última tentativa (reinício a meio da 3.ª): tentativas já = MAX e o catch
+  // nunca correu → ficava 'em_analise' para sempre (a varredura saltava-o e o "Repetir" só aceita
+  // 'falhou'). Fecha-o como 'falhou' para o utilizador poder repetir.
+  await pool.query(
+    `UPDATE fatura_job SET estado = 'falhou', erro = 'Interrompido (o serviço reiniciou a meio). Tente de novo.', lease_em = NULL
+      WHERE estado = 'em_analise' AND tentativas >= ? AND lease_em IS NOT NULL AND lease_em < (NOW() - INTERVAL ? MINUTE)`,
+    [MAX_TENT, presoMin]);
   const [pend] = await pool.query(
     `SELECT id FROM fatura_job
        WHERE estado = 'em_analise' AND tentativas < ?
