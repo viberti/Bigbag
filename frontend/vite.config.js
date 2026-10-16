@@ -20,12 +20,29 @@ function versaoApp() {
   }
 }
 
+// A app "Lista" tem HTML PRÓPRIO (lista/index.html) com o seu manifesto: o vite-plugin-pwa injeta o
+// manifesto do BigBag em TODAS as páginas → aqui retira-se esse link da página da Lista (fica só o
+// dela), senão o Chrome continuava a ver o BigBag ("já instalado").
+const listaSemManifestoBigbag = {
+  name: 'lista-sem-manifesto-bigbag',
+  enforce: 'post',
+  // no FIM do build (o HTML já tem tudo o que os outros plugins injetaram)
+  generateBundle(_opts, bundle) {
+    const pagina = bundle['lista/index.html'];
+    if (pagina && pagina.type === 'asset') {
+      pagina.source = String(pagina.source).replace(/<link rel="manifest" href="\/manifest\.webmanifest"[^>]*>/g, '');
+    }
+  },
+};
+
 export default defineConfig({
+  build: { rollupOptions: { input: { main: 'index.html', lista: 'lista/index.html' } } },
   define: {
     __APP_VERSION__: JSON.stringify(versaoApp()),
   },
   plugins: [
     react(),
+    listaSemManifestoBigbag,
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {

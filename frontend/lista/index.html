@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- App "Lista": HTML PRÓPRIO com o SEU manifesto escrito aqui (não trocado por JS) — o Chrome
+         no Android lê o manifesto ao carregar; com o do BigBag dizia "já instalado" com o ícone
+         do BigBag (2026-10-16). Servido pelo Apache como /lista/ (pasta real → index.html). -->
+    <link rel="manifest" href="/lista.webmanifest" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/lista-icons/lista-192.png" />
+    <link rel="apple-touch-icon" href="/lista-icons/lista-192.png" />
+    <meta name="apple-mobile-web-app-title" content="Lista" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Lista de compras</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/lista/main.jsx"></script>
+  </body>
+</html>
