@@ -179,8 +179,9 @@ function Lista({ sessao, onSair }) {
       const r = await obterLista(etag.current);
       setOnline(true);
       if (r.naoMudou) return;
-      etag.current = r.etag;
-      if (!filaRef.current.length) setItens(r.itens || []); // não pisar mudanças locais por enviar
+      // só guarda o ETag se aplicar a lista: senão o próximo pedido dava 304 e uma mudança
+      // da outra pessoa ficava escondida até haver outra alteração no servidor
+      if (!filaRef.current.length) { etag.current = r.etag; setItens(r.itens || []); } // não pisar mudanças locais por enviar
     } catch (e) {
       if (e?.message === '401' || e?.message === '403') onSair(); else setOnline(false);
     } finally { enviando.current = false; }
