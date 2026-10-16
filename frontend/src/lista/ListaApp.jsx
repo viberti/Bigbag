@@ -175,6 +175,9 @@ function Lista({ sessao, onSair }) {
   const [eanPendente, setEanPendente] = useState(null); // scan sem nome → o utilizador escreve
   const [menu, setMenu] = useState(false);
   const [foco, setFoco] = useState(false); // barra de adicionar focada → mostra as sugestões
+  // painel de sugestões aberto pelo "+" SEM teclado (dono 2026-10-16: o teclado tapava o ecrã)
+  const [painel, setPainel] = useState(false);
+  const entradaRef = useRef(null);
   const etag = useRef(null);
   const filaRef = useRef(fila); filaRef.current = fila;
   const enviando = useRef(false);
@@ -392,7 +395,8 @@ function Lista({ sessao, onSair }) {
   if (perfis.length > 1 && !(membro && perfis.some((p) => semAc(p.nome) === semAc(membro)))) {
     return <EscolherMembro perfis={[...perfis].sort((x, y) => x.id - y.id)} corDe={corDe} onEscolher={escolherMembro} />;
   }
-  const mostrarSugestoes = !texto && talvez.length > 0 && (foco || !itens.length);
+  const mostrarSugestoes = !texto && talvez.length > 0 && (painel || foco || !itens.length);
+  const alternarPainel = () => { entradaRef.current?.blur(); setPainel((v) => !v); };
   const escolher = (nome, quantidade = 1, ean = null) => {
     juntar(nome, quantidade, ean); setTexto(''); setAc([]); setEanPendente(null);
   };
@@ -424,7 +428,7 @@ function Lista({ sessao, onSair }) {
         <div className="ls-estado">{!online ? t('lista.offline') : t('lista.pendentes', { n: fila.length })}</div>
       )}
 
-      <main className="ls-corpo">
+      <main className="ls-corpo" onPointerDown={() => painel && setPainel(false)}>
         {!itens.length && (
           <div className="ls-vazia">
             <span className="ls-vazia-ico"><Ico d={ICO.lista} size={30} /></span>
@@ -476,8 +480,9 @@ function Lista({ sessao, onSair }) {
         )}
         {voz && <div className="ls-voz">{voz === 'ouvir' ? t('lista.vozAOuvir') : t('lista.vozAPensar')}</div>}
         <form className="ls-entrada" onSubmit={submeter}>
-          <span className="ls-entrada-ico"><Ico d={ICO.plus} /></span>
-          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={t('lista.placeholder')}
+          <button type="button" className={`ls-icone ls-mais ${painel ? 'aberto' : ''}`} onClick={alternarPainel}
+            aria-expanded={painel} aria-label={t('lista.talvez')}><Ico d={ICO.plus} /></button>
+          <input ref={entradaRef} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={t('lista.placeholder')}
             onFocus={() => setFoco(true)} onBlur={() => setFoco(false)}
             enterKeyHint="done" autoComplete="off" aria-label={t('lista.placeholder')} />
           {texto.trim()

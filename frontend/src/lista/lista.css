@@ -81,8 +81,12 @@ html, body { margin: 0; background: #ffffff; }
 /* ── base fixa: avisos, autocomplete, sugestões, entrada ── */
 .ls-base { flex: none; position: relative; padding: 8px 12px max(10px, env(safe-area-inset-bottom));
   background: var(--bg); border-top: 1px solid var(--linha); }
-.ls-entrada { display: flex; align-items: center; gap: 4px; background: var(--sup); border-radius: 16px; padding: 4px 4px 4px 12px; }
-.ls-entrada:focus-within { box-shadow: 0 0 0 2px var(--acento); }
+.ls-entrada { display: flex; align-items: center; gap: 2px; background: var(--sup); border-radius: 16px; padding: 4px; }
+/* "+" abre/fecha as sugestões sem teclado; roda para "×" quando aberto */
+.ls-mais svg { transition: transform .2s; }
+.ls-mais.aberto { color: var(--acento); }
+.ls-mais.aberto svg { transform: rotate(45deg); }
+.ls-entrada:has(input:focus) { box-shadow: 0 0 0 2px var(--acento); } /* só a escrever (não ao tocar no "+") */
 .ls-entrada-ico { display: grid; color: var(--tinta-3); }
 .ls-entrada input { flex: 1; min-width: 0; height: 44px; border: 0; background: none; color: var(--tinta);
   font-size: 16px; padding: 0 6px; outline: none; }
