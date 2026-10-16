@@ -98,8 +98,8 @@ html, body { margin: 0; background: #ffffff; }
 .ls-icone-cheio:active { background: var(--acento); opacity: .85; }
 @keyframes ls-pulso { 50% { opacity: .7; } }
 
-/* até 3 LINHAS de sugestões (dono 2026-10-16: "fica mais fácil"); mais do que isso → scroll dentro */
-.ls-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 2px; margin-bottom: 10px; max-height: calc(3 * 36px + 2 * 8px);
+/* até 4 LINHAS de sugestões (dono 2026-10-16: eram 3, pediu 4); mais do que isso → scroll dentro */
+.ls-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 2px; margin-bottom: 10px; max-height: calc(4 * 36px + 3 * 8px);
   overflow-y: auto; scrollbar-width: none; }
 .ls-chips::-webkit-scrollbar { display: none; }
 .ls-chips button { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 13px 0 10px;
