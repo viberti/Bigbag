@@ -15,7 +15,8 @@ const pool = getPool();
 const [alvos] = await pool.query(
   `SELECT i.id, i.fatura_id, i.descricao_original, i.preco_liquido, i.linha_peso, i.preco_por_base, i.peso_em_falta
      FROM item i
-    WHERE i.linha_peso REGEXP '^1([.,]0+)? ?kg( x|$)' AND ABS(i.preco_por_base - i.preco_liquido) < 0.01`);
+    WHERE i.linha_peso REGEXP '^1([.,]0+)? ?kg( x|$)' AND ABS(i.preco_por_base - i.preco_liquido) < 0.01
+      AND i.descricao_original NOT REGEXP '(^|[^0-9,.])1 ?KG'`); // embalagem REAL de 1 kg: aí €/kg = preço está certo
 console.log(`${alvos.length} linhas com peso fantasma${APLICAR ? '' : ' (pré-visualização — use --apply)'}`);
 if (APLICAR && alvos.length) {
   const ficheiro = `/home/dev/reparar_peso_fantasma_${new Date().toISOString().slice(0, 10)}.json`;
